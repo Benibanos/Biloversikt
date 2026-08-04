@@ -86,6 +86,7 @@
   .brand{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
   .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .btn-label-short{display:none;}
   .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .menu-wrap{position:relative;}
   .datepicker-popup{
@@ -186,6 +187,13 @@
   .btn.secondary:hover{border-color:var(--ink);}
   .btn.danger-outline{background:var(--surface);color:var(--red);border:1.5px solid var(--red-soft);font-weight:600;}
   .btn.danger-outline:hover{background:var(--red-soft);}
+  .btn.danger{background:var(--red);color:#fff;border:1.5px solid var(--red);font-weight:700;}
+  .btn.danger:hover{opacity:.9;}
+  .danger-zone{
+    margin-top:40px;padding:18px;border:1.5px dashed var(--red);border-radius:var(--radius);
+    background:var(--red-soft);
+  }
+  .danger-zone-title{font-size:13px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
   .btn.small{padding:6px 11px;font-size:12.5px;border-radius:7px;}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
   .btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
@@ -466,6 +474,11 @@
     /* Full mobilnavigasjon skjer nå via sidemenyen (drawer) — fanerekken tar for
        mye plass og blir trang på smale skjermer, så den skjules på mobil. */
     .navtabs{display:none;}
+
+    /* Header-knappene "Registrer kontroll"/"Registrer verkstedtime" får kortere
+       tekst på smal skjerm, slik at begge fortsatt har plass ved siden av "☰ Meny". */
+    .btn-label-full{display:none;}
+    .btn-label-short{display:inline;}
 
     /* Skjemaer og info-rader: alltid én kolonne på mobil */
     .form-grid, .row2, .row3, .row4, .ov-grid{grid-template-columns:1fr;}
@@ -2098,7 +2111,8 @@ function render(){
     <div class="shell-top">
       ${brandBlockHtml()}
       <div class="shell-top-right">
-        <button class="btn small" id="header-kontroll-btn">Registrer kontroll</button>
+        <button class="btn small" id="header-kontroll-btn"><span class="btn-label-full">✅ Registrer kontroll</span><span class="btn-label-short">✅ Kontroll</span></button>
+        <button class="btn small secondary" id="header-vt-btn"><span class="btn-label-full">🔧 Registrer verkstedtime</span><span class="btn-label-short">🔧 Verksted</span></button>
         <div class="menu-wrap">
           <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
             ☰ Meny
@@ -2118,6 +2132,7 @@ function render(){
 
   document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
   document.getElementById('header-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
+  document.getElementById('header-vt-btn').addEventListener('click', () => goToRegisterVT(''));
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
 
   renderDrawer();
@@ -2363,9 +2378,11 @@ function accordionRow(v){
   const expanded = dashExpandedId === v.id;
   const reasons = vehicleReasons(v);
   const vDamages = vehicleDamages(v.id);
+  const vDamagesAktive = vDamages.filter(skadeIsOpen);
   const vVT = vehicleVT(v.id);
+  const vNesteVT = vVT.filter(t => t.dato >= todayISO()).sort((a,b) => a.dato.localeCompare(b.dato))[0] || null;
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
-  const openCount = vDamages.filter(skadeIsOpen).length;
+  const openCount = vDamagesAktive.length;
   const kontrollertIdag = isKontrollertIdag(v.id);
 
   return `
@@ -2391,13 +2408,9 @@ function accordionRow(v){
         <div class="detail-section">
           <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oversikt</h4>
           <div class="ov-grid">
-            <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${esc(v.regnr)}</span></div>
-            <div class="ov-item"><span class="ov-label">Bilnummer</span><span class="ov-value">${esc(v.bilnummer)}</span></div>
-            <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_LABEL[v.kategori] || '—'}</span></div>
             <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
-            <div class="ov-item"><span class="ov-label">Dekktype</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'}</span></div>
             <div class="ov-item"><span class="ov-label">Løyvenummer</span><span class="ov-value">${v.loyvenummer ? esc(v.loyvenummer) : 'Ikke satt'}</span></div>
-            <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${STATUS_LABEL[v.status] || 'OK'}</span></div>
+            <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
             <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span></div>
           </div>
         </div>
@@ -2416,15 +2429,16 @@ function accordionRow(v){
           </ul>`}
         </div>
         <div class="detail-section" style="margin-top:16px;">
-          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Registrerte skader</h4>
-          ${vDamages.length === 0 ? `<div class="empty-note" style="padding:4px 0;">Ingen registrerte skader</div>` : `
+          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Aktiv skadehistorikk</h4>
+          ${vDamagesAktive.length === 0 ? `<div class="empty-note" style="padding:4px 0;">Ingen aktive skader</div>` : `
           <ul class="dmg-simple-list">
-            ${vDamages.map(d => `<li><span class="dmg-simple-main">${esc(d.beskrivelse)} – ${fmt(d.dato)}</span><span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span></li>`).join('')}
+            ${vDamagesAktive.map(d => `<li><span class="dmg-simple-main">${esc(d.beskrivelse)} – ${fmt(d.dato)}</span><span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span></li>`).join('')}
           </ul>`}
         </div>
         <div class="panel-actions" style="margin-top:14px;">
           <button class="btn" data-edit="${v.id}">Rediger bil</button>
           <button class="btn secondary" data-kontroll="${v.id}">Registrer kontroll</button>
+          <button class="btn secondary" data-vt="${v.id}">🔧 Registrer verkstedtime</button>
         </div>
       </div>` : ''}
     </div>
@@ -2444,6 +2458,10 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-kontroll]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     goToRegisterKontroll(el.dataset.kontroll);
+  }));
+  document.querySelectorAll('[data-vt]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToRegisterVT(el.dataset.vt);
   }));
   document.querySelectorAll('[data-stat-nav]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -3060,7 +3078,6 @@ function renderBilkort(){
       </div>
       <div class="panel-actions" style="margin-top:0;">
         <button class="btn" id="bilkort-vt-btn">🔧 Registrer verkstedtime</button>
-        <button class="btn danger-outline small" id="del-vehicle">Slett kjøretøy</button>
       </div>
     </div>
 
@@ -3068,6 +3085,12 @@ function renderBilkort(){
       ${bilkortAccordionRow('info', 'Bilinformasjon', null, infoBody)}
       ${bilkortAccordionRow('kontroll', 'Kontrollhistorikk', vKontroller.length, kontrollBody)}
       ${bilkortAccordionRow('skade', 'Skadehistorikk', vDamages.length, skadeBody)}
+    </div>
+
+    <div class="danger-zone">
+      <h4 class="danger-zone-title">⚠️ Faresone</h4>
+      <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
+      <button class="btn danger" id="del-vehicle">🗑️ Slett bil</button>
     </div>
   `;
 }
