@@ -1,0 +1,3737 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bilpark</title>
+
+<meta name="theme-color" content="#1C2024">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bilpark">
+
+<!-- Airtable — sentral database. Se AIRTABLE_MIGRATION.md for full forklaring
+     og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
+     airtable-config.js er synlig for alle som besøker siden. -->
+<script src="airtable-config.js"></script>
+<script src="storage.airtable.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg:#EEF0F0;
+    --surface:#FFFFFF;
+    --ink:#1C2024;
+    --muted:#5B6470;
+    --line:#DCE0E2;
+    --red:#E30613;
+    --red-soft:#FDE8E9;
+    --amber:#B4720A;
+    --amber-soft:#FBEEDC;
+    --green:#1F8A57;
+    --green-soft:#E7F4EC;
+    --blue:#003399;
+    --blue-soft:#E7ECFA;
+    --plate-blue:#003399;
+    --chrome-bg:#1C2024;
+    --chrome-text:#FFFFFF;
+    --radius:14px;
+  }
+  /* Mørkemodus: mørkegrå (ikke helsvart) med lyse tekster og samme fargeprofil,
+     satt via data-theme på <html> (styrt av tema-valget i Innstillinger). */
+  :root[data-theme="dark"]{
+    --bg:#15171B;
+    --surface:#1E2126;
+    --ink:#ECEDEE;
+    --muted:#9AA1AB;
+    --line:#33373E;
+    --red:#FF6B6B;
+    --red-soft:#3D1418;
+    --amber:#F5B94D;
+    --amber-soft:#3D2E0E;
+    --green:#4ADE94;
+    --green-soft:#0F2B1E;
+    --blue:#7AA2FF;
+    --blue-soft:#141C33;
+    --chrome-bg:#ECEDEE;
+    --chrome-text:#15171B;
+  }
+  *{box-sizing:border-box;}
+  /* Felles, global regel — IKKE per komponent — som sørger for at absolutt alle
+     <select>-nedtrekksmenyer i appen (bilvalg, verkstedvalg, statusvalg, kategori,
+     filtre, Administratorbrukere, Verkstedregister osv.) følger valgt tema, inkludert
+     selve popup-listen med valgene når man klikker ned menyen. Dette er den ene
+     felles løsningen alle nåværende OG fremtidige select-elementer arver automatisk,
+     uten at noen enkelt-dropdown trenger egen styling. */
+  select, select option{background-color:var(--surface);color:var(--ink);}
+  select option:checked, select option:hover{background-color:var(--bg);}
+  html{overflow-x:hidden;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;width:100%;}
+  #app{max-width:1080px;margin:0 auto;padding:20px 16px 80px;}
+  h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;margin:0;}
+
+  /* ---- App shell ---- */
+  .shell-top{
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    padding-bottom:14px;margin-bottom:14px;
+    border-bottom:3px solid transparent;
+    border-image:linear-gradient(90deg,#0B8457 0%,#0B8457 45%,#FF7A00 100%) 1;
+  }
+  .brand-block{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
+  .brand{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
+  .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
+  .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .menu-wrap{position:relative;}
+  .datepicker-popup{
+    position:absolute;width:min(300px,92vw);background:var(--surface);border:1.5px solid var(--line);
+    border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:12px;z-index:300;
+  }
+  .dp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .dp-nav{background:none;border:1.5px solid var(--line);border-radius:8px;width:38px;height:38px;font-size:16px;color:var(--ink);cursor:pointer;}
+  .dp-nav:hover{background:var(--bg);}
+  .dp-month-year{background:none;border:none;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;padding:6px 10px;border-radius:8px;}
+  .dp-month-year:hover{background:var(--bg);}
+  .dp-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;}
+  .dp-weekdays div{text-align:center;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .dp-day{
+    aspect-ratio:1;border:none;background:none;border-radius:8px;font-size:13px;color:var(--ink);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:38px;font-family:'Inter',sans-serif;
+  }
+  .dp-day:hover{background:var(--bg);}
+  .dp-day.muted{color:var(--muted);opacity:.45;}
+  .dp-day.today{border:1.5px solid var(--chrome-bg);font-weight:700;}
+  .dp-day.selected{background:var(--chrome-bg);color:var(--chrome-text);font-weight:700;}
+  .dp-today-btn{width:100%;margin-top:10px;padding:9px;min-height:44px;border-radius:8px;border:1.5px solid var(--line);background:none;color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;}
+  .dp-today-btn:hover{background:var(--bg);}
+  .dp-year-menu{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:230px;overflow-y:auto;}
+  .dp-year-opt{padding:9px;min-height:40px;border-radius:8px;border:1.5px solid var(--line);background:none;color:var(--ink);font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;}
+  .dp-year-opt:hover{background:var(--bg);}
+  .dp-year-opt.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .timepicker-popup{
+    position:absolute;width:140px;max-height:280px;overflow-y:auto;background:var(--surface);
+    border:1.5px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);
+    padding:6px;z-index:300;
+  }
+  .tp-list{display:flex;flex-direction:column;gap:2px;}
+  .tp-row{
+    padding:10px 12px;min-height:40px;border:none;background:none;border-radius:8px;
+    font-size:13.5px;font-weight:600;color:var(--ink);text-align:left;cursor:pointer;font-family:'Inter',sans-serif;
+  }
+  .tp-row:hover{background:var(--bg);}
+  .tp-row.selected{background:var(--chrome-bg);color:var(--chrome-text);font-weight:700;}
+  .drawer-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .drawer-overlay.open{opacity:1;pointer-events:auto;}
+  .drawer{
+    position:fixed;top:0;right:0;height:100%;height:100dvh;width:min(340px,88vw);
+    background:var(--surface);z-index:201;box-shadow:-10px 0 34px rgba(0,0,0,.22);
+    transform:translateX(100%);transition:transform .22s ease;
+    display:flex;flex-direction:column;overflow-y:auto;
+  }
+  .drawer.open{transform:translateX(0);}
+  .drawer-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 18px 14px;border-bottom:1.5px solid var(--line);flex-shrink:0;
+  }
+  .drawer-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--ink);}
+  .drawer-close{
+    background:none;border:1.5px solid var(--line);border-radius:10px;
+    width:42px;height:42px;min-width:42px;font-size:18px;color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .drawer-close:hover{background:var(--bg);}
+  .drawer-user{
+    padding:12px 18px;font-size:12px;color:var(--muted);font-weight:600;
+    border-bottom:1.5px solid var(--line);flex-shrink:0;
+  }
+  .drawer-section-label{
+    padding:16px 18px 6px;font-size:11px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.05em;
+  }
+  .drawer-nav{padding:6px 10px;display:flex;flex-direction:column;gap:2px;}
+  .drawer-item{
+    display:flex;align-items:center;gap:13px;width:100%;text-align:left;
+    background:none;border:none;border-radius:12px;padding:14px 13px;min-height:52px;
+    font-size:15px;font-weight:600;color:var(--ink);font-family:'Inter',sans-serif;cursor:pointer;
+  }
+  .drawer-item:hover{background:var(--bg);}
+  .drawer-item .drawer-icon{font-size:19px;width:24px;text-align:center;flex-shrink:0;}
+  .drawer-item.active{background:var(--amber-soft);font-weight:700;}
+  .drawer-dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
+  .drawer-divider{height:1.5px;background:var(--line);margin:10px 14px;flex-shrink:0;}
+  .drawer-footer{padding:10px 10px 16px;margin-top:auto;border-top:1.5px solid var(--line);flex-shrink:0;}
+  @media (max-width:640px){
+    .drawer{width:100%;box-shadow:none;}
+  }
+
+  .navtabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
+  .navtab{background:none;border:1.5px solid var(--line);color:var(--muted);padding:8px 15px;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Inter',sans-serif;min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+  .navtab.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .navtab:not(.active):hover{border-color:var(--ink);color:var(--ink);}
+  .navtab:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+  .btn{background:var(--chrome-bg);color:var(--chrome-text);border:none;border-radius:9px;padding:10px 18px;font-size:13.5px;font-weight:600;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+  .btn:hover{filter:brightness(0.85);}
+  .btn.secondary{background:var(--surface);color:var(--ink);border:1.5px solid var(--line);}
+  .btn.secondary:hover{border-color:var(--ink);}
+  .btn.danger-outline{background:var(--surface);color:var(--red);border:1.5px solid var(--red-soft);font-weight:600;}
+  .btn.danger-outline:hover{background:var(--red-soft);}
+  .btn.small{padding:6px 11px;font-size:12.5px;border-radius:7px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+  .backrow{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .backbtn{background:none;border:1.5px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13px;color:var(--ink);font-weight:600;min-height:44px;display:inline-flex;align-items:center;}
+  .backbtn:hover{border-color:var(--ink);}
+
+  /* ---- Dashboard ---- */
+  .greeting-card{
+    background:var(--surface);border:1.5px solid var(--line);border-left:5px solid var(--line);
+    border-radius:var(--radius);padding:18px;margin-bottom:20px;
+  }
+  .greeting-card.morgen{border-left-color:var(--amber);}
+  .greeting-card.dag{border-left-color:var(--ink);}
+  .greeting-card.kveld{border-left-color:var(--blue);}
+  .greeting-title{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em;}
+  .greeting-sub{color:var(--muted);font-size:13.5px;margin-top:4px;}
+  .greeting-role{font-size:12.5px;font-weight:700;color:var(--ink);margin-top:2px;text-transform:uppercase;letter-spacing:.03em;opacity:.7;}
+  .greeting-datetime{font-size:12.5px;color:var(--muted);margin-top:10px;}
+  .greeting-weather{font-size:12.5px;color:var(--muted);margin-top:4px;}
+  .greeting-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:center;}
+  .greeting-right{
+    display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:flex-start;
+    padding-left:20px;border-left:1.5px solid var(--line);
+  }
+  .status-chip{
+    display:inline-flex;align-items:center;gap:4px;padding:6px 13px;border-radius:100px;
+    background:var(--bg);border:1.5px solid var(--line);font-size:12.5px;font-weight:700;
+    color:var(--ink);white-space:nowrap;cursor:pointer;transition:border-color .15s ease, transform .1s ease;
+  }
+  .status-chip:hover{border-color:var(--ink);}
+  .status-chip:active{transform:scale(0.95);}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:26px;}
+  .stat-card{
+    background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px;
+    cursor:pointer;transition:box-shadow .15s ease, transform .1s ease, border-color .15s ease;
+  }
+  .stat-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);border-color:var(--muted);}
+  .stat-card:active{transform:scale(0.97);}
+  .stat-num{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;line-height:1;}
+  .stat-label{color:var(--muted);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-top:8px;}
+  .stat-card.accent-red .stat-num{color:var(--red);}
+  .stat-card.accent-amber .stat-num{color:var(--amber);}
+  .stat-card.accent-blue .stat-num{color:var(--blue);}
+
+  .section-title{font-size:14px;font-weight:700;margin-bottom:12px;}
+  .group-count{background:var(--line);color:var(--muted);font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:100px;}
+  .dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:26px;}
+  .dash-row-2 .stat-grid{margin-bottom:0;}
+  .dash-group-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
+  .dash-group-card{padding:0;overflow:hidden;}
+  .group-card-head{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:16px 18px;min-height:44px;cursor:pointer;
+  }
+  .group-card-title{font-family:'Space Grotesk',sans-serif;font-size:15.5px;font-weight:700;}
+  .group-card-sub{font-size:12px;color:var(--muted);margin-top:3px;}
+  .group-card-head .chevron{transition:transform .2s ease;flex-shrink:0;}
+  .group-card-head .chevron.open{transform:rotate(180deg);}
+  /* Myk åpne/lukke-animasjon uten JS-målt høyde: raden animerer mellom 0fr og 1fr,
+     og det indre laget skjuler overflyt mens den er lukket. Arver temaet automatisk
+     siden ingen farger er hardkodet her. */
+  .vehicle-group-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease;}
+  .vehicle-group-body.open{grid-template-rows:1fr;}
+  .vehicle-group-body > div{overflow:hidden;padding:0 18px;}
+  .vehicle-group-body.open > div{padding-bottom:16px;}
+  .flag-name{font-weight:600;font-size:13.5px;}
+  .flag-reason{font-size:12px;color:var(--muted);}
+  .empty-note{color:var(--muted);font-size:13px;padding:16px 0;}
+
+  .acc-list{display:flex;flex-direction:column;gap:10px;}
+  .acc-row{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);border-left:5px solid var(--line);overflow:hidden;transition:box-shadow .15s;}
+  .acc-row.ok{border-left-color:var(--green);}
+  .acc-row.oppfolging{border-left-color:var(--amber);}
+  .acc-row.verksted{border-left-color:var(--blue);}
+  .acc-row.varsel{border-left-color:var(--red);}
+  .acc-row:hover{box-shadow:0 3px 14px rgba(0,0,0,.06);}
+  .acc-head{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;flex-wrap:wrap;}
+  .acc-head-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  .acc-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+  .acc-row .chevron{color:var(--muted);font-size:18px;transition:transform .15s;}
+  .acc-row.expanded .chevron{transform:rotate(180deg);}
+  .acc-body{border-top:1.5px solid var(--line);padding:16px;background:var(--bg);}
+
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
+  .ov-item{display:flex;flex-direction:column;gap:2px;}
+  .ov-item-clickable{
+    cursor:pointer;padding:8px 10px;margin:-8px -10px;border-radius:10px;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .ov-item-clickable:hover{background:var(--bg);}
+  .ov-item-clickable:active{transform:scale(0.97);}
+  .ov-label{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+  .ov-value{font-size:13.5px;font-weight:600;}
+
+  .dmg-simple-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .dmg-simple-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:9px 12px;}
+  .dmg-simple-main{font-size:13px;}
+  .dmg-simple-list li[data-goto-vt]{cursor:pointer;}
+  .dmg-simple-list li[data-goto-vt]:hover{border-color:var(--ink);}
+
+  /* ---- Bilregister ---- */
+  .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .filters-row input[type=text], .filters-row input[type=date], .filters-row select{
+    font-family:'Inter',sans-serif;font-size:13.5px;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-height:44px;
+  }
+  .filters-row input[type=text]{flex:1;min-width:180px;}
+  .filters-row select, .filters-row input[type=date]{min-width:150px;}
+  .filters-row input:focus, .filters-row select:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .count{font-size:13px;color:var(--muted);}
+
+  .panel{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;}
+  .panel h3{font-size:15px;margin-bottom:12px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+  .field input, .field select, .field textarea{font-family:'Inter',sans-serif;font-size:14px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-height:44px;}
+  .field textarea{resize:vertical;min-height:90px;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+  .panel-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+  .empty{text-align:center;padding:50px 20px;color:var(--muted);background:var(--surface);border:1.5px dashed var(--line);border-radius:var(--radius);}
+  .empty h3{color:var(--ink);margin-bottom:6px;font-size:16px;}
+
+  .gcard{background:var(--surface);border-radius:var(--radius);border:1.5px solid var(--line);border-left:5px solid var(--line);overflow:hidden;cursor:pointer;transition:box-shadow .15s;}
+  .gcard.ok{border-left-color:var(--green);}
+  .gcard.oppfolging{border-left-color:var(--amber);}
+  .gcard.verksted{border-left-color:var(--blue);}
+  .gcard:hover{box-shadow:0 3px 14px rgba(0,0,0,.07);}
+  .gcard-head{padding:16px;display:flex;gap:12px;align-items:flex-start;min-width:0;}
+  .plate{flex-shrink:0;display:flex;height:34px;border-radius:5px;overflow:hidden;border:1.5px solid #1C2024;font-family:'Space Grotesk',sans-serif;}
+  .plate .cc{background:var(--plate-blue);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;width:16px;}
+  .plate .num{background:#fff;color:#111;font-weight:700;font-size:15px;letter-spacing:.06em;display:flex;align-items:center;padding:0 8px;white-space:nowrap;}
+  .gcard-titles{min-width:0;flex:1;}
+  .gcard-titles .model{font-weight:700;font-size:15px;overflow-wrap:break-word;}
+  .gcard-titles .model-sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .gcard-badges{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 16px;}
+  .badge{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:100px;display:inline-flex;align-items:center;gap:5px;}
+  .badge.ok{background:var(--green-soft);color:var(--green);}
+  .badge.soon, .badge.oppfolging, .badge.middels{background:var(--amber-soft);color:var(--amber);}
+  .badge.overdue, .badge.hoy{background:var(--red-soft);color:var(--red);}
+  .badge.verksted, .badge.registrert{background:var(--blue-soft);color:var(--blue);}
+  .badge.unset{background:var(--line);color:var(--muted);}
+  .badge.utbedret, .badge.lav{background:var(--green-soft);color:var(--green);}
+
+  /* ---- Bilkort ---- */
+  .bilkort-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+  .bilkort-title{display:flex;gap:12px;align-items:center;min-width:0;flex-wrap:wrap;}
+  .bilkort-title .model{font-size:19px;font-weight:700;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+  .row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+
+  .dmg-list{display:flex;flex-direction:column;gap:8px;}
+  .dmg-item{background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;}
+  .dmg-item:hover{border-color:var(--ink);}
+  .dmg-item.utbedret{opacity:.65;}
+  .dmg-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+  .dmg-text .main{font-weight:700;font-size:13.5px;}
+  .dmg-item.utbedret .main{text-decoration:line-through;}
+  .dmg-text .desc{font-size:13px;color:var(--ink);margin-top:2px;}
+  .dmg-meta{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .dmg-badges{display:flex;gap:6px;flex-shrink:0;}
+  .dmg-editbox{margin-top:12px;padding-top:12px;border-top:1.5px dashed var(--line);}
+
+  /* ---- Verkstedtimer ---- */
+  .vt-section{margin-bottom:26px;}
+  .vt-section:last-child{margin-bottom:0;}
+  .vt-list{display:flex;flex-direction:column;gap:8px;}
+  .vt-card{background:var(--surface);border:1.5px solid var(--line);border-left:5px solid var(--line);border-radius:10px;overflow:hidden;}
+  .vt-card.ok{border-left-color:var(--green);}
+  .vt-card.soon{border-left-color:var(--amber);}
+  .vt-card.unset{border-left-color:var(--line);}
+  .vt-top{padding:12px 14px;display:flex;justify-content:space-between;gap:12px;cursor:pointer;flex-wrap:wrap;align-items:flex-start;}
+  .vt-vehicle{font-weight:700;font-size:13.5px;}
+  .vt-desc{font-size:13px;margin-top:2px;}
+  .vt-when{text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+  .vt-date{font-weight:700;font-size:13.5px;}
+  .vt-time{font-size:12px;color:var(--muted);}
+
+
+  /* ---- Bilder / skjemaer ---- */
+  .photo-input-area{border:1.5px dashed var(--line);border-radius:10px;padding:16px;text-align:center;background:var(--surface);}
+  .photo-input-area input[type=file]{font-size:13px;}
+  .photo-preview{max-width:100%;max-height:220px;border-radius:9px;margin-top:12px;display:block;margin-left:auto;margin-right:auto;}
+  .required-hint{font-size:12px;color:var(--muted);margin-top:4px;}
+  .form-msg{font-size:13px;color:var(--red);margin-top:6px;}
+
+  /* ---- Sjåførkontroll ---- */
+  .kt-vehicle-card{
+    background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
+    padding:16px;display:flex;gap:12px;align-items:center;margin-bottom:18px;
+  }
+  .kt-vehicle-card .model{font-weight:700;font-size:15px;}
+  .kt-vehicle-card .model-sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .kt-km-input{font-size:22px !important;font-weight:700;padding:14px 12px !important;text-align:center;}
+  .chip-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  .chip{
+    display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;min-height:56px;
+    border:1.5px solid var(--line);background:var(--surface);cursor:pointer;user-select:none;
+    font-size:14.5px;font-weight:600;transition:border-color .1s, background .1s;
+  }
+  .chip input{width:22px;height:22px;flex-shrink:0;accent-color:var(--ink);}
+  .chip-icon{font-size:19px;line-height:1;flex-shrink:0;width:24px;text-align:center;}
+  .chip-text{flex:1;}
+  .chip:has(input:checked){border-color:var(--ink);background:var(--amber-soft);}
+  .chip.checked{border-color:var(--ink);background:var(--amber-soft);}
+  .chip.chip-active-lamp{border-color:var(--red);background:var(--red-soft);cursor:not-allowed;}
+  .chip.chip-active-lamp .chip-text{color:var(--ink);}
+  .vl-status-badge{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:100px;
+    font-size:11.5px;font-weight:700;border:1.5px solid transparent;margin-left:8px;
+    text-transform:none;letter-spacing:normal;vertical-align:middle;
+  }
+  .vl-status-badge.red{background:var(--red-soft);color:var(--red);border-color:var(--red);}
+  .vl-status-badge.amber{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);}
+  .vl-status-badge.green{background:var(--green-soft);color:var(--green);border-color:var(--green);}
+  .active-lamp-list{
+    display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding:12px 14px;
+    border:1.5px solid var(--red);background:var(--red-soft);border-radius:12px;
+  }
+  .active-lamp-list-title{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+  .active-lamp-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);}
+  .chip-yn{display:flex;gap:10px;}
+  .chip-yn label{
+    flex:1;text-align:center;padding:16px;border-radius:12px;border:1.5px solid var(--line);
+    background:var(--surface);cursor:pointer;font-weight:700;font-size:15px;user-select:none;
+  }
+  .chip-yn input{display:none;}
+  .chip-yn label:has(input:checked){border-color:var(--chrome-bg);background:var(--chrome-bg);color:var(--chrome-text);}
+  .chip-yn label.checked{border-color:var(--chrome-bg);background:var(--chrome-bg);color:var(--chrome-text);}
+  .kt-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px;}
+  .kt-photo-thumb{position:relative;}
+  .kt-photo-thumb img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);}
+  .kt-photo-thumb button{
+    position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:100px;
+    background:var(--red);color:#fff;border:2px solid #fff;font-size:12px;line-height:1;padding:0;
+  }
+  .kt-history-card{background:var(--surface);border:1.5px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:12px 14px;}
+  .kt-history-card.avvik{border-left-color:var(--amber);}
+  .kt-history-top{display:flex;justify-content:space-between;gap:10px;font-weight:700;font-size:13.5px;}
+  .kt-history-lines{margin-top:6px;font-size:12.5px;color:var(--ink);display:flex;flex-direction:column;gap:2px;}
+  .kt-history-meta{font-size:11.5px;color:var(--muted);margin-top:6px;}
+
+  .vl-card{
+    background:var(--surface);border:1.5px solid var(--line);border-left:5px solid var(--red);border-radius:10px;
+    padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  .vl-card.kvittert{border-left-color:var(--green);opacity:.75;}
+  .vl-card-main{font-size:13.5px;}
+  .vl-card-main .title{font-weight:700;}
+  .vl-card-meta{font-size:11.5px;color:var(--muted);margin-top:3px;}
+  .vl-indicator{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
+  .vl-indicator.red{color:var(--red);}
+  .vl-indicator.green{color:var(--green);}
+  .vl-indicator.amber{color:var(--amber);}
+
+  /* ---- Innstillinger ---- */
+  .settings-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .settings-row{background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .settings-add{display:flex;gap:8px;}
+  .settings-add input{flex:1;}
+  .theme-options{display:flex;flex-direction:column;gap:8px;}
+  .theme-option{
+    display:flex;align-items:center;gap:10px;padding:14px;min-height:44px;
+    border:1.5px solid var(--line);border-radius:10px;background:var(--surface);
+    cursor:pointer;font-weight:600;font-size:13.5px;color:var(--ink);
+  }
+  .theme-option input{width:20px;height:20px;flex-shrink:0;accent-color:var(--chrome-bg);}
+  .theme-option.checked{border-color:var(--chrome-bg);border-width:2px;}
+
+  @media (max-width:640px){
+    /* Full mobilnavigasjon skjer nå via sidemenyen (drawer) — fanerekken tar for
+       mye plass og blir trang på smale skjermer, så den skjules på mobil. */
+    .navtabs{display:none;}
+
+    /* Skjemaer og info-rader: alltid én kolonne på mobil */
+    .form-grid, .row2, .row3, .row4, .ov-grid{grid-template-columns:1fr;}
+
+    /* Dashboard: Bilparkstatus/Sjåførkontroll og de tre bilgruppekortene stables
+       under hverandre i stedet for sideveis scrolling */
+    .dash-row-2, .dash-group-grid{grid-template-columns:1fr;}
+
+    /* Velkomstkort: to kolonner blir én, med en tynn linje over i stedet for til
+       venstre når statuslinjene havner under hilsenen i stedet for ved siden av */
+    .greeting-grid{grid-template-columns:1fr;}
+    .greeting-right{border-left:none;border-top:1.5px solid var(--line);padding-left:0;padding-top:14px;margin-top:14px;}
+
+    /* Filtre: full bredde og stablet i stedet for trange felt ved siden av hverandre */
+    .filters-row{flex-direction:column;align-items:stretch;}
+    .filters-row input, .filters-row select{width:100%;min-width:0;}
+
+    /* Varsellampe-avhukingsbokser: én stor, tydelig rad om gangen */
+    .chip-grid{grid-template-columns:1fr;}
+
+    /* Statistikk-kort: aldri mer enn to smale kort ved siden av hverandre */
+    .stat-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+
+    /* Header/meny: knappene får lov til å ta hele bredden hver for seg om plassen er trang */
+    .shell-top-right{width:100%;justify-content:space-between;}
+
+    /* Kort og paneler: litt tettere luft, men fortsatt tydelig avstand */
+    #app{padding:16px 12px 90px;}
+    .gallery{grid-template-columns:1fr;}
+
+    /* Bilkort-hode og lignende flex-rader: la innhold falle ned i stedet for å trykkes sammen */
+    .bilkort-head, .kt-vehicle-card, .gcard-head, .toolbar{flex-wrap:wrap;}
+    .panel-actions{flex-direction:column;align-items:stretch;}
+    .panel-actions .btn{width:100%;}
+
+    /* Verkstedtime/skade-kort: dato/tid under i stedet for presset til høyre */
+    .vt-top{flex-direction:column;align-items:stretch;}
+    .vt-when{align-items:flex-start;text-align:left;}
+  }
+
+  /* Touch-enheter uansett skjermbredde (f.eks. nettbrett i portrett) får samme
+     fingervennlige knappestørrelse som mobil, jf. minstekrav på 44px høyde. */
+  @media (hover:none) and (pointer:coarse){
+    .btn, .navtab, .backbtn{min-height:44px;}
+    input[type=checkbox], input[type=radio]{width:22px;height:22px;}
+  }
+
+  .pwa-install-bar{background:var(--chrome-bg);color:var(--chrome-text);padding:10px 16px;display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap;text-align:center;font-size:13.5px;}
+  .pwa-install-actions{display:flex;gap:8px;flex-shrink:0;}
+  .pwa-install-bar .btn{padding:6px 14px;font-size:12.5px;}
+  .pwa-install-bar .btn.secondary{background:transparent;color:var(--chrome-text);border-color:var(--chrome-text);opacity:.75;}
+  .pwa-install-bar .btn.secondary:hover{opacity:1;}
+</style>
+</head>
+<body>
+<div id="pwa-install-bar" class="pwa-install-bar" style="display:none;">
+  <span>Installer appen for raskere tilgang og bruk uten nett.</span>
+  <div class="pwa-install-actions">
+    <button id="pwa-install-btn" class="btn small">Installer</button>
+    <button id="pwa-install-dismiss" class="btn secondary small">Lukk</button>
+  </div>
+</div>
+<div id="pwa-ios-hint" class="pwa-install-bar" style="display:none;">
+  <span>Legg appen til på Hjemskjerm: trykk Del-knappen nederst i Safari, og velg «Legg til på Hjemskjerm».</span>
+  <div class="pwa-install-actions">
+    <button id="pwa-ios-dismiss" class="btn secondary small">Lukk</button>
+  </div>
+</div>
+<!-- Mobilmeny (drawer). Ligger utenfor #app slik at CSS-glidningen ikke
+     avbrytes av at render() bygger om resten av siden på nytt. Innholdet
+     fylles/oppdateres av renderDrawer() i JS. -->
+<div id="drawer-overlay" class="drawer-overlay"></div>
+<div id="app-drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Meny"></div>
+<div id="app">Laster inn...</div>
+
+<script>
+// ---- Nettverksstatus ----
+// Lagringen skjer nå sentralt i Airtable (se airtable-config.js og
+// storage.airtable.js, lastet i <head> FØR denne filen). I motsetning til
+// Firestore har ikke Airtables API innebygd offline-kø — mister enheten
+// nettet midt i en innsending, kan den feile. Varsellinjen under gjør i det
+// minste tydelig NÅR det er tilfelle, slik at man kan prøve igjen når nettet
+// er tilbake i stedet for å anta at innsendingen gikk gjennom.
+function updateOfflineBanner(){
+  let bar = document.getElementById('offline-banner');
+  if(!navigator.onLine){
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'offline-banner';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B45309;color:#fff;padding:12px 16px;font:600 13.5px system-ui,sans-serif;text-align:center;';
+      bar.textContent = '📡 Ingen nettforbindelse. Det du registrerer nå lagres lokalt på enheten og sendes automatisk til den sentrale databasen så snart nettet er tilbake.';
+      document.body.prepend(bar);
+    }
+  } else if(bar){
+    bar.remove();
+  }
+}
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+document.addEventListener('DOMContentLoaded', updateOfflineBanner);
+</script>
+<script>
+// ================= State =================
+let vehicles = [];
+let damages = [];
+let verkstedtimer = [];
+let verksteder = [];
+let loaded = false;
+
+let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
+let currentVehicleId = null;
+let editingDamageId = null;
+let editingVTId = null;
+let pendingPhotoData = null; // felles buffer for bildeopplasting (skade/bil)
+
+let filterSearch = '';
+let filterKategori = '';
+let filterKontrollStatus = ''; // '' | 'kontrollert' | 'ikke'
+let filterLoyve = ''; // '' | 'har' | 'mangler'
+let showAddVehicleForm = false;
+
+let skadeFilterBil = '';
+let skadeFilterDato = '';
+let skadeFilterStatus = 'apen'; // '' | 'apen' | 'lukket' — Skader-siden viser kun aktive skader som standard
+let showAddSkade = false;
+let skadePrefillVehicleId = '';
+
+let vtFilterBil = '';
+let vtFilterVerksted = '';
+let vtFilterType = '';
+let showAddVT = false;
+let vtPrefillVehicleId = '';
+
+let dashExpandedId = null;
+// Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
+// Endres tilstanden ved klikk, huskes den videre gjennom resten av økten (til siden
+// lastes helt på nytt) siden dette kun er et vanlig JS-modulnivå-objekt.
+// Bilgruppe valgt i dropdownen på Dashboard. Lagres per enhet (ikke delt), slik at
+// appen husker sist valgte gruppe til neste besøk. Standard er "bil" (Bil 1–11).
+// Hver bilgruppe på Dashboard er sin egen, uavhengige accordion — alle lukket som
+// standard. Ikke lagret på tvers av økter (tilbakestilles ved ny sideinnlasting).
+let dashGroupOpen = {bil:false, lastebil:false, montering:false};
+function toggleDashGroup(kat){
+  dashGroupOpen[kat] = !dashGroupOpen[kat];
+  render();
+}
+const GRUPPE_IKON = {bil:'🚐', lastebil:'🚚', montering:'🔧'};
+let newVerkstedNavn = '';
+let editingVerkstedId = null;
+let headerMenuOpen = false;
+
+// Innstillinger: sammenleggbare seksjoner (alle lukket som standard, jf. "unngå lange
+// lister som alltid er åpne") — og tilstand for legg-til-administrator-skjemaet.
+let settingsOpenSections = new Set(); // delmengde av: 'admin' | 'verksted' | 'system'
+
+// Bilkort: tre hovedseksjoner (Bilinformasjon/Kontrollhistorikk/Skadehistorikk), alle
+// lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
+let bilkortOpenSections = new Set(); // delmengde av: 'info' | 'kontroll' | 'skade'
+let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøstet under 'skade')
+let varslerOpenVehicles = new Set(); // hvilke biler som er utvidet på "Aktive varsellamper"-oversikten
+function toggleVarslerVehicle(vehicleId){
+  if(varslerOpenVehicles.has(vehicleId)) varslerOpenVehicles.delete(vehicleId);
+  else varslerOpenVehicles.add(vehicleId);
+  render();
+}
+function toggleBilkortSection(key){
+  if(bilkortOpenSections.has(key)) bilkortOpenSections.delete(key);
+  else bilkortOpenSections.add(key);
+  render();
+}
+function toggleBilkortSkadeSub(key){
+  if(bilkortSkadeSubOpen.has(key)) bilkortSkadeSubOpen.delete(key);
+  else bilkortSkadeSubOpen.add(key);
+  render();
+}
+let showAddAdminUser = false;
+
+let kontroller = [];
+let kontrollPrefillVehicleId = '';
+let kontrollFormVehicleId = '';
+let kontrollFormAnnet = false;
+let kontrollFormHarSkader = false;
+let kontrollFormKm = '';
+let kontrollFormAnnetTekst = '';
+let kontrollFormSkadeBeskrivelse = '';
+let kontrollFormKommentar = '';
+let kontrollFormSjaforNavn = '';
+let pendingKontrollPhotos = []; // array av dataURL-er, flere skadebilder per kontroll
+
+let varsellys = []; // vedvarende varsellamper knyttet til bil, se saveVarsellys()
+let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
+
+let kthFilterBil = '';
+let kthFilterDato = '';
+let kthFilterVarsellampe = '';
+let kthFilterSkade = ''; // '' | 'ja' | 'nei'
+let kthFilterSjafor = '';
+let kthSearch = '';
+let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
+
+// ---- Sjåførmodus ----
+// Aktiveres via ?sjafor=1 i adressen, ELLER ved at siden er åpnet direkte som
+// kontroll.html (uavhengig av spørrestreng) — sistnevnte er en ekstra sikring i
+// tilfelle en installert snarvei/PWA-ikon noen gang skulle åpne den filen uten
+// parameteren. Se kontroll.html og manifest-sjafor.json for selve snarveien.
+let driverMode = false;
+function detectDriverMode(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname || '';
+    driverMode = params.get('sjafor') === '1' || /\/kontroll\.html$/i.test(path);
+  }catch(e){ driverMode = false; }
+}
+function driverLink(){
+  return window.location.origin + window.location.pathname.replace(/kontroll\.html$/i, 'index.html') + '?sjafor=1';
+}
+
+// ---- Værmelding (Larvik) ----
+// Henter gjeldende temperatur/værtype fra Open-Meteo (gratis, ingen API-nøkkel).
+// Kun ett kall per øktoppstart — ikke ved hvert render(). Feiler kallet (f.eks.
+// ingen nettforbindelse i sjåførmodus/offline), skjules værlinjen bare stille i
+// stedet for å bryte resten av Dashboardet.
+let weatherData = null; // {temp, ikon, tekst} | null
+const WEATHER_CODE_MAP = {
+  0:['☀️','Klarvær'], 1:['🌤️','Lettskyet'], 2:['⛅','Delvis skyet'], 3:['☁️','Overskyet'],
+  45:['🌫️','Tåke'], 48:['🌫️','Tåke'],
+  51:['🌦️','Yr'], 53:['🌦️','Yr'], 55:['🌧️','Yr'],
+  61:['🌧️','Regn'], 63:['🌧️','Regn'], 65:['🌧️','Kraftig regn'],
+  71:['🌨️','Snø'], 73:['🌨️','Snø'], 75:['❄️','Kraftig snø'],
+  80:['🌦️','Regnbyger'], 81:['🌦️','Regnbyger'], 82:['⛈️','Kraftige byger'],
+  95:['⛈️','Tordenvær'], 96:['⛈️','Tordenvær'], 99:['⛈️','Tordenvær'],
+};
+async function fetchWeather(){
+  try{
+    const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=59.05&longitude=10.03&current=temperature_2m,weather_code&timezone=Europe%2FOslo');
+    if(!res.ok) throw new Error('Vær-API svarte ' + res.status);
+    const data = await res.json();
+    const code = data && data.current ? data.current.weather_code : null;
+    const temp = data && data.current ? Math.round(data.current.temperature_2m) : null;
+    const [ikon, tekst] = WEATHER_CODE_MAP[code] || ['🌡️','Vær'];
+    weatherData = (temp !== null) ? {temp, ikon, tekst} : null;
+  }catch(e){
+    weatherData = null; // f.eks. offline i sjåførmodus — vis bare ikke værlinjen
+  }
+  render();
+}
+
+// ---- Lys-/mørkemodus ----
+// 'system' (standard) følger enhetens innstilling live; 'light'/'dark' er et eksplisitt
+// valg som huskes til neste innlogging (lagres per enhet, ikke delt mellom brukere).
+let themePreference = 'system'; // 'light' | 'dark' | 'system'
+function resolveTheme(){
+  if(themePreference === 'light' || themePreference === 'dark') return themePreference;
+  try{
+    if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+  }catch(e){ /* ignore */ }
+  return 'light';
+}
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', resolveTheme());
+}
+async function saveThemePreference(v){
+  themePreference = v;
+  applyTheme();
+  try{ await window.storage.set('theme-preference', v, false); }catch(e){ console.error(e); }
+}
+try{
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if(themePreference === 'system') applyTheme();
+    });
+  }
+}catch(e){ /* eldre nettlesere uten addEventListener på matchMedia — ignorer */ }
+applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hentet fra loadAll()
+
+// ---- Innlogging (kun administrasjonsdelen) ----
+// VIKTIG: dette er en tilgangssperre i grensesnittet, ikke ekte sikkerhet.
+// Airtable har ikke noe innebygd autentiseringssystem (i motsetning til
+// Firebase) — brukernavn/passord sjekkes derfor her i appen selv, mot rader i
+// Airtable-tabellen "Users". Se airtable-config.js for hvorfor Airtable-
+// tokenet i seg selv ALLEREDE gir full tilgang til hele basen uavhengig av
+// denne innloggingen — den beskytter altså kun mot at sjåfører eller
+// uvedkommende vandrer inn i administrasjonsdelen ved et uhell.
+// Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
+// logger administratoren ut igjen, siden det ikke finnes noe sted å huske
+// innlogging uten lokal lagring av noe slag.
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','kontrollhistorikk','varsler'];
+let adminUsers = []; // speiler Airtable-tabellen "Users"
+let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
+let loginFormError = '';
+async function loginSubmit(ev){
+  ev.preventDefault();
+  const brukernavn = (document.getElementById('login-brukernavn').value || '').trim();
+  const passord = document.getElementById('login-passord').value || '';
+  const match = adminUsers.find(u => u.brukernavn && u.brukernavn.toLowerCase() === brukernavn.toLowerCase() && u.passord === passord);
+  if(!match){
+    loginFormError = 'Feil brukernavn eller passord.';
+    render();
+    return;
+  }
+  loggedInRole = match.rolle;
+  isAdmin = true;
+  loginFormError = '';
+  goTo('dashboard');
+}
+function logout(){
+  loggedInRole = null;
+  isAdmin = false;
+  headerMenuOpen = false;
+  screen = 'login';
+  render();
+}
+
+const app = document.getElementById('app');
+
+const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
+const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
+const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil'};
+const KATEGORI_GROUP_LABEL = {bil:'Bil 1–11', lastebil:'Lastebiler', montering:'Monteringsbiler'};
+const KATEGORI_ORDER = ['bil','lastebil','montering'];
+const SKADE_STATUS_LABEL = {registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'};
+const ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'};
+const VARSELLAMPE_LABEL = {
+  motor:'Motorlampe', adblue:'AdBlue', dekktrykk:'Dekktrykk', bremse:'Bremsevarsel',
+  batteri:'Batteri/Lading', abs:'ABS', service:'Servicevarsel', annet:'Annet'
+};
+const VARSELLAMPE_ICON = {
+  motor:'🔧', adblue:'💧', dekktrykk:'🛞', bremse:'🛑',
+  batteri:'🔋', abs:'⚠️', service:'🔔', annet:'❓'
+};
+const VARSELLAMPE_ORDER = ['motor','adblue','dekktrykk','bremse','batteri','abs','service','annet'];
+
+// Standard flåtedata som fylles inn automatisk ved førstegangsoppstart (se loadAll()).
+// Erstatter den tidligere importfunksjonen — ingen manuell handling nødvendig.
+const DEFAULT_FLEET = [
+  {bilnummer:'Bil 1',  regnr:'EH64830', merke:'Maxus',    kategori:'bil'},
+  {bilnummer:'Bil 2',  regnr:'ER27717', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 3',  regnr:'EP45106', merke:'Maxus',    kategori:'bil'},
+  {bilnummer:'Bil 4',  regnr:'ER42717', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 5',  regnr:'LS97571', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 6',  regnr:'EN57344', merke:'Maxus',    kategori:'bil'},
+  {bilnummer:'Bil 7',  regnr:'LS97572', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 8',  regnr:'LS97573', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 9',  regnr:'EN65696', merke:'Maxus',    kategori:'bil'},
+  {bilnummer:'Bil 10', regnr:'DS30655', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Bil 11', regnr:'EP90220', merke:'Mercedes', kategori:'bil'},
+  {bilnummer:'Lastebil 1',  regnr:'SD93749', merke:'Scania', kategori:'lastebil'},
+  {bilnummer:'Lastebil 2',  regnr:'BU40812', merke:'Iveco',  kategori:'lastebil'},
+  {bilnummer:'Montering 1', regnr:'JV37205', merke:'Ford',   kategori:'montering'},
+  {bilnummer:'Montering 2', regnr:'KU14798', merke:'Ford',   kategori:'montering'},
+];
+
+// ================= Storage =================
+async function loadAll(){
+  let vehiclesRaw = null;
+  try{ vehiclesRaw = await window.storage.get('vehicles', true); vehicles = vehiclesRaw && vehiclesRaw.value ? JSON.parse(vehiclesRaw.value) : []; }
+  catch(e){ vehicles = []; }
+  if(vehicles.length === 0){
+    // Førstegangsoppstart: "vehicles"-tabellen er tom ennå. I stedet for en
+    // importfunksjon fylles bilregisteret automatisk med standard flåtedata, lagret
+    // på nøyaktig samme måte (samme datastruktur, samme saveVehicles()) som biler
+    // registrert manuelt via "+ Ny bil". Skjer kun én gang — sletter en bruker alle
+    // biler senere, kommer de ikke tilbake av seg selv.
+    vehicles = DEFAULT_FLEET.map(row => ({
+      id: uid(), bilnummer: row.bilnummer, regnr: row.regnr, merke: row.merke,
+      modell: '', arsmodell: '', kategori: row.kategori, status: 'ok',
+      dekk: '', km: '', loyvenummer: '', hasPhoto: false
+    }));
+    await saveVehicles();
+  }
+  try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; }
+  catch(e){ damages = []; }
+  try{ const t = await window.storage.get('verkstedtimer', true); verkstedtimer = t && t.value ? JSON.parse(t.value) : []; }
+  catch(e){ verkstedtimer = []; }
+  try{ const k = await window.storage.get('kontroller', true); kontroller = k && k.value ? JSON.parse(k.value) : []; }
+  catch(e){ kontroller = []; }
+  try{ const w = await window.storage.get('varsellys', true); varsellys = w && w.value ? JSON.parse(w.value) : []; }
+  catch(e){ varsellys = []; }
+  try{
+    const vs = await window.storage.get('verksteder', true);
+    verksteder = vs && vs.value ? JSON.parse(vs.value) : null;
+  }catch(e){ verksteder = null; }
+  if(!verksteder){
+    verksteder = ['Møller Bil','Bertel O. Steen','Mobile','Frydenbø','Ford-forhandler','Toyota-forhandler']
+      .map(navn => ({id: uid(), navn}));
+    await saveVerksteder();
+  }
+  try{
+    const au = await window.storage.get('admin-users', true);
+    adminUsers = au && au.value ? JSON.parse(au.value) : [];
+  }catch(e){ adminUsers = []; }
+  if(adminUsers.length === 0){
+    // Førstegangsoppstart: standard-brukernavn/passord for de tre rollene, slik at det
+    // finnes noe å logge inn med med det samme. MÅ byttes av administrator via
+    // Innstillinger → Administratorbrukere før appen tas i reell bruk — se sikkerhets-
+    // forbeholdet ved definisjonen av ADMIN_SCREENS lenger opp i filen.
+    adminUsers = [
+      {id: uid(), rolle: 'Pedersen',   tittel: 'Administrator',  brukernavn: 'pedersen',   passord: 'bring2026'},
+      {id: uid(), rolle: 'Gustavsen',  tittel: 'Koordinator',    brukernavn: 'gustavsen',  passord: 'bring2026'},
+      {id: uid(), rolle: 'Jakobsen',   tittel: 'Transportleder', brukernavn: 'jakobsen',   passord: 'bring2026'},
+    ];
+    await saveAdminUsers();
+  }
+  try{
+    const th = await window.storage.get('theme-preference', false);
+    themePreference = (th && th.value) ? th.value : 'system';
+  }catch(e){ themePreference = 'system'; }
+  applyTheme();
+  loaded = true;
+  window.subscribeLiveSync(async (key) => {
+    // Kalles jevnlig (se POLL_INTERVAL_MS i storage.airtable.js — Airtable
+    // har ingen sanntids-push slik Firestore hadde) for hvert av de sentrale
+    // datasettene. Laster kun det ene datasettet på nytt, og tegner siden på
+    // nytt dersom noe har endret seg fra en annen enhet eller fane.
+    await reloadOne(key);
+    render();
+  });
+  render();
+}
+async function reloadOne(key){
+  try{
+    const raw = await window.storage.get(key, true);
+    const parsed = raw && raw.value ? JSON.parse(raw.value) : [];
+    if(key === 'vehicles') vehicles = parsed;
+    else if(key === 'damages') damages = parsed;
+    else if(key === 'verkstedtimer') verkstedtimer = parsed;
+    else if(key === 'verksteder') verksteder = parsed;
+    else if(key === 'kontroller') kontroller = parsed;
+    else if(key === 'varsellys') varsellys = parsed;
+    else if(key === 'admin-users') adminUsers = parsed;
+  }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
+}
+async function saveAdminUsers(){
+  try{ await window.storage.set('admin-users', JSON.stringify(adminUsers), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveAdminUserCredentials(id){
+  const u = adminUsers.find(x => x.id === id);
+  if(!u) return;
+  const gammeltNavn = u.rolle;
+  const navn = (document.getElementById('admin-user-'+id+'-navn').value || '').trim();
+  const tittel = document.getElementById('admin-user-'+id+'-tittel').value;
+  const brukernavn = (document.getElementById('admin-user-'+id+'-brukernavn').value || '').trim();
+  const passord = document.getElementById('admin-user-'+id+'-passord').value || '';
+  if(!navn || !brukernavn || !passord){ alert('Navn, brukernavn og passord må alle fylles ut.'); return; }
+  u.rolle = navn; u.tittel = tittel; u.brukernavn = brukernavn; u.passord = passord;
+  await saveAdminUsers();
+  if(loggedInRole === gammeltNavn && navn !== gammeltNavn){
+    loggedInRole = navn;
+  }
+  alert('Lagret endringer for ' + u.rolle + '.');
+  render();
+}
+async function saveVehicles(){
+  try{ await window.storage.set('vehicles', JSON.stringify(vehicles), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveDamages(){
+  try{ await window.storage.set('damages', JSON.stringify(damages), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveVerkstedtimer(){
+  try{ await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveVerksteder(){
+  try{ await window.storage.set('verksteder', JSON.stringify(verksteder), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveKontroller(){
+  try{ await window.storage.set('kontroller', JSON.stringify(kontroller), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveVarsellys(){
+  try{ await window.storage.set('varsellys', JSON.stringify(varsellys), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function savePhoto(key, dataUrl){
+  try{ await window.storage.set('photo:'+key, dataUrl, true); }
+  catch(e){ console.error('Kunne ikke lagre bilde', e); }
+}
+async function getPhoto(key){
+  try{ const r = await window.storage.get('photo:'+key, true); return r ? r.value : null; }
+  catch(e){ return null; }
+}
+async function deletePhoto(key){
+  try{ await window.storage.delete('photo:'+key, true); }catch(e){ /* ignore */ }
+}
+
+// ================= Utils =================
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function esc(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+const APP_TIMEZONE = 'Europe/Oslo';
+function todayISO(){
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
+}
+function nowTimeOslo(){
+  return new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date());
+}
+// Personlig velkomsthilsen på Dashboard, basert på klokkeslett i Europe/Oslo.
+// 05:00–11:59 morgen · 12:00–17:59 dag · 18:00–04:59 kveld.
+function greetingInfo(){
+  const hourStr = new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', hourCycle:'h23'}).format(new Date());
+  const hour = parseInt(hourStr, 10);
+  const sub = 'Velkommen tilbake til bilparken';
+  if(hour >= 5 && hour < 12){
+    return {hilsen:'God morgen', ikon:'☀️', sub, klasse:'morgen'};
+  } else if(hour >= 12 && hour < 18){
+    return {hilsen:'God dag', ikon:'👋', sub, klasse:'dag'};
+  } else {
+    return {hilsen:'God kveld', ikon:'🌙', sub, klasse:'kveld'};
+  }
+}
+function fmt(iso){
+  if(!iso) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m) return '—';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+// Kompakt dato uten årstall (DD/MM) — brukt i statuschips der plass er knapp.
+function fmtShort(iso){
+  if(!iso) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m) return '—';
+  return `${m[3]}/${m[2]}`;
+}
+function fmtDateTime(iso, tid){
+  const datePart = fmt(iso);
+  if(datePart === '—') return '—';
+  return tid ? `${datePart} kl. ${tid}` : datePart;
+}
+
+// ---- Låst dato-/klokkeslettformat (DD/MM/ÅÅÅÅ, 24t) uavhengig av nettleser-/OS-språk ----
+// Native <input type="date"/"time"> viser MM/DD/ÅÅÅÅ og AM/PM når nettleseren/OS-en er
+// satt til engelsk (en-US), siden det formatet styres av nettleseren selv og ikke av
+// siden. Derfor brukes vanlige tekstfelt her, med tvungen DD/MM/ÅÅÅÅ- og TT:MM-maske,
+// slik at formatet blir identisk uansett hvilken maskin/nettleser man bruker.
+function maskDateValue(raw){
+  const digits = raw.replace(/\D/g,'').slice(0,8); // DDMMÅÅÅÅ
+  let out = digits.slice(0,2);
+  if(digits.length > 2) out += '/' + digits.slice(2,4);
+  if(digits.length > 4) out += '/' + digits.slice(4,8);
+  return out;
+}
+function maskTimeValue(raw){
+  const digits = raw.replace(/\D/g,'').slice(0,4); // TTMM
+  let out = digits.slice(0,2);
+  if(digits.length > 2) out += ':' + digits.slice(2,4);
+  return out;
+}
+// ================= Kalender (date picker) for alle datofelt =================
+// Egenbygget, tema-tilpasset kalender-popup i stedet for nettleserens innebygde
+// <input type="date"> — sistnevnte viser dato i enhetens lokale format (kan bli
+// MM/DD/ÅÅÅÅ på enkelte enheter) og kan ikke stiles til mørkemodus. Denne komponenten
+// garanterer DD/MM/ÅÅÅÅ overalt og følger appens tema automatisk. Kobles generisk til
+// ALLE felt med data-kind="date" via delegert lytting, så nye datofelt arver dette
+// helt av seg selv uten videre arbeid. Manuell inntasting fungerer fortsatt ved siden
+// av, som en fallback.
+const UKEDAGER_KORT = ['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+const MANEDER_NAVN = ['Januar','Februar','Mars','April','Mai','Juni','Juli','August','September','Oktober','November','Desember'];
+let datepickerTargetId = null;
+let datepickerViewYear = null;
+let datepickerViewMonth = null; // 0–11
+let datepickerYearMenuOpen = false;
+
+function parseDDMMYYYY(str){
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((str||'').trim());
+  if(!m) return null;
+  const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
+  if(mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return {y, m: mo - 1, d};
+}
+function openDatepicker(inputEl){
+  if(!inputEl || inputEl.dataset.kind !== 'date') return;
+  const parsed = parseDDMMYYYY(inputEl.value);
+  const now = new Date();
+  datepickerTargetId = inputEl.id;
+  datepickerViewYear = parsed ? parsed.y : now.getFullYear();
+  datepickerViewMonth = parsed ? parsed.m : now.getMonth();
+  datepickerYearMenuOpen = false;
+  renderDatepickerPopup();
+}
+function closeDatepicker(){
+  datepickerTargetId = null;
+  datepickerYearMenuOpen = false;
+  const el = document.getElementById('shared-datepicker');
+  if(el) el.remove();
+  document.removeEventListener('mousedown', datepickerOutsideClickHandler, true);
+  document.removeEventListener('keydown', datepickerKeydownHandler, true);
+}
+function datepickerOutsideClickHandler(e){
+  const popup = document.getElementById('shared-datepicker');
+  const input = datepickerTargetId ? document.getElementById(datepickerTargetId) : null;
+  if(popup && !popup.contains(e.target) && e.target !== input) closeDatepicker();
+}
+function datepickerKeydownHandler(e){
+  if(!datepickerTargetId) return;
+  if(e.key === 'Escape'){ closeDatepicker(); return; }
+  if(e.key === 'ArrowLeft'){ e.preventDefault(); datepickerShiftMonth(-1); }
+  else if(e.key === 'ArrowRight'){ e.preventDefault(); datepickerShiftMonth(1); }
+}
+function datepickerShiftMonth(delta){
+  datepickerViewMonth += delta;
+  if(datepickerViewMonth < 0){ datepickerViewMonth = 11; datepickerViewYear--; }
+  else if(datepickerViewMonth > 11){ datepickerViewMonth = 0; datepickerViewYear++; }
+  renderDatepickerPopup();
+}
+function datepickerSetYear(y){
+  datepickerViewYear = y;
+  datepickerYearMenuOpen = false;
+  renderDatepickerPopup();
+}
+function datepickerSelectDay(y, m, d){
+  const input = document.getElementById(datepickerTargetId);
+  if(input){
+    const dd = String(d).padStart(2,'0'), mm = String(m+1).padStart(2,'0');
+    input.value = `${dd}/${mm}/${y}`;
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  closeDatepicker();
+}
+function renderDatepickerPopup(){
+  const input = document.getElementById(datepickerTargetId);
+  if(!input){ closeDatepicker(); return; }
+  let popup = document.getElementById('shared-datepicker');
+  if(!popup){
+    popup = document.createElement('div');
+    popup.id = 'shared-datepicker';
+    popup.className = 'datepicker-popup';
+    document.body.appendChild(popup);
+    document.addEventListener('mousedown', datepickerOutsideClickHandler, true);
+    document.addEventListener('keydown', datepickerKeydownHandler, true);
+  }
+
+  const today = new Date();
+  const todayY = today.getFullYear(), todayM = today.getMonth(), todayD = today.getDate();
+  const selected = parseDDMMYYYY(input.value);
+  const y = datepickerViewYear, m = datepickerViewMonth;
+  let startWeekday = new Date(y, m, 1).getDay();
+  startWeekday = (startWeekday + 6) % 7; // mandag = 0
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const daysInPrevMonth = new Date(y, m, 0).getDate();
+
+  const cells = [];
+  for(let i = 0; i < startWeekday; i++){
+    cells.push({d: daysInPrevMonth - startWeekday + 1 + i, muted:true, y: m===0?y-1:y, m: m===0?11:m-1});
+  }
+  for(let d = 1; d <= daysInMonth; d++) cells.push({d, muted:false, y, m});
+  let nextD = 1;
+  while(cells.length < 42){ cells.push({d: nextD++, muted:true, y: m===11?y+1:y, m: m===11?0:m+1}); }
+
+  const yearOptions = [];
+  for(let yy = todayY - 6; yy <= todayY + 6; yy++) yearOptions.push(yy);
+
+  popup.innerHTML = `
+    <div class="dp-header">
+      <button type="button" class="dp-nav" data-dp-action="prev-month" aria-label="Forrige måned">‹</button>
+      <button type="button" class="dp-month-year" data-dp-action="toggle-year">${MANEDER_NAVN[m]} ${y}</button>
+      <button type="button" class="dp-nav" data-dp-action="next-month" aria-label="Neste måned">›</button>
+    </div>
+    ${datepickerYearMenuOpen ? `
+    <div class="dp-year-menu">
+      ${yearOptions.map(yy => `<button type="button" class="dp-year-opt ${yy===y?'active':''}" data-dp-year="${yy}">${yy}</button>`).join('')}
+    </div>` : `
+    <div class="dp-weekdays">${UKEDAGER_KORT.map(w => `<div>${w}</div>`).join('')}</div>
+    <div class="dp-grid">
+      ${cells.map(c => {
+        const isToday = !c.muted && c.y===todayY && c.m===todayM && c.d===todayD;
+        const isSelected = selected && c.y===selected.y && c.m===selected.m && c.d===selected.d;
+        return `<button type="button" class="dp-day ${c.muted?'muted':''} ${isToday?'today':''} ${isSelected?'selected':''}" data-dp-day="${c.d}" data-dp-y="${c.y}" data-dp-m="${c.m}">${c.d}</button>`;
+      }).join('')}
+    </div>
+    <button type="button" class="dp-today-btn" data-dp-action="today">I dag</button>
+    `}
+  `;
+
+  const rect = input.getBoundingClientRect();
+  const popupWidth = popup.offsetWidth || 300;
+  let left = rect.left + window.scrollX;
+  if(left + popupWidth > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popupWidth - 8;
+  left = Math.max(8, left);
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const openAbove = spaceBelow < 340 && rect.top > 340;
+  popup.style.position = 'absolute';
+  popup.style.left = left + 'px';
+  popup.style.top = openAbove
+    ? (rect.top + window.scrollY - (popup.offsetHeight || 320) - 6) + 'px'
+    : (rect.bottom + window.scrollY + 6) + 'px';
+
+  popup.querySelectorAll('[data-dp-action="prev-month"]').forEach(el => el.addEventListener('click', () => datepickerShiftMonth(-1)));
+  popup.querySelectorAll('[data-dp-action="next-month"]').forEach(el => el.addEventListener('click', () => datepickerShiftMonth(1)));
+  popup.querySelectorAll('[data-dp-action="toggle-year"]').forEach(el => el.addEventListener('click', () => { datepickerYearMenuOpen = !datepickerYearMenuOpen; renderDatepickerPopup(); }));
+  popup.querySelectorAll('[data-dp-year]').forEach(el => el.addEventListener('click', () => datepickerSetYear(Number(el.dataset.dpYear))));
+  popup.querySelectorAll('[data-dp-day]').forEach(el => el.addEventListener('click', () => datepickerSelectDay(Number(el.dataset.dpY), Number(el.dataset.dpM), Number(el.dataset.dpDay))));
+  const todayBtn = popup.querySelector('[data-dp-action="today"]');
+  if(todayBtn) todayBtn.addEventListener('click', () => datepickerSelectDay(todayY, todayM, todayD));
+}
+document.addEventListener('focusin', (e) => {
+  if(e.target && e.target.matches && e.target.matches('input[data-kind="date"]')) openDatepicker(e.target);
+});
+
+function readDateInput(id){
+  const el = document.getElementById(id);
+  if(!el) return '';
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((el.value||'').trim());
+  if(!m) return '';
+  const day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
+  if(month < 1 || month > 12 || day < 1 || day > 31) return '';
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+// ================= Klokkeslettvelger (verkstedtimer) =================
+// Samme arkitektur som kalenderen over: en egen, tema-tilpasset liste i faste
+// 5-minutters intervaller (00:00–23:55), koblet generisk til data-kind="time".
+// Native <input type="time"> ble vurdert (utløser iOS-hjul/Android-velger automatisk
+// på mobil), men verdien kan vises med AM/PM i enkelte språk-/enhetsoppsett — akkurat
+// samme risiko som datofeltet hadde — så garantert 24-timersformat veide tyngre enn
+// den eksakte native mobilfølelsen. Fungerer identisk og fullt mørkemodus-støttet
+// på både PC og mobil, med scroll for raskt å finne ønsket tid.
+let timepickerTargetId = null;
+function nearestFiveMinutesOslo(){
+  const parts = new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date());
+  let hour = Number(parts.find(p => p.type === 'hour').value);
+  let minute = Number(parts.find(p => p.type === 'minute').value);
+  minute = Math.ceil(minute / 5) * 5;
+  if(minute === 60){ minute = 0; hour = (hour + 1) % 24; }
+  return String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
+}
+function openTimepicker(inputEl){
+  if(!inputEl || inputEl.dataset.kind !== 'time') return;
+  timepickerTargetId = inputEl.id;
+  renderTimepickerPopup();
+}
+function closeTimepicker(){
+  timepickerTargetId = null;
+  const el = document.getElementById('shared-timepicker');
+  if(el) el.remove();
+  document.removeEventListener('mousedown', timepickerOutsideClickHandler, true);
+  document.removeEventListener('keydown', timepickerKeydownHandler, true);
+}
+function timepickerOutsideClickHandler(e){
+  const popup = document.getElementById('shared-timepicker');
+  const input = timepickerTargetId ? document.getElementById(timepickerTargetId) : null;
+  if(popup && !popup.contains(e.target) && e.target !== input) closeTimepicker();
+}
+function timepickerKeydownHandler(e){
+  if(!timepickerTargetId) return;
+  if(e.key === 'Escape') closeTimepicker();
+}
+function timepickerSelect(hh, mm){
+  const input = document.getElementById(timepickerTargetId);
+  if(input){
+    input.value = hh + ':' + mm;
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  closeTimepicker();
+}
+function renderTimepickerPopup(){
+  const input = document.getElementById(timepickerTargetId);
+  if(!input){ closeTimepicker(); return; }
+  let popup = document.getElementById('shared-timepicker');
+  if(!popup){
+    popup = document.createElement('div');
+    popup.id = 'shared-timepicker';
+    popup.className = 'timepicker-popup';
+    document.body.appendChild(popup);
+    document.addEventListener('mousedown', timepickerOutsideClickHandler, true);
+    document.addEventListener('keydown', timepickerKeydownHandler, true);
+  }
+  const current = (input.value || '').trim();
+  const rows = [];
+  for(let h = 0; h < 24; h++){
+    for(let m = 0; m < 60; m += 5){
+      rows.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+    }
+  }
+  popup.innerHTML = `<div class="tp-list">${rows.map(t => `<button type="button" class="tp-row ${t===current?'selected':''}" data-tp-time="${t}">${t}</button>`).join('')}</div>`;
+
+  const rect = input.getBoundingClientRect();
+  const popupWidth = popup.offsetWidth || 140;
+  let left = rect.left + window.scrollX;
+  if(left + popupWidth > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popupWidth - 8;
+  left = Math.max(8, left);
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const openAbove = spaceBelow < 260 && rect.top > 260;
+  popup.style.position = 'absolute';
+  popup.style.left = left + 'px';
+  popup.style.top = openAbove
+    ? (rect.top + window.scrollY - (popup.offsetHeight || 250) - 6) + 'px'
+    : (rect.bottom + window.scrollY + 6) + 'px';
+
+  popup.querySelectorAll('[data-tp-time]').forEach(el => el.addEventListener('click', () => {
+    const [hh, mm] = el.dataset.tpTime.split(':');
+    timepickerSelect(hh, mm);
+  }));
+  const selectedBtn = popup.querySelector('.tp-row.selected');
+  if(selectedBtn && selectedBtn.scrollIntoView) selectedBtn.scrollIntoView({block:'center'});
+}
+document.addEventListener('focusin', (e) => {
+  if(e.target && e.target.matches && e.target.matches('input[data-kind="time"]')) openTimepicker(e.target);
+});
+
+function readTimeInput(id){
+  const el = document.getElementById(id);
+  if(!el) return '';
+  const m = /^(\d{2}):(\d{2})$/.exec((el.value||'').trim());
+  if(!m) return '';
+  const h = Number(m[1]), min = Number(m[2]);
+  if(h > 23 || min > 59) return '';
+  return el.value.trim();
+}
+// Delegert på document (ikke #app), siden #app-innholdet byttes ut helt ved hver render().
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if(!el.dataset) return;
+  if(el.dataset.kind === 'date') el.value = maskDateValue(el.value);
+  else if(el.dataset.kind === 'time') el.value = maskTimeValue(el.value);
+});
+
+function daysUntil(iso){
+  if(!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m) return null;
+  const [ty, tm, td] = todayISO().split('-').map(Number);
+  const target = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const today = Date.UTC(ty, tm - 1, td);
+  return Math.round((target - today) / 86400000);
+}
+function vtWithinWeek(iso){
+  const d = daysUntil(iso);
+  return d !== null && d >= 0 && d <= 7;
+}
+function daysSince(iso){
+  const d = daysUntil(iso);
+  return d === null ? null : -d;
+}
+function activeVarsellysForVehicle(vid){
+  return varsellys.filter(w => w.vehicleId === vid && w.status === 'aktiv').sort((a,b) => (a.registrertDato||'').localeCompare(b.registrertDato||''));
+}
+function historikkVarsellysForVehicle(vid){
+  return varsellys.filter(w => w.vehicleId === vid && w.status === 'kvittert').sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
+}
+function allActiveVarsellys(){
+  return varsellys.filter(w => w.status === 'aktiv').sort((a,b) => (a.registrertDato||'').localeCompare(b.registrertDato||''));
+}
+function varsellysLabel(w){
+  return VARSELLAMPE_LABEL[w.type] + (w.type === 'annet' && w.annetTekst ? ' – ' + w.annetTekst : '');
+}
+function resizeImage(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1000;
+        let w = img.width, h = img.height;
+        if(w > maxDim || h > maxDim){
+          if(w > h){ h = Math.round(h * maxDim / w); w = maxDim; }
+          else{ w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function vehicleLabel(v){
+  if(!v) return 'Ukjent kjøretøy';
+  return (v.bilnummer ? v.bilnummer + ' · ' : '') + v.regnr;
+}
+function vehicleDamages(vid){
+  return damages.filter(d => d.vehicleId === vid).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+}
+function vehicleVT(vid){
+  return verkstedtimer.filter(t => t.vehicleId === vid).sort((a,b) => (a.dato||'').localeCompare(b.dato||''));
+}
+function vtVehicle(t){ return vehicles.find(v => v.id === t.vehicleId); }
+function dmgVehicle(d){ return vehicles.find(v => v.id === d.vehicleId); }
+function skadeIsOpen(d){ return d.status !== 'utbedret'; }
+function ruteNumber(v){
+  const m = (v.bilnummer||'').match(/\d+/);
+  return m ? parseInt(m[0], 10) : 999;
+}
+
+// ================= Navigation =================
+function goTo(scr, vehicleId){
+  closeDatepicker();
+  closeTimepicker();
+  if(ADMIN_SCREENS.includes(scr) && !driverMode && !loggedInRole){
+    scr = 'login';
+  }
+  screen = scr;
+  if(vehicleId !== undefined) currentVehicleId = vehicleId;
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); }
+  if(scr === 'varsler'){ varslerOpenVehicles = new Set(); }
+  editingDamageId = null;
+  pendingPhotoData = null;
+  headerMenuOpen = false;
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
+  if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
+  if(scr !== 'kontroll'){
+    kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
+    kontrollFormAnnet = false; kontrollFormHarSkader = false; pendingKontrollPhotos = [];
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+    kontrollFormSjaforNavn = '';
+  }
+  render();
+}
+// ================= Dashboard: klikkbar hurtignavigasjon =================
+// Delte hjelpefunksjoner som navigerer til riktig side MED riktig filter aktivert,
+// og nullstiller alle andre filtre på målsiden først, slik at man alltid får et
+// entydig, forutsigbart resultat uansett hva som lå igjen fra en tidligere økt.
+function goToRegisterFiltered(kontrollStatus){
+  filterSearch = ''; filterKategori = ''; filterLoyve = '';
+  filterKontrollStatus = kontrollStatus || '';
+  showAddVehicleForm = false;
+  goTo('register');
+}
+function goToSkaderFiltered(opts){
+  opts = opts || {};
+  skadeFilterBil = ''; skadeFilterDato = opts.dato || ''; skadeFilterStatus = opts.status || 'apen';
+  showAddSkade = false; skadePrefillVehicleId = '';
+  goTo('skader');
+}
+function goToVerkstedFiltered(type){
+  vtFilterBil = ''; vtFilterVerksted = ''; vtFilterType = type || '';
+  showAddVT = false; vtPrefillVehicleId = '';
+  goTo('verksted');
+}
+function goToKontrollhistorikkFiltered(dato){
+  kthFilterBil = ''; kthFilterVarsellampe = ''; kthFilterSkade = ''; kthFilterSjafor = ''; kthSearch = '';
+  kthFilterDato = dato || '';
+  goTo('kontrollhistorikk');
+}
+
+function goToRegisterKontroll(vehicleId){
+  kontrollPrefillVehicleId = vehicleId || '';
+  kontrollFormVehicleId = vehicleId || '';
+  kontrollFormAnnet = false;
+  kontrollFormHarSkader = false;
+  pendingKontrollPhotos = [];
+  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+  kontrollFormSjaforNavn = loggedInRole || '';
+  if(vehicleId) syncKontrollAnnetFromActive(vehicleId);
+  goTo('kontroll');
+}
+
+// ================= Kjøretøy-mutasjoner =================
+async function submitAddVehicle(ev){
+  ev.preventDefault();
+  const bilnummer = document.getElementById('new-bilnummer').value.trim();
+  const regnr = document.getElementById('new-regnr').value.trim().toUpperCase();
+  const merke = document.getElementById('new-merke').value.trim();
+  const modell = document.getElementById('new-modell').value.trim();
+  const arsmodell = document.getElementById('new-arsmodell').value.trim();
+  const kategori = document.getElementById('new-kategori').value;
+  const dekk = document.getElementById('new-dekk').value;
+  const km = document.getElementById('new-km').value;
+  const loyvenummer = document.getElementById('new-loyvenummer').value.trim();
+  const msgEl = document.getElementById('new-vehicle-msg');
+  if(!bilnummer || !regnr || !kategori){
+    msgEl.textContent = 'Fyll ut minst bilnummer, registreringsnummer og kategori.';
+    return;
+  }
+  const v = {
+    id: uid(), bilnummer, regnr, merke, modell, arsmodell, kategori,
+    status: 'ok', dekk, km, loyvenummer, hasPhoto: false
+  };
+  vehicles.push(v);
+  await saveVehicles();
+  showAddVehicleForm = false;
+  goTo('bilkort', v.id);
+}
+async function saveVehicleForm(id){
+  const v = vehicles.find(x => x.id === id);
+  v.bilnummer = document.getElementById('f-bilnummer').value.trim();
+  v.regnr = document.getElementById('f-regnr').value.trim().toUpperCase();
+  v.merke = document.getElementById('f-merke').value.trim();
+  v.modell = document.getElementById('f-modell').value.trim();
+  v.arsmodell = document.getElementById('f-arsmodell').value.trim();
+  v.kategori = document.getElementById('f-kategori').value;
+  v.status = document.getElementById('f-status').value;
+  v.dekk = document.getElementById('f-dekk').value;
+  v.km = document.getElementById('f-km').value;
+  v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
+  await saveVehicles();
+  if(pendingVehiclePhoto){
+    v.hasPhoto = true;
+    await savePhoto('vehicle:'+v.id, pendingVehiclePhoto);
+    pendingVehiclePhoto = null;
+  }
+  await saveVehicles();
+  render();
+}
+let pendingVehiclePhoto = null;
+async function deleteVehicle(id){
+  if(!confirm('Slette dette kjøretøyet og all historikk? Dette kan ikke angres.')) return;
+  const vDamages = damages.filter(d => d.vehicleId === id);
+  const v = vehicles.find(x => x.id === id);
+  vehicles = vehicles.filter(v => v.id !== id);
+  damages = damages.filter(d => d.vehicleId !== id);
+  verkstedtimer = verkstedtimer.filter(t => t.vehicleId !== id);
+  await saveVehicles();
+  await saveDamages();
+  await saveVerkstedtimer();
+  for(const d of vDamages){ if(d.hasPhoto) await deletePhoto('damage:'+d.id); }
+  if(v && v.hasPhoto) await deletePhoto('vehicle:'+id);
+  goTo('register');
+}
+
+// ================= Nullstill bilparkdata (kun administrator) =================
+// Sletter ALL operativ historikk (skader, verkstedtimer, sjåførkontroller, varsellamper)
+// og nullstiller kilometerstand/status på hver bil — men beholder selve kjøretøyene
+// (bilnummer, regnr, merke/modell, kategori, løyvenummer), Verkstedregisteret,
+// Administratorbrukere og alle systeminnstillinger uendret.
+async function resetFleetData(){
+  if(!isAdmin) return;
+  const antallBiler = vehicles.length;
+  const advarsel = 'Nullstille all bilparkdata?\n\n' +
+    'Dette sletter PERMANENT for alle ' + antallBiler + ' biler:\n' +
+    '– Kilometerstand og status\n' +
+    '– Alle registrerte skader og skadebilder\n' +
+    '– Alle aktive varsellamper og varsellampehistorikk\n' +
+    '– Alle sjåførkontroller og kontrollhistorikk\n' +
+    '– Alle kommende og tidligere verkstedtimer\n\n' +
+    'Selve bilene (regnr, bilnummer, merke, kategori, løyvenummer), Verkstedregisteret, ' +
+    'Administratorbrukere og Systeminnstillinger BEHOLDES uendret.\n\n' +
+    'Dette kan ikke angres. Fortsette?';
+  if(!confirm(advarsel)) return;
+
+  // Rydd opp bilder knyttet til det som slettes, før selve postene fjernes
+  for(const d of damages){ if(d.hasPhoto) await deletePhoto('damage:'+d.id); }
+  for(const k of kontroller){
+    for(let i = 0; i < (k.skadeBilderCount || 0); i++){ await deletePhoto('kontroll:'+k.id+':'+i); }
+  }
+
+  damages = [];
+  verkstedtimer = [];
+  kontroller = [];
+  varsellys = [];
+  await saveDamages();
+  await saveVerkstedtimer();
+  await saveKontroller();
+  await saveVarsellys();
+
+  vehicles.forEach(v => {
+    v.km = '';
+    v.status = 'ok';
+  });
+  await saveVehicles();
+
+  alert('Bilparkdata nullstilt. Alle ' + antallBiler + ' biler står klare uten historikk.');
+  goTo('dashboard');
+}
+
+// ================= Skade-mutasjoner =================
+async function submitAddSkade(ev){
+  ev.preventDefault();
+  const vehicleId = document.getElementById('sk-vehicle').value;
+  const dato = readDateInput('sk-dato');
+  const beskrivelse = document.getElementById('sk-beskrivelse').value.trim();
+  const alvorlighet = document.getElementById('sk-alvorlighet').value;
+  const kommentar = document.getElementById('sk-kommentar').value.trim();
+  const status = document.getElementById('sk-status').value;
+  const msgEl = document.getElementById('sk-msg');
+  if(!vehicleId || !dato || !beskrivelse){
+    msgEl.textContent = 'Fyll ut minst bil, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
+    return;
+  }
+  const id = uid();
+  damages.push({
+    id, vehicleId, dato, beskrivelse, alvorlighet, kommentar, status,
+    registrertAv: loggedInRole || 'Ukjent', hasPhoto: !!pendingPhotoData,
+    createdByControlId: null
+  });
+  await saveDamages();
+  if(pendingPhotoData) await savePhoto('damage:'+id, pendingPhotoData);
+  pendingPhotoData = null;
+  showAddSkade = false;
+  skadePrefillVehicleId = '';
+  render();
+}
+function toggleEditDamage(id){
+  editingDamageId = editingDamageId === id ? null : id;
+  pendingPhotoData = null;
+  render();
+  if(editingDamageId){
+    const existing = damages.find(d => d.id === id);
+    if(existing && existing.hasPhoto){
+      getPhoto('damage:'+id).then(url => {
+        const img = document.getElementById('edit-photo-preview-'+id);
+        if(img && url){ img.src = url; img.style.display = 'block'; }
+      });
+    }
+  }
+}
+// Ett-klikks snarvei for å markere en skade som utbedret ("fikset"), uten å måtte
+// åpne hele redigeringsskjemaet. Skaden beholdes i historikken (kun status endres),
+// forsvinner fra Skader-siden sin standardvisning (aktive), og telles ikke lenger
+// som aktiv i Dashboard-tellerne, som alle beregnes live fra skadeIsOpen().
+async function markSkadeFikset(id){
+  const d = damages.find(x => x.id === id);
+  if(!d) return;
+  d.status = 'utbedret';
+  await saveDamages();
+  render();
+}
+async function saveDamageEdit(id){
+  const d = damages.find(x => x.id === id);
+  const newDato = readDateInput('e-sk-dato-'+id);
+  if(!newDato){ alert('Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'); return; }
+  d.vehicleId = document.getElementById('e-sk-vehicle-'+id).value;
+  d.dato = newDato;
+  d.beskrivelse = document.getElementById('e-sk-beskrivelse-'+id).value.trim();
+  d.alvorlighet = document.getElementById('e-sk-alvorlighet-'+id).value;
+  d.kommentar = document.getElementById('e-sk-kommentar-'+id).value.trim();
+  d.status = document.getElementById('e-sk-status-'+id).value;
+  if(pendingPhotoData){
+    d.hasPhoto = true;
+    await savePhoto('damage:'+id, pendingPhotoData);
+  }
+  pendingPhotoData = null;
+  await saveDamages();
+  editingDamageId = null;
+  render();
+}
+async function deleteDamage(id){
+  if(!confirm('Slette denne skaden?')) return;
+  const d = damages.find(x => x.id === id);
+  damages = damages.filter(x => x.id !== id);
+  await saveDamages();
+  if(d && d.hasPhoto) await deletePhoto('damage:'+id);
+  editingDamageId = null;
+  render();
+}
+function goToRegisterSkade(vehicleId){
+  skadePrefillVehicleId = vehicleId;
+  showAddSkade = true;
+  skadeFilterBil = '';
+  goTo('skader');
+}
+
+// ================= Verkstedtime-mutasjoner =================
+async function submitAddVT(ev){
+  ev.preventDefault();
+  const vehicleId = document.getElementById('vt-vehicle').value;
+  const verksted = document.getElementById('vt-verksted').value;
+  const dato = readDateInput('vt-dato');
+  const tidspunkt = readTimeInput('vt-tid');
+  const beskrivelse = document.getElementById('vt-beskrivelse').value.trim();
+  const notater = document.getElementById('vt-notater').value.trim();
+  const msgEl = document.getElementById('vt-msg');
+  if(!vehicleId || !verksted || !dato || !beskrivelse){
+    msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
+    return;
+  }
+  verkstedtimer.push({id: uid(), vehicleId, verksted, dato, tidspunkt, beskrivelse, notater});
+  await saveVerkstedtimer();
+  showAddVT = false;
+  vtPrefillVehicleId = '';
+  render();
+}
+function toggleEditVT(id){
+  editingVTId = editingVTId === id ? null : id;
+  render();
+}
+async function saveVTEdit(id){
+  const t = verkstedtimer.find(x => x.id === id);
+  const newDato = readDateInput('e-vt-dato-'+id);
+  const newTid = readTimeInput('e-vt-tid-'+id);
+  if(!newDato){ alert('Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'); return; }
+  t.vehicleId = document.getElementById('e-vt-vehicle-'+id).value;
+  t.verksted = document.getElementById('e-vt-verksted-'+id).value;
+  t.dato = newDato;
+  t.tidspunkt = newTid;
+  t.beskrivelse = document.getElementById('e-vt-beskrivelse-'+id).value.trim();
+  t.notater = document.getElementById('e-vt-notater-'+id).value.trim();
+  await saveVerkstedtimer();
+  editingVTId = null;
+  render();
+}
+async function deleteVT(id){
+  if(!confirm('Slette denne verkstedtimen?')) return;
+  verkstedtimer = verkstedtimer.filter(t => t.id !== id);
+  await saveVerkstedtimer();
+  editingVTId = null;
+  render();
+}
+function goToRegisterVT(vehicleId){
+  vtPrefillVehicleId = vehicleId;
+  showAddVT = true;
+  vtFilterBil = '';
+  goTo('verksted');
+}
+
+// ================= Sjåførkontroll-mutasjoner =================
+function vehicleKontroller(vid){
+  return kontroller.filter(k => k.vehicleId === vid).sort((a,b) => (b.dato+((b.tidspunkt)||'')).localeCompare(a.dato+((a.tidspunkt)||'')));
+}
+// Siste kontroll for en bil (nyeste først, se vehicleKontroller over).
+function lastKontrollForVehicle(vid){
+  const list = vehicleKontroller(vid);
+  return list.length ? list[0] : null;
+}
+// "Kontrollert i dag" er ikke et lagret flagg, men regnes ut live mot dagens dato i
+// Europe/Oslo (todayISO()). Det gjør at statusen nullstilles helt automatisk ved
+// midnatt norsk tid, uten noen egen tidsstyrt jobb eller reset-logikk.
+function isKontrollertIdag(vid){
+  const last = lastKontrollForVehicle(vid);
+  return !!(last && last.dato === todayISO());
+}
+async function submitKontroll(ev){
+  ev.preventDefault();
+  const msgEl = document.getElementById('kt-msg');
+  const vehicleId = document.getElementById('kt-vehicle').value;
+  const km = document.getElementById('kt-km').value;
+  const sjaforNavn = (document.getElementById('kt-sjafornavn').value || '').trim();
+  if(!vehicleId || !km || !sjaforNavn){
+    msgEl.textContent = 'Fyll ut sjåførnavn, velg bil, og fyll ut kilometerstand.';
+    return;
+  }
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(Number(km) < Number(v.km || 0)){
+    if(!confirm('Kilometerstanden du oppga (' + Number(km).toLocaleString('nb-NO') + ' km) er lavere enn det som er registrert fra før (' + Number(v.km||0).toLocaleString('nb-NO') + ' km). Registrere likevel?')) return;
+  }
+
+  const varsellamper = VARSELLAMPE_ORDER.filter(key => {
+    const box = document.getElementById('kt-varsel-'+key);
+    return box && box.checked;
+  });
+  const annetTekst = kontrollFormAnnet ? (document.getElementById('kt-annet-tekst').value || '').trim() : '';
+  const harNyeSkader = kontrollFormHarSkader;
+  const skadeBeskrivelse = harNyeSkader ? (document.getElementById('kt-skade-beskrivelse').value || '').trim() : '';
+  const kommentar = (document.getElementById('kt-kommentar').value || '').trim();
+
+  if(harNyeSkader && !skadeBeskrivelse){
+    msgEl.textContent = 'Beskriv skaden du har oppdaget.';
+    return;
+  }
+
+  const id = uid();
+  const dato = todayISO();
+  const tidspunkt = nowTimeOslo();
+  const sjafor = sjaforNavn;
+
+  // Logging av alt som sendes inn, slik at eventuelle lagringsproblemer (spesielt på
+  // mobil) er enkle å diagnostisere via nettleserkonsollen (F12 / eksterne debug-verktøy).
+  console.log('[submitKontroll] Sender inn kontroll', {
+    id, vehicleId, dato, tidspunkt, sjafor, km, varsellamper, annetTekst,
+    harNyeSkader, skadeBeskrivelse, kommentar, antallBilder: pendingKontrollPhotos.length,
+    userAgent: navigator.userAgent, standalone: (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true
+  });
+
+  const submitBtn = document.getElementById('kt-submit-btn');
+  if(submitBtn) submitBtn.disabled = true;
+  msgEl.textContent = '';
+
+  try{
+    let linkedDamageId = null;
+    if(harNyeSkader){
+      linkedDamageId = uid();
+      damages.push({
+        id: linkedDamageId, vehicleId, dato, beskrivelse: skadeBeskrivelse,
+        alvorlighet: 'middels', kommentar: 'Meldt via sjåførkontroll' + (kommentar ? ' · ' + kommentar : ''),
+        status: 'registrert', registrertAv: sjafor, hasPhoto: pendingKontrollPhotos.length > 0,
+        createdByControlId: id
+      });
+      await saveDamages();
+      console.log('[submitKontroll] Skade lagret', linkedDamageId);
+      if(pendingKontrollPhotos.length > 0) await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0]);
+    }
+
+    for(let i = 0; i < pendingKontrollPhotos.length; i++){
+      await savePhoto('kontroll:'+id+':'+i, pendingKontrollPhotos[i]);
+    }
+
+    kontroller.push({
+      id, vehicleId, dato, tidspunkt, sjafor, km,
+      varsellamper, annetTekst, harNyeSkader, skadeBeskrivelse,
+      skadeBilderCount: pendingKontrollPhotos.length, kommentar, linkedDamageId
+    });
+    await saveKontroller();
+    console.log('[submitKontroll] Kontroll lagret i kontroller-listen', id);
+
+    // Varsellamper er vedvarende: en huket boks oppretter kun en ny aktiv varsellys-
+    // sak dersom det ikke allerede finnes en aktiv sak av samme type på bilen fra før.
+    // Kun administrator kan lukke en aktiv sak (kvitterVarsellys) — å la være å huke av
+    // en allerede aktiv lampe i et senere skjema fjerner den IKKE automatisk.
+    // createdByControlId peker på kontrollen som først opprettet saken, til bruk ved
+    // full tilbakeføring dersom akkurat den kontrollen slettes (se performKontrollDeletion).
+    let nyeVarselsaker = false;
+    varsellamper.forEach(key => {
+      const alleredeAktiv = varsellys.some(w => w.vehicleId === vehicleId && w.type === key && w.status === 'aktiv');
+      if(!alleredeAktiv){
+        varsellys.push({
+          id: uid(), vehicleId, type: key, annetTekst: key === 'annet' ? annetTekst : '',
+          status: 'aktiv', registrertDato: dato, registrertAv: sjafor, kvittertDato: '', kvittertAv: '',
+          createdByControlId: id
+        });
+        nyeVarselsaker = true;
+      }
+    });
+    if(nyeVarselsaker) await saveVarsellys();
+
+    v.km = km;
+    await saveVehicles();
+    console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
+
+    pendingKontrollPhotos = [];
+    kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+    console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
+    alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
+    if(driverMode){
+      // Sjåføren har ikke tilgang til Bilkort — bli værende på skjemaet, tomt og klart
+      // for neste bil/sjåfør som skal registrere en kontroll på samme enhet.
+      render();
+    } else {
+      goTo('bilkort', vehicleId);
+    }
+  }catch(err){
+    // Skjer normalt kun ved svært spesielle forhold (f.eks. lagringsplassen på enheten
+    // er full). Gir en tydelig, synlig feilmelding i skjemaet i stedet for at
+    // innsendingen stille forsvinner uten at sjåføren vet det.
+    console.error('[submitKontroll] LAGRING FEILET', err);
+    if(submitBtn) submitBtn.disabled = false;
+    msgEl.innerHTML = '⚠️ Kunne ikke lagre kontrollen på denne enheten (' + esc(err && err.message ? err.message : 'ukjent feil') + '). Sjekk at enheten har ledig lagringsplass, og prøv igjen. Ta skjermbilde av denne meldingen og kontakt administrator dersom problemet gjentar seg.';
+  }
+}
+// Forhåndsutfyller «Annet»-feltet dersom bilen allerede har en aktiv «Annet»-varsellys,
+// slik at sjåføren ser hva som ble skrevet forrige gang. Kalles når bil velges i skjemaet.
+function syncKontrollAnnetFromActive(vehicleId){
+  const entry = varsellys.find(w => w.vehicleId === vehicleId && w.type === 'annet' && w.status === 'aktiv');
+  if(entry){ kontrollFormAnnet = true; kontrollFormAnnetTekst = entry.annetTekst || kontrollFormAnnetTekst; }
+}
+async function kvitterVarsellys(id){
+  const w = varsellys.find(x => x.id === id);
+  if(!w) return;
+  const v = vehicles.find(x => x.id === w.vehicleId);
+  if(!confirm('Kvittere ut «' + varsellysLabel(w) + '» på ' + (v ? vehicleLabel(v) : 'kjøretøyet') + '? Den vil ikke lenger vises som aktiv, og fjernes fra sjåførskjemaet.')) return;
+  w.status = 'kvittert';
+  w.kvittertDato = todayISO();
+  w.kvittertAv = loggedInRole || 'Ukjent';
+  await saveVarsellys();
+  render();
+}
+
+// ================= Sjåførkontroll historikk: sletting (kun administrator) =================
+async function deleteKontrollPhotos(k){
+  for(let i = 0; i < (k.skadeBilderCount || 0); i++){
+    await deletePhoto('kontroll:'+k.id+':'+i);
+  }
+}
+
+// Full tilbakeføring av én eller flere slettede kontroller: fjerner varsellamper som
+// ikke lenger støttes av noen gjenværende kontroll på bilen, regner kilometerstand på
+// nytt fra siste gjenværende kontroll, og rydder opp automatisk opprettede skader
+// (kun dersom de fortsatt står urørt siden kontrollen opprettet dem).
+async function performKontrollDeletion(toDelete){
+  const affectedVehicleIds = [...new Set(toDelete.map(k => k.vehicleId))];
+  const deletedIds = new Set(toDelete.map(k => k.id));
+
+  kontroller = kontroller.filter(k => !deletedIds.has(k.id));
+  await saveKontroller();
+
+  for(const k of toDelete) await deleteKontrollPhotos(k);
+
+  // Skader opprettet automatisk av kontrollen: slettes kun hvis de fortsatt har
+  // uendret status/alvorlighetsgrad (dvs. ingen administrator har rukket å behandle
+  // saken). Er den endret, beholdes skaden som en vanlig, uavhengig skaderegistrering.
+  let damagesChanged = false;
+  for(const k of toDelete){
+    if(!k.linkedDamageId) continue;
+    const d = damages.find(x => x.id === k.linkedDamageId);
+    if(!d) continue;
+    // Eldre skader (fra før createdByControlId fantes) har ikke referansen satt —
+    // faller da tilbake til den opprinnelige koblingen via kontrollens linkedDamageId.
+    const opprettetAvDenneKontrollen = d.createdByControlId !== undefined ? d.createdByControlId === k.id : true;
+    if(!opprettetAvDenneKontrollen) continue;
+    const uendretSidenOpprettelse = d.status === 'registrert' && d.alvorlighet === 'middels';
+    if(uendretSidenOpprettelse){
+      damages = damages.filter(x => x.id !== d.id);
+      if(d.hasPhoto) await deletePhoto('damage:'+d.id);
+      damagesChanged = true;
+    }
+  }
+  if(damagesChanged) await saveDamages();
+
+  // Varsellamper og kilometerstand rekalkuleres per berørt bil ut fra hvilke
+  // kontroller som faktisk er igjen — ikke bare den ene som ble slettet.
+  let varsellysChanged = false;
+  for(const vehicleId of affectedVehicleIds){
+    const remaining = vehicleKontroller(vehicleId); // nyeste først
+
+    const fortsattStøttet = new Set();
+    remaining.forEach(k => (k.varsellamper || []).forEach(type => fortsattStøttet.add(type)));
+    const before = varsellys.length;
+    varsellys = varsellys.filter(w => {
+      if(w.vehicleId !== vehicleId || w.status !== 'aktiv') return true; // rør ikke andre biler eller allerede kvitterte
+      // Bruker den eksplisitte referansen til å avgjøre om denne saken i det hele tatt
+      // stammer fra en av de slettede kontrollene (eldre saker uten referanse-felt
+      // vurderes uansett, for bakoverkompatibilitet med data fra før feltet fantes).
+      const opprettetAvSlettet = w.createdByControlId ? deletedIds.has(w.createdByControlId) : true;
+      if(!opprettetAvSlettet) return true;
+      return fortsattStøttet.has(w.type); // fjern kun hvis ingen gjenværende kontroll lenger melder den
+    });
+    if(varsellys.length !== before) varsellysChanged = true;
+
+    const v = vehicles.find(x => x.id === vehicleId);
+    if(v && remaining.length > 0){
+      v.km = remaining[0].km; // km fra siste gjenværende kontroll på bilen
+    }
+  }
+  if(varsellysChanged) await saveVarsellys();
+  await saveVehicles();
+}
+
+async function deleteKontroll(id){
+  if(!isAdmin) return;
+  const k = kontroller.find(x => x.id === id);
+  if(!k) return;
+  const harTilknyttetSkade = !!k.linkedDamageId && damages.some(d => d.id === k.linkedDamageId);
+  const harTilknyttetVarsel = varsellys.some(w => w.createdByControlId === k.id && w.status === 'aktiv');
+  const msg = (harTilknyttetSkade || harTilknyttetVarsel)
+    ? 'Denne kontrollen har opprettet varsler og/eller skader. Dersom du fortsetter vil også tilknyttede registreringer bli slettet. Ønsker du å fortsette?'
+    : 'Er du sikker på at du vil slette denne kontrollen?';
+  if(!confirm(msg)) return;
+  await performKontrollDeletion([k]);
+  kthSelectedIds.delete(id);
+  render();
+}
+async function deleteSelectedKontroller(){
+  if(!isAdmin || kthSelectedIds.size === 0) return;
+  const antall = kthSelectedIds.size;
+  const valgte = kontroller.filter(k => kthSelectedIds.has(k.id));
+  const harTilknyttetData = valgte.some(k =>
+    (!!k.linkedDamageId && damages.some(d => d.id === k.linkedDamageId)) ||
+    varsellys.some(w => w.createdByControlId === k.id && w.status === 'aktiv')
+  );
+  const msg = harTilknyttetData
+    ? 'Én eller flere av de ' + antall + ' valgte kontrollene har opprettet varsler og/eller skader. Dersom du fortsetter vil også tilknyttede registreringer bli slettet. Ønsker du å fortsette?'
+    : 'Er du sikker på at du vil slette ' + antall + ' valgte kontroll' + (antall === 1 ? '' : 'er') + '?';
+  if(!confirm(msg)) return;
+  const toDelete = kontroller.filter(k => kthSelectedIds.has(k.id));
+  await performKontrollDeletion(toDelete);
+  kthSelectedIds.clear();
+  render();
+}
+
+
+// ================= Verkstedregister (Innstillinger) =================
+async function addVerksted(){
+  const input = document.getElementById('new-verksted-navn');
+  const navn = input.value.trim();
+  if(!navn) return;
+  verksteder.push({id: uid(), navn});
+  await saveVerksteder();
+  render();
+}
+function toggleEditVerksted(id){
+  editingVerkstedId = editingVerkstedId === id ? null : id;
+  render();
+}
+async function saveVerkstedEdit(id){
+  const w = verksteder.find(x => x.id === id);
+  if(!w) return;
+  const nyttNavn = document.getElementById('edit-verksted-'+id).value.trim();
+  if(!nyttNavn) return;
+  const gammeltNavn = w.navn;
+  w.navn = nyttNavn;
+  await saveVerksteder();
+  if(gammeltNavn !== nyttNavn){
+    // Hold eksisterende verkstedtimer konsistente med det nye navnet
+    let endret = false;
+    verkstedtimer.forEach(t => { if(t.verksted === gammeltNavn){ t.verksted = nyttNavn; endret = true; } });
+    if(endret) await saveVerkstedtimer();
+  }
+  editingVerkstedId = null;
+  render();
+}
+async function deleteVerksted(id){
+  const inUse = verkstedtimer.some(t => {
+    const w = verksteder.find(x => x.id === id);
+    return w && t.verksted === w.navn;
+  });
+  if(inUse && !confirm('Dette verkstedet er brukt på registrerte verkstedtimer. Slette likevel? Eksisterende timer beholder navnet som tekst.')) return;
+  verksteder = verksteder.filter(w => w.id !== id);
+  await saveVerksteder();
+  render();
+}
+
+// ================= Administratorbrukere (Innstillinger) =================
+async function addAdminUser(){
+  const navnInput = document.getElementById('new-admin-navn');
+  const tittelInput = document.getElementById('new-admin-tittel');
+  const brukInput = document.getElementById('new-admin-brukernavn');
+  const passInput = document.getElementById('new-admin-passord');
+  const navn = navnInput.value.trim();
+  const tittel = tittelInput.value;
+  const brukernavn = brukInput.value.trim();
+  const passord = passInput.value;
+  if(!navn || !brukernavn || !passord){ alert('Fyll ut navn, brukernavn og passord.'); return; }
+  if(adminUsers.some(u => u.brukernavn.toLowerCase() === brukernavn.toLowerCase())){
+    alert('Dette brukernavnet er allerede i bruk.'); return;
+  }
+  adminUsers.push({id: uid(), rolle: navn, tittel, brukernavn, passord});
+  await saveAdminUsers();
+  showAddAdminUser = false;
+  render();
+}
+async function deleteAdminUser(id){
+  if(adminUsers.length <= 1){ alert('Kan ikke slette siste administratorbruker.'); return; }
+  const u = adminUsers.find(x => x.id === id);
+  if(!u) return;
+  if(!confirm('Slette administratorbrukeren «' + u.rolle + '»?')) return;
+  adminUsers = adminUsers.filter(x => x.id !== id);
+  await saveAdminUsers();
+  if(loggedInRole === u.rolle){ logout(); return; }
+  render();
+}
+
+// Gjenbrukbar merkevareblokk (ikon + navn + undertittel), vist likt på alle skjermer
+// — administrasjon, sjåførmodus og innloggingssiden.
+function brandBlockHtml(){
+  return `
+    <div class="brand-block">
+      <div class="brand">🚚 Bilpark</div>
+      <div class="brand-sub">Status, skader og oppfølging av bilparken</div>
+    </div>
+  `;
+}
+
+// ================= Render dispatch =================
+function render(){
+  if(!loaded){ app.innerHTML = 'Laster inn...'; return; }
+  if(driverMode){ renderDriverShell(); return; }
+  if(!loggedInRole && screen !== 'login'){ screen = 'login'; }
+  if(screen === 'login'){ renderLoginShell(); return; }
+  let body = '';
+  if(screen === 'dashboard') body = renderDashboard();
+  else if(screen === 'register') body = renderRegister();
+  else if(screen === 'bilkort') body = renderBilkort();
+  else if(screen === 'skader') body = renderSkader();
+  else if(screen === 'verksted') body = renderVerksted();
+  else if(screen === 'innstillinger') body = renderInnstillinger();
+  else if(screen === 'kontroll') body = renderKontroll();
+  else if(screen === 'kontrollhistorikk') body = renderKontrollHistorikk();
+  else if(screen === 'varsler') body = renderVarslerOversikt();
+
+  const mainScreens = ['dashboard','register','skader','verksted','innstillinger','kontrollhistorikk'];
+  const menuActive = screen === 'register' || screen === 'innstillinger';
+  app.innerHTML = `
+    <div class="shell-top">
+      ${brandBlockHtml()}
+      <div class="shell-top-right">
+        <button class="btn small" id="header-kontroll-btn">Registrer kontroll</button>
+        <div class="menu-wrap">
+          <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
+            ☰ Meny
+          </button>
+        </div>
+      </div>
+    </div>
+    ${mainScreens.includes(screen) ? `
+    <div class="navtabs">
+      <button class="navtab ${screen==='dashboard'?'active':''}" data-nav="dashboard">Dashboard</button>
+      <button class="navtab ${screen==='verksted'?'active':''}" data-nav="verksted">Verkstedtimer</button>
+      <button class="navtab ${screen==='skader'?'active':''}" data-nav="skader">Skader</button>
+      <button class="navtab ${screen==='kontrollhistorikk'?'active':''}" data-nav="kontrollhistorikk">Sjåførkontroll historikk</button>
+    </div>` : ''}
+    ${body}
+  `;
+
+  document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
+  document.getElementById('header-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
+  document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
+
+  renderDrawer();
+
+  if(screen === 'dashboard') attachDashboardListeners();
+  else if(screen === 'register') attachRegisterListeners();
+  else if(screen === 'bilkort') attachBilkortListeners();
+  else if(screen === 'skader') attachSkaderListeners();
+  else if(screen === 'verksted') attachVerkstedListeners();
+  else if(screen === 'innstillinger') attachInnstillingerListeners();
+  else if(screen === 'kontroll') attachKontrollListeners();
+  else if(screen === 'kontrollhistorikk') attachKontrollHistorikkListeners();
+  else if(screen === 'varsler') attachVarslerOversiktListeners();
+}
+
+// ================= Mobilmeny (drawer) =================
+// Bygd som ett samlet menypunkt for ALT av navigasjon (ikke bare Bilregister/
+// Innstillinger som tidligere), siden appen hovedsakelig brukes på mobil og
+// fanerekken øverst (.navtabs) er for trang til å være god nok alene der.
+// Drawer-elementet ligger utenfor #app (se index.html), så selve glidningen
+// (CSS-transition på .drawer/.drawer-overlay) ikke avbrytes av at render()
+// bygger om resten av siden hver gang.
+function drawerItemHtml(scr, icon, label){
+  const active = screen === scr;
+  return `
+    <button class="drawer-item ${active ? 'active' : ''}" data-drawer-nav="${scr}">
+      <span class="drawer-icon">${icon}</span><span>${label}</span>
+      ${active ? '<span class="drawer-dot" aria-hidden="true"></span>' : ''}
+    </button>`;
+}
+function renderDrawer(){
+  const drawerEl = document.getElementById('app-drawer');
+  if(!drawerEl) return;
+  drawerEl.innerHTML = `
+    <div class="drawer-header">
+      <span class="drawer-title">Meny</span>
+      <button class="drawer-close" id="drawer-close-btn" aria-label="Lukk meny">✕</button>
+    </div>
+    <div class="drawer-user">Innlogget: ${esc(loggedInRole || '')}</div>
+    <div class="drawer-nav">
+      ${drawerItemHtml('dashboard', '🏠', 'Dashboard')}
+      ${drawerItemHtml('verksted', '🔧', 'Verkstedtimer')}
+      ${drawerItemHtml('skader', '⚠️', 'Skader')}
+      ${drawerItemHtml('kontrollhistorikk', '📋', 'Kontrollhistorikk')}
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section-label">Administrasjon</div>
+    <div class="drawer-nav">
+      ${drawerItemHtml('register', '🚐', 'Bilregister')}
+      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
+    </div>
+    <div class="drawer-footer">
+      <button class="drawer-item" id="drawer-logout-btn"><span class="drawer-icon">🚪</span><span>Logg ut</span></button>
+    </div>
+  `;
+  drawerEl.classList.toggle('open', headerMenuOpen);
+  const overlayEl = document.getElementById('drawer-overlay');
+  if(overlayEl) overlayEl.classList.toggle('open', headerMenuOpen);
+  document.body.style.overflow = headerMenuOpen ? 'hidden' : '';
+
+  drawerEl.querySelectorAll('[data-drawer-nav]').forEach(el => el.addEventListener('click', () => {
+    closeDrawer();
+    goTo(el.dataset.drawerNav);
+  }));
+  document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
+  document.getElementById('drawer-logout-btn').addEventListener('click', () => { closeDrawer(); logout(); });
+}
+function openDrawer(){
+  headerMenuOpen = true;
+  const drawerEl = document.getElementById('app-drawer');
+  const overlayEl = document.getElementById('drawer-overlay');
+  if(drawerEl) drawerEl.classList.add('open');
+  if(overlayEl) overlayEl.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  const btn = document.getElementById('header-menu-btn');
+  if(btn) btn.setAttribute('aria-expanded', 'true');
+}
+function closeDrawer(){
+  headerMenuOpen = false;
+  const drawerEl = document.getElementById('app-drawer');
+  const overlayEl = document.getElementById('drawer-overlay');
+  if(drawerEl) drawerEl.classList.remove('open');
+  if(overlayEl) overlayEl.classList.remove('open');
+  document.body.style.overflow = '';
+  const btn = document.getElementById('header-menu-btn');
+  if(btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleHeaderMenu(){
+  if(headerMenuOpen) closeDrawer(); else openDrawer();
+}
+
+// ================= Sjåførmodus: minimal skall med kun kontrollskjemaet =================
+function renderDriverShell(){
+  app.innerHTML = `
+    <div class="shell-top">
+      ${brandBlockHtml()}
+      <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span></div>
+    </div>
+    ${renderKontroll()}
+  `;
+  attachKontrollListeners();
+}
+
+// ================= scrLogin (kun administrasjonsdelen) =================
+function renderLoginShell(){
+  closeDrawer();
+  app.innerHTML = `
+    <div class="shell-top">
+      ${brandBlockHtml()}
+      <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Administrasjon</span></div>
+    </div>
+    <div style="max-width:380px;margin:40px auto 0;">
+      <h2 style="font-size:19px;margin-bottom:6px;text-align:center;">Logg inn</h2>
+      <div class="required-hint" style="margin-bottom:18px;text-align:center;">Kun for godkjente administratorbrukere.</div>
+      <form class="panel" id="login-form">
+        <div class="field" style="margin-bottom:14px;">
+          <label>Brukernavn</label>
+          <input id="login-brukernavn" type="text" autocomplete="username" required>
+        </div>
+        <div class="field" style="margin-bottom:6px;">
+          <label>Passord</label>
+          <input id="login-passord" type="password" autocomplete="current-password" required>
+        </div>
+        ${loginFormError ? `<div class="form-msg">${esc(loginFormError)}</div>` : ''}
+        <div class="panel-actions"><button class="btn" type="submit" style="width:100%;">Logg inn</button></div>
+      </form>
+      <div style="text-align:center;margin-top:18px;">
+        <button class="btn secondary small" id="login-driver-link-btn">Er du sjåfør? Åpne kontrollskjemaet</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('login-form').addEventListener('submit', loginSubmit);
+  document.getElementById('login-driver-link-btn').addEventListener('click', () => {
+    window.location.search = '?sjafor=1';
+  });
+}
+
+// ================= scrDashboard =================
+function vehicleReasons(v){
+  const reasons = [];
+  if(v.status === 'oppfolging') reasons.push('Trenger oppfølging');
+  if(v.status === 'verksted') reasons.push('På verksted');
+  return reasons;
+}
+function isFlagged(v){
+  const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
+  return vehicleReasons(v).length > 0 || openCount > 0;
+}
+
+function renderDashboard(){
+  const totalVehicles = vehicles.length;
+  const vehiclesWithDamages = new Set(damages.map(d => d.vehicleId)).size;
+  const openSkadesaker = damages.filter(skadeIsOpen).length;
+
+  const today = todayISO();
+  const upcomingVT = verkstedtimer.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const nearestVT = upcomingVT[0] || null;
+  const nearestWithin7 = nearestVT ? vtWithinWeek(nearestVT.dato) : false;
+
+  const aktiveVarsler = allActiveVarsellys();
+  const kontrollertIdagCount = vehicles.filter(v => isKontrollertIdag(v.id)).length;
+  const manglerKontrollCount = totalVehicles - kontrollertIdagCount;
+  const nyeSkaderIdag = damages.filter(d => d.dato === today).length;
+
+  const groups = {};
+  KATEGORI_ORDER.forEach(k => groups[k] = []);
+  sortedVehicles(vehicles).forEach(v => { if(groups[v.kategori]) groups[v.kategori].push(v); });
+  KATEGORI_ORDER.forEach(k => {
+    // Dashboard fremhever biler som krever oppfølging øverst i hver gruppe — bygger
+    // videre på den delte, kanoniske rekkefølgen fra sortedVehicles() over.
+    groups[k].sort((a, b) => (isFlagged(b) ? 1 : 0) - (isFlagged(a) ? 1 : 0));
+  });
+
+  const g = greetingInfo();
+  const displayNavn = loggedInRole || '';
+  const loggedInUser = adminUsers.find(u => u.rolle === loggedInRole);
+  const displayTittel = loggedInUser && loggedInUser.tittel ? loggedInUser.tittel : '';
+
+  return `
+    <div class="greeting-card ${g.klasse}">
+      <div class="greeting-grid">
+        <div class="greeting-left">
+          <div class="greeting-title">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
+          ${displayTittel ? `<div class="greeting-role">${esc(displayTittel)}</div>` : ''}
+          <div class="greeting-sub">${g.sub}</div>
+          <div class="greeting-datetime">${fmtDateTime(todayISO(), nowTimeOslo())}</div>
+          ${weatherData ? `<div class="greeting-weather">${weatherData.ikon} ${weatherData.temp}°C i Larvik · ${esc(weatherData.tekst)}</div>` : ''}
+        </div>
+        <div class="greeting-right">
+          <span class="status-chip" data-stat-nav="kontrollert-idag">✅ ${kontrollertIdagCount} kontrollert i dag</span>
+          <span class="status-chip" data-stat-nav="kommende-vt">🔧 ${nearestVT ? fmtShort(nearestVT.dato) + ' verksted' : 'Ingen verksted'}</span>
+          <span class="status-chip" data-stat-nav="aktive-varsler">${aktiveVarsler.length > 0 ? `🚨 ${aktiveVarsler.length} aktive varsler` : '✅ Ingen aktive varsler'}</span>
+        </div>
+      </div>
+    </div>
+    <div class="dash-row-2">
+      <div class="stat-grid">
+        <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">Totalt antall biler</div></div>
+        <div class="stat-card accent-red" data-stat-nav="skade-biler"><div class="stat-num">${vehiclesWithDamages}</div><div class="stat-label">Biler med registrerte skader</div></div>
+        <div class="stat-card accent-blue" data-stat-nav="kommende-vt"><div class="stat-num">${upcomingVT.length}</div><div class="stat-label">Kommende verkstedtimer</div></div>
+        <div class="stat-card accent-amber" data-stat-nav="apne-skader"><div class="stat-num">${openSkadesaker}</div><div class="stat-label">Åpne skadesaker</div></div>
+      </div>
+      <div class="panel" style="margin-bottom:0;">
+        <h3 style="margin-bottom:14px;">Sjåførkontroll</h3>
+        <div class="ov-grid">
+          <div class="ov-item ov-item-clickable" data-stat-nav="kontrollert-idag"><span class="ov-label">Kontrollert i dag</span><span class="ov-value" style="font-size:20px;color:var(--green);">✅ ${kontrollertIdagCount}</span></div>
+          <div class="ov-item ov-item-clickable" data-stat-nav="mangler-kontroll"><span class="ov-label">Mangler kontroll i dag</span><span class="ov-value" style="font-size:20px;color:${manglerKontrollCount>0?'var(--amber)':'var(--ink)'};">⚠️ ${manglerKontrollCount}</span></div>
+          <div class="ov-item ov-item-clickable" data-stat-nav="aktive-varsler"><span class="ov-label">Aktive varsellamper</span><span class="ov-value" style="font-size:20px;color:${aktiveVarsler.length>0?'var(--red)':'var(--ink)'};">🚨 ${aktiveVarsler.length}</span></div>
+          <div class="ov-item ov-item-clickable" data-stat-nav="nye-skader-idag"><span class="ov-label">Nye skader i dag</span><span class="ov-value" style="font-size:20px;color:${nyeSkaderIdag>0?'var(--amber)':'var(--ink)'};">⚠️ ${nyeSkaderIdag}</span></div>
+        </div>
+      </div>
+    </div>
+    ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
+    <div class="dash-group-grid">
+      ${KATEGORI_ORDER.filter(k => groups[k].length > 0).map(k => {
+        const open = !!dashGroupOpen[k];
+        const gruppeVehicleIds = new Set(groups[k].map(v => v.id));
+        const gruppeVarsler = aktiveVarsler.filter(w => gruppeVehicleIds.has(w.vehicleId)).length;
+        return `
+        <div class="panel dash-group-card" style="margin-bottom:0;">
+          <div class="group-card-head" data-toggle-group="${k}">
+            <div>
+              <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+              <div class="group-card-sub">${groups[k].length} ${groups[k].length===1?'bil':'biler'}${gruppeVarsler>0 ? ` · 🚨 ${gruppeVarsler}` : ''}</div>
+            </div>
+            <span class="chevron ${open?'open':''}">⌄</span>
+          </div>
+          <div class="vehicle-group-body ${open?'open':''}">
+            <div>
+              <div class="acc-list" style="margin-top:12px;">
+                ${groups[k].map(v => accordionRow(v)).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+    `}
+  `;
+}
+
+function accordionRow(v){
+  const expanded = dashExpandedId === v.id;
+  const reasons = vehicleReasons(v);
+  const vDamages = vehicleDamages(v.id);
+  const vVT = vehicleVT(v.id);
+  const vAktiveVarsler = activeVarsellysForVehicle(v.id);
+  const openCount = vDamages.filter(skadeIsOpen).length;
+  const kontrollertIdag = isKontrollertIdag(v.id);
+
+  return `
+    <div class="acc-row ${v.status} ${expanded ? 'expanded' : ''}">
+      <div class="acc-head" data-toggle="${v.id}">
+        <div class="acc-head-left">
+          <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+          <div>
+            <div class="flag-name">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
+            <div class="flag-reason">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
+          </div>
+        </div>
+        <div class="acc-head-right">
+          ${!kontrollertIdag ? `<span class="vl-indicator amber">🟡 Mangler kontroll</span>` : ''}
+          ${vAktiveVarsler.length > 0 ? `<span class="vl-indicator red">🔴 ${vAktiveVarsler.length}</span>` : `<span class="vl-indicator green">🟢</span>`}
+          ${vDamages.length > 0 ? `<span class="badge ${openCount > 0 ? 'overdue' : 'unset'}">${vDamages.length} skade${vDamages.length === 1 ? '' : 'r'}</span>` : ''}
+          <span class="badge ${v.status}">${STATUS_LABEL[v.status] || 'OK'}</span>
+          <span class="chevron">⌄</span>
+        </div>
+      </div>
+      ${expanded ? `
+      <div class="acc-body">
+        <div class="detail-section">
+          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oversikt</h4>
+          <div class="ov-grid">
+            <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${esc(v.regnr)}</span></div>
+            <div class="ov-item"><span class="ov-label">Bilnummer</span><span class="ov-value">${esc(v.bilnummer)}</span></div>
+            <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_LABEL[v.kategori] || '—'}</span></div>
+            <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
+            <div class="ov-item"><span class="ov-label">Dekktype</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'}</span></div>
+            <div class="ov-item"><span class="ov-label">Løyvenummer</span><span class="ov-value">${v.loyvenummer ? esc(v.loyvenummer) : 'Ikke satt'}</span></div>
+            <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${STATUS_LABEL[v.status] || 'OK'}</span></div>
+            <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span></div>
+          </div>
+        </div>
+        <div class="detail-section" style="margin-top:16px;">
+          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Verkstedhistorikk</h4>
+          ${vVT.length === 0 ? `<div class="empty-note" style="padding:4px 0;">Ingen verkstedtimer registrert</div>` : `
+          <ul class="dmg-simple-list">
+            ${vVT.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)} – ${esc(t.beskrivelse)}</span><span class="badge ${t.dato >= todayISO() ? 'soon' : 'unset'}">${t.dato >= todayISO() ? 'Kommende' : 'Gjennomført'}</span></li>`).join('')}
+          </ul>`}
+        </div>
+        <div class="detail-section" style="margin-top:16px;">
+          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Aktive varsellamper</h4>
+          ${vAktiveVarsler.length === 0 ? `<div class="empty-note" style="padding:4px 0;">🟢 Ingen aktive varsellamper</div>` : `
+          <ul class="dmg-simple-list">
+            ${vAktiveVarsler.map(w => `<li><span class="dmg-simple-main">🚨 ${esc(varsellysLabel(w))} – registrert ${fmt(w.registrertDato)}</span></li>`).join('')}
+          </ul>`}
+        </div>
+        <div class="detail-section" style="margin-top:16px;">
+          <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Registrerte skader</h4>
+          ${vDamages.length === 0 ? `<div class="empty-note" style="padding:4px 0;">Ingen registrerte skader</div>` : `
+          <ul class="dmg-simple-list">
+            ${vDamages.map(d => `<li><span class="dmg-simple-main">${esc(d.beskrivelse)} – ${fmt(d.dato)}</span><span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span></li>`).join('')}
+          </ul>`}
+        </div>
+        <div class="panel-actions" style="margin-top:14px;">
+          <button class="btn" data-edit="${v.id}">Rediger bil</button>
+          <button class="btn secondary" data-kontroll="${v.id}">Registrer kontroll</button>
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function attachDashboardListeners(){
+  document.querySelectorAll('[data-toggle-group]').forEach(el => el.addEventListener('click', () => toggleDashGroup(el.dataset.toggleGroup)));
+  document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
+    dashExpandedId = dashExpandedId === el.dataset.toggle ? null : el.dataset.toggle;
+    render();
+  }));
+  document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goTo('bilkort', el.dataset.edit);
+  }));
+  document.querySelectorAll('[data-kontroll]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToRegisterKontroll(el.dataset.kontroll);
+  }));
+  document.querySelectorAll('[data-stat-nav]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const today = todayISO();
+    switch(el.dataset.statNav){
+      case 'alle-biler': goToRegisterFiltered(''); break;
+      case 'skade-biler': goToSkaderFiltered({}); break;
+      case 'kommende-vt': goToVerkstedFiltered('kommende'); break;
+      case 'apne-skader': goToSkaderFiltered({status:'apen'}); break;
+      case 'kontrollert-idag': goToKontrollhistorikkFiltered(today); break;
+      case 'mangler-kontroll': goToRegisterFiltered('ikke'); break;
+      case 'aktive-varsler': goTo('varsler'); break;
+      case 'nye-skader-idag': goToSkaderFiltered({dato:today}); break;
+    }
+  }));
+}
+
+// ================= scrBilregister =================
+function renderRegister(){
+  const q = filterSearch.trim().toLowerCase();
+  const filtered = vehicles.filter(v => {
+    if(q && !((v.bilnummer||'').toLowerCase().includes(q) || v.regnr.toLowerCase().includes(q) || (v.modell||'').toLowerCase().includes(q) || (v.loyvenummer||'').toLowerCase().includes(q))) return false;
+    if(filterKategori && v.kategori !== filterKategori) return false;
+    if(filterKontrollStatus === 'kontrollert' && !isKontrollertIdag(v.id)) return false;
+    if(filterKontrollStatus === 'ikke' && isKontrollertIdag(v.id)) return false;
+    if(filterLoyve === 'har' && !v.loyvenummer) return false;
+    if(filterLoyve === 'mangler' && v.loyvenummer) return false;
+    return true;
+  });
+
+  return `
+    <div class="toolbar">
+      <div class="count">${filtered.length} av ${vehicles.length} kjøretøy</div>
+      <button class="btn" id="add-vehicle-btn">${showAddVehicleForm ? 'Avbryt' : '+ Ny bil'}</button>
+    </div>
+
+    ${showAddVehicleForm ? `
+    <form class="panel" id="add-vehicle-form">
+      <h3>Ny bil</h3>
+      <div class="row3">
+        <div class="field"><label>Bilnummer</label><input id="new-bilnummer" type="text" placeholder="F.eks. Bil 3" required></div>
+        <div class="field"><label>Registreringsnummer</label><input id="new-regnr" type="text" placeholder="F.eks. AB12345" required></div>
+        <div class="field"><label>Kategori</label>
+          <select id="new-kategori" required>
+            <option value="">Velg kategori...</option>
+            <option value="bil">Bil 1–11</option>
+            <option value="lastebil">Lastebil</option>
+            <option value="montering">Monteringsbil</option>
+          </select>
+        </div>
+      </div>
+      <div class="row3">
+        <div class="field"><label>Merke</label><input id="new-merke" type="text" placeholder="F.eks. Mercedes"></div>
+        <div class="field"><label>Modell</label><input id="new-modell" type="text" placeholder="F.eks. Sprinter"></div>
+        <div class="field"><label>Årsmodell</label><input id="new-arsmodell" type="text" placeholder="F.eks. 2023"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Dekk</label>
+          <select id="new-dekk">
+            <option value="">Ikke satt</option>
+            <option value="sommer">Sommerdekk</option>
+            <option value="vinter">Vinterdekk</option>
+            <option value="helars">Helårsdekk</option>
+          </select>
+        </div>
+        <div class="field"><label>Kilometerstand</label><input id="new-km" type="number" min="0" step="1" placeholder="F.eks. 42000"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="new-loyvenummer" type="text" placeholder="F.eks. 123456, NO-12345 eller BRING-001"></div>
+      <div class="form-msg" id="new-vehicle-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Legg til og åpne</button></div>
+    </form>` : ''}
+
+    <div class="filters-row">
+      <input type="text" id="f-search" placeholder="Søk på bilnummer, regnr., modell eller løyvenummer..." value="${esc(filterSearch)}">
+      <select id="f-kategori">
+        <option value="">Alle kategorier</option>
+        <option value="bil" ${filterKategori==='bil'?'selected':''}>Bil 1–11</option>
+        <option value="lastebil" ${filterKategori==='lastebil'?'selected':''}>Lastebil</option>
+        <option value="montering" ${filterKategori==='montering'?'selected':''}>Monteringsbil</option>
+      </select>
+      <select id="f-kontrollstatus">
+        <option value="" ${filterKontrollStatus===''?'selected':''}>Alle biler</option>
+        <option value="kontrollert" ${filterKontrollStatus==='kontrollert'?'selected':''}>Kontrollert i dag</option>
+        <option value="ikke" ${filterKontrollStatus==='ikke'?'selected':''}>Ikke kontrollert i dag</option>
+      </select>
+      <select id="f-loyve">
+        <option value="" ${filterLoyve===''?'selected':''}>Alle (løyvenummer)</option>
+        <option value="har" ${filterLoyve==='har'?'selected':''}>Har løyvenummer</option>
+        <option value="mangler" ${filterLoyve==='mangler'?'selected':''}>Mangler løyvenummer</option>
+      </select>
+    </div>
+
+    ${filtered.length === 0 ? `
+      <div class="empty">
+        <h3>${vehicles.length === 0 ? 'Ingen kjøretøy registrert ennå' : 'Ingen treff'}</h3>
+        <div>${vehicles.length === 0 ? 'Trykk «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.'}</div>
+      </div>
+    ` : `
+      <div class="gallery">
+        ${filtered.map(v => galleryCard(v)).join('')}
+      </div>
+    `}
+  `;
+}
+function attachRegisterListeners(){
+  document.getElementById('add-vehicle-btn').addEventListener('click', () => { showAddVehicleForm = !showAddVehicleForm; render(); });
+  const f = document.getElementById('add-vehicle-form');
+  if(f) f.addEventListener('submit', submitAddVehicle);
+  document.getElementById('f-search').addEventListener('input', e => {
+    filterSearch = e.target.value; render();
+    const el = document.getElementById('f-search'); el.focus(); el.selectionStart = el.value.length;
+  });
+  document.getElementById('f-kategori').addEventListener('change', e => { filterKategori = e.target.value; render(); });
+  document.getElementById('f-kontrollstatus').addEventListener('change', e => { filterKontrollStatus = e.target.value; render(); });
+  document.getElementById('f-loyve').addEventListener('change', e => { filterLoyve = e.target.value; render(); });
+  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
+}
+function galleryCard(v){
+  const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
+  const totalCount = damages.filter(d => d.vehicleId === v.id).length;
+  const aktiveVarsler = activeVarsellysForVehicle(v.id);
+  const kontrollertIdag = isKontrollertIdag(v.id);
+  return `
+    <div class="gcard ${v.status}" data-open="${v.id}">
+      <div class="gcard-head">
+        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div class="gcard-titles">
+          <div class="model">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
+          <div class="model-sub">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}${v.arsmodell ? ' · Årsmodell ' + esc(v.arsmodell) : ''}${v.loyvenummer ? ' · Løyve ' + esc(v.loyvenummer) : ''}</div>
+          <div class="vl-indicator ${aktiveVarsler.length > 0 ? 'red' : 'green'}" style="margin-top:4px;">
+            ${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} aktiv${aktiveVarsler.length===1?'':'e'} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen aktive varsellamper'}
+          </div>
+          <div class="vl-indicator ${kontrollertIdag ? 'green' : 'amber'}" style="margin-top:2px;">
+            ${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}
+          </div>
+        </div>
+      </div>
+      <div class="gcard-badges">
+        <span class="badge ${v.status}">${STATUS_LABEL[v.status] || 'OK'}</span>
+        <span class="badge unset">${KATEGORI_LABEL[v.kategori] || '—'}</span>
+        ${totalCount > 0 ? `<span class="badge ${openCount > 0 ? 'overdue' : 'unset'}">${totalCount} skade${totalCount === 1 ? '' : 'r'}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ================= Gjenbrukbart skadekort (brukes på Bilkort og Skader-siden) =================
+function damageCard(d, showVehicle){
+  const isEditing = editingDamageId === d.id;
+  const v = dmgVehicle(d);
+  return `
+    <div class="dmg-item ${d.status==='utbedret'?'utbedret':''}">
+      <div class="dmg-top" data-toggle-edit="${d.id}">
+        <div class="dmg-text">
+          <div class="main">${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(d.beskrivelse)}</div>
+          ${d.kommentar ? `<div class="desc">${esc(d.kommentar)}</div>` : ''}
+          <div class="dmg-meta">Meldt av ${esc(d.registrertAv)} · ${fmt(d.dato)}</div>
+        </div>
+        <div class="dmg-badges">
+          <span class="badge ${d.alvorlighet}">${ALVOR_LABEL[d.alvorlighet] || '—'}</span>
+          <span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span>
+          ${d.status !== 'utbedret' ? `<button class="btn small" data-mark-fikset="${d.id}">✅ Marker som fikset</button>` : ''}
+        </div>
+      </div>
+      ${isEditing ? `
+      <div class="dmg-editbox">
+        <div class="row2">
+          <div class="field"><label>Bil</label><select id="e-sk-vehicle-${d.id}">${vehicleOptions(d.vehicleId)}</select></div>
+          <div class="field"><label>Dato</label><input id="e-sk-dato-${d.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${d.dato ? fmt(d.dato) : ''}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Alvorlighetsgrad</label>
+            <select id="e-sk-alvorlighet-${d.id}">
+              <option value="lav" ${d.alvorlighet==='lav'?'selected':''}>Lav</option>
+              <option value="middels" ${d.alvorlighet==='middels'?'selected':''}>Middels</option>
+              <option value="hoy" ${d.alvorlighet==='hoy'?'selected':''}>Høy</option>
+            </select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="e-sk-status-${d.id}">
+              <option value="registrert" ${d.status==='registrert'?'selected':''}>Registrert</option>
+              <option value="oppfolging" ${d.status==='oppfolging'?'selected':''}>Under oppfølging</option>
+              <option value="utbedret" ${d.status==='utbedret'?'selected':''}>Utbedret</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="e-sk-beskrivelse-${d.id}" type="text" value="${esc(d.beskrivelse)}"></div>
+        <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="e-sk-kommentar-${d.id}">${esc(d.kommentar||'')}</textarea></div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Bilde</label>
+          <div class="photo-input-area">
+            ${d.hasPhoto ? `<img id="edit-photo-preview-${d.id}" class="photo-preview" style="display:none;">` : '<div class="required-hint">Ingen bilde lastet opp ennå</div>'}
+            <input type="file" accept="image/*" id="e-sk-photo-${d.id}" style="margin-top:8px;">
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button class="btn small" id="e-sk-save-${d.id}">Lagre endringer</button>
+          <button class="btn secondary small" id="e-sk-cancel-${d.id}">Avbryt</button>
+          <button class="btn danger-outline small" id="e-sk-delete-${d.id}">Slett</button>
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+}
+function attachDamageCardListeners(list){
+  document.querySelectorAll('[data-toggle-edit]').forEach(el => el.addEventListener('click', () => toggleEditDamage(el.dataset.toggleEdit)));
+  document.querySelectorAll('[data-mark-fikset]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markSkadeFikset(el.dataset.markFikset); }));
+  list.forEach(d => {
+    const saveBtn = document.getElementById('e-sk-save-'+d.id);
+    if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveDamageEdit(d.id); });
+    const cancelBtn = document.getElementById('e-sk-cancel-'+d.id);
+    if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingDamageId = null; render(); });
+    const delBtn = document.getElementById('e-sk-delete-'+d.id);
+    if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteDamage(d.id); });
+    const photoInput = document.getElementById('e-sk-photo-'+d.id);
+    if(photoInput) photoInput.addEventListener('click', e => e.stopPropagation());
+    if(photoInput) photoInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      pendingPhotoData = await resizeImage(file);
+      const img = document.getElementById('edit-photo-preview-'+d.id);
+      if(img){ img.src = pendingPhotoData; img.style.display = 'block'; }
+    });
+  });
+}
+// Kanonisk, felles sortering for kjøretøy — speiler nøyaktig samme gruppering og
+// rekkefølge som Dashboardet (Bil 1–11, deretter Lastebiler, deretter Monteringsbiler,
+// sortert på bilnummer innad i hver gruppe — aldri alfabetisk, aldri på regnr).
+// ALLE bil-dropdowns i appen henter rekkefølgen sin herfra via vehicleOptions() under,
+// slik at Dashboard, Bilregister, Verkstedtimer, Skader og Sjåførkontroll alltid stemmer
+// overens — endres denne ene funksjonen, oppdateres alle dropdowns automatisk.
+function sortedVehicles(list){
+  return (list || vehicles).slice().sort((a, b) => {
+    const catA = KATEGORI_ORDER.indexOf(a.kategori);
+    const catB = KATEGORI_ORDER.indexOf(b.kategori);
+    if(catA !== catB) return catA - catB;
+    return ruteNumber(a) - ruteNumber(b);
+  });
+}
+function vehicleOptions(selectedId){
+  const sorted = sortedVehicles(vehicles);
+  return KATEGORI_ORDER.map(kat => {
+    const gruppe = sorted.filter(v => v.kategori === kat);
+    if(gruppe.length === 0) return '';
+    const options = gruppe.map(v => `<option value="${v.id}" ${v.id===selectedId?'selected':''}>${esc(vehicleLabel(v))} — ${esc(v.merke)} ${esc(v.modell)}</option>`).join('');
+    return `<optgroup label="${esc(KATEGORI_GROUP_LABEL[kat])}">${options}</optgroup>`;
+  }).join('');
+}
+
+// ================= Kontrollhistorikk-kort (gjenbrukes på Bilkort) =================
+function kontrollHistoryCard(k){
+  const lines = [];
+  if(k.varsellamper && k.varsellamper.length > 0){
+    const names = k.varsellamper.map(key => VARSELLAMPE_LABEL[key]).join(', ');
+    lines.push('Varsellampe' + (k.varsellamper.length > 1 ? 'r' : '') + ': ' + names + (k.annetTekst ? ' (' + k.annetTekst + ')' : ''));
+  }
+  if(k.harNyeSkader) lines.push('Ny skade meldt: ' + (k.skadeBeskrivelse || ''));
+  if(k.kommentar) lines.push('Kommentar: ' + k.kommentar);
+  const avvik = lines.length > 0;
+  return `
+    <div class="kt-history-card ${avvik ? 'avvik' : ''}">
+      <div class="kt-history-top"><span>${fmt(k.dato)} – ${Number(k.km||0).toLocaleString('nb-NO')} km</span></div>
+      <div class="kt-history-lines">
+        ${avvik ? lines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>Ingen avvik</div>'}
+      </div>
+      <div class="kt-history-meta">Sjåfør: ${esc(k.sjafor)} · kl. ${esc(k.tidspunkt)}</div>
+    </div>
+  `;
+}
+
+// ================= scrKontrollHistorikk (Sjåførkontroll historikk) =================
+function kontrollHistorikkRow(k){
+  const v = vehicles.find(x => x.id === k.vehicleId);
+  const varselTekst = (k.varsellamper && k.varsellamper.length > 0)
+    ? k.varsellamper.map(key => VARSELLAMPE_LABEL[key]).join(', ') + (k.annetTekst ? ' (' + k.annetTekst + ')' : '')
+    : 'Ingen';
+  const skadeTekst = k.harNyeSkader ? (k.skadeBeskrivelse || 'Ja') : 'Ingen';
+  const checked = kthSelectedIds.has(k.id);
+  return `
+    <div class="kt-history-card">
+      <div class="kt-history-top">
+        <span style="display:flex;align-items:center;gap:8px;">
+          ${isAdmin ? `<input type="checkbox" class="kth-select-box" data-select="${k.id}" ${checked?'checked':''} style="width:18px;height:18px;">` : ''}
+          ${fmt(k.dato)} kl. ${esc(k.tidspunkt)}
+        </span>
+        <span>${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</span>
+      </div>
+      <div class="ov-grid" style="margin-top:10px;">
+        <div class="ov-item"><span class="ov-label">Sjåførnavn</span><span class="ov-value">${esc(k.sjafor)}</span></div>
+        <div class="ov-item"><span class="ov-label">Bilnummer</span><span class="ov-value">${v ? esc(v.bilnummer) : '—'}</span></div>
+        <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${v ? esc(v.regnr) : '—'}</span></div>
+        <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${Number(k.km||0).toLocaleString('nb-NO')} km</span></div>
+        <div class="ov-item"><span class="ov-label">Aktive varsellamper</span><span class="ov-value">${esc(varselTekst)}</span></div>
+        <div class="ov-item"><span class="ov-label">Registrerte skader</span><span class="ov-value">${esc(skadeTekst)}</span></div>
+      </div>
+      ${k.kommentar ? `<div class="kt-history-meta">Kommentar: ${esc(k.kommentar)}</div>` : ''}
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">🗑️ Slett kontroll</button></div>` : ''}
+    </div>
+  `;
+}
+function renderKontrollHistorikk(){
+  const q = kthSearch.trim().toLowerCase();
+  const distinktSjafor = [...new Set(kontroller.map(k => k.sjafor).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'nb'));
+
+  const filtered = kontroller.filter(k => {
+    const v = vehicles.find(x => x.id === k.vehicleId);
+    if(kthFilterBil && k.vehicleId !== kthFilterBil) return false;
+    if(kthFilterDato && k.dato !== kthFilterDato) return false;
+    if(kthFilterVarsellampe && !(k.varsellamper || []).includes(kthFilterVarsellampe)) return false;
+    if(kthFilterSkade === 'ja' && !k.harNyeSkader) return false;
+    if(kthFilterSkade === 'nei' && k.harNyeSkader) return false;
+    if(kthFilterSjafor && k.sjafor !== kthFilterSjafor) return false;
+    if(q){
+      const matchRegnr = v && v.regnr && v.regnr.toLowerCase().includes(q);
+      const matchBilnummer = v && v.bilnummer && v.bilnummer.toLowerCase().includes(q);
+      if(!matchRegnr && !matchBilnummer) return false;
+    }
+    return true;
+  }).sort((a,b) => (b.dato+((b.tidspunkt)||'')).localeCompare(a.dato+((a.tidspunkt)||'')));
+
+  return `
+    <h2 style="font-size:19px;margin-bottom:6px;">Sjåførkontroll – historikk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${filtered.length} av ${kontroller.length} registrerte kontroller, nyeste først.</div>
+
+    <div class="filters-row">
+      <input type="text" id="kth-search" placeholder="Søk på regnr. eller bilnummer..." value="${esc(kthSearch)}">
+      <select id="kth-f-bil">
+        <option value="">Alle biler</option>
+        ${vehicleOptions(kthFilterBil)}
+      </select>
+      <input type="text" id="kth-f-dato" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${kthFilterDato ? fmt(kthFilterDato) : ''}">
+      <select id="kth-f-varsel">
+        <option value="">Alle varsellamper</option>
+        ${VARSELLAMPE_ORDER.map(key => `<option value="${key}" ${kthFilterVarsellampe===key?'selected':''}>${VARSELLAMPE_LABEL[key]}</option>`).join('')}
+      </select>
+      <select id="kth-f-skade">
+        <option value="" ${kthFilterSkade===''?'selected':''}>Skade: alle</option>
+        <option value="ja" ${kthFilterSkade==='ja'?'selected':''}>Skade registrert</option>
+        <option value="nei" ${kthFilterSkade==='nei'?'selected':''}>Ingen skade</option>
+      </select>
+      <select id="kth-f-sjafor">
+        <option value="">Alle utførte av</option>
+        ${distinktSjafor.map(s => `<option value="${esc(s)}" ${kthFilterSjafor===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select>
+      ${(kthFilterBil||kthFilterDato||kthFilterVarsellampe||kthFilterSkade||kthFilterSjafor||kthSearch) ? `<button class="btn secondary small" id="kth-f-clear" type="button">Nullstill filtre</button>` : ''}
+    </div>
+
+    ${isAdmin && kthSelectedIds.size > 0 ? `
+    <div class="toolbar">
+      <div class="count">${kthSelectedIds.size} valgt${kthSelectedIds.size === 1 ? '' : 'e'}</div>
+      <button class="btn danger-outline small" id="kth-delete-selected-btn">🗑️ Slett valgte</button>
+    </div>` : ''}
+
+    ${filtered.length === 0 ? `<div class="empty-note">Ingen sjåførkontroller funnet${kontroller.length === 0 ? ' ennå.' : ' med gjeldende filter.'}</div>` : `
+    <div class="dmg-list">${filtered.map(k => kontrollHistorikkRow(k)).join('')}</div>`}
+  `;
+}
+function attachKontrollHistorikkListeners(){
+  document.getElementById('kth-search').addEventListener('input', e => {
+    kthSearch = e.target.value; render();
+    const el = document.getElementById('kth-search'); el.focus(); el.selectionStart = el.value.length;
+  });
+  document.getElementById('kth-f-bil').addEventListener('change', e => { kthFilterBil = e.target.value; render(); });
+  document.getElementById('kth-f-dato').addEventListener('change', () => { kthFilterDato = readDateInput('kth-f-dato'); render(); });
+  document.getElementById('kth-f-varsel').addEventListener('change', e => { kthFilterVarsellampe = e.target.value; render(); });
+  document.getElementById('kth-f-skade').addEventListener('change', e => { kthFilterSkade = e.target.value; render(); });
+  document.getElementById('kth-f-sjafor').addEventListener('change', e => { kthFilterSjafor = e.target.value; render(); });
+  const clearBtn = document.getElementById('kth-f-clear');
+  if(clearBtn) clearBtn.addEventListener('click', () => {
+    kthFilterBil = ''; kthFilterDato = ''; kthFilterVarsellampe = ''; kthFilterSkade = ''; kthFilterSjafor = ''; kthSearch = '';
+    render();
+  });
+  document.querySelectorAll('[data-select]').forEach(el => el.addEventListener('change', (e) => {
+    if(e.target.checked) kthSelectedIds.add(el.dataset.select);
+    else kthSelectedIds.delete(el.dataset.select);
+    render();
+  }));
+  document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
+  const deleteSelectedBtn = document.getElementById('kth-delete-selected-btn');
+  if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
+}
+
+// ================= Varsellys-kort (gjenbrukes på Bilkort og Dashboard) =================
+function varsellysCard(w){
+  const days = w.status === 'aktiv' ? daysSince(w.registrertDato) : null;
+  return `
+    <div class="vl-card ${w.status === 'kvittert' ? 'kvittert' : ''}">
+      <div class="vl-card-main">
+        <div class="title">${w.status === 'aktiv' ? '🚨' : '✅'} ${esc(varsellysLabel(w))}</div>
+        <div class="vl-card-meta">
+          Registrert: ${fmt(w.registrertDato)} · ${esc(w.registrertAv)}
+          ${days !== null ? ` · Aktiv i ${days} dag${days === 1 ? '' : 'er'}` : ''}
+          ${w.status === 'kvittert' ? `<br>Kvittert: ${fmt(w.kvittertDato)} · ${esc(w.kvittertAv)} · Status: Lukket` : ''}
+        </div>
+      </div>
+      ${w.status === 'aktiv' && isAdmin ? `<button class="btn small" data-kvitter="${w.id}">✅ Kvitter ut</button>` : ''}
+      ${w.status === 'aktiv' && !isAdmin ? `<span class="required-hint">Kun administrator kan kvittere ut</span>` : ''}
+    </div>
+  `;
+}
+
+// ================= scrVarsler (Aktive varsellamper — hurtignavigasjon fra Dashboard) =================
+function renderVarslerOversikt(){
+  const alle = allActiveVarsellys();
+  const byVehicle = new Map();
+  alle.forEach(w => {
+    if(!byVehicle.has(w.vehicleId)) byVehicle.set(w.vehicleId, []);
+    byVehicle.get(w.vehicleId).push(w);
+  });
+  const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
+  // Varsellamper kan i sjeldne tilfeller peke på en bil som senere er slettet fra
+  // registeret (bilsletting rydder ikke varsellys) — disse vises samlet til slutt
+  // i stedet for å forsvinne stille fra oversikten.
+  const kjentIder = new Set(vehicles.map(v => v.id));
+  const foreldreloseVarsler = alle.filter(w => !kjentIder.has(w.vehicleId));
+
+  return `
+    <div class="backrow"><button class="backbtn" id="varsler-back">← Dashboard</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">Aktive varsellamper</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${alle.length} aktiv${alle.length===1?'':'e'} varsellampe${alle.length===1?'':'r'} totalt, fordelt på ${beroerteKjoretoy.length} kjøretøy.</div>
+    ${alle.length === 0 ? `<div class="empty-note">🟢 Ingen aktive varsellamper.</div>` : KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
+      const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
+      return `
+      <div style="margin-bottom:22px;">
+        <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+        <div class="acc-list">
+          ${gruppeKjoretoy.map(v => {
+            const wList = byVehicle.get(v.id) || [];
+            const open = varslerOpenVehicles.has(v.id);
+            return `
+            <div class="acc-row varsel ${open ? 'expanded' : ''}">
+              <div class="acc-head" data-toggle-varsler-vehicle="${v.id}">
+                <div class="acc-head-left">
+                  <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)} (${esc(v.merke)})</div>
+                </div>
+                <div class="acc-head-right">
+                  <span class="group-count">${wList.length} varsel${wList.length===1?'':'er'}</span>
+                  <span class="chevron">⌄</span>
+                </div>
+              </div>
+              ${open ? `<div class="acc-body">
+                <div class="dmg-list">
+                  ${wList.map(w => varsellysCard(w)).join('')}
+                </div>
+              </div>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+    ${foreldreloseVarsler.length > 0 ? `
+    <div style="margin-bottom:22px;">
+      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="dmg-list">${foreldreloseVarsler.map(w => varsellysCard(w)).join('')}</div>
+    </div>` : ''}
+  `;
+}
+function attachVarslerOversiktListeners(){
+  document.getElementById('varsler-back').addEventListener('click', () => goTo('dashboard'));
+  document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
+  document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+}
+
+// ================= scrBilkort =================
+function bilkortAccordionRow(key, title, count, bodyHtml){
+  const open = bilkortOpenSections.has(key);
+  return `
+    <div class="acc-row ${open ? 'expanded' : ''}">
+      <div class="acc-head" data-toggle-bilkort="${key}">
+        <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
+        <div class="acc-head-right">
+          ${count !== null ? `<span class="group-count">${count}</span>` : ''}
+          <span class="chevron">⌄</span>
+        </div>
+      </div>
+      ${open ? `<div class="acc-body">${bodyHtml}</div>` : ''}
+    </div>
+  `;
+}
+function renderBilkort(){
+  const v = vehicles.find(x => x.id === currentVehicleId);
+  if(!v) return `<div class="empty"><h3>Fant ikke kjøretøyet</h3></div>`;
+  const vDamages = vehicleDamages(v.id);
+  const vDamagesAktive = vDamages.filter(d => d.status !== 'utbedret');
+  const vDamagesFikset = vDamages.filter(d => d.status === 'utbedret');
+  const vVT = vehicleVT(v.id);
+  const vKontroller = vehicleKontroller(v.id);
+  const vLastKontroll = lastKontrollForVehicle(v.id);
+  const vKontrollertIdag = isKontrollertIdag(v.id);
+  const vAktiveVarsler = activeVarsellysForVehicle(v.id);
+  const vVarselHistorikk = historikkVarsellysForVehicle(v.id);
+
+  const infoBody = `
+    <div class="row3">
+      <div class="field"><label>Bilnummer</label><input id="f-bilnummer" type="text" value="${esc(v.bilnummer)}"></div>
+      <div class="field"><label>Registreringsnummer</label><input id="f-regnr" type="text" value="${esc(v.regnr)}"></div>
+      <div class="field"><label>Kategori</label>
+        <select id="f-kategori">
+          <option value="bil" ${v.kategori==='bil'?'selected':''}>Bil 1–11</option>
+          <option value="lastebil" ${v.kategori==='lastebil'?'selected':''}>Lastebil</option>
+          <option value="montering" ${v.kategori==='montering'?'selected':''}>Monteringsbil</option>
+        </select>
+      </div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Merke</label><input id="f-merke" type="text" value="${esc(v.merke||'')}"></div>
+      <div class="field"><label>Modell</label><input id="f-modell" type="text" value="${esc(v.modell||'')}"></div>
+      <div class="field"><label>Årsmodell</label><input id="f-arsmodell" type="text" value="${esc(v.arsmodell||'')}"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Status</label>
+        <select id="f-status">
+          <option value="ok" ${v.status==='ok'?'selected':''}>OK</option>
+          <option value="oppfolging" ${v.status==='oppfolging'?'selected':''}>Trenger oppfølging</option>
+          <option value="verksted" ${v.status==='verksted'?'selected':''}>På verksted</option>
+        </select>
+      </div>
+      <div class="field"><label>Dekk</label>
+        <select id="f-dekk">
+          <option value="" ${!v.dekk?'selected':''}>Ikke satt</option>
+          <option value="sommer" ${v.dekk==='sommer'?'selected':''}>Sommerdekk</option>
+          <option value="vinter" ${v.dekk==='vinter'?'selected':''}>Vinterdekk</option>
+          <option value="helars" ${v.dekk==='helars'?'selected':''}>Helårsdekk</option>
+        </select>
+      </div>
+      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" min="0" step="1" value="${esc(String(v.km||''))}"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
+    <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
+
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Bilder</h4>
+    <div class="photo-input-area">
+      ${v.hasPhoto ? `<img id="vehicle-photo-preview" class="photo-preview" style="display:none;">` : '<div class="required-hint">Ingen bilbilde lastet opp ennå</div>'}
+      <input type="file" accept="image/*" id="f-vehicle-photo" style="margin-top:8px;">
+    </div>
+    <div class="required-hint" style="margin-top:8px;">Bildet lagres når du trykker «Lagre» over.</div>
+
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Aktive varsellamper (${vAktiveVarsler.length})</h4>
+    ${vAktiveVarsler.length === 0
+      ? `<div class="required-hint" style="font-size:13px;">🟢 Ingen aktive varsellamper på dette kjøretøyet.</div>`
+      : `<div class="dmg-list">${vAktiveVarsler.map(w => varsellysCard(w)).join('')}</div>`}
+    ${vVarselHistorikk.length > 0 ? `
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 10px;">Varsellampe-historikk (kvitterte)</h4>
+    <div class="dmg-list">${vVarselHistorikk.map(w => varsellysCard(w)).join('')}</div>` : ''}
+
+    <div class="toolbar" style="margin:20px 0 14px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0;">Verkstedhistorikk (${vVT.length})</h4>
+      <button class="btn small" id="ny-vt-btn">+ Registrer verkstedtime</button>
+    </div>
+    ${vVT.length === 0 ? `<div class="empty-note">Ingen verkstedtimer registrert på dette kjøretøyet.</div>` : `
+    <ul class="dmg-simple-list">
+      ${vVT.map(t => `
+        <li data-goto-vt="${v.id}">
+          <span class="dmg-simple-main">${fmt(t.dato)} – ${esc(t.beskrivelse)}</span>
+          <span class="badge ${t.dato >= todayISO() ? 'soon' : 'unset'}">${t.dato >= todayISO() ? 'Kommende' : 'Gjennomført'}</span>
+        </li>
+      `).join('')}
+    </ul>`}
+  `;
+
+  const kontrollBody = `
+    <div class="ov-grid" style="margin-bottom:16px;">
+      <div class="ov-item"><span class="ov-label">Siste kontroll</span><span class="ov-value">${vLastKontroll ? fmtDateTime(vLastKontroll.dato, vLastKontroll.tidspunkt) : 'Ingen registrert'}</span></div>
+      <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vKontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span></div>
+    </div>
+    ${vKontroller.length === 0 ? `<div class="empty-note">Ingen sjåførkontroller registrert på dette kjøretøyet ennå.</div>` : `
+    <div class="dmg-list">${vKontroller.map(k => kontrollHistoryCard(k)).join('')}</div>`}
+  `;
+
+  const skadeAktiveBody = vDamagesAktive.length === 0
+    ? `<div class="empty-note">Ingen aktive skader på dette kjøretøyet.</div>`
+    : `<div class="dmg-list">${vDamagesAktive.map(d => damageCard(d, false)).join('')}</div>`;
+  const skadeFiksetBody = vDamagesFikset.length === 0
+    ? `<div class="empty-note">Ingen fiksede skader registrert ennå.</div>`
+    : `<div class="dmg-list">${vDamagesFikset.map(d => damageCard(d, false)).join('')}</div>`;
+  const skadeBody = `
+    <div class="panel-actions" style="margin-top:0;margin-bottom:16px;"><button class="btn" id="ny-skade-btn">+ Registrer skade</button></div>
+    <div class="acc-list">
+      ${(() => {
+        const openA = bilkortSkadeSubOpen.has('aktive');
+        return `<div class="acc-row ${openA?'expanded':''}">
+          <div class="acc-head" data-toggle-bilkort-skade="aktive">
+            <div class="acc-head-left"><div class="flag-name">Aktive skader</div></div>
+            <div class="acc-head-right"><span class="group-count">${vDamagesAktive.length}</span><span class="chevron">⌄</span></div>
+          </div>
+          ${openA ? `<div class="acc-body">${skadeAktiveBody}</div>` : ''}
+        </div>`;
+      })()}
+      ${(() => {
+        const openF = bilkortSkadeSubOpen.has('fikset');
+        return `<div class="acc-row ${openF?'expanded':''}">
+          <div class="acc-head" data-toggle-bilkort-skade="fikset">
+            <div class="acc-head-left"><div class="flag-name">Fiksede skader</div></div>
+            <div class="acc-head-right"><span class="group-count">${vDamagesFikset.length}</span><span class="chevron">⌄</span></div>
+          </div>
+          ${openF ? `<div class="acc-body">${skadeFiksetBody}</div>` : ''}
+        </div>`;
+      })()}
+    </div>
+  `;
+
+  return `
+    <div class="backrow"><button class="backbtn" id="back-to-register">← Bilregister</button></div>
+    <div class="bilkort-head">
+      <div class="bilkort-title">
+        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div>
+          <div class="model">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
+          <span class="badge ${v.status}">${STATUS_LABEL[v.status] || 'OK'}</span>
+        </div>
+      </div>
+      <div class="panel-actions" style="margin-top:0;">
+        <button class="btn" id="ny-kontroll-btn">Registrer kontroll</button>
+        <button class="btn danger-outline small" id="del-vehicle">Slett kjøretøy</button>
+      </div>
+    </div>
+
+    <div class="acc-list">
+      ${bilkortAccordionRow('info', 'Bilinformasjon', null, infoBody)}
+      ${bilkortAccordionRow('kontroll', 'Kontrollhistorikk', vKontroller.length, kontrollBody)}
+      ${bilkortAccordionRow('skade', 'Skadehistorikk', vDamages.length, skadeBody)}
+    </div>
+  `;
+}
+function attachBilkortListeners(){
+  const v = vehicles.find(x => x.id === currentVehicleId);
+  document.getElementById('back-to-register').addEventListener('click', () => goTo('register'));
+  document.getElementById('del-vehicle').addEventListener('click', () => deleteVehicle(currentVehicleId));
+  document.querySelectorAll('[data-toggle-bilkort]').forEach(el => el.addEventListener('click', () => toggleBilkortSection(el.dataset.toggleBilkort)));
+  document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
+  document.getElementById('ny-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(currentVehicleId));
+
+  const saveBtn = document.getElementById('save-vehicle');
+  if(saveBtn) saveBtn.addEventListener('click', () => saveVehicleForm(currentVehicleId));
+  const skadeBtn = document.getElementById('ny-skade-btn');
+  if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
+  const vtBtn = document.getElementById('ny-vt-btn');
+  if(vtBtn) vtBtn.addEventListener('click', () => goToRegisterVT(currentVehicleId));
+  document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
+    vtFilterBil = el.dataset.gotoVt;
+    goTo('verksted');
+  }));
+
+  const vp = document.getElementById('f-vehicle-photo');
+  if(vp) vp.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    pendingVehiclePhoto = await resizeImage(file);
+    let img = document.getElementById('vehicle-photo-preview');
+    if(!img){
+      img = document.createElement('img');
+      img.id = 'vehicle-photo-preview';
+      img.className = 'photo-preview';
+      vp.parentElement.appendChild(img);
+    }
+    img.src = pendingVehiclePhoto; img.style.display = 'block';
+  });
+  if(v && v.hasPhoto){
+    getPhoto('vehicle:'+v.id).then(url => {
+      const img = document.getElementById('vehicle-photo-preview');
+      if(img && url){ img.src = url; img.style.display = 'block'; }
+    });
+  }
+
+  attachDamageCardListeners(vehicleDamages(currentVehicleId));
+}
+
+// ================= scrSkader =================
+function renderSkader(){
+  const filtered = damages.filter(d => {
+    if(skadeFilterBil && d.vehicleId !== skadeFilterBil) return false;
+    if(skadeFilterDato && d.dato !== skadeFilterDato) return false;
+    if(skadeFilterStatus === 'apen' && !skadeIsOpen(d)) return false;
+    if(skadeFilterStatus === 'lukket' && skadeIsOpen(d)) return false;
+    return true;
+  }).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+
+  return `
+    <div class="toolbar">
+      <div class="count">${filtered.length} av ${damages.length} skader</div>
+      <button class="btn" id="add-skade-btn">${showAddSkade ? 'Avbryt' : '+ Registrer skade'}</button>
+    </div>
+
+    ${showAddSkade ? `
+    <form class="panel" id="add-skade-form">
+      <h3>Registrer skade</h3>
+      <div class="row2">
+        <div class="field"><label>Bil</label>
+          <select id="sk-vehicle" required>
+            <option value="">Velg bil...</option>
+            ${vehicleOptions(skadePrefillVehicleId)}
+          </select>
+        </div>
+        <div class="field"><label>Dato</label><input id="sk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="sk-beskrivelse" type="text" placeholder="F.eks. Bulk høyre bakskjerm" required></div>
+      <div class="row2">
+        <div class="field"><label>Alvorlighetsgrad</label>
+          <select id="sk-alvorlighet">
+            <option value="lav">Lav</option>
+            <option value="middels" selected>Middels</option>
+            <option value="hoy">Høy</option>
+          </select>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="sk-status">
+            <option value="registrert" selected>Registrert</option>
+            <option value="oppfolging">Under oppfølging</option>
+            <option value="utbedret">Utbedret</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="sk-kommentar" placeholder="Valgfritt"></textarea></div>
+      <div class="field" style="margin-bottom:6px;">
+        <label>Bilde</label>
+        <div class="photo-input-area">
+          <input type="file" accept="image/*" id="sk-photo">
+          <img id="sk-photo-preview" class="photo-preview" style="display:none;">
+        </div>
+      </div>
+      <div class="form-msg" id="sk-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+    </form>` : ''}
+
+    <div class="filters-row">
+      <select id="sk-f-bil">
+        <option value="">Alle biler</option>
+        ${vehicleOptions(skadeFilterBil)}
+      </select>
+      <input type="text" id="sk-f-dato" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${skadeFilterDato ? fmt(skadeFilterDato) : ''}">
+      <select id="sk-f-status">
+        <option value="" ${skadeFilterStatus===''?'selected':''}>Alle saker</option>
+        <option value="apen" ${skadeFilterStatus==='apen'?'selected':''}>Åpen sak</option>
+        <option value="lukket" ${skadeFilterStatus==='lukket'?'selected':''}>Lukket sak</option>
+      </select>
+      ${skadeFilterDato ? `<button class="btn secondary small" id="sk-f-dato-clear" type="button">Fjern datofilter</button>` : ''}
+    </div>
+
+    ${filtered.length === 0 ? `
+      <div class="empty">
+        <h3>${damages.length === 0 ? 'Ingen skader registrert ennå' : 'Ingen treff'}</h3>
+        <div>${damages.length === 0 ? 'Trykk «+ Registrer skade» for å legge til den første.' : 'Prøv andre filtre.'}</div>
+      </div>
+    ` : `
+      <div class="dmg-list">${filtered.map(d => damageCard(d, true)).join('')}</div>
+    `}
+  `;
+}
+function attachSkaderListeners(){
+  document.getElementById('add-skade-btn').addEventListener('click', () => {
+    showAddSkade = !showAddSkade;
+    if(!showAddSkade) skadePrefillVehicleId = '';
+    render();
+  });
+  const f = document.getElementById('add-skade-form');
+  if(f) f.addEventListener('submit', submitAddSkade);
+  const skPhoto = document.getElementById('sk-photo');
+  if(skPhoto) skPhoto.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    pendingPhotoData = await resizeImage(file);
+    const img = document.getElementById('sk-photo-preview');
+    img.src = pendingPhotoData; img.style.display = 'block';
+  });
+  document.getElementById('sk-f-bil').addEventListener('change', e => { skadeFilterBil = e.target.value; render(); });
+  document.getElementById('sk-f-dato').addEventListener('change', e => { skadeFilterDato = readDateInput('sk-f-dato'); render(); });
+  document.getElementById('sk-f-status').addEventListener('change', e => { skadeFilterStatus = e.target.value; render(); });
+  const clearBtn = document.getElementById('sk-f-dato-clear');
+  if(clearBtn) clearBtn.addEventListener('click', () => { skadeFilterDato = ''; render(); });
+  attachDamageCardListeners(damages);
+}
+
+// ================= scrVerkstedtimer =================
+function verkstedSelectOptions(selected){
+  return verksteder
+    .slice()
+    .sort((a,b) => a.navn.localeCompare(b.navn, 'nb'))
+    .map(w => `<option value="${esc(w.navn)}" ${w.navn===selected?'selected':''}>${esc(w.navn)}</option>`)
+    .join('');
+}
+
+function renderVerksted(){
+  const filtered = verkstedtimer.filter(t => {
+    if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
+    if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
+    return true;
+  });
+  const today = todayISO();
+  const kommende = filtered.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const tidligere = filtered.filter(t => t.dato < today).sort((a,b) => b.dato.localeCompare(a.dato));
+  const showKommende = vtFilterType !== 'tidligere';
+  const showTidligere = vtFilterType !== 'kommende';
+
+  return `
+    <div class="toolbar">
+      <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
+      <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
+    </div>
+
+    ${showAddVT ? `
+    <form class="panel" id="add-vt-form">
+      <h3>Ny verkstedtime</h3>
+      <div class="row2">
+        <div class="field"><label>Bil</label>
+          <select id="vt-vehicle" required>
+            <option value="">Velg bil...</option>
+            ${vehicleOptions(vtPrefillVehicleId)}
+          </select>
+        </div>
+        <div class="field"><label>Verksted</label>
+          <select id="vt-verksted" required>
+            <option value="">Velg verksted...</option>
+            ${verkstedSelectOptions('')}
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+        <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${nearestFiveMinutesOslo()}"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>
+      <div class="field" style="margin-bottom:6px;"><label>Notater</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
+      <div class="form-msg" id="vt-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+    </form>` : ''}
+
+    <div class="filters-row">
+      <select id="vt-f-bil">
+        <option value="">Alle biler</option>
+        ${vehicleOptions(vtFilterBil)}
+      </select>
+      <select id="vt-f-verksted">
+        <option value="">Alle verksteder</option>
+        ${verkstedSelectOptions(vtFilterVerksted)}
+      </select>
+      <select id="vt-f-type">
+        <option value="" ${vtFilterType===''?'selected':''}>Kommende og tidligere</option>
+        <option value="kommende" ${vtFilterType==='kommende'?'selected':''}>Kun kommende timer</option>
+        <option value="tidligere" ${vtFilterType==='tidligere'?'selected':''}>Kun tidligere timer</option>
+      </select>
+    </div>
+
+    ${showKommende ? `
+    <div class="vt-section">
+      <div class="section-title">Kommende verkstedtimer <span class="group-count">${kommende.length}</span></div>
+      ${kommende.length === 0 ? `<div class="empty-note">Ingen kommende verkstedtimer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : `
+      <div class="vt-list">${kommende.map(t => vtCard(t, true)).join('')}</div>`}
+    </div>` : ''}
+
+    ${showTidligere ? `
+    <div class="vt-section">
+      <div class="section-title">Tidligere verkstedtimer <span class="group-count">${tidligere.length}</span></div>
+      ${tidligere.length === 0 ? `<div class="empty-note">Ingen tidligere verkstedtimer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : `
+      <div class="vt-list">${tidligere.map(t => vtCard(t, false)).join('')}</div>`}
+    </div>` : ''}
+  `;
+}
+
+function vtCard(t, upcoming){
+  const v = vtVehicle(t);
+  const editing = editingVTId === t.id;
+  const within7 = upcoming && vtWithinWeek(t.dato);
+  return `
+    <div class="vt-card ${upcoming ? (within7 ? 'soon' : 'ok') : 'unset'}">
+      <div class="vt-top" data-toggle-vt="${t.id}">
+        <div class="vt-main">
+          <div class="vt-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
+          <div class="vt-desc">${esc(t.beskrivelse)}${upcoming ? '' : ' (utført arbeid)'}</div>
+          <div class="dmg-meta">${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
+        </div>
+        <div class="vt-when">
+          <div class="vt-date">${fmt(t.dato)}</div>
+          ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
+          ${within7 ? `<span class="badge soon">Innen 7 dager</span>` : ''}
+        </div>
+      </div>
+      ${editing ? `
+      <div class="dmg-editbox">
+        <div class="row2">
+          <div class="field"><label>Bil</label><select id="e-vt-vehicle-${t.id}">${vehicleOptions(t.vehicleId)}</select></div>
+          <div class="field"><label>Verksted</label><select id="e-vt-verksted-${t.id}">${verkstedSelectOptions(t.verksted)}</select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Dato</label><input id="e-vt-dato-${t.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${t.dato ? fmt(t.dato) : ''}"></div>
+          <div class="field"><label>Tidspunkt</label><input id="e-vt-tid-${t.id}" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${t.tidspunkt||''}"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Beskrivelse${upcoming ? '' : ' / utført arbeid'}</label><input id="e-vt-beskrivelse-${t.id}" type="text" value="${esc(t.beskrivelse)}"></div>
+        <div class="field" style="margin-bottom:10px;"><label>Notater</label><textarea id="e-vt-notater-${t.id}">${esc(t.notater||'')}</textarea></div>
+        <div class="panel-actions">
+          <button class="btn small" id="vt-save-${t.id}">Lagre endringer</button>
+          <button class="btn secondary small" id="vt-cancel-${t.id}">Avbryt</button>
+          <button class="btn danger-outline small" id="vt-delete-${t.id}">Slett</button>
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function attachVerkstedListeners(){
+  document.getElementById('add-vt-btn').addEventListener('click', () => {
+    showAddVT = !showAddVT;
+    if(!showAddVT) vtPrefillVehicleId = '';
+    render();
+  });
+  const f = document.getElementById('add-vt-form');
+  if(f) f.addEventListener('submit', submitAddVT);
+  document.getElementById('vt-f-bil').addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
+  document.getElementById('vt-f-verksted').addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
+  document.getElementById('vt-f-type').addEventListener('change', e => { vtFilterType = e.target.value; render(); });
+  document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
+  verkstedtimer.forEach(t => {
+    const saveBtn = document.getElementById('vt-save-'+t.id);
+    if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveVTEdit(t.id); });
+    const cancelBtn = document.getElementById('vt-cancel-'+t.id);
+    if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingVTId = null; render(); });
+    const delBtn = document.getElementById('vt-delete-'+t.id);
+    if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteVT(t.id); });
+  });
+}
+
+// ================= scrInnstillinger =================
+function toggleSettingsSection(key){
+  if(settingsOpenSections.has(key)) settingsOpenSections.delete(key);
+  else settingsOpenSections.add(key);
+  render();
+}
+function settingsAccordionRow(key, title, count, bodyHtml){
+  const open = settingsOpenSections.has(key);
+  return `
+    <div class="acc-row ${open ? 'expanded' : ''}">
+      <div class="acc-head" data-toggle-settings="${key}">
+        <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
+        <div class="acc-head-right">
+          ${count !== null ? `<span class="group-count">${count}</span>` : ''}
+          <span class="chevron">⌄</span>
+        </div>
+      </div>
+      ${open ? `<div class="acc-body">${bodyHtml}</div>` : ''}
+    </div>
+  `;
+}
+function renderInnstillinger(){
+  const adminBody = `
+    <div class="required-hint" style="margin-bottom:14px;">
+      Disse brukerne har tilgang til administrasjonsdelen. <strong>Bytt standardpassordet med
+      det samme</strong> — det er kun ment som et utgangspunkt.
+      <br><br>
+      <strong>Viktig om sikkerhet:</strong> denne innloggingen er en tilgangssperre i
+      grensesnittet, ikke ekte serversikkerhet. Brukernavn og passord lagres i Airtable-tabellen
+      "Users" sammen med resten av innholdet, og Airtable-tokenet appen bruker gir uansett full
+      tilgang til hele basen for alle som besøker siden (se airtable-config.js). Dette beskytter
+      mot at sjåfører eller uvedkommende vandrer inn i administrasjonsdelen ved et uhell — det er
+      ikke egnet til å beskytte forretningskritisk eller personsensitiv informasjon.
+    </div>
+    <div class="settings-list">
+      ${adminUsers.map(u => `
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong>${esc(u.rolle)}</strong>
+            <button class="btn danger-outline small" data-del-admin-user="${u.id}">🗑️ Slett</button>
+          </div>
+          <div class="row4" style="margin-bottom:0;">
+            <div class="field"><label>Navn (vises i velkomsthilsen)</label><input type="text" id="admin-user-${u.id}-navn" value="${esc(u.rolle)}"></div>
+            <div class="field"><label>Tittel</label>
+              <select id="admin-user-${u.id}-tittel">
+                <option value="" ${!u.tittel?'selected':''}>Ingen</option>
+                <option value="Administrator" ${u.tittel==='Administrator'?'selected':''}>Administrator</option>
+                <option value="Koordinator" ${u.tittel==='Koordinator'?'selected':''}>Koordinator</option>
+                <option value="Transportleder" ${u.tittel==='Transportleder'?'selected':''}>Transportleder</option>
+              </select>
+            </div>
+            <div class="field"><label>Brukernavn</label><input type="text" id="admin-user-${u.id}-brukernavn" value="${esc(u.brukernavn)}"></div>
+            <div class="field"><label>Passord</label><input type="text" id="admin-user-${u.id}-passord" value="${esc(u.passord)}"></div>
+          </div>
+          <button class="btn secondary small" data-save-admin-user="${u.id}" style="align-self:flex-start;">✏️ Lagre endringer</button>
+        </div>
+      `).join('')}
+    </div>
+    ${showAddAdminUser ? `
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">
+      <div class="row4" style="margin-bottom:0;">
+        <div class="field"><label>Navn</label><input type="text" id="new-admin-navn" placeholder="F.eks. Olsen"></div>
+        <div class="field"><label>Tittel</label>
+          <select id="new-admin-tittel">
+            <option value="">Ingen</option>
+            <option value="Administrator">Administrator</option>
+            <option value="Koordinator">Koordinator</option>
+            <option value="Transportleder">Transportleder</option>
+          </select>
+        </div>
+        <div class="field"><label>Brukernavn</label><input type="text" id="new-admin-brukernavn"></div>
+        <div class="field"><label>Passord</label><input type="text" id="new-admin-passord"></div>
+      </div>
+      <button class="btn small" id="save-new-admin-btn" style="align-self:flex-start;">Lagre ny administrator</button>
+    </div>` : `
+    <div class="panel-actions" style="margin-top:10px;"><button class="btn small" id="show-add-admin-btn">+ Legg til administrator</button></div>`}
+  `;
+
+  const verkstedBody = `
+    <div class="required-hint" style="margin-bottom:10px;">Verkstedene som er tilgjengelige i nedtrekkslisten når dere registrerer en verkstedtime.</div>
+    <div class="settings-list">
+      ${verksteder.length === 0 ? `<div class="empty-note">Ingen verksteder registrert.</div>` : verksteder.slice().sort((a,b)=>a.navn.localeCompare(b.navn,'nb')).map(w => `
+        <div class="settings-row" style="${editingVerkstedId===w.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
+          ${editingVerkstedId === w.id ? `
+            <input type="text" id="edit-verksted-${w.id}" value="${esc(w.navn)}" style="min-height:44px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;">
+            <div style="display:flex;gap:8px;">
+              <button class="btn small" data-save-verksted="${w.id}">Lagre</button>
+              <button class="btn secondary small" data-cancel-verksted="${w.id}">Avbryt</button>
+            </div>
+          ` : `
+            <span>${esc(w.navn)}</span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn secondary small" data-edit-verksted="${w.id}">✏️ Rediger</button>
+              <button class="btn danger-outline small" data-del-verksted="${w.id}">🗑️ Slett</button>
+            </div>
+          `}
+        </div>
+      `).join('')}
+    </div>
+    <div class="settings-add" style="margin-top:10px;">
+      <input id="new-verksted-navn" type="text" placeholder="Navn på nytt verksted">
+      <button class="btn" id="add-verksted-btn">+ Legg til</button>
+    </div>
+  `;
+
+  const systemBody = `
+    <div style="margin-bottom:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Tema</h4>
+      <div class="theme-options">
+        <label class="theme-option ${themePreference==='light'?'checked':''}">
+          <input type="radio" name="theme-pref" value="light" ${themePreference==='light'?'checked':''}>
+          ☀️ Lysmodus
+        </label>
+        <label class="theme-option ${themePreference==='dark'?'checked':''}">
+          <input type="radio" name="theme-pref" value="dark" ${themePreference==='dark'?'checked':''}>
+          🌙 Mørkemodus
+        </label>
+        <label class="theme-option ${themePreference==='system'?'checked':''}">
+          <input type="radio" name="theme-pref" value="system" ${themePreference==='system'?'checked':''}>
+          💻 Følg enhetens innstilling (anbefalt)
+        </label>
+      </div>
+    </div>
+    <div style="margin-bottom:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Lenke for sjåfører</h4>
+      <div class="required-hint" style="margin-bottom:10px;">
+        Del denne lenken med sjåførene. Den åpner et rent kontrollskjema uten meny, dashboard
+        eller annen informasjon i systemet — kun kontrollskjemaet. Sjåføren trenger ikke å logge inn.
+        <br><br>
+        <strong>Viktig:</strong> dette skjuler grensesnittet, men er ikke ekte tilgangskontroll —
+        appen har ingen server. Fjerner noen «?sjafor=1» fra adressen uten å ha en administrator-
+        konto, møter de i stedet innloggingssiden, så administrasjonsdelen er beskyttet selv om
+        lenken deles videre ved en feil.
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <input id="driver-link-field" type="text" readonly value="${esc(driverLink())}">
+      </div>
+      <button class="btn secondary small" id="copy-driver-link-btn">Kopier lenke</button>
+      <span class="required-hint" id="copy-driver-link-msg" style="margin-left:8px;"></span>
+    </div>
+    <div>
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Om appen</h4>
+      <div class="required-hint">Bilpark v2.0 — data lagres delt mellom alle som bruker appen. Import fra Excel/CSV er ikke i bruk; alle biler, skader og verkstedtimer registreres direkte i appen.</div>
+    </div>
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--red);margin-bottom:10px;">Nullstill bilparkdata</h4>
+      <div class="required-hint" style="margin-bottom:12px;">
+        Sletter permanent alle skader, verkstedtimer, sjåførkontroller og varsellamper for
+        samtlige biler, og nullstiller kilometerstand/status — men beholder selve kjøretøyene
+        (regnr, bilnummer, merke, kategori, løyvenummer), Verkstedregisteret, Administratorbrukere
+        og resten av Systeminnstillinger uendret. Bruk dette for å starte med en ren bilpark, f.eks.
+        etter testing. Krever bekreftelse, og kan ikke angres.
+      </div>
+      <button class="btn danger-outline small" id="reset-fleet-data-btn">🗑️ Nullstill bilparkdata</button>
+    </div>
+  `;
+
+  return `
+    <div class="acc-list">
+      ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
+      ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
+      ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
+    </div>
+  `;
+}
+function attachInnstillingerListeners(){
+  document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
+  document.querySelectorAll('input[name="theme-pref"]').forEach(el => el.addEventListener('change', (e) => {
+    e.stopPropagation();
+    saveThemePreference(e.target.value);
+    render();
+  }));
+
+  const addVerkstedBtn = document.getElementById('add-verksted-btn');
+  if(addVerkstedBtn) addVerkstedBtn.addEventListener('click', addVerksted);
+  document.querySelectorAll('[data-del-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteVerksted(el.dataset.delVerksted); }));
+  document.querySelectorAll('[data-edit-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditVerksted(el.dataset.editVerksted); }));
+  document.querySelectorAll('[data-save-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveVerkstedEdit(el.dataset.saveVerksted); }));
+  document.querySelectorAll('[data-cancel-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingVerkstedId = null; render(); }));
+
+  document.querySelectorAll('[data-save-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveAdminUserCredentials(el.dataset.saveAdminUser); }));
+  document.querySelectorAll('[data-del-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteAdminUser(el.dataset.delAdminUser); }));
+  const showAddAdminBtn = document.getElementById('show-add-admin-btn');
+  if(showAddAdminBtn) showAddAdminBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddAdminUser = true; render(); });
+  const saveNewAdminBtn = document.getElementById('save-new-admin-btn');
+  if(saveNewAdminBtn) saveNewAdminBtn.addEventListener('click', (e) => { e.stopPropagation(); addAdminUser(); });
+
+  const copyBtn = document.getElementById('copy-driver-link-btn');
+  if(copyBtn) copyBtn.addEventListener('click', async () => {
+    const field = document.getElementById('driver-link-field');
+    const msg = document.getElementById('copy-driver-link-msg');
+    try{
+      await navigator.clipboard.writeText(field.value);
+      msg.textContent = 'Kopiert!';
+    }catch(e){
+      field.select();
+      msg.textContent = 'Kunne ikke kopiere automatisk — marker og kopier manuelt.';
+    }
+  });
+  const resetBtn = document.getElementById('reset-fleet-data-btn');
+  if(resetBtn) resetBtn.addEventListener('click', resetFleetData);
+}
+
+// ================= scrKontroll (Sjåførkontroll) =================
+function renderKontroll(){
+  const v = vehicles.find(x => x.id === kontrollFormVehicleId);
+  const activeVarsellysList = kontrollFormVehicleId ? activeVarsellysForVehicle(kontrollFormVehicleId) : [];
+  const activeTypes = new Set(activeVarsellysList.map(w => w.type));
+  let vlStatus = 'green';
+  if(activeVarsellysList.length > 0){
+    const alleNylige = activeVarsellysList.every(w => { const d = daysSince(w.registrertDato); return d !== null && d <= 1; });
+    vlStatus = alleNylige ? 'amber' : 'red';
+  }
+  const vlStatusLabel = {red:'🔴 Aktive varsler', amber:'🟡 Nylig registrert', green:'🟢 Ingen aktive varsler'}[vlStatus];
+  return `
+    ${driverMode ? '' : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
+    <h2 style="font-size:19px;margin-bottom:6px;">Registrer kontroll</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
+    <form class="panel" id="kontroll-form">
+      <div class="field" style="margin-bottom:14px;">
+        <label>Sjåførnavn</label>
+        <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>Kjøretøy</label>
+        <select id="kt-vehicle" required>
+          <option value="">Velg bil...</option>
+          ${vehicleOptions(kontrollFormVehicleId)}
+        </select>
+      </div>
+      ${v ? `
+      <div class="kt-vehicle-card">
+        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div>
+          <div class="model">${esc(v.bilnummer)}</div>
+          <div class="model-sub">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</div>
+        </div>
+      </div>
+      ${activeVarsellysList.length > 0 ? `
+      <div class="active-lamp-list">
+        <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan kvittere ut:</div>
+        ${activeVarsellysList.map(w => `<div class="active-lamp-row">🚨 <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
+      </div>` : ''}` : ''}
+
+      <div class="field" style="margin-bottom:18px;">
+        <label>Kilometerstand</label>
+        <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
+      </div>
+
+      <div class="field" style="margin-bottom:18px;">
+        <label>Varsellamper ${v ? `<span class="vl-status-badge ${vlStatus}">${vlStatusLabel}</span>` : ''}</label>
+        <div class="chip-grid">
+          ${VARSELLAMPE_ORDER.map(key => {
+            const isActive = activeTypes.has(key);
+            const isChecked = isActive || (key==='annet' && kontrollFormAnnet);
+            return `
+            <label class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" for="kt-varsel-${key}">
+              <input type="checkbox" id="kt-varsel-${key}" ${isChecked ? 'checked':''} ${isActive ? 'disabled':''}>
+              <span class="chip-icon">${VARSELLAMPE_ICON[key]}</span>
+              <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' <span style="font-weight:400;opacity:.75;">— 🚨 aktiv</span>' : ''}</span>
+            </label>
+          `;}).join('')}
+        </div>
+        ${kontrollFormAnnet ? `
+        <div class="field" style="margin-top:10px;">
+          <label>Beskriv «Annet»</label>
+          <input id="kt-annet-tekst" type="text" placeholder="Beskriv varselet" value="${esc(kontrollFormAnnetTekst)}" ${activeTypes.has('annet') ? 'disabled' : ''}>
+        </div>` : ''}
+      </div>
+
+      <div class="field" style="margin-bottom:18px;">
+        <label>Har du oppdaget nye skader?</label>
+        <div class="chip-yn">
+          <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
+          <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
+        </div>
+        ${kontrollFormHarSkader ? `
+        <div class="field" style="margin-top:12px;">
+          <label>Beskrivelse av skade</label>
+          <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Bilder</label>
+          <div class="photo-input-area">
+            <input type="file" accept="image/*" multiple id="kt-skade-foto">
+            <div class="required-hint">Du kan velge flere bilder samtidig.</div>
+            ${pendingKontrollPhotos.length > 0 ? `<div class="kt-photo-grid">${pendingKontrollPhotos.map((p,i) => `
+              <div class="kt-photo-thumb"><img src="${p}"><button type="button" data-remove-photo="${i}">×</button></div>
+            `).join('')}</div>` : ''}
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="field" style="margin-bottom:6px;">
+        <label>Kommentar fra sjåfør</label>
+        <textarea id="kt-kommentar" placeholder="Valgfritt">${esc(kontrollFormKommentar)}</textarea>
+      </div>
+
+      <div class="form-msg" id="kt-msg"></div>
+      <div class="panel-actions"><button class="btn" id="kt-submit-btn" type="submit">Send inn kontroll</button></div>
+    </form>
+  `;
+}
+function attachKontrollListeners(){
+  const backBtn = document.getElementById('kt-back');
+  if(backBtn) backBtn.addEventListener('click', () => {
+    if(kontrollPrefillVehicleId) goTo('bilkort', kontrollPrefillVehicleId);
+    else goTo('dashboard');
+  });
+  document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
+
+  document.getElementById('kt-vehicle').addEventListener('change', e => {
+    kontrollFormKm = (document.getElementById('kt-km')||{}).value || kontrollFormKm;
+    kontrollFormVehicleId = e.target.value;
+    kontrollFormAnnet = false;
+    kontrollFormAnnetTekst = '';
+    if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
+    render();
+  });
+  const kmInput = document.getElementById('kt-km');
+  if(kmInput) kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; });
+  const sjaforInput = document.getElementById('kt-sjafornavn');
+  if(sjaforInput) sjaforInput.addEventListener('input', e => { kontrollFormSjaforNavn = e.target.value; });
+  const kommentarInput = document.getElementById('kt-kommentar');
+  if(kommentarInput) kommentarInput.addEventListener('input', e => { kontrollFormKommentar = e.target.value; });
+  const annetTekstInput = document.getElementById('kt-annet-tekst');
+  if(annetTekstInput) annetTekstInput.addEventListener('input', e => { kontrollFormAnnetTekst = e.target.value; });
+  const skadeBeskrivelseInput = document.getElementById('kt-skade-beskrivelse');
+  if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; });
+
+  const annetBox = document.getElementById('kt-varsel-annet');
+  if(annetBox) annetBox.addEventListener('change', () => {
+    annetBox.closest('.chip').classList.toggle('checked', annetBox.checked);
+    kontrollFormAnnet = annetBox.checked;
+    render();
+  });
+  VARSELLAMPE_ORDER.filter(k => k !== 'annet').forEach(key => {
+    const box = document.getElementById('kt-varsel-'+key);
+    if(box) box.addEventListener('change', () => box.closest('.chip').classList.toggle('checked', box.checked));
+  });
+
+  const jaRadio = document.getElementById('kt-skade-ja');
+  const neiRadio = document.getElementById('kt-skade-nei');
+  if(jaRadio) jaRadio.addEventListener('change', () => { kontrollFormHarSkader = true; render(); });
+  if(neiRadio) neiRadio.addEventListener('change', () => { kontrollFormHarSkader = false; render(); });
+
+  const fotoInput = document.getElementById('kt-skade-foto');
+  if(fotoInput) fotoInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    for(const file of files){
+      const dataUrl = await resizeImage(file);
+      pendingKontrollPhotos.push(dataUrl);
+    }
+    render();
+  });
+  document.querySelectorAll('[data-remove-photo]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    pendingKontrollPhotos.splice(Number(btn.dataset.removePhoto), 1);
+    render();
+  }));
+}
+
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && headerMenuOpen) closeDrawer();
+});
+const drawerOverlayEl = document.getElementById('drawer-overlay');
+if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
+
+detectDriverMode();
+if(driverMode) screen = 'kontroll';
+// Sørger for at "Installer app" mens man står i sjåførmodus installerer en snarvei
+// som alltid åpner rett i kontrollskjemaet — se manifest-sjafor.json. Uten dette
+// ville en installert snarvei brukt admin-manifestets start_url (index.html uten
+// parameter) og sendt sjåføren til innloggingssiden neste gang ikonet trykkes.
+if(driverMode){
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if(manifestLink) manifestLink.setAttribute('href', 'manifest-sjafor.json');
+}
+loadAll();
+if(!driverMode) fetchWeather();
+
+// ================= PWA: installasjon og offline-støtte =================
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(e => console.error('Kunne ikke registrere service worker', e));
+  });
+}
+let deferredInstallPrompt = null;
+const installBar = document.getElementById('pwa-install-bar');
+const installBtn = document.getElementById('pwa-install-btn');
+const installDismiss = document.getElementById('pwa-install-dismiss');
+let pwaInstallBarDismissed = false; // erstatter sessionStorage — nullstilles ved sideoppdatering, som er greit for en "ikke vis igjen nå"-linje
+function isStandalone(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!isStandalone() && !pwaInstallBarDismissed) {
+    installBar.style.display = 'flex';
+  }
+});
+if (installBtn) installBtn.addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  installBar.style.display = 'none';
+});
+if (installDismiss) installDismiss.addEventListener('click', () => {
+  installBar.style.display = 'none';
+  pwaInstallBarDismissed = true;
+});
+window.addEventListener('appinstalled', () => {
+  installBar.style.display = 'none';
+  deferredInstallPrompt = null;
+});
+const iosHint = document.getElementById('pwa-ios-hint');
+const iosDismiss = document.getElementById('pwa-ios-dismiss');
+let pwaIosHintDismissed = false; // erstatter sessionStorage, se pwaInstallBarDismissed over
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+if (isIOS() && !isStandalone() && !pwaIosHintDismissed) {
+  iosHint.style.display = 'flex';
+}
+if (iosDismiss) iosDismiss.addEventListener('click', () => {
+  iosHint.style.display = 'none';
+  pwaIosHintDismissed = true;
+});
+</script>
+
+</body>
+</html>
