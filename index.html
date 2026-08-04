@@ -2392,7 +2392,7 @@ function accordionRow(v){
           <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
           <div>
             <div class="flag-name">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
-            <div class="flag-reason">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
+            <div class="flag-reason">KM: ${v.km ? Number(v.km).toLocaleString('nb-NO') : '–'} • ${v.loyvenummer ? esc(v.loyvenummer) : '–'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
           </div>
         </div>
         <div class="acc-head-right">
@@ -2408,8 +2408,6 @@ function accordionRow(v){
         <div class="detail-section">
           <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oversikt</h4>
           <div class="ov-grid">
-            <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
-            <div class="ov-item"><span class="ov-label">Løyvenummer</span><span class="ov-value">${v.loyvenummer ? esc(v.loyvenummer) : 'Ikke satt'}</span></div>
             <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
             <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span></div>
           </div>
@@ -3535,7 +3533,18 @@ function renderInnstillinger(){
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Om appen</h4>
       <div class="required-hint">Bilpark v2.0 — data lagres delt mellom alle som bruker appen. Import fra Excel/CSV er ikke i bruk; alle biler, skader og verkstedtimer registreres direkte i appen.</div>
     </div>
-    <div style="border-top:1.5px solid var(--line);padding-top:18px;">
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oppdater app</h4>
+      <div class="required-hint" style="margin-bottom:12px;">
+        Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
+        app-lageret (Service Worker/PWA-cache) — tilsvarende Ctrl+F5 på PC. Nyttig på mobil,
+        der en slik hurtigtast ikke finnes. <strong>Rører ikke</strong> bilregister, skader,
+        verkstedtimer, sjåførkontroller eller varsellamper — de ligger uansett kun i Airtable,
+        ikke i denne cachen.
+      </div>
+      <button class="btn secondary small" id="hard-refresh-btn">🔄 Oppdater app</button>
+    </div>
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--red);margin-bottom:10px;">Nullstill bilparkdata</h4>
       <div class="required-hint" style="margin-bottom:12px;">
         Sletter permanent alle skader, verkstedtimer, sjåførkontroller og varsellamper for
@@ -3556,6 +3565,37 @@ function renderInnstillinger(){
     </div>
   `;
 }
+// ================= "Oppdater app" (hard refresh, tilsvarende Ctrl+F5) =================
+// Rører KUN service worker-registreringen og PWA-app-shell-cachen (sw.js/CACHE_VERSION) —
+// selve dataene (bilregister, skader, verkstedtimer, sjåførkontroller, varsellamper) ligger
+// utelukkende i Airtable og påvirkes ikke i det hele tatt av dette. Nyttig fordi mobile
+// nettlesere ikke har noen Ctrl+F5-snarvei, og installerte PWA-er kan sitte fast på en gammel,
+// cachet versjon av index.html/storage.airtable.js selv etter at nye filer er lastet opp.
+async function hardRefreshApp(){
+  if(!confirm('Appen vil oppdatere og laste inn nyeste versjon. Fortsette?')) return;
+  try{
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const reg of regs){ await reg.unregister(); }
+      console.log('[hardRefreshApp] Service worker(e) avregistrert:', regs.length);
+    }
+    if('caches' in window){
+      const keys = await caches.keys();
+      for(const k of keys){ await caches.delete(k); }
+      console.log('[hardRefreshApp] Cache(r) tømt:', keys);
+    }
+  }catch(e){
+    console.error('[hardRefreshApp] Klarte ikke tømme service worker/cache fullstendig', e);
+    // Fortsetter uansett — selve omlastingen under tvinger frem ferske filer fra nettverket.
+  }
+  // Cache-busting query-parameter tvinger nettleseren til å hente index.html (og alt annet)
+  // helt på nytt fra nettverket, i stedet for en eventuell mellomlagret HTTP-cache-kopi —
+  // location.reload() alene er ikke pålitelig nok til dette på tvers av mobile nettlesere.
+  const url = new URL(window.location.href);
+  url.searchParams.set('_refresh', Date.now().toString());
+  window.location.replace(url.toString());
+}
+
 function attachInnstillingerListeners(){
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
   document.querySelectorAll('input[name="theme-pref"]').forEach(el => el.addEventListener('change', (e) => {
@@ -3592,6 +3632,8 @@ function attachInnstillingerListeners(){
   });
   const resetBtn = document.getElementById('reset-fleet-data-btn');
   if(resetBtn) resetBtn.addEventListener('click', resetFleetData);
+  const hardRefreshBtn = document.getElementById('hard-refresh-btn');
+  if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', hardRefreshApp);
 }
 
 // ================= scrKontroll (Sjåførkontroll) =================
