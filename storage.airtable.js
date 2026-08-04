@@ -291,10 +291,12 @@
   // kall på — utenfor denne appens omfang som en ren, statisk side). Denne
   // funksjonen tilnærmer sanntid ved å friske opp datasettene med jevne
   // mellomrom i stedet — se AIRTABLE_MIGRATION.md for dette forbeholdet i
-  // klartekst. Standard: hvert 20. sekund. Airtables gratisnivå tillater 5
-  // kall/sekund per base, så ikke sett dette (eller antall åpne faner/enheter)
-  // for lavt/høyt uten å vurdere det opp mot antall samtidige brukere.
-  const POLL_INTERVAL_MS = 20000;
+  // klartekst. Standard: hvert 45. sekund (satt bevisst rolig, ikke aggressivt,
+  // siden index.html i tillegg lar være å tegne siden på nytt mens noen fyller
+  // ut et skjema — se subscribeLiveSync-kallet i loadAll()). Airtables
+  // gratisnivå tillater 5 kall/sekund per base, så ikke sett dette (eller
+  // antall åpne faner/enheter) for lavt uten å vurdere antall samtidige brukere.
+  const POLL_INTERVAL_MS = 45000;
   window.subscribeLiveSync = function (onRemoteChange) {
     setInterval(() => {
       if (document.hidden) return; // ikke poll når fanen ikke er aktiv

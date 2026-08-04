@@ -607,15 +607,31 @@ let dashExpandedId = null;
 // appen husker sist valgte gruppe til neste besøk. Standard er "bil" (Bil 1–11).
 // Hver bilgruppe på Dashboard er sin egen, uavhengige accordion — alle lukket som
 // standard. Ikke lagret på tvers av økter (tilbakestilles ved ny sideinnlasting).
-let dashGroupOpen = {bil:false, lastebil:false, montering:false};
+let dashGroupOpen = {bil:false, lastebil:false, montering:false, reserve:false};
 function toggleDashGroup(kat){
   dashGroupOpen[kat] = !dashGroupOpen[kat];
   render();
 }
-const GRUPPE_IKON = {bil:'🚐', lastebil:'🚚', montering:'🔧'};
+const GRUPPE_IKON = {bil:'🚐', lastebil:'🚚', montering:'🔧', reserve:'🔄'};
 let newVerkstedNavn = '';
 let editingVerkstedId = null;
 let headerMenuOpen = false;
+
+// Returnerer true dersom brukeren har et skjema åpent som IKKE må forstyrres av en
+// bakgrunnsoppdatering (se subscribeLiveSync i loadAll()) — sjåførkontroll, registrering/
+// redigering av skade, verkstedtime eller bilinfo, eller rett og slett har fokus i et
+// hvilket som helst tekstfelt/nedtrekksmeny akkurat nå.
+function formInProgress(){
+  if(screen === 'kontroll') return true;
+  if(showAddVehicleForm) return true;
+  if(showAddSkade || editingDamageId) return true;
+  if(showAddVT || editingVTId) return true;
+  if(editingVerkstedId) return true;
+  if(bilkortOpenSections && bilkortOpenSections.has('info')) return true;
+  const active = document.activeElement;
+  if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return true;
+  return false;
+}
 
 // Innstillinger: sammenleggbare seksjoner (alle lukket som standard, jf. "unngå lange
 // lister som alltid er åpne") — og tilstand for legg-til-administrator-skjemaet.
@@ -653,7 +669,52 @@ let kontrollFormAnnetTekst = '';
 let kontrollFormSkadeBeskrivelse = '';
 let kontrollFormKommentar = '';
 let kontrollFormSjaforNavn = '';
+let kontrollFormVarsellamper = []; // huket-av varsellampe-nøkler (utenom 'annet', som spores separat i kontrollFormAnnet)
 let pendingKontrollPhotos = []; // array av dataURL-er, flere skadebilder per kontroll
+
+// ---- Midlertidig lagring av sjåførkontroll-skjemaet ----
+// Kun en lokal sikkerhetskopi av det som IKKE ennå er sendt inn — selve appens
+// database er fortsatt utelukkende Airtable (se storage.airtable.js). Formålet
+// er kun å hindre at en sjåfør mister det de har skrevet dersom siden ved et
+// uhell lastes på nytt (svak nettforbindelse, batteri, utilsiktet trykk osv.).
+// Kladden slettes automatisk når kontrollen sendes inn, eller etter 24 timer.
+const KONTROLL_DRAFT_KEY = 'bilpark-kontroll-draft-v1';
+let kontrollDraftRestored = false;
+function saveKontrollDraft(){
+  try{
+    const draft = {
+      vehicleId: kontrollFormVehicleId, sjaforNavn: kontrollFormSjaforNavn, km: kontrollFormKm,
+      varsellamper: kontrollFormVarsellamper, annet: kontrollFormAnnet, annetTekst: kontrollFormAnnetTekst,
+      harNyeSkader: kontrollFormHarSkader, skadeBeskrivelse: kontrollFormSkadeBeskrivelse,
+      kommentar: kontrollFormKommentar, savedAt: Date.now()
+    };
+    window.localStorage.setItem(KONTROLL_DRAFT_KEY, JSON.stringify(draft));
+  }catch(e){ /* ikke kritisk om dette feiler (f.eks. privat nettlesermodus) */ }
+}
+function loadKontrollDraft(){
+  try{
+    const raw = window.localStorage.getItem(KONTROLL_DRAFT_KEY);
+    if(!raw) return false;
+    const draft = JSON.parse(raw);
+    if(!draft || !draft.savedAt || (Date.now() - draft.savedAt) > 24*60*60*1000){ clearKontrollDraft(); return false; }
+    const erTom = !draft.vehicleId && !draft.sjaforNavn && !draft.km &&
+      (!draft.varsellamper || draft.varsellamper.length === 0) && !draft.kommentar && !draft.skadeBeskrivelse;
+    if(erTom) return false;
+    kontrollFormVehicleId = draft.vehicleId || kontrollFormVehicleId;
+    kontrollFormSjaforNavn = draft.sjaforNavn || kontrollFormSjaforNavn;
+    kontrollFormKm = draft.km || '';
+    kontrollFormVarsellamper = Array.isArray(draft.varsellamper) ? draft.varsellamper : [];
+    kontrollFormAnnet = !!draft.annet;
+    kontrollFormAnnetTekst = draft.annetTekst || '';
+    kontrollFormHarSkader = !!draft.harNyeSkader;
+    kontrollFormSkadeBeskrivelse = draft.skadeBeskrivelse || '';
+    kontrollFormKommentar = draft.kommentar || '';
+    return true;
+  }catch(e){ return false; }
+}
+function clearKontrollDraft(){
+  try{ window.localStorage.removeItem(KONTROLL_DRAFT_KEY); }catch(e){ /* ignorer */ }
+}
 
 let varsellys = []; // vedvarende varsellamper knyttet til bil, se saveVarsellys()
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
@@ -783,9 +844,9 @@ const app = document.getElementById('app');
 
 const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
 const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
-const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil'};
-const KATEGORI_GROUP_LABEL = {bil:'Bil 1–11', lastebil:'Lastebiler', montering:'Monteringsbiler'};
-const KATEGORI_ORDER = ['bil','lastebil','montering'];
+const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
+const KATEGORI_GROUP_LABEL = {bil:'Bil 1–11', lastebil:'Lastebiler', montering:'Monteringsbiler', reserve:'Reserve'};
+const KATEGORI_ORDER = ['bil','lastebil','montering','reserve'];
 const SKADE_STATUS_LABEL = {registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'};
 const ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'};
 const VARSELLAMPE_LABEL = {
@@ -878,9 +939,14 @@ async function loadAll(){
   window.subscribeLiveSync(async (key) => {
     // Kalles jevnlig (se POLL_INTERVAL_MS i storage.airtable.js — Airtable
     // har ingen sanntids-push slik Firestore hadde) for hvert av de sentrale
-    // datasettene. Laster kun det ene datasettet på nytt, og tegner siden på
-    // nytt dersom noe har endret seg fra en annen enhet eller fane.
+    // datasettene. Laster kun det ene datasettet på nytt i bakgrunnen — men
+    // tegner IKKE siden på nytt dersom brukeren har et skjema åpent akkurat nå
+    // (sjåførkontroll, skade, verkstedtime, bilinfo — se formInProgress()),
+    // siden det ville nullstilt det de akkurat har skrevet inn. Den ferske
+    // dataen brukes uansett automatisk neste gang siden tegnes på nytt av en
+    // annen grunn (f.eks. når skjemaet sendes inn eller brukeren bytter side).
     await reloadOne(key);
+    if(formInProgress()) return;
     render();
   });
   render();
@@ -1418,10 +1484,13 @@ function goToRegisterKontroll(vehicleId){
   kontrollFormVehicleId = vehicleId || '';
   kontrollFormAnnet = false;
   kontrollFormHarSkader = false;
+  kontrollFormVarsellamper = [];
   pendingKontrollPhotos = [];
   kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
   kontrollFormSjaforNavn = loggedInRole || '';
-  if(vehicleId) syncKontrollAnnetFromActive(vehicleId);
+  kontrollDraftRestored = loadKontrollDraft();
+  if(vehicleId) kontrollFormVehicleId = vehicleId; // eksplisitt valgt bil overstyrer alltid en eventuell kladd
+  if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
   goTo('kontroll');
 }
 
@@ -1789,6 +1858,8 @@ async function submitKontroll(ev){
     pendingKontrollPhotos = [];
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+    kontrollFormVarsellamper = []; kontrollDraftRestored = false;
+    clearKontrollDraft();
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
     alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
     if(driverMode){
@@ -2427,6 +2498,7 @@ function renderRegister(){
             <option value="bil">Bil 1–11</option>
             <option value="lastebil">Lastebil</option>
             <option value="montering">Monteringsbil</option>
+            <option value="reserve">Reserve</option>
           </select>
         </div>
       </div>
@@ -2458,6 +2530,7 @@ function renderRegister(){
         <option value="bil" ${filterKategori==='bil'?'selected':''}>Bil 1–11</option>
         <option value="lastebil" ${filterKategori==='lastebil'?'selected':''}>Lastebil</option>
         <option value="montering" ${filterKategori==='montering'?'selected':''}>Monteringsbil</option>
+        <option value="reserve" ${filterKategori==='reserve'?'selected':''}>Reserve</option>
       </select>
       <select id="f-kontrollstatus">
         <option value="" ${filterKontrollStatus===''?'selected':''}>Alle biler</option>
@@ -2880,6 +2953,7 @@ function renderBilkort(){
           <option value="bil" ${v.kategori==='bil'?'selected':''}>Bil 1–11</option>
           <option value="lastebil" ${v.kategori==='lastebil'?'selected':''}>Lastebil</option>
           <option value="montering" ${v.kategori==='montering'?'selected':''}>Monteringsbil</option>
+          <option value="reserve" ${v.kategori==='reserve'?'selected':''}>Reserve</option>
         </select>
       </div>
     </div>
@@ -3518,6 +3592,7 @@ function renderKontroll(){
     ${driverMode ? '' : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
     <h2 style="font-size:19px;margin-bottom:6px;">Registrer kontroll</h2>
     <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
+    ${kontrollDraftRestored ? `<div class="required-hint" style="margin-bottom:16px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
     <form class="panel" id="kontroll-form">
       <div class="field" style="margin-bottom:14px;">
         <label>Sjåførnavn</label>
@@ -3554,7 +3629,7 @@ function renderKontroll(){
         <div class="chip-grid">
           ${VARSELLAMPE_ORDER.map(key => {
             const isActive = activeTypes.has(key);
-            const isChecked = isActive || (key==='annet' && kontrollFormAnnet);
+            const isChecked = isActive || kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
             return `
             <label class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" for="kt-varsel-${key}">
               <input type="checkbox" id="kt-varsel-${key}" ${isChecked ? 'checked':''} ${isActive ? 'disabled':''}>
@@ -3617,34 +3692,41 @@ function attachKontrollListeners(){
     kontrollFormAnnet = false;
     kontrollFormAnnetTekst = '';
     if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
+    saveKontrollDraft();
     render();
   });
   const kmInput = document.getElementById('kt-km');
-  if(kmInput) kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; });
+  if(kmInput) kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; saveKontrollDraft(); });
   const sjaforInput = document.getElementById('kt-sjafornavn');
-  if(sjaforInput) sjaforInput.addEventListener('input', e => { kontrollFormSjaforNavn = e.target.value; });
+  if(sjaforInput) sjaforInput.addEventListener('input', e => { kontrollFormSjaforNavn = e.target.value; saveKontrollDraft(); });
   const kommentarInput = document.getElementById('kt-kommentar');
-  if(kommentarInput) kommentarInput.addEventListener('input', e => { kontrollFormKommentar = e.target.value; });
+  if(kommentarInput) kommentarInput.addEventListener('input', e => { kontrollFormKommentar = e.target.value; saveKontrollDraft(); });
   const annetTekstInput = document.getElementById('kt-annet-tekst');
-  if(annetTekstInput) annetTekstInput.addEventListener('input', e => { kontrollFormAnnetTekst = e.target.value; });
+  if(annetTekstInput) annetTekstInput.addEventListener('input', e => { kontrollFormAnnetTekst = e.target.value; saveKontrollDraft(); });
   const skadeBeskrivelseInput = document.getElementById('kt-skade-beskrivelse');
-  if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; });
+  if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; saveKontrollDraft(); });
 
   const annetBox = document.getElementById('kt-varsel-annet');
   if(annetBox) annetBox.addEventListener('change', () => {
     annetBox.closest('.chip').classList.toggle('checked', annetBox.checked);
     kontrollFormAnnet = annetBox.checked;
+    saveKontrollDraft();
     render();
   });
   VARSELLAMPE_ORDER.filter(k => k !== 'annet').forEach(key => {
     const box = document.getElementById('kt-varsel-'+key);
-    if(box) box.addEventListener('change', () => box.closest('.chip').classList.toggle('checked', box.checked));
+    if(box) box.addEventListener('change', () => {
+      box.closest('.chip').classList.toggle('checked', box.checked);
+      kontrollFormVarsellamper = kontrollFormVarsellamper.filter(k => k !== key);
+      if(box.checked) kontrollFormVarsellamper.push(key);
+      saveKontrollDraft();
+    });
   });
 
   const jaRadio = document.getElementById('kt-skade-ja');
   const neiRadio = document.getElementById('kt-skade-nei');
-  if(jaRadio) jaRadio.addEventListener('change', () => { kontrollFormHarSkader = true; render(); });
-  if(neiRadio) neiRadio.addEventListener('change', () => { kontrollFormHarSkader = false; render(); });
+  if(jaRadio) jaRadio.addEventListener('change', () => { kontrollFormHarSkader = true; saveKontrollDraft(); render(); });
+  if(neiRadio) neiRadio.addEventListener('change', () => { kontrollFormHarSkader = false; saveKontrollDraft(); render(); });
 
   const fotoInput = document.getElementById('kt-skade-foto');
   if(fotoInput) fotoInput.addEventListener('change', async (e) => {
@@ -3669,7 +3751,7 @@ const drawerOverlayEl = document.getElementById('drawer-overlay');
 if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 
 detectDriverMode();
-if(driverMode) screen = 'kontroll';
+if(driverMode){ screen = 'kontroll'; kontrollDraftRestored = loadKontrollDraft(); }
 // Sørger for at "Installer app" mens man står i sjåførmodus installerer en snarvei
 // som alltid åpner rett i kontrollskjemaet — se manifest-sjafor.json. Uten dette
 // ville en installert snarvei brukt admin-manifestets start_url (index.html uten
