@@ -71,8 +71,8 @@
   select, select option{background-color:var(--surface);color:var(--ink);}
   select option:checked, select option:hover{background-color:var(--bg);}
   html{overflow-x:hidden;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;width:100%;}
-  #app{max-width:1080px;margin:0 auto;padding:20px 16px 80px;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;width:100%;padding-top:env(safe-area-inset-top, 0px);}
+  #app{max-width:1080px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom, 0px));}
   h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;margin:0;}
 
   /* ---- App shell ---- */
@@ -140,7 +140,7 @@
   .drawer.open{transform:translateX(0);}
   .drawer-header{
     display:flex;align-items:center;justify-content:space-between;
-    padding:18px 18px 14px;border-bottom:1.5px solid var(--line);flex-shrink:0;
+    padding:calc(18px + env(safe-area-inset-top, 0px)) 18px 14px;border-bottom:1.5px solid var(--line);flex-shrink:0;
   }
   .drawer-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--ink);}
   .drawer-close{
@@ -291,7 +291,7 @@
   /* ---- Bilregister ---- */
   .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
   .filters-row input[type=text], .filters-row input[type=date], .filters-row select{
-    font-family:'Inter',sans-serif;font-size:13.5px;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-height:44px;
+    font-family:'Inter',sans-serif;font-size:16px;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-height:44px;
   }
   .filters-row input[type=text]{flex:1;min-width:180px;}
   .filters-row select, .filters-row input[type=date]{min-width:150px;}
@@ -305,7 +305,7 @@
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .field{display:flex;flex-direction:column;gap:5px;}
   .field label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
-  .field input, .field select, .field textarea{font-family:'Inter',sans-serif;font-size:14px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-height:44px;}
+  .field input, .field select, .field textarea{font-family:'Inter',sans-serif;font-size:16px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-height:44px;}
   .field textarea{resize:vertical;min-height:90px;}
   .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
   .panel-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
@@ -1250,21 +1250,15 @@ function readDateInput(id){
 }
 // ================= Klokkeslettvelger (verkstedtimer) =================
 // Samme arkitektur som kalenderen over: en egen, tema-tilpasset liste i faste
-// 5-minutters intervaller (00:00–23:55), koblet generisk til data-kind="time".
+// 15-minutters intervaller (00:00–23:45), koblet generisk til data-kind="time".
+// Brukes i dag kun av Verkstedtimer, som får forslått starttid 07:30 (se vt-tid).
 // Native <input type="time"> ble vurdert (utløser iOS-hjul/Android-velger automatisk
 // på mobil), men verdien kan vises med AM/PM i enkelte språk-/enhetsoppsett — akkurat
 // samme risiko som datofeltet hadde — så garantert 24-timersformat veide tyngre enn
 // den eksakte native mobilfølelsen. Fungerer identisk og fullt mørkemodus-støttet
 // på både PC og mobil, med scroll for raskt å finne ønsket tid.
 let timepickerTargetId = null;
-function nearestFiveMinutesOslo(){
-  const parts = new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date());
-  let hour = Number(parts.find(p => p.type === 'hour').value);
-  let minute = Number(parts.find(p => p.type === 'minute').value);
-  minute = Math.ceil(minute / 5) * 5;
-  if(minute === 60){ minute = 0; hour = (hour + 1) % 24; }
-  return String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
-}
+
 function openTimepicker(inputEl){
   if(!inputEl || inputEl.dataset.kind !== 'time') return;
   timepickerTargetId = inputEl.id;
@@ -1310,7 +1304,7 @@ function renderTimepickerPopup(){
   const current = (input.value || '').trim();
   const rows = [];
   for(let h = 0; h < 24; h++){
-    for(let m = 0; m < 60; m += 5){
+    for(let m = 0; m < 60; m += 15){
       rows.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
     }
   }
@@ -2516,9 +2510,9 @@ function renderRegister(){
             <option value="helars">Helårsdekk</option>
           </select>
         </div>
-        <div class="field"><label>Kilometerstand</label><input id="new-km" type="number" min="0" step="1" placeholder="F.eks. 42000"></div>
+        <div class="field"><label>Kilometerstand</label><input id="new-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 42000"></div>
       </div>
-      <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="new-loyvenummer" type="text" placeholder="F.eks. 123456, NO-12345 eller BRING-001"></div>
+      <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="new-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001"></div>
       <div class="form-msg" id="new-vehicle-msg"></div>
       <div class="panel-actions"><button class="btn" type="submit">Legg til og åpne</button></div>
     </form>` : ''}
@@ -2978,9 +2972,9 @@ function renderBilkort(){
           <option value="helars" ${v.dekk==='helars'?'selected':''}>Helårsdekk</option>
         </select>
       </div>
-      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" min="0" step="1" value="${esc(String(v.km||''))}"></div>
+      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(v.km||''))}"></div>
     </div>
-    <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
+    <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
 
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Bilder</h4>
@@ -3065,7 +3059,7 @@ function renderBilkort(){
         </div>
       </div>
       <div class="panel-actions" style="margin-top:0;">
-        <button class="btn" id="ny-kontroll-btn">Registrer kontroll</button>
+        <button class="btn" id="bilkort-vt-btn">🔧 Registrer verkstedtime</button>
         <button class="btn danger-outline small" id="del-vehicle">Slett kjøretøy</button>
       </div>
     </div>
@@ -3083,7 +3077,7 @@ function attachBilkortListeners(){
   document.getElementById('del-vehicle').addEventListener('click', () => deleteVehicle(currentVehicleId));
   document.querySelectorAll('[data-toggle-bilkort]').forEach(el => el.addEventListener('click', () => toggleBilkortSection(el.dataset.toggleBilkort)));
   document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
-  document.getElementById('ny-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(currentVehicleId));
+  document.getElementById('bilkort-vt-btn').addEventListener('click', () => goToRegisterVT(currentVehicleId));
 
   const saveBtn = document.getElementById('save-vehicle');
   if(saveBtn) saveBtn.addEventListener('click', () => saveVehicleForm(currentVehicleId));
@@ -3272,7 +3266,7 @@ function renderVerksted(){
       </div>
       <div class="row2">
         <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-        <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${nearestFiveMinutesOslo()}"></div>
+        <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>
       <div class="field" style="margin-bottom:6px;"><label>Notater</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
