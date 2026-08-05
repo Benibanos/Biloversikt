@@ -1,0 +1,13 @@
+# Sørger for at nettleseren aldri mellomlagrer selve service worker-filen på
+# vanlig HTTP-nivå (en helt annen cache enn den service workeren selv styrer).
+# Uten dette kan en nettleser i sjeldne tilfeller sitte fast på en gammel
+# sw.js lenge etter at en ny versjon er lastet opp, siden den aldri sjekker
+# etter en fersk kopi. Kun relevant på Netlify — ignoreres av andre hoster.
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/kontroll.html
+  Cache-Control: no-cache

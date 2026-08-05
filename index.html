@@ -241,6 +241,7 @@
   .stat-card{
     background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px;
     cursor:pointer;transition:box-shadow .15s ease, transform .1s ease, border-color .15s ease;
+    max-width:100%;box-sizing:border-box;overflow:hidden;
   }
   .stat-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);border-color:var(--muted);}
   .stat-card:active{transform:scale(0.97);}
@@ -282,9 +283,9 @@
   .acc-row.verksted{border-left-color:var(--blue);}
   .acc-row.varsel{border-left-color:var(--red);}
   .acc-row:hover{box-shadow:0 3px 14px rgba(0,0,0,.06);}
-  .acc-head{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;flex-wrap:wrap;}
+  .acc-head{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;flex-wrap:wrap;max-width:100%;box-sizing:border-box;}
   .acc-head-left{display:flex;align-items:center;gap:10px;min-width:0;}
-  .acc-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+  .acc-head-right{display:flex;align-items:center;gap:10px;flex-shrink:1;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%;}
   .acc-row .chevron{color:var(--muted);font-size:18px;transition:transform .15s;}
   .acc-row.expanded .chevron{transform:rotate(180deg);}
   .acc-body{border-top:1.5px solid var(--line);padding:16px;background:var(--bg);}
@@ -319,7 +320,7 @@
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
   .count{font-size:13px;color:var(--muted);}
 
-  .panel{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;}
+  .panel{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;max-width:100%;box-sizing:border-box;}
   .panel h3{font-size:15px;margin-bottom:12px;}
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .field{display:flex;flex-direction:column;gap:5px;}
@@ -463,10 +464,11 @@
   .vl-card-main .title{font-weight:700;}
   .vl-card-meta{font-size:11.5px;color:var(--muted);margin-top:3px;}
   .vl-indicator{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
-  .dash-chip-col{display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+  .dash-chip-col{display:flex;flex-direction:column;gap:6px;align-items:flex-end;min-width:0;max-width:100%;}
   .dash-chip{
-    font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:100px;
-    display:inline-flex;align-items:center;gap:5px;white-space:nowrap;border:1.5px solid transparent;
+    font-size:clamp(10px, 2.6vw, 11.5px);font-weight:700;padding:4px 9px;border-radius:100px;
+    display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1.5px solid transparent;
+    max-width:100%;box-sizing:border-box;
   }
   .dash-chip.ok{background:var(--green-soft);color:var(--green);border-color:var(--green);}
   .dash-chip.warn{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);}
@@ -545,6 +547,21 @@
     /* Verkstedtime/skade-kort: dato/tid under i stedet for presset til høyre */
     .vt-top{flex-direction:column;align-items:stretch;}
     .vt-when{align-items:flex-start;text-align:left;}
+  }
+
+  /* Dashboard-kort under 768px: sjåførkontroll-/varsellampe-chippene på hver
+     bilrad skal aldri bli bredere enn resten av dashboard-kortene, og skal
+     alltid holde seg på én linje — se .dash-chip sin clamp()-skalering over,
+     denne strammer ytterligere inn på de smaleste skjermene. Alle dashboard-
+     kort (stat-kort, bilrader, sjåførkontroll-panelet) er gitt samme faste
+     bredde-begrensning (max-width:100%; box-sizing:border-box) slik at ingen
+     av dem kan bli bredere enn de andre. */
+  @media (max-width:768px){
+    .dash-chip{font-size:10px;padding:3px 8px;gap:3px;}
+    .dash-chip-col{gap:4px;}
+    .stat-card, .acc-row, .panel, .sjafor-stats-grid, .acc-head, .acc-head-right{
+      max-width:100%;box-sizing:border-box;
+    }
   }
 
   /* Touch-enheter uansett skjermbredde (f.eks. nettbrett i portrett) får samme
@@ -2431,7 +2448,7 @@ function accordionRow(v){
         </div>
         <div class="acc-head-right">
           <div class="dash-chip-col">
-            <span class="dash-chip ${kontrollertIdag ? 'ok' : 'warn'}">${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span>
+            <span class="dash-chip ${kontrollertIdag ? 'ok' : 'warn'}">${kontrollertIdag ? '✅ Kontrollert i dag' : '❌ Ikke kontrollert i dag'}</span>
             <span class="dash-chip ${vAktiveVarsler.length > 0 ? 'alert' : 'ok'}">${vAktiveVarsler.length > 0 ? `🚨 ${vAktiveVarsler.length} aktiv${vAktiveVarsler.length === 1 ? '' : 'e'} varsellampe${vAktiveVarsler.length === 1 ? '' : 'r'}` : '🟢 Ingen aktive varsler'}</span>
           </div>
           <span class="chevron">⌄</span>

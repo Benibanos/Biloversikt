@@ -9,7 +9,7 @@
 //
 // VIKTIG VED OPPDATERING: øk CACHE_VERSION når index.html eller andre filer i
 // APP_SHELL endres, ellers kan brukere sitte fast på en gammel, cachet versjon.
-const CACHE_VERSION = 'bilpark-v14';
+const CACHE_VERSION = 'bilpark-v16';
 const APP_SHELL = [
   './',
   './index.html',
@@ -39,26 +39,30 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache-first for app-shell-filene, med nettverk som fallback/oppdatering i
-// bakgrunnen — men KUN for forespørsler til egen side. Forespørsler til
-// api.airtable.com slipper helt forbi service workeren og går rett til
-// nettverket, uendret.
+// Nettverk FØRST for app-shell-filene (med cache som fallback når man er offline)
+// — men KUN for forespørsler til egen side. Forespørsler til api.airtable.com
+// slipper helt forbi service workeren og går rett til nettverket, uendret.
+//
+// VIKTIG (rettet feil): dette var tidligere "cache-first" (vis cachet kopi med
+// det samme, oppdater cachen stille i bakgrunnen for NESTE besøk). Det er
+// nettopp derfor nye endringer (som mobiltilpasningene) så ut til "ikke slå
+// inn" — den cachede, gamle siden ble alltid vist først, og den ferske
+// versjonen lå og ventet til et besøk nummer to som sjelden skjedde av seg
+// selv. Nettverk-først løser dette: er man online, hentes alltid nyeste
+// versjon direkte — cachen brukes kun som reserve når enheten er offline.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
