@@ -86,7 +86,9 @@
     vehicles: { table: 'Vehicles', fields: {
       id: ['AppId'], bilnummer: ['Bilnummer'], regnr: ['Regnr'], merke: ['Merke'], modell: ['Modell'],
       arsmodell: ['Årsmodell'], kategori: ['Kategori'], status: ['Status'], dekk: ['Dekk'],
-      km: ['KM', 'num'], loyvenummer: ['Løyvenummer'], hasPhoto: ['HasPhoto', 'bool']
+      km: ['KM', 'num'], loyvenummer: ['Løyvenummer'], hasPhoto: ['HasPhoto', 'bool'],
+      sommerdekkDot: ['SommerdekkDot'], sommerdekkKommentar: ['SommerdekkKommentar'],
+      vinterdekkDot: ['VinterdekkDot'], vinterdekkKommentar: ['VinterdekkKommentar']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -110,6 +112,9 @@
     }},
     'admin-users': { table: 'Users', fields: {
       id: ['AppId'], rolle: ['Rolle'], tittel: ['Tittel'], brukernavn: ['Brukernavn'], passord: ['Passord']
+    }},
+    dekkhistorikk: { table: 'TireChanges', fields: {
+      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar']
     }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen,

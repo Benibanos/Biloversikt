@@ -293,6 +293,7 @@
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
   .ov-item{display:flex;flex-direction:column;gap:2px;}
   .sjafor-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
+  .dekk-status-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 16px;}
   .ov-item-clickable{
     cursor:pointer;padding:8px 10px;margin:-8px -10px;border-radius:10px;
     transition:background .15s ease, transform .1s ease;
@@ -384,6 +385,8 @@
   .vt-card.ok{border-left-color:var(--green);}
   .vt-card.soon{border-left-color:var(--amber);}
   .vt-card.unset{border-left-color:var(--line);}
+  .vt-card.next-vt{border-left-color:var(--blue);background:var(--blue-soft);box-shadow:0 0 0 1.5px var(--blue) inset;}
+  .vt-next-badge{font-size:11px;font-weight:700;color:var(--blue);display:block;margin-bottom:2px;}
   .vt-top{padding:12px 14px;display:flex;justify-content:space-between;gap:12px;cursor:pointer;flex-wrap:wrap;align-items:flex-start;}
   .vt-vehicle{font-weight:700;font-size:13.5px;}
   .vt-desc{font-size:13px;margin-top:2px;}
@@ -502,7 +505,7 @@
     .btn-label-short{display:inline;}
 
     /* Skjemaer og info-rader: alltid én kolonne på mobil */
-    .form-grid, .row2, .row3, .row4, .ov-grid{grid-template-columns:1fr;}
+    .form-grid, .row2, .row3, .row4, .ov-grid, .dekk-status-grid{grid-template-columns:1fr;}
 
     /* Dashboard: Bilparkstatus/Sjåførkontroll og de tre bilgruppekortene stables
        under hverandre i stedet for sideveis scrolling */
@@ -776,6 +779,9 @@ function clearKontrollDraft(){
 }
 
 let varsellys = []; // vedvarende varsellamper knyttet til bil, se saveVarsellys()
+let dekkhistorikk = []; // logg over dekkskifter (sommer/vinter) per bil, se saveDekkhistorikk()
+let showAddDekkskifte = false;
+let dekkSaveConfirmedId = null;
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
 
 let kthFilterBil = '';
@@ -785,6 +791,7 @@ let kthFilterSkade = ''; // '' | 'ja' | 'nei'
 let kthFilterSjafor = '';
 let kthSearch = '';
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
+let vlhSelectedIds = new Set(); // admin-only: valgte varsellampe-kvitteringer for sletting
 
 // ---- Sjåførmodus ----
 // Aktiveres via ?sjafor=1 i adressen, ELLER ved at siden er åpnet direkte som
@@ -964,6 +971,8 @@ async function loadAll(){
   catch(e){ kontroller = []; }
   try{ const w = await window.storage.get('varsellys', true); varsellys = w && w.value ? JSON.parse(w.value) : []; }
   catch(e){ varsellys = []; }
+  try{ const dh = await window.storage.get('dekkhistorikk', true); dekkhistorikk = dh && dh.value ? JSON.parse(dh.value) : []; }
+  catch(e){ dekkhistorikk = []; }
   try{
     const vs = await window.storage.get('verksteder', true);
     verksteder = vs && vs.value ? JSON.parse(vs.value) : null;
@@ -1021,6 +1030,7 @@ async function reloadOne(key){
     else if(key === 'kontroller') kontroller = parsed;
     else if(key === 'varsellys') varsellys = parsed;
     else if(key === 'admin-users') adminUsers = parsed;
+    else if(key === 'dekkhistorikk') dekkhistorikk = parsed;
   }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
 }
 async function saveAdminUsers(){
@@ -1066,6 +1076,10 @@ async function saveKontroller(){
 }
 async function saveVarsellys(){
   try{ await window.storage.set('varsellys', JSON.stringify(varsellys), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveDekkhistorikk(){
+  try{ await window.storage.set('dekkhistorikk', JSON.stringify(dekkhistorikk), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function savePhoto(key, dataUrl){
@@ -1427,6 +1441,52 @@ function daysSince(iso){
   const d = daysUntil(iso);
   return d === null ? null : -d;
 }
+
+// ================= Dekk: DOT-kode, alder og sesongvarsel =================
+// DOT-koden på et dekk avslutter alltid med 4 siffer: UUÅÅ (produksjonsuke +
+// produksjonsår), f.eks. "2224" = uke 22 i 2024. Produksjonsdato beregnes
+// derfor automatisk ut fra DOT-koden i stedet for å måtte tastes inn separat.
+function parseDotDato(dot){
+  if(!dot) return null;
+  const m = String(dot).trim().match(/^(\d{2})(\d{2})$/);
+  if(!m) return null;
+  const uke = parseInt(m[1], 10);
+  const aar = 2000 + parseInt(m[2], 10);
+  if(uke < 1 || uke > 53) return null;
+  return new Date(Date.UTC(aar, 0, 1) + (uke - 1) * 7 * 24 * 60 * 60 * 1000);
+}
+const MAANEDER_NB = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'];
+function formatProduksjonsdato(dot){
+  const d = parseDotDato(dot);
+  if(!d) return null;
+  return MAANEDER_NB[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+function dekkAlderStatus(dot){
+  const d = parseDotDato(dot);
+  if(!d) return null;
+  const aar = (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  if(aar < 3) return {status:'ok', ikon:'🟢', tekst:'Under 3 år'};
+  if(aar <= 5) return {status:'aldring', ikon:'🟡', tekst:'3–5 år'};
+  return {status:'gammel', ikon:'🔴', tekst:'Over 5 år'};
+}
+function fmtDateObj(d){
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+// Faste, omtrentlige datoer for når dekksesongen normalt skifter i Norge —
+// 1. november (vinterdekk) og 15. april (sommerdekk). Finner alltid NESTE
+// kommende overgang, uansett hvor på året man er nå.
+function nesteDekksesongOvergang(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const kandidater = [
+    {dato: new Date(y, 10, 1), retning:'vinter'},
+    {dato: new Date(y, 3, 15), retning:'sommer'},
+    {dato: new Date(y+1, 10, 1), retning:'vinter'},
+    {dato: new Date(y+1, 3, 15), retning:'sommer'},
+  ].filter(k => k.dato > now).sort((a,b) => a.dato - b.dato);
+  return kandidater[0] || null;
+}
+
 function activeVarsellysForVehicle(vid){
   return varsellys.filter(w => w.vehicleId === vid && w.status === 'aktiv').sort((a,b) => (a.registrertDato||'').localeCompare(b.registrertDato||''));
 }
@@ -1490,7 +1550,7 @@ function goTo(scr, vehicleId){
   }
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
-  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); vehicleSaveConfirmedId = null; }
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; }
   if(scr === 'varsler'){ varslerOpenVehicles = new Set(); }
   editingDamageId = null;
   pendingPhotoData = null;
@@ -1749,6 +1809,40 @@ function goToRegisterSkade(vehicleId){
 }
 
 // ================= Verkstedtime-mutasjoner =================
+async function saveDekkInfo(id){
+  const v = vehicles.find(x => x.id === id);
+  if(!v) return;
+  ['sommerdekkDot','sommerdekkKommentar','vinterdekkDot','vinterdekkKommentar'].forEach(field => {
+    const el = document.getElementById('f-'+field);
+    if(el) v[field] = el.value.trim();
+  });
+  await saveVehicles();
+  await reloadOne('vehicles');
+  dekkSaveConfirmedId = id;
+  render();
+}
+async function submitDekkskifte(ev){
+  ev.preventDefault();
+  const retning = document.getElementById('dk-retning').value;
+  const dato = readDateInput('dk-dato');
+  const kommentar = document.getElementById('dk-kommentar').value.trim();
+  const msgEl = document.getElementById('dk-msg');
+  if(!retning || !dato){
+    msgEl.textContent = 'Velg retning og fyll ut dato (DD/MM/ÅÅÅÅ).';
+    return;
+  }
+  const v = vehicles.find(x => x.id === currentVehicleId);
+  if(!v) return;
+  dekkhistorikk.push({id: uid(), vehicleId: currentVehicleId, dato, retning, kommentar});
+  await saveDekkhistorikk();
+  // Oppdaterer også hvilke dekk som er montert på bilen akkurat nå, slik at
+  // Dekkoversikt/Dashboard-statusen stemmer med det siste registrerte skiftet.
+  v.dekk = retning === 'sommer-vinter' ? 'vinter' : 'sommer';
+  await saveVehicles();
+  await reloadOne('vehicles');
+  showAddDekkskifte = false;
+  render();
+}
 async function submitAddVT(ev){
   ev.preventDefault();
   const vehicleId = document.getElementById('vt-vehicle').value;
@@ -2349,6 +2443,22 @@ function renderDashboard(){
   const manglerKontrollCount = totalVehicles - kontrollertIdagCount;
   const nyeSkaderIdag = damages.filter(d => d.dato === today).length;
 
+  // ---- Dekkstatus ----
+  const dekkOver5Ar = vehicles.filter(v => {
+    const s = dekkAlderStatus(v.sommerdekkDot), w = dekkAlderStatus(v.vinterdekkDot);
+    return (s && s.status === 'gammel') || (w && w.status === 'gammel');
+  }).length;
+  const dekkTrengerKontroll = vehicles.filter(v => {
+    const s = dekkAlderStatus(v.sommerdekkDot), w = dekkAlderStatus(v.vinterdekkDot);
+    return !s || !w || s.status !== 'ok' || w.status !== 'ok';
+  }).length;
+  const nesteDekkOvergang = nesteDekksesongOvergang();
+  const bilerSomTrengerDekkskifte = nesteDekkOvergang ? vehicles.filter(v =>
+    nesteDekkOvergang.retning === 'vinter' ? (v.dekk === 'sommer' || !v.dekk) : v.dekk === 'vinter'
+  ).length : 0;
+  const dagerTilDekkOvergang = nesteDekkOvergang ? Math.ceil((nesteDekkOvergang.dato - new Date()) / (24*60*60*1000)) : null;
+  const visDekkVarsel = dagerTilDekkOvergang !== null && dagerTilDekkOvergang <= 42 && bilerSomTrengerDekkskifte > 0;
+
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
   sortedVehicles(vehicles).forEach(v => { if(groups[v.kategori]) groups[v.kategori].push(v); });
@@ -2375,11 +2485,15 @@ function renderDashboard(){
         </div>
         <div class="greeting-right">
           <span class="status-chip" data-stat-nav="kontrollert-idag">✅ ${kontrollertIdagCount} kontrollert i dag</span>
-          <span class="status-chip" data-stat-nav="kommende-vt">🔧 ${nearestVT ? fmtShort(nearestVT.dato) + ' verksted' : 'Ingen verksted'}</span>
+          <span class="status-chip" data-stat-nav="kommende-vt">🔧 ${nearestVT ? fmtShort(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen verksted'}</span>
           <span class="status-chip" data-stat-nav="aktive-varsler">${aktiveVarsler.length > 0 ? `🚨 ${aktiveVarsler.length} aktive varsler` : '✅ Ingen aktive varsler'}</span>
         </div>
       </div>
     </div>
+    ${visDekkVarsel ? `
+    <div class="required-hint" style="margin:0 0 20px;background:var(--amber-soft);padding:12px 14px;border-radius:10px;font-weight:600;color:var(--ink);">
+      🛞 Dekksesong nærmer seg — ${bilerSomTrengerDekkskifte} bil${bilerSomTrengerDekkskifte===1?'':'er'} bør planlegges for ${nesteDekkOvergang.retning === 'vinter' ? 'vinterdekk' : 'sommerdekk'}.
+    </div>` : ''}
     <div class="dash-row-2">
       <div class="stat-grid">
         <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">Totalt antall biler</div></div>
@@ -2395,6 +2509,14 @@ function renderDashboard(){
           <div class="ov-item ov-item-clickable" data-stat-nav="aktive-varsler"><span class="ov-label">Aktive varsellamper</span><span class="ov-value" style="font-size:20px;color:${aktiveVarsler.length>0?'var(--red)':'var(--ink)'};">🚨 ${aktiveVarsler.length}</span></div>
           <div class="ov-item ov-item-clickable" data-stat-nav="nye-skader-idag"><span class="ov-label">Nye skader i dag</span><span class="ov-value" style="font-size:20px;color:${nyeSkaderIdag>0?'var(--amber)':'var(--ink)'};">⚠️ ${nyeSkaderIdag}</span></div>
         </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:26px;">
+      <h3 style="margin-bottom:14px;">🛞 Dekkstatus</h3>
+      <div class="dekk-status-grid">
+        <div class="ov-item"><span class="ov-label">Dekk over 5 år</span><span class="ov-value" style="font-size:20px;color:${dekkOver5Ar>0?'var(--red)':'var(--ink)'};">🔴 ${dekkOver5Ar}</span></div>
+        <div class="ov-item"><span class="ov-label">Trenger dekkkontroll</span><span class="ov-value" style="font-size:20px;color:${dekkTrengerKontroll>0?'var(--amber)':'var(--ink)'};">🛞 ${dekkTrengerKontroll}</span></div>
+        <div class="ov-item"><span class="ov-label">Neste dekkskifteperiode</span><span class="ov-value" style="font-size:14.5px;">${nesteDekkOvergang ? (nesteDekkOvergang.retning==='vinter' ? '❄️ Vinter fra ' : '☀️ Sommer fra ') + fmtDateObj(nesteDekkOvergang.dato) : '—'}</span></div>
       </div>
     </div>
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
@@ -2813,6 +2935,27 @@ function kontrollHistorikkRow(k){
     </div>
   `;
 }
+function varsellysHistorikkRow(w){
+  const v = vehicles.find(x => x.id === w.vehicleId);
+  const checked = vlhSelectedIds.has(w.id);
+  return `
+    <div class="kt-history-card">
+      <div class="kt-history-top">
+        <span style="display:flex;align-items:center;gap:8px;">
+          ${isAdmin ? `<input type="checkbox" class="kth-select-box" data-select-vlh="${w.id}" ${checked?'checked':''} style="width:18px;height:18px;">` : ''}
+          🚨 ${esc(varsellysLabel(w))}
+        </span>
+        <span>${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</span>
+      </div>
+      <div class="ov-grid" style="margin-top:10px;">
+        <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(w.registrertDato)}</span></div>
+        <div class="ov-item"><span class="ov-label">Kvittert dato</span><span class="ov-value">${fmt(w.kvittertDato)}</span></div>
+        <div class="ov-item"><span class="ov-label">Kvittert av</span><span class="ov-value">${esc(w.kvittertAv || '—')}</span></div>
+      </div>
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-vlh="${w.id}">🗑️ Slett historikk</button></div>` : ''}
+    </div>
+  `;
+}
 function renderKontrollHistorikk(){
   const q = kthSearch.trim().toLowerCase();
   const distinktSjafor = [...new Set(kontroller.map(k => k.sjafor).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'nb'));
@@ -2832,6 +2975,9 @@ function renderKontrollHistorikk(){
     }
     return true;
   }).sort((a,b) => (b.dato+((b.tidspunkt)||'')).localeCompare(a.dato+((a.tidspunkt)||'')));
+
+  const kvittertVarsellys = varsellys.filter(w => w.status === 'kvittert')
+    .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
 
   return `
     <h2 style="font-size:19px;margin-bottom:6px;">Sjåførkontroll – historikk</h2>
@@ -2868,7 +3014,37 @@ function renderKontrollHistorikk(){
 
     ${filtered.length === 0 ? `<div class="empty-note">Ingen sjåførkontroller funnet${kontroller.length === 0 ? ' ennå.' : ' med gjeldende filter.'}</div>` : `
     <div class="dmg-list">${filtered.map(k => kontrollHistorikkRow(k)).join('')}</div>`}
+
+    <h2 style="font-size:19px;margin:32px 0 6px;">🚨 Varsellampe kvittering historikk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">
+      ${kvittertVarsellys.length} kvitterte varsellamper. Sletting her fjerner kun historikkposten —
+      det gjenåpner ikke varselet og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.
+    </div>
+    ${isAdmin && vlhSelectedIds.size > 0 ? `
+    <div class="toolbar">
+      <div class="count">${vlhSelectedIds.size} valgt${vlhSelectedIds.size === 1 ? '' : 'e'}</div>
+      <button class="btn danger-outline small" id="vlh-delete-selected-btn">🗑️ Slett valgte</button>
+    </div>` : ''}
+    ${kvittertVarsellys.length === 0 ? `<div class="empty-note">Ingen kvitterte varsellamper ennå.</div>` : `
+    <div class="dmg-list">${kvittertVarsellys.map(w => varsellysHistorikkRow(w)).join('')}</div>`}
   `;
+}
+async function deleteVarsellysHistorikk(id){
+  if(!isAdmin) return;
+  if(!confirm('Slette denne posten fra kvitteringshistorikken? Dette gjenåpner ikke varselet, og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.')) return;
+  varsellys = varsellys.filter(w => w.id !== id);
+  await saveVarsellys();
+  vlhSelectedIds.delete(id);
+  render();
+}
+async function deleteSelectedVarsellysHistorikk(){
+  if(!isAdmin || vlhSelectedIds.size === 0) return;
+  const antall = vlhSelectedIds.size;
+  if(!confirm('Slette ' + antall + ' valgt' + (antall === 1 ? '' : 'e') + ' post' + (antall === 1 ? '' : 'er') + ' fra kvitteringshistorikken? Dette gjenåpner ikke varslene, og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.')) return;
+  varsellys = varsellys.filter(w => !vlhSelectedIds.has(w.id));
+  await saveVarsellys();
+  vlhSelectedIds.clear();
+  render();
 }
 function attachKontrollHistorikkListeners(){
   document.getElementById('kth-search').addEventListener('input', e => {
@@ -2893,6 +3069,14 @@ function attachKontrollHistorikkListeners(){
   document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
   const deleteSelectedBtn = document.getElementById('kth-delete-selected-btn');
   if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
+  document.querySelectorAll('[data-select-vlh]').forEach(el => el.addEventListener('change', (e) => {
+    if(e.target.checked) vlhSelectedIds.add(el.dataset.selectVlh);
+    else vlhSelectedIds.delete(el.dataset.selectVlh);
+    render();
+  }));
+  document.querySelectorAll('[data-delete-vlh]').forEach(el => el.addEventListener('click', () => deleteVarsellysHistorikk(el.dataset.deleteVlh)));
+  const deleteSelectedVlhBtn = document.getElementById('vlh-delete-selected-btn');
+  if(deleteSelectedVlhBtn) deleteSelectedVlhBtn.addEventListener('click', deleteSelectedVarsellysHistorikk);
 }
 
 // ================= Varsellys-kort (gjenbrukes på Bilkort og Dashboard) =================
@@ -3116,6 +3300,63 @@ function renderBilkort(){
     </div>
   `;
 
+  const dekkSetBody = (sesong) => {
+    const dotField = sesong === 'sommer' ? 'sommerdekkDot' : 'vinterdekkDot';
+    const kommField = sesong === 'sommer' ? 'sommerdekkKommentar' : 'vinterdekkKommentar';
+    const dot = v[dotField] || '';
+    const kommentar = v[kommField] || '';
+    const produksjon = formatProduksjonsdato(dot);
+    const alder = dekkAlderStatus(dot);
+    return `
+      <div class="ov-grid" style="margin-bottom:10px;">
+        <div class="ov-item"><span class="ov-label">DOT-kode</span><span class="ov-value">${dot ? esc(dot) : 'Ikke registrert'}</span></div>
+        <div class="ov-item"><span class="ov-label">Produksjonsdato</span><span class="ov-value">${produksjon ? esc(produksjon) : '—'}</span></div>
+        <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${alder ? alder.ikon + ' ' + alder.tekst : '—'}</span></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>DOT-kode (4 siffer, UUÅÅ)</label><input type="text" inputmode="numeric" maxlength="4" id="f-${dotField}" placeholder="F.eks. 2224" value="${esc(dot)}"></div>
+        <div class="field"><label>Kommentarer</label><input type="text" id="f-${kommField}" placeholder="Valgfritt" value="${esc(kommentar)}"></div>
+      </div>
+    `;
+  };
+  const dekkBody = `
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">☀️ Sommerdekk</h4>
+    ${dekkSetBody('sommer')}
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">❄️ Vinterdekk</h4>
+    ${dekkSetBody('vinter')}
+    <div class="panel-actions" style="margin-top:16px;"><button class="btn" id="save-dekk-btn">Lagre dekkinfo</button></div>
+    ${dekkSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
+  `;
+
+  const vDekkHistorikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
+  const DEKK_RETNING_LABEL = {'sommer-vinter':'Sommer → Vinter', 'vinter-sommer':'Vinter → Sommer'};
+  const naaverendeDekkLabel = {sommer:'☀️ Sommerdekk montert', vinter:'❄️ Vinterdekk montert', helars:'🔄 Helårsdekk montert'}[v.dekk] || 'Ikke satt';
+  const dekkhistorikkBody = `
+    <div class="toolbar" style="margin-bottom:14px;">
+      <div class="count">${naaverendeDekkLabel}</div>
+      <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
+    </div>
+    ${showAddDekkskifte ? `
+    <form class="panel" id="add-dekkskifte-form">
+      <div class="row2">
+        <div class="field"><label>Retning</label>
+          <select id="dk-retning" required>
+            <option value="sommer-vinter">Sommer → Vinter</option>
+            <option value="vinter-sommer">Vinter → Sommer</option>
+          </select>
+        </div>
+        <div class="field"><label>Dato</label><input id="dk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+      </div>
+      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
+      <div class="form-msg" id="dk-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
+    </form>` : ''}
+    ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
+    <ul class="dmg-simple-list">
+      ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
+    </ul>`}
+  `;
+
   return `
     <div class="backrow"><button class="backbtn" id="back-to-register">← Bilregister</button></div>
     <div class="bilkort-head">
@@ -3135,6 +3376,8 @@ function renderBilkort(){
       ${bilkortAccordionRow('info', 'Bilinformasjon', null, infoBody)}
       ${bilkortAccordionRow('kontroll', 'Kontrollhistorikk', vKontroller.length, kontrollBody)}
       ${bilkortAccordionRow('skade', 'Skadehistorikk', vDamages.length, skadeBody)}
+      ${bilkortAccordionRow('dekk', 'Dekkoversikt', null, dekkBody)}
+      ${bilkortAccordionRow('dekkhistorikk', 'Dekkhistorikk', vDekkHistorikk.length, dekkhistorikkBody)}
     </div>
 
     <div class="danger-zone">
@@ -3186,6 +3429,13 @@ function attachBilkortListeners(){
   }
 
   attachDamageCardListeners(vehicleDamages(currentVehicleId));
+
+  const saveDekkBtn = document.getElementById('save-dekk-btn');
+  if(saveDekkBtn) saveDekkBtn.addEventListener('click', () => saveDekkInfo(currentVehicleId));
+  const dekkskifteBtn = document.getElementById('ny-dekkskifte-btn');
+  if(dekkskifteBtn) dekkskifteBtn.addEventListener('click', () => { showAddDekkskifte = !showAddDekkskifte; render(); });
+  const dekkskifteForm = document.getElementById('add-dekkskifte-form');
+  if(dekkskifteForm) dekkskifteForm.addEventListener('submit', submitDekkskifte);
 }
 
 // ================= scrSkader =================
@@ -3368,7 +3618,7 @@ function renderVerksted(){
     <div class="vt-section">
       <div class="section-title">Kommende verkstedtimer <span class="group-count">${kommende.length}</span></div>
       ${kommende.length === 0 ? `<div class="empty-note">Ingen kommende verkstedtimer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : `
-      <div class="vt-list">${kommende.map(t => vtCard(t, true)).join('')}</div>`}
+      <div class="vt-list">${kommende.map((t,i) => vtCard(t, true, i === 0)).join('')}</div>`}
     </div>` : ''}
 
     ${showTidligere ? `
@@ -3380,12 +3630,12 @@ function renderVerksted(){
   `;
 }
 
-function vtCard(t, upcoming){
+function vtCard(t, upcoming, isNext){
   const v = vtVehicle(t);
   const editing = editingVTId === t.id;
   const within7 = upcoming && vtWithinWeek(t.dato);
   return `
-    <div class="vt-card ${upcoming ? (within7 ? 'soon' : 'ok') : 'unset'}">
+    <div class="vt-card ${isNext ? 'next-vt' : (upcoming ? (within7 ? 'soon' : 'ok') : 'unset')}">
       <div class="vt-top" data-toggle-vt="${t.id}">
         <div class="vt-main">
           <div class="vt-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
@@ -3393,9 +3643,10 @@ function vtCard(t, upcoming){
           <div class="dmg-meta">${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
         </div>
         <div class="vt-when">
+          ${isNext ? `<span class="vt-next-badge">⭐ Neste verkstedtime</span>` : ''}
           <div class="vt-date">${fmt(t.dato)}</div>
           ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
-          ${within7 ? `<span class="badge soon">Innen 7 dager</span>` : ''}
+          ${within7 && !isNext ? `<span class="badge soon">Innen 7 dager</span>` : ''}
         </div>
       </div>
       ${editing ? `
