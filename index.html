@@ -650,8 +650,10 @@ let filterLoyve = ''; // '' | 'har' | 'mangler'
 let showAddVehicleForm = false;
 
 let skadeFilterBil = '';
+let skadeHistorikkOpenVehicles = new Set();
+let skadeAktivOpenVehicles = new Set();
+let skadeFiksetOpenVehicles = new Set();
 let skadeFilterDato = '';
-let skadeFilterStatus = 'apen'; // '' | 'apen' | 'lukket' — Skader-siden viser kun aktive skader som standard
 let showAddSkade = false;
 let skadePrefillVehicleId = '';
 
@@ -786,12 +788,6 @@ let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
 
-let kthFilterBil = '';
-let kthFilterDato = '';
-let kthFilterVarsellampe = '';
-let kthFilterSkade = ''; // '' | 'ja' | 'nei'
-let kthFilterSjafor = '';
-let kthSearch = '';
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 let vlhSelectedIds = new Set(); // admin-only: valgte varsellampe-kvitteringer for sletting
 let kthOpenVehicles = new Set(); // hvilke biler som er utvidet i gruppert sjåførkontroll-historikk
@@ -887,7 +883,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','kontrollhistorikk','varsler','dekkoversikt','kontrolloversikt'];
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -1620,7 +1616,7 @@ function goToRegisterFiltered(kontrollStatus){
 }
 function goToSkaderFiltered(opts){
   opts = opts || {};
-  skadeFilterBil = ''; skadeFilterDato = opts.dato || ''; skadeFilterStatus = opts.status || 'apen';
+  skadeFilterBil = ''; skadeFilterDato = opts.dato || '';
   showAddSkade = false; skadePrefillVehicleId = '';
   goTo('skader');
 }
@@ -1630,9 +1626,8 @@ function goToVerkstedFiltered(type){
   goTo('verksted');
 }
 function goToKontrollhistorikkFiltered(dato){
-  kthFilterBil = ''; kthFilterVarsellampe = ''; kthFilterSkade = ''; kthFilterSjafor = ''; kthSearch = '';
-  kthFilterDato = dato || '';
-  goTo('kontrollhistorikk');
+  kontrolloversiktPeriode = 'idag';
+  goTo('kontrolloversikt');
 }
 
 function goToRegisterKontroll(vehicleId){
@@ -2292,12 +2287,11 @@ function render(){
   else if(screen === 'verksted') body = renderVerksted();
   else if(screen === 'innstillinger') body = renderInnstillinger();
   else if(screen === 'kontroll') body = renderKontroll();
-  else if(screen === 'kontrollhistorikk') body = renderKontrollHistorikk();
   else if(screen === 'varsler') body = renderVarslerOversikt();
   else if(screen === 'dekkoversikt') body = renderDekkoversikt();
   else if(screen === 'kontrolloversikt') body = renderKontrolloversikt();
 
-  const mainScreens = ['dashboard','register','skader','verksted','innstillinger','kontrollhistorikk'];
+  const mainScreens = ['dashboard','register','skader','verksted','innstillinger','kontrolloversikt'];
   const menuActive = screen === 'register' || screen === 'innstillinger';
   app.innerHTML = `
     <div class="shell-top">
@@ -2316,8 +2310,8 @@ function render(){
     <div class="navtabs">
       <button class="navtab ${screen==='dashboard'?'active':''}" data-nav="dashboard">Dashboard</button>
       <button class="navtab ${screen==='verksted'?'active':''}" data-nav="verksted">Verkstedtimer</button>
-      <button class="navtab ${screen==='skader'?'active':''}" data-nav="skader">Skader</button>
-      <button class="navtab ${screen==='kontrollhistorikk'?'active':''}" data-nav="kontrollhistorikk">Sjåførkontroll historikk</button>
+      <button class="navtab ${screen==='skader'?'active':''}" data-nav="skader">Skadeoversikt</button>
+      <button class="navtab ${screen==='kontrolloversikt'?'active':''}" data-nav="kontrolloversikt">Kontrolloversikt</button>
     </div>` : ''}
     ${body}
   `;
@@ -2336,7 +2330,6 @@ function render(){
   else if(screen === 'verksted') attachVerkstedListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
   else if(screen === 'kontroll') attachKontrollListeners();
-  else if(screen === 'kontrollhistorikk') attachKontrollHistorikkListeners();
   else if(screen === 'varsler') attachVarslerOversiktListeners();
   else if(screen === 'dekkoversikt') attachDekkoversiktListeners();
   else if(screen === 'kontrolloversikt') attachKontrolloversiktListeners();
@@ -2369,8 +2362,7 @@ function renderDrawer(){
     <div class="drawer-nav">
       ${drawerItemHtml('dashboard', '🏠', 'Dashboard')}
       ${drawerItemHtml('verksted', '🔧', 'Verkstedtimer')}
-      ${drawerItemHtml('skader', '⚠️', 'Skader')}
-      ${drawerItemHtml('kontrollhistorikk', '📋', 'Kontrollhistorikk')}
+      ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt')}
       ${drawerItemHtml('kontrolloversikt', '📋', 'Kontrolloversikt')}
       ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt')}
     </div>
@@ -2982,141 +2974,6 @@ function varsellysHistorikkRow(w){
     </div>
   `;
 }
-function renderKontrollHistorikk(){
-  const q = kthSearch.trim().toLowerCase();
-  const distinktSjafor = [...new Set(kontroller.map(k => k.sjafor).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'nb'));
-
-  const filtered = kontroller.filter(k => {
-    const v = vehicles.find(x => x.id === k.vehicleId);
-    if(kthFilterBil && k.vehicleId !== kthFilterBil) return false;
-    if(kthFilterDato && k.dato !== kthFilterDato) return false;
-    if(kthFilterVarsellampe && !(k.varsellamper || []).includes(kthFilterVarsellampe)) return false;
-    if(kthFilterSkade === 'ja' && !k.harNyeSkader) return false;
-    if(kthFilterSkade === 'nei' && k.harNyeSkader) return false;
-    if(kthFilterSjafor && k.sjafor !== kthFilterSjafor) return false;
-    if(q){
-      const matchRegnr = v && v.regnr && v.regnr.toLowerCase().includes(q);
-      const matchBilnummer = v && v.bilnummer && v.bilnummer.toLowerCase().includes(q);
-      if(!matchRegnr && !matchBilnummer) return false;
-    }
-    return true;
-  }).sort((a,b) => (b.dato+((b.tidspunkt)||'')).localeCompare(a.dato+((a.tidspunkt)||'')));
-
-  const kvittertVarsellys = varsellys.filter(w => w.status === 'kvittert')
-    .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
-
-  return `
-    <h2 style="font-size:19px;margin-bottom:6px;">Sjåførkontroll – historikk</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${filtered.length} av ${kontroller.length} registrerte kontroller, nyeste først.</div>
-
-    <div class="filters-row">
-      <input type="text" id="kth-search" placeholder="Søk på regnr. eller bilnummer..." value="${esc(kthSearch)}">
-      <select id="kth-f-bil">
-        <option value="">Alle biler</option>
-        ${vehicleOptions(kthFilterBil)}
-      </select>
-      <input type="text" id="kth-f-dato" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${kthFilterDato ? fmt(kthFilterDato) : ''}">
-      <select id="kth-f-varsel">
-        <option value="">Alle varsellamper</option>
-        ${VARSELLAMPE_ORDER.map(key => `<option value="${key}" ${kthFilterVarsellampe===key?'selected':''}>${VARSELLAMPE_LABEL[key]}</option>`).join('')}
-      </select>
-      <select id="kth-f-skade">
-        <option value="" ${kthFilterSkade===''?'selected':''}>Skade: alle</option>
-        <option value="ja" ${kthFilterSkade==='ja'?'selected':''}>Skade registrert</option>
-        <option value="nei" ${kthFilterSkade==='nei'?'selected':''}>Ingen skade</option>
-      </select>
-      <select id="kth-f-sjafor">
-        <option value="">Alle utførte av</option>
-        ${distinktSjafor.map(s => `<option value="${esc(s)}" ${kthFilterSjafor===s?'selected':''}>${esc(s)}</option>`).join('')}
-      </select>
-      ${(kthFilterBil||kthFilterDato||kthFilterVarsellampe||kthFilterSkade||kthFilterSjafor||kthSearch) ? `<button class="btn secondary small" id="kth-f-clear" type="button">Nullstill filtre</button>` : ''}
-    </div>
-
-    ${isAdmin && kthSelectedIds.size > 0 ? `
-    <div class="toolbar">
-      <div class="count">${kthSelectedIds.size} valgt${kthSelectedIds.size === 1 ? '' : 'e'}</div>
-      <button class="btn danger-outline small" id="kth-delete-selected-btn">🗑️ Slett valgte</button>
-    </div>` : ''}
-
-    ${filtered.length === 0 ? `<div class="empty-note">Ingen sjåførkontroller funnet${kontroller.length === 0 ? ' ennå.' : ' med gjeldende filter.'}</div>` : (() => {
-      const byVehicle = new Map();
-      filtered.forEach(k => {
-        if(!byVehicle.has(k.vehicleId)) byVehicle.set(k.vehicleId, []);
-        byVehicle.get(k.vehicleId).push(k);
-      });
-      const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
-      const kjentIder = new Set(vehicles.map(v => v.id));
-      const foreldrelose = filtered.filter(k => !kjentIder.has(k.vehicleId));
-      return `
-      <div class="acc-list">
-        ${beroerteKjoretoy.map(v => {
-          const kList = byVehicle.get(v.id) || [];
-          const open = kthOpenVehicles.has(v.id);
-          return `
-          <div class="acc-row ${open ? 'expanded' : ''}">
-            <div class="acc-head" data-toggle-kth-vehicle="${v.id}">
-              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-              <div class="acc-head-right"><span class="group-count">${kList.length} kontroll${kList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
-            </div>
-            ${open ? `<div class="acc-body"><div class="dmg-list">${kList.map(k => kontrollHistorikkRow(k)).join('')}</div></div>` : ''}
-          </div>`;
-        }).join('')}
-      </div>
-      ${foreldrelose.length > 0 ? `
-      <div style="margin-top:16px;">
-        <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
-        <div class="dmg-list">${foreldrelose.map(k => kontrollHistorikkRow(k)).join('')}</div>
-      </div>` : ''}
-      `;
-    })()}
-
-    <h2 style="font-size:19px;margin:32px 0 6px;">🚨 Varsellampe kvittering historikk</h2>
-    <div class="required-hint" style="margin-bottom:16px;">
-      ${kvittertVarsellys.length} kvitterte varsellamper. Sletting her fjerner kun historikkposten —
-      det gjenåpner ikke varselet og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.
-    </div>
-    ${isAdmin && vlhSelectedIds.size > 0 ? `
-    <div class="toolbar">
-      <div class="count">${vlhSelectedIds.size} valgt${vlhSelectedIds.size === 1 ? '' : 'e'}</div>
-      <button class="btn danger-outline small" id="vlh-delete-selected-btn">🗑️ Slett valgte</button>
-    </div>` : ''}
-    ${kvittertVarsellys.length === 0 ? `<div class="empty-note">Ingen kvitterte varsellamper ennå.</div>` : (() => {
-      const byVehicle = new Map();
-      kvittertVarsellys.forEach(w => {
-        if(!byVehicle.has(w.vehicleId)) byVehicle.set(w.vehicleId, []);
-        byVehicle.get(w.vehicleId).push(w);
-      });
-      const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
-      const kjentIder = new Set(vehicles.map(v => v.id));
-      const foreldrelose = kvittertVarsellys.filter(w => !kjentIder.has(w.vehicleId));
-      return KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
-        const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
-        return `
-        <div style="margin-bottom:22px;">
-          <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
-          <div class="acc-list">
-            ${gruppeKjoretoy.map(v => {
-              const wList = byVehicle.get(v.id) || [];
-              const open = vlhOpenVehicles.has(v.id);
-              return `
-              <div class="acc-row varsel ${open ? 'expanded' : ''}">
-                <div class="acc-head" data-toggle-vlh-vehicle="${v.id}">
-                  <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-                  <div class="acc-head-right"><span class="group-count">${wList.length} kvitterte varsel${wList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
-                </div>
-                ${open ? `<div class="acc-body"><div class="dmg-list">${wList.map(w => varsellysHistorikkRow(w)).join('')}</div></div>` : ''}
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-      }).join('') + (foreldrelose.length > 0 ? `
-      <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
-        <div class="dmg-list">${foreldrelose.map(w => varsellysHistorikkRow(w)).join('')}</div>
-      </div>` : '');
-    })()}
-  `;
-}
 async function deleteVarsellysHistorikk(id){
   if(!isAdmin) return;
   if(!confirm('Slette denne posten fra kvitteringshistorikken? Dette gjenåpner ikke varselet, og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.')) return;
@@ -3134,49 +2991,6 @@ async function deleteSelectedVarsellysHistorikk(){
   vlhSelectedIds.clear();
   render();
 }
-function attachKontrollHistorikkListeners(){
-  document.querySelectorAll('[data-toggle-kth-vehicle]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.toggleKthVehicle;
-    if(kthOpenVehicles.has(id)) kthOpenVehicles.delete(id); else kthOpenVehicles.add(id);
-    render();
-  }));
-  document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.toggleVlhVehicle;
-    if(vlhOpenVehicles.has(id)) vlhOpenVehicles.delete(id); else vlhOpenVehicles.add(id);
-    render();
-  }));
-  document.getElementById('kth-search').addEventListener('input', e => {
-    kthSearch = e.target.value; render();
-    const el = document.getElementById('kth-search'); el.focus(); el.selectionStart = el.value.length;
-  });
-  document.getElementById('kth-f-bil').addEventListener('change', e => { kthFilterBil = e.target.value; render(); });
-  document.getElementById('kth-f-dato').addEventListener('change', () => { kthFilterDato = readDateInput('kth-f-dato'); render(); });
-  document.getElementById('kth-f-varsel').addEventListener('change', e => { kthFilterVarsellampe = e.target.value; render(); });
-  document.getElementById('kth-f-skade').addEventListener('change', e => { kthFilterSkade = e.target.value; render(); });
-  document.getElementById('kth-f-sjafor').addEventListener('change', e => { kthFilterSjafor = e.target.value; render(); });
-  const clearBtn = document.getElementById('kth-f-clear');
-  if(clearBtn) clearBtn.addEventListener('click', () => {
-    kthFilterBil = ''; kthFilterDato = ''; kthFilterVarsellampe = ''; kthFilterSkade = ''; kthFilterSjafor = ''; kthSearch = '';
-    render();
-  });
-  document.querySelectorAll('[data-select]').forEach(el => el.addEventListener('change', (e) => {
-    if(e.target.checked) kthSelectedIds.add(el.dataset.select);
-    else kthSelectedIds.delete(el.dataset.select);
-    render();
-  }));
-  document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
-  const deleteSelectedBtn = document.getElementById('kth-delete-selected-btn');
-  if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
-  document.querySelectorAll('[data-select-vlh]').forEach(el => el.addEventListener('change', (e) => {
-    if(e.target.checked) vlhSelectedIds.add(el.dataset.selectVlh);
-    else vlhSelectedIds.delete(el.dataset.selectVlh);
-    render();
-  }));
-  document.querySelectorAll('[data-delete-vlh]').forEach(el => el.addEventListener('click', () => deleteVarsellysHistorikk(el.dataset.deleteVlh)));
-  const deleteSelectedVlhBtn = document.getElementById('vlh-delete-selected-btn');
-  if(deleteSelectedVlhBtn) deleteSelectedVlhBtn.addEventListener('click', deleteSelectedVarsellysHistorikk);
-}
-
 // ================= Varsellys-kort (gjenbrukes på Bilkort og Dashboard) =================
 function varsellysCard(w){
   const days = w.status === 'aktiv' ? daysSince(w.registrertDato) : null;
@@ -3349,6 +3163,12 @@ function renderKontrolloversikt(){
 
     <div class="required-hint" style="margin-bottom:14px;">${periodeFiltrert.length} kontroller i valgt periode, fordelt på ${bilerMedKontroller.length} biler.</div>
 
+    ${isAdmin && kthSelectedIds.size > 0 ? `
+    <div class="toolbar">
+      <div class="count">${kthSelectedIds.size} valgt${kthSelectedIds.size === 1 ? '' : 'e'}</div>
+      <button class="btn danger-outline small" id="kth-delete-selected-btn">🗑️ Slett valgte</button>
+    </div>` : ''}
+
     ${bilerMedKontroller.length === 0 ? `<div class="empty-note">Ingen kontroller registrert i valgt periode.</div>` : `
     <div class="acc-list">
       ${bilerMedKontroller.map(v => {
@@ -3360,11 +3180,7 @@ function renderKontrolloversikt(){
             <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer||'')} – ${esc(v.regnr)}</div></div>
             <div class="acc-head-right"><span class="group-count">${kList.length} kontroll${kList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
           </div>
-          ${open ? `<div class="acc-body">
-            <ul class="dmg-simple-list">
-              ${kList.map(k => `<li><span class="dmg-simple-main">${fmt(k.dato)}${k.tidspunkt ? ' kl. ' + esc(k.tidspunkt) : ''} — ${esc(k.sjafor||'')}</span></li>`).join('')}
-            </ul>
-          </div>` : ''}
+          ${open ? `<div class="acc-body"><div class="dmg-list">${kList.map(k => kontrollHistorikkRow(k)).join('')}</div></div>` : ''}
         </div>`;
       }).join('')}
     </div>`}
@@ -3381,6 +3197,14 @@ function attachKontrolloversiktListeners(){
     if(kontrolloversiktOpenVehicles.has(id)) kontrolloversiktOpenVehicles.delete(id); else kontrolloversiktOpenVehicles.add(id);
     render();
   }));
+  document.querySelectorAll('[data-select]').forEach(el => el.addEventListener('change', (e) => {
+    if(e.target.checked) kthSelectedIds.add(el.dataset.select);
+    else kthSelectedIds.delete(el.dataset.select);
+    render();
+  }));
+  document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
+  const deleteSelectedBtn = document.getElementById('kth-delete-selected-btn');
+  if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
 }
 
 function renderVarslerOversikt(){
@@ -3396,6 +3220,8 @@ function renderVarslerOversikt(){
   // i stedet for å forsvinne stille fra oversikten.
   const kjentIder = new Set(vehicles.map(v => v.id));
   const foreldreloseVarsler = alle.filter(w => !kjentIder.has(w.vehicleId));
+  const kvittertVarsellys = varsellys.filter(w => w.status === 'kvittert')
+    .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
 
   return `
     <div class="backrow"><button class="backbtn" id="varsler-back">← Dashboard</button></div>
@@ -3436,12 +3262,70 @@ function renderVarslerOversikt(){
       <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
       <div class="dmg-list">${foreldreloseVarsler.map(w => varsellysCard(w)).join('')}</div>
     </div>` : ''}
+
+    <h2 style="font-size:19px;margin:32px 0 6px;">🚨 Varsellampe kvittering historikk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">
+      ${kvittertVarsellys.length} kvitterte varsellamper. Sletting her fjerner kun historikkposten —
+      det gjenåpner ikke varselet og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.
+    </div>
+    ${isAdmin && vlhSelectedIds.size > 0 ? `
+    <div class="toolbar">
+      <div class="count">${vlhSelectedIds.size} valgt${vlhSelectedIds.size === 1 ? '' : 'e'}</div>
+      <button class="btn danger-outline small" id="vlh-delete-selected-btn">🗑️ Slett valgte</button>
+    </div>` : ''}
+    ${kvittertVarsellys.length === 0 ? `<div class="empty-note">Ingen kvitterte varsellamper ennå.</div>` : (() => {
+      const byVehicleH = new Map();
+      kvittertVarsellys.forEach(w => {
+        if(!byVehicleH.has(w.vehicleId)) byVehicleH.set(w.vehicleId, []);
+        byVehicleH.get(w.vehicleId).push(w);
+      });
+      const beroerteKjoretoyH = sortedVehicles(vehicles.filter(v => byVehicleH.has(v.id)));
+      const foreldreloseH = kvittertVarsellys.filter(w => !kjentIder.has(w.vehicleId));
+      return KATEGORI_ORDER.filter(k => beroerteKjoretoyH.some(v => v.kategori === k)).map(k => {
+        const gruppeKjoretoy = beroerteKjoretoyH.filter(v => v.kategori === k);
+        return `
+        <div style="margin-bottom:22px;">
+          <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+          <div class="acc-list">
+            ${gruppeKjoretoy.map(v => {
+              const wList = byVehicleH.get(v.id) || [];
+              const open = vlhOpenVehicles.has(v.id);
+              return `
+              <div class="acc-row varsel ${open ? 'expanded' : ''}">
+                <div class="acc-head" data-toggle-vlh-vehicle="${v.id}">
+                  <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+                  <div class="acc-head-right"><span class="group-count">${wList.length} kvitterte varsel${wList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+                </div>
+                ${open ? `<div class="acc-body"><div class="dmg-list">${wList.map(w => varsellysHistorikkRow(w)).join('')}</div></div>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('') + (foreldreloseH.length > 0 ? `
+      <div style="margin-bottom:22px;">
+        <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+        <div class="dmg-list">${foreldreloseH.map(w => varsellysHistorikkRow(w)).join('')}</div>
+      </div>` : '');
+    })()}
   `;
 }
 function attachVarslerOversiktListeners(){
   document.getElementById('varsler-back').addEventListener('click', () => goTo('dashboard'));
   document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleVlhVehicle;
+    if(vlhOpenVehicles.has(id)) vlhOpenVehicles.delete(id); else vlhOpenVehicles.add(id);
+    render();
+  }));
+  document.querySelectorAll('[data-select-vlh]').forEach(el => el.addEventListener('change', (e) => {
+    if(e.target.checked) vlhSelectedIds.add(el.dataset.selectVlh);
+    else vlhSelectedIds.delete(el.dataset.selectVlh);
+    render();
+  }));
+  document.querySelectorAll('[data-delete-vlh]').forEach(el => el.addEventListener('click', () => deleteVarsellysHistorikk(el.dataset.deleteVlh)));
+  const deleteSelectedVlhBtn = document.getElementById('vlh-delete-selected-btn');
+  if(deleteSelectedVlhBtn) deleteSelectedVlhBtn.addEventListener('click', deleteSelectedVarsellysHistorikk);
 }
 
 // ================= scrBilkort =================
@@ -3723,18 +3607,66 @@ function attachBilkortListeners(){
 }
 
 // ================= scrSkader =================
+function skadeGroupedSection(itemsFiltered, openSet, toggleAttr, quickCountsFra){
+  const byVehicle = new Map();
+  itemsFiltered.forEach(d => {
+    if(!byVehicle.has(d.vehicleId)) byVehicle.set(d.vehicleId, []);
+    byVehicle.get(d.vehicleId).push(d);
+  });
+  const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
+  const kjentIder = new Set(vehicles.map(v => v.id));
+  const foreldrelose = itemsFiltered.filter(d => !kjentIder.has(d.vehicleId));
+  if(beroerteKjoretoy.length === 0 && foreldrelose.length === 0) return null;
+
+  const grupper = KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
+    const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
+    return `
+    <div style="margin-bottom:22px;">
+      <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+      <div class="acc-list">
+        ${gruppeKjoretoy.map(v => {
+          const dList = byVehicle.get(v.id).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+          const open = openSet.has(v.id);
+          const quickCounts = quickCountsFra ? `<span class="required-hint" style="margin-right:8px;">🚨 ${quickCountsFra(v).aktive} · ✅ ${quickCountsFra(v).fikset}</span>` : '';
+          return `
+          <div class="acc-row ${open ? 'expanded' : ''}">
+            <div class="acc-head" data-${toggleAttr}="${v.id}">
+              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+              <div class="acc-head-right">${quickCounts}<span class="group-count">${dList.length} skade${dList.length===1?'':'r'}</span><span class="chevron">⌄</span></div>
+            </div>
+            ${open ? `<div class="acc-body"><div class="dmg-list">${dList.map(d => damageCard(d, false)).join('')}</div></div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  const foreldreloseHtml = foreldrelose.length > 0 ? `
+    <div style="margin-bottom:22px;">
+      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="dmg-list">${foreldrelose.map(d => damageCard(d, true)).join('')}</div>
+    </div>` : '';
+  return grupper + foreldreloseHtml;
+}
 function renderSkader(){
-  const filtered = damages.filter(d => {
+  const filteredBase = damages.filter(d => {
     if(skadeFilterBil && d.vehicleId !== skadeFilterBil) return false;
     if(skadeFilterDato && d.dato !== skadeFilterDato) return false;
-    if(skadeFilterStatus === 'apen' && !skadeIsOpen(d)) return false;
-    if(skadeFilterStatus === 'lukket' && skadeIsOpen(d)) return false;
     return true;
-  }).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+  });
+  const aktive = filteredBase.filter(skadeIsOpen);
+  const fikset = filteredBase.filter(d => d.status === 'utbedret');
+
+  const aktiveBody = skadeGroupedSection(aktive, skadeAktivOpenVehicles, 'toggle-ska-vehicle');
+  const fiksetBody = skadeGroupedSection(fikset, skadeFiksetOpenVehicles, 'toggle-skf-vehicle');
+  const historikkBody = skadeGroupedSection(filteredBase, skadeHistorikkOpenVehicles, 'toggle-skh-vehicle', (v) => ({
+    aktive: damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length,
+    fikset: damages.filter(d => d.vehicleId === v.id && d.status === 'utbedret').length
+  }));
 
   return `
+    <h2 style="font-size:19px;margin-bottom:16px;">⚠️ Skadeoversikt</h2>
     <div class="toolbar">
-      <div class="count">${filtered.length} av ${damages.length} skader</div>
+      <div class="count">${damages.length} skader totalt</div>
       <button class="btn" id="add-skade-btn">${showAddSkade ? 'Avbryt' : '+ Registrer skade'}</button>
     </div>
 
@@ -3785,22 +3717,20 @@ function renderSkader(){
         ${vehicleOptions(skadeFilterBil)}
       </select>
       <input type="text" id="sk-f-dato" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${skadeFilterDato ? fmt(skadeFilterDato) : ''}">
-      <select id="sk-f-status">
-        <option value="" ${skadeFilterStatus===''?'selected':''}>Alle saker</option>
-        <option value="apen" ${skadeFilterStatus==='apen'?'selected':''}>Åpen sak</option>
-        <option value="lukket" ${skadeFilterStatus==='lukket'?'selected':''}>Lukket sak</option>
-      </select>
-      ${skadeFilterDato ? `<button class="btn secondary small" id="sk-f-dato-clear" type="button">Fjern datofilter</button>` : ''}
+      ${(skadeFilterBil || skadeFilterDato) ? `<button class="btn secondary small" id="sk-f-dato-clear" type="button">Nullstill filtre</button>` : ''}
     </div>
 
-    ${filtered.length === 0 ? `
-      <div class="empty">
-        <h3>${damages.length === 0 ? 'Ingen skader registrert ennå' : 'Ingen treff'}</h3>
-        <div>${damages.length === 0 ? 'Trykk «+ Registrer skade» for å legge til den første.' : 'Prøv andre filtre.'}</div>
-      </div>
-    ` : `
-      <div class="dmg-list">${filtered.map(d => damageCard(d, true)).join('')}</div>
-    `}
+    <h2 style="font-size:19px;margin:20px 0 6px;">▼ Aktive skader</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${aktive.length} aktiv${aktive.length===1?'':'e'} skade${aktive.length===1?'':'r'}, gruppert per bil.</div>
+    ${aktiveBody === null ? `<div class="empty-note">Ingen aktive skader${skadeFilterBil||skadeFilterDato ? ' med gjeldende filter.' : '.'}</div>` : aktiveBody}
+
+    <h2 style="font-size:19px;margin:32px 0 6px;">▼ Fiksede skader</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${fikset.length} fikset skade${fikset.length===1?'':'r'}, gruppert per bil.</div>
+    ${fiksetBody === null ? `<div class="empty-note">Ingen fiksede skader ennå${skadeFilterBil||skadeFilterDato ? ' med gjeldende filter.' : '.'}</div>` : fiksetBody}
+
+    <h2 style="font-size:19px;margin:32px 0 6px;">▼ Skadehistorikk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Full skadehistorikk per bil — inkluderer både aktive og utbedrede skader. En skade flyttes automatisk mellom seksjonene over når den markeres som fikset, og beholder dato, bilder og kommentarer.</div>
+    ${historikkBody === null ? `<div class="empty-note">Ingen skader registrert ennå${skadeFilterBil||skadeFilterDato ? ' med gjeldende filter.' : '.'}</div>` : historikkBody}
   `;
 }
 function attachSkaderListeners(){
@@ -3821,9 +3751,23 @@ function attachSkaderListeners(){
   });
   document.getElementById('sk-f-bil').addEventListener('change', e => { skadeFilterBil = e.target.value; render(); });
   document.getElementById('sk-f-dato').addEventListener('change', e => { skadeFilterDato = readDateInput('sk-f-dato'); render(); });
-  document.getElementById('sk-f-status').addEventListener('change', e => { skadeFilterStatus = e.target.value; render(); });
   const clearBtn = document.getElementById('sk-f-dato-clear');
-  if(clearBtn) clearBtn.addEventListener('click', () => { skadeFilterDato = ''; render(); });
+  if(clearBtn) clearBtn.addEventListener('click', () => { skadeFilterBil = ''; skadeFilterDato = ''; render(); });
+  document.querySelectorAll('[data-toggle-ska-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleSkaVehicle;
+    if(skadeAktivOpenVehicles.has(id)) skadeAktivOpenVehicles.delete(id); else skadeAktivOpenVehicles.add(id);
+    render();
+  }));
+  document.querySelectorAll('[data-toggle-skf-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleSkfVehicle;
+    if(skadeFiksetOpenVehicles.has(id)) skadeFiksetOpenVehicles.delete(id); else skadeFiksetOpenVehicles.add(id);
+    render();
+  }));
+  document.querySelectorAll('[data-toggle-skh-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleSkhVehicle;
+    if(skadeHistorikkOpenVehicles.has(id)) skadeHistorikkOpenVehicles.delete(id); else skadeHistorikkOpenVehicles.add(id);
+    render();
+  }));
   attachDamageCardListeners(damages);
 }
 
