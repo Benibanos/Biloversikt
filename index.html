@@ -291,6 +291,7 @@
 
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
   .ov-item{display:flex;flex-direction:column;gap:2px;}
+  .sjafor-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
   .ov-item-clickable{
     cursor:pointer;padding:8px 10px;margin:-8px -10px;border-radius:10px;
     transition:background .15s ease, transform .1s ease;
@@ -514,11 +515,12 @@
     .filters-row{flex-direction:column;align-items:stretch;}
     .filters-row input, .filters-row select{width:100%;min-width:0;}
 
-    /* Varsellampe-avhukingsbokser: to kolonner på mobil for å redusere scrolling,
-       med litt strammere padding enn på PC (fortsatt over 44px trykkflate). */
-    .chip-grid{grid-template-columns:1fr 1fr;gap:8px;}
-    .chip{padding:11px 10px;min-height:46px;gap:8px;font-size:13.5px;}
-    .chip-icon{font-size:17px;width:20px;}
+    /* Varsellampe-avhukingsbokser: to kolonner på mobil for å redusere scrolling.
+       Kun tekst/ikon/avstand er komprimert her — selve avhukingsboksen (.chip input)
+       og trykkflaten (min-height) er UENDRET, fortsatt godt over 44px. */
+    .chip-grid{grid-template-columns:1fr 1fr;gap:6px;}
+    .chip{padding:9px 8px;min-height:46px;gap:6px;font-size:12.5px;}
+    .chip-icon{font-size:15px;width:18px;}
 
     /* Registrer kontroll: mindre luft mellom feltene og lavere tekstfelt på mobil,
        siden skjemaet ellers blir unødvendig langt å scrolle gjennom. */
@@ -2370,7 +2372,7 @@ function renderDashboard(){
       </div>
       <div class="panel" style="margin-bottom:0;">
         <h3 style="margin-bottom:14px;">Sjåførkontroll</h3>
-        <div class="ov-grid">
+        <div class="sjafor-stats-grid">
           <div class="ov-item ov-item-clickable" data-stat-nav="kontrollert-idag"><span class="ov-label">Kontrollert i dag</span><span class="ov-value" style="font-size:20px;color:var(--green);">✅ ${kontrollertIdagCount}</span></div>
           <div class="ov-item ov-item-clickable" data-stat-nav="mangler-kontroll"><span class="ov-label">Mangler kontroll i dag</span><span class="ov-value" style="font-size:20px;color:${manglerKontrollCount>0?'var(--amber)':'var(--ink)'};">⚠️ ${manglerKontrollCount}</span></div>
           <div class="ov-item ov-item-clickable" data-stat-nav="aktive-varsler"><span class="ov-label">Aktive varsellamper</span><span class="ov-value" style="font-size:20px;color:${aktiveVarsler.length>0?'var(--red)':'var(--ink)'};">🚨 ${aktiveVarsler.length}</span></div>
