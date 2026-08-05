@@ -119,10 +119,25 @@ Airtable har faset ut de gamle, kontobrede API-nøklene til fordel for
 4. Under **Scopes**, legg til:
    - `data.records:read`
    - `data.records:write`
+   - `schema.bases:read` — kreves for «⚙️ Database status» i Innstillinger,
+     som sjekker at basen har alle tabeller/felt appen forventer
+   - `schema.bases:write` — valgfritt, men kreves for at «🔄 Synkroniser
+     Airtable» skal kunne opprette manglende tabeller/felt automatisk i
+     stedet for at du må legge dem til manuelt. Utelates dette scopet,
+     fungerer resten av appen helt normalt — du får bare en tydelig
+     feilmelding i Database status i stedet for automatisk oppretting.
 5. Under **Access**, velg «Add a base» og velg Bilpark-basen din spesifikt
    (ikke «All current and future bases»).
 6. Klikk «Create token» — kopier tokenet med det samme (det vises kun én
    gang). Det starter med `pat...`.
+
+**Har du allerede et token fra tidligere** (kun `data.records:*`)? Det
+fungerer fortsatt for hele appen som før — «Database status» vil bare vise
+en feilmelding om manglende tilgang til å lese/endre struktur i stedet for
+et rapportresultat. Gå til
+[airtable.com/create/tokens](https://airtable.com/create/tokens), åpne det
+eksisterende tokenet, og legg til de to nye scopene der for å aktivere
+funksjonen — du trenger ikke lage et helt nytt token.
 
 ## 5. Slik kobler du appen til Airtable
 
@@ -198,3 +213,23 @@ kall/sekund per base (punkt 0) dersom mange bruker appen samtidig.
   ikke kunnet teste den mot en ekte Airtable-base herfra (ingen nettverks-
   eller nettlesertilgang i dette miljøet) — en grundig gjennomgang i egen
   nettleser mot deres faktiske base er nødvendig før dette tas i reell bruk.
+
+## 9. Database status — automatisk skjemasjekk (Innstillinger)
+
+For å unngå at fremtidige nye funksjoner (nye felt/tabeller) glemmes å
+opprettes manuelt i Airtable, sjekker appen automatisk i bakgrunnen — stille,
+ved oppstart og ved innlogging — om basen har alle tabeller og felt den
+forventer, basert på den samme `LIST_TABLES`-oppsettet i
+`storage.airtable.js` som resten av appen bruker (én kilde til sannhet: nye
+felt lagt til der plukkes automatisk opp av sjekken).
+
+- Finner den avvik, vises et gult varsel øverst på Dashboard.
+- Full detalj (hvilke tabeller/felt som mangler) finnes under
+  **Innstillinger → Database status**.
+- **«🔄 Synkroniser Airtable»**-knappen sjekker på nytt, og forsøker
+  deretter å **opprette manglende tabeller/felt automatisk** via Airtables
+  metadata-API — men KUN om tokenet har scopet `schema.bases:write` (se
+  punkt 4). Uten det scopet får du i stedet en tydelig feilmelding per felt,
+  og må legge dem til manuelt i Airtable.
+- Appen oppretter **aldri** noe automatisk uten at en administrator selv
+  trykker synkroniser-knappen — bakgrunnssjekken ved oppstart varsler kun.

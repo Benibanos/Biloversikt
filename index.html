@@ -786,6 +786,9 @@ let varsellys = []; // vedvarende varsellamper knyttet til bil, se saveVarsellys
 let dekkhistorikk = []; // logg over dekkskifter (sommer/vinter) per bil, se saveDekkhistorikk()
 let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
+let dbStatusReport = null; // resultat fra siste window.checkAirtableSchema()-kall
+let dbStatusSyncing = false;
+let dbStatusSyncLog = null; // resultat fra siste window.autoFixAirtableSchema()-kall
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
@@ -922,6 +925,7 @@ async function loginSubmit(ev){
   isAdmin = true;
   loginFormError = '';
   if(huskMeg) saveRememberedLogin(match.rolle); else clearRememberedLogin();
+  if(!dbStatusReport) runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
   goTo('dashboard');
 }
 function logout(){
@@ -1057,6 +1061,12 @@ async function loadAll(){
     render();
   });
   render();
+  if(isAdmin){
+    // Stille bakgrunnssjekk av Airtable-strukturen ved oppstart — varsler kun
+    // (se banneret på Dashboard), oppretter ALDRI noe automatisk uten at en
+    // administrator selv trykker «🔄 Synkroniser Airtable» i Innstillinger.
+    runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
+  }
 }
 async function reloadOne(key){
   try{
@@ -2361,10 +2371,11 @@ function renderDrawer(){
     <div class="drawer-user">Innlogget: ${esc(loggedInRole || '')}</div>
     <div class="drawer-nav">
       ${drawerItemHtml('dashboard', '🏠', 'Dashboard')}
-      ${drawerItemHtml('verksted', '🔧', 'Verkstedtimer')}
+      ${drawerItemHtml('kontrolloversikt', '📊', 'Kontrolloversikt')}
       ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt')}
-      ${drawerItemHtml('kontrolloversikt', '📋', 'Kontrolloversikt')}
+      ${drawerItemHtml('varsler', '🚨', 'Varseloversikt')}
       ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt')}
+      ${drawerItemHtml('verksted', '🔧', 'Verkstedtimer')}
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Administrasjon</div>
@@ -2520,6 +2531,10 @@ function renderDashboard(){
         </div>
       </div>
     </div>
+    ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
+    <div class="required-hint" id="db-warning-banner" style="margin:0 0 20px;background:var(--amber-soft);padding:12px 14px;border-radius:10px;font-weight:600;color:var(--ink);cursor:pointer;">
+      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
+    </div>` : ''}
     <div class="dash-row-2">
       <div class="stat-grid">
         <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">Totalt antall biler</div></div>
@@ -2635,6 +2650,11 @@ function accordionRow(v){
 }
 
 function attachDashboardListeners(){
+  const dbBanner = document.getElementById('db-warning-banner');
+  if(dbBanner) dbBanner.addEventListener('click', () => {
+    settingsOpenSections.add('database');
+    goTo('innstillinger');
+  });
   document.querySelectorAll('[data-toggle-group]').forEach(el => el.addEventListener('click', () => toggleDashGroup(el.dataset.toggleGroup)));
   document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
     dashExpandedId = dashExpandedId === el.dataset.toggle ? null : el.dataset.toggle;
@@ -3001,11 +3021,12 @@ function varsellysCard(w){
         <div class="vl-card-meta">
           Registrert: ${fmt(w.registrertDato)} · ${esc(w.registrertAv)}
           ${days !== null ? ` · Aktiv i ${days} dag${days === 1 ? '' : 'er'}` : ''}
+          ${w.status === 'aktiv' ? ' · Status: Aktiv' : ''}
           ${w.status === 'kvittert' ? `<br>Kvittert: ${fmt(w.kvittertDato)} · ${esc(w.kvittertAv)} · Status: Lukket` : ''}
         </div>
       </div>
-      ${w.status === 'aktiv' && isAdmin ? `<button class="btn small" data-kvitter="${w.id}">✅ Kvitter ut</button>` : ''}
-      ${w.status === 'aktiv' && !isAdmin ? `<span class="required-hint">Kun administrator kan kvittere ut</span>` : ''}
+      ${w.status === 'aktiv' && isAdmin ? `<button class="btn small" data-kvitter="${w.id}">✅ Marker som løst</button>` : ''}
+      ${w.status === 'aktiv' && !isAdmin ? `<span class="required-hint">Kun administrator kan markere som løst</span>` : ''}
     </div>
   `;
 }
@@ -3224,8 +3245,7 @@ function renderVarslerOversikt(){
     .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
 
   return `
-    <div class="backrow"><button class="backbtn" id="varsler-back">← Dashboard</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">Aktive varsellamper</h2>
+    <h2 style="font-size:19px;margin-bottom:6px;">🚨 Varseloversikt</h2>
     <div class="required-hint" style="margin-bottom:16px;">${alle.length} aktiv${alle.length===1?'':'e'} varsellampe${alle.length===1?'':'r'} totalt, fordelt på ${beroerteKjoretoy.length} kjøretøy.</div>
     ${alle.length === 0 ? `<div class="empty-note">🟢 Ingen aktive varsellamper.</div>` : KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
       const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
@@ -3240,7 +3260,7 @@ function renderVarslerOversikt(){
             <div class="acc-row varsel ${open ? 'expanded' : ''}">
               <div class="acc-head" data-toggle-varsler-vehicle="${v.id}">
                 <div class="acc-head-left">
-                  <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)} (${esc(v.merke)})</div>
+                  <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
                 </div>
                 <div class="acc-head-right">
                   <span class="group-count">${wList.length} varsel${wList.length===1?'':'er'}</span>
@@ -3310,7 +3330,6 @@ function renderVarslerOversikt(){
   `;
 }
 function attachVarslerOversiktListeners(){
-  document.getElementById('varsler-back').addEventListener('click', () => goTo('dashboard'));
   document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
@@ -3943,6 +3962,28 @@ function settingsAccordionRow(key, title, count, bodyHtml){
     </div>
   `;
 }
+// ================= Database status (skjemavalidering mot Airtable) =================
+async function runDatabaseCheck(){
+  dbStatusReport = await window.checkAirtableSchema();
+  render();
+}
+async function runDatabaseSync(){
+  dbStatusSyncing = true; dbStatusSyncLog = null; render();
+  try{
+    let report = await window.checkAirtableSchema();
+    if(report.ok){
+      const harMangler = report.tables.some(t => !t.exists || t.missingFields.length > 0);
+      if(harMangler){
+        dbStatusSyncLog = await window.autoFixAirtableSchema(report);
+      }
+    }
+    dbStatusReport = await window.checkAirtableSchema();
+  }catch(e){
+    console.error('[runDatabaseSync] Feilet', e);
+  }
+  dbStatusSyncing = false;
+  render();
+}
 function renderInnstillinger(){
   const adminBody = `
     <div class="required-hint" style="margin-bottom:14px;">
@@ -4090,11 +4131,64 @@ function renderInnstillinger(){
     </div>
   `;
 
+  const databaseBody = (() => {
+    if(!dbStatusReport){
+      return `
+        <div class="required-hint" style="margin-bottom:14px;">
+          Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
+          lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
+          trykker knappen under første gang (deretter sjekkes det også stille ved hver oppstart).
+        </div>
+        <button class="btn small" id="db-check-btn">🔄 Synkroniser Airtable</button>
+      `;
+    }
+    if(!dbStatusReport.ok){
+      return `
+        <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
+          ⚠️ ${esc(dbStatusReport.error)}
+        </div>
+        <button class="btn small" id="db-check-btn">🔄 Prøv igjen</button>
+      `;
+    }
+    const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
+    const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
+    const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
+    return `
+      <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
+        ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
+        &nbsp;·&nbsp;
+        ${totaltManglendeFelt === 0 ? '✅ Felt OK' : `⚠️ Mangler ${totaltManglendeFelt} felt`}
+        ${dbStatusReport.checkedAt ? `<br><span style="font-weight:400;">Sist sjekket: ${new Date(dbStatusReport.checkedAt).toLocaleString('nb-NO')}</span>` : ''}
+      </div>
+      ${altOk ? '' : `
+      <div class="dmg-list" style="margin-bottom:14px;">
+        ${dbStatusReport.tables.filter(t => !t.exists || t.missingFields.length > 0).map(t => `
+          <div class="dmg-item">
+            <div class="dmg-top">
+              <div class="dmg-text">
+                <div class="main">${t.exists ? '⚠️' : '❌'} ${esc(t.name)}${!t.exists ? ' (tabellen finnes ikke)' : ''}</div>
+                ${t.missingFields.length > 0 ? `<div class="desc">Mangler felt: ${t.missingFields.map(esc).join(', ')}</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`}
+      ${dbStatusSyncLog ? `
+      <div class="required-hint" style="margin-bottom:14px;">
+        <strong>Siste synkronisering:</strong><br>
+        ${dbStatusSyncLog.length === 0 ? 'Ingenting å opprette.' : dbStatusSyncLog.map(r => `${r.ok ? '✅' : '❌'} ${esc(r.table)}${r.field ? ' — ' + esc(r.field) : ''}${!r.ok ? ' (' + esc(r.error) + ')' : ''}`).join('<br>')}
+      </div>` : ''}
+      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : '🔄 Synkroniser Airtable'}</button>
+      ${!altOk ? `<div class="required-hint" style="margin-top:10px;">Krever at token har scopet «schema.bases:write» for å opprette manglende tabeller/felt automatisk — se AIRTABLE_MIGRATION.md. Uten det scopet vil du få en tydelig feilmelding per felt i stedet, og må opprette dem manuelt.</div>` : ''}
+    `;
+  })();
+
   return `
     <div class="acc-list">
       ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
+      ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
     </div>
   `;
 }
@@ -4131,6 +4225,8 @@ async function hardRefreshApp(){
 
 function attachInnstillingerListeners(){
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
+  const dbCheckBtn = document.getElementById('db-check-btn');
+  if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); runDatabaseSync(); });
   document.querySelectorAll('input[name="theme-pref"]').forEach(el => el.addEventListener('change', (e) => {
     e.stopPropagation();
     saveThemePreference(e.target.value);
@@ -4209,7 +4305,7 @@ function renderKontroll(){
       </div>
       ${activeVarsellysList.length > 0 ? `
       <div class="active-lamp-list">
-        <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan kvittere ut:</div>
+        <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan markere som løst:</div>
         ${activeVarsellysList.map(w => `<div class="active-lamp-row">🚨 <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
       </div>` : ''}` : ''}
 

@@ -310,4 +310,117 @@
       });
     }, POLL_INTERVAL_MS);
   };
+
+  // ================= Database status: skjemavalidering mot Airtable =================
+  // Bruker Airtables METADATA-API (et helt annet API-endepunkt enn resten av
+  // denne filen — https://api.airtable.com/v0/meta/... i stedet for /v0/...),
+  // som kan lese OG endre selve tabell-/feltstrukturen i basen, ikke bare
+  // radene. Krever at Personal Access Token har scopene "schema.bases:read"
+  // (for å sjekke) og "schema.bases:write" (for å opprette manglende
+  // tabeller/felt automatisk) — se AIRTABLE_MIGRATION.md. Uten disse scopene
+  // vil sjekken fortsatt fungere for LESING dersom kun schema.bases:read er
+  // gitt, men "Synkroniser"-knappen vil feile med en tydelig feilmelding.
+  const META_BASE = 'https://api.airtable.com/v0/meta/bases/' + AIRTABLE_CONFIG.baseId;
+  async function metaFetch(path, options) {
+    const res = await fetch(META_BASE + path, Object.assign({ headers: HEADERS }, options || {}));
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      const err = new Error('Airtable metadata-API-feil ' + res.status + ' på ' + path + ': ' + body);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  // Forventet skjema — utledet direkte fra LIST_TABLES over, pluss Settings/
+  // Photos (som ikke følger AppId-mønsteret, men lagrer nøkkel/verdi-rader).
+  // Dette er bevisst ÉN kilde til sannhet: legger du et nytt felt i
+  // LIST_TABLES for en fremtidig funksjon, plukkes det automatisk opp her.
+  const EXPECTED_SCHEMA = {};
+  Object.keys(LIST_TABLES).forEach((key) => {
+    const cfg = LIST_TABLES[key];
+    EXPECTED_SCHEMA[cfg.table] = Object.keys(cfg.fields).map((f) => {
+      const [atName, kind] = cfg.fields[f];
+      return { name: atName, kind: kind || 'text' };
+    });
+  });
+  EXPECTED_SCHEMA['Settings'] = [{ name: 'Key', kind: 'text' }, { name: 'Value', kind: 'json' }];
+  EXPECTED_SCHEMA['Photos'] = [{ name: 'Key', kind: 'text' }, { name: 'Value', kind: 'json' }];
+
+  function airtableFieldType(kind) {
+    if (kind === 'bool') return { type: 'checkbox', options: { icon: 'check', color: 'greenBright' } };
+    if (kind === 'num') return { type: 'number', options: { precision: 0 } };
+    if (kind === 'json') return { type: 'multilineText' };
+    return { type: 'singleLineText' };
+  }
+
+  // Sammenligner forventet skjema mot det som faktisk finnes i Airtable akkurat
+  // nå. Endrer INGENTING selv — kun lesing. Kalles automatisk ved oppstart
+  // (se index.html) og på nytt av "🔄 Synkroniser Airtable"-knappen.
+  window.checkAirtableSchema = async function () {
+    let actualTables;
+    try {
+      const data = await metaFetch('/tables');
+      actualTables = data.tables;
+    } catch (e) {
+      return {
+        ok: false,
+        error: (e.status === 401 || e.status === 403)
+          ? 'Tokenet mangler tilgang til å lese databasestrukturen. Legg til scopet «schema.bases:read» (og «schema.bases:write» for automatisk oppretting) på Personal Access Token i Airtable — se AIRTABLE_MIGRATION.md.'
+          : 'Kunne ikke hente databasestrukturen fra Airtable: ' + e.message,
+        tables: []
+      };
+    }
+    const byName = {};
+    actualTables.forEach((t) => { byName[t.name] = t; });
+    const report = { ok: true, error: null, checkedAt: Date.now(), tables: [] };
+    Object.keys(EXPECTED_SCHEMA).forEach((tableName) => {
+      const expectedFields = EXPECTED_SCHEMA[tableName];
+      const actual = byName[tableName];
+      if (!actual) {
+        report.tables.push({ name: tableName, exists: false, missingFields: expectedFields.map((f) => f.name), airtableTableId: null });
+        return;
+      }
+      const actualFieldNames = new Set(actual.fields.map((f) => f.name));
+      const missingFields = expectedFields.filter((f) => !actualFieldNames.has(f.name)).map((f) => f.name);
+      report.tables.push({ name: tableName, exists: true, missingFields, airtableTableId: actual.id });
+    });
+    return report;
+  };
+
+  // Oppretter manglende tabeller/felt automatisk der Airtables metadata-API
+  // tillater det (krever schema.bases:write). Endrer den gitte rapporten i
+  // stedet (fjerner det som ble fikset), og returnerer en logg over hva som
+  // skjedde — inkludert eventuelle feil per tabell/felt, slik at ett mislykket
+  // felt ikke stopper resten.
+  window.autoFixAirtableSchema = async function (report) {
+    const results = [];
+    for (const t of report.tables) {
+      if (!t.exists) {
+        const fields = EXPECTED_SCHEMA[t.name].map((f) => Object.assign({ name: f.name }, airtableFieldType(f.kind)));
+        try {
+          const created = await metaFetch('/tables', { method: 'POST', body: JSON.stringify({ name: t.name, fields }) });
+          results.push({ table: t.name, action: 'created-table', ok: true });
+          t.exists = true; t.missingFields = []; t.airtableTableId = created.id;
+        } catch (e) {
+          results.push({ table: t.name, action: 'created-table', ok: false, error: e.message });
+        }
+        continue;
+      }
+      for (const fieldName of t.missingFields.slice()) {
+        const spec = EXPECTED_SCHEMA[t.name].find((f) => f.name === fieldName);
+        try {
+          await metaFetch('/tables/' + t.airtableTableId + '/fields', {
+            method: 'POST',
+            body: JSON.stringify(Object.assign({ name: fieldName }, airtableFieldType(spec.kind)))
+          });
+          results.push({ table: t.name, field: fieldName, action: 'created-field', ok: true });
+          t.missingFields = t.missingFields.filter((f) => f !== fieldName);
+        } catch (e) {
+          results.push({ table: t.name, field: fieldName, action: 'created-field', ok: false, error: e.message });
+        }
+      }
+    }
+    return results;
+  };
 })();
