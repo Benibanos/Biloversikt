@@ -86,6 +86,14 @@
   .brand{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
   .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .header-action-btn{
+    background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
+  }
+  .header-action-btn:hover{background:var(--bg);}
+  .header-action-btn.active{
+    background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);
+    box-shadow:0 0 0 3px var(--amber-soft);
+  }
   .btn-label-short{display:none;}
   .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .menu-wrap{position:relative;}
@@ -590,6 +598,7 @@ let loaded = false;
 
 let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
 let currentVehicleId = null;
+let pendingVehiclePhoto = null;
 let editingDamageId = null;
 let editingVTId = null;
 let pendingPhotoData = null; // felles buffer for bildeopplasting (skade/bil)
@@ -611,6 +620,8 @@ let vtFilterVerksted = '';
 let vtFilterType = '';
 let showAddVT = false;
 let vtPrefillVehicleId = '';
+let vtReturnScreen = null; // hvilken skjerm "← Tilbake"-knappen på Verkstedtimer skal føre til
+let vtReturnVehicleId = null; // hvis vtReturnScreen === 'bilkort': hvilket kjøretøy
 
 let dashExpandedId = null;
 // Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
@@ -1444,12 +1455,12 @@ function goTo(scr, vehicleId){
   }
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
-  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); }
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); vehicleSaveConfirmedId = null; }
   if(scr === 'varsler'){ varslerOpenVehicles = new Set(); }
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; vtReturnScreen = null; vtReturnVehicleId = null; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
@@ -1546,9 +1557,15 @@ async function saveVehicleForm(id){
     pendingVehiclePhoto = null;
   }
   await saveVehicles();
+  // Henter bilregisteret på nytt fra Airtable (ikke bare den lokale endringen) rett
+  // etter lagring, slik at bilkortet, Dashboard og resten av appen garantert viser
+  // nøyaktig det som faktisk står lagret — helt uten at brukeren må laste siden på
+  // nytt manuelt for å se endringen slå igjennom.
+  await reloadOne('vehicles');
+  vehicleSaveConfirmedId = id;
   render();
 }
-let pendingVehiclePhoto = null;
+let vehicleSaveConfirmedId = null;
 async function deleteVehicle(id){
   if(!confirm('Slette dette kjøretøyet og all historikk? Dette kan ikke angres.')) return;
   const vDamages = damages.filter(d => d.vehicleId === id);
@@ -1743,6 +1760,8 @@ async function deleteVT(id){
   render();
 }
 function goToRegisterVT(vehicleId){
+  vtReturnScreen = screen;
+  vtReturnVehicleId = (screen === 'bilkort') ? currentVehicleId : null;
   vtPrefillVehicleId = vehicleId;
   showAddVT = true;
   vtFilterBil = '';
@@ -2111,8 +2130,8 @@ function render(){
     <div class="shell-top">
       ${brandBlockHtml()}
       <div class="shell-top-right">
-        <button class="btn small" id="header-kontroll-btn"><span class="btn-label-full">✅ Registrer kontroll</span><span class="btn-label-short">✅ Kontroll</span></button>
-        <button class="btn small secondary" id="header-vt-btn"><span class="btn-label-full">🔧 Registrer verkstedtime</span><span class="btn-label-short">🔧 Verksted</span></button>
+        <button class="btn small header-action-btn ${screen==='kontroll'?'active':''}" id="header-kontroll-btn"><span class="btn-label-full">✅ Registrer kontroll</span><span class="btn-label-short">✅ Kontroll</span></button>
+        <button class="btn small header-action-btn ${screen==='verksted'?'active':''}" id="header-vt-btn"><span class="btn-label-full">🔧 Registrer verkstedtime</span><span class="btn-label-short">🔧 Verksted</span></button>
         <div class="menu-wrap">
           <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
             ☰ Meny
@@ -2392,7 +2411,7 @@ function accordionRow(v){
           <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
           <div>
             <div class="flag-name">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
-            <div class="flag-reason">KM: ${v.km ? Number(v.km).toLocaleString('nb-NO') : '–'} • ${v.loyvenummer ? esc(v.loyvenummer) : '–'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
+            <div class="flag-reason">${v.loyvenummer ? esc(v.loyvenummer) : '–'} • KM: ${v.km ? Number(v.km).toLocaleString('nb-NO') : '–'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
           </div>
         </div>
         <div class="acc-head-right">
@@ -2992,6 +3011,7 @@ function renderBilkort(){
     </div>
     <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
+    ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Bilder</h4>
     <div class="photo-input-area">
@@ -3263,6 +3283,7 @@ function renderVerksted(){
   const showTidligere = vtFilterType !== 'kommende';
 
   return `
+    ${vtReturnScreen ? `<div class="backrow"><button class="backbtn" id="vt-back">← Tilbake til ${vtReturnScreen === 'bilkort' ? 'bilkortet' : 'Dashboard'}</button></div>` : ''}
     <div class="toolbar">
       <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
       <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
@@ -3368,6 +3389,11 @@ function vtCard(t, upcoming){
 }
 
 function attachVerkstedListeners(){
+  const backBtn = document.getElementById('vt-back');
+  if(backBtn) backBtn.addEventListener('click', () => {
+    if(vtReturnScreen === 'bilkort' && vtReturnVehicleId) goTo('bilkort', vtReturnVehicleId);
+    else goTo(vtReturnScreen || 'dashboard');
+  });
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     if(!showAddVT) vtPrefillVehicleId = '';
