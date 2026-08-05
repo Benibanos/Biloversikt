@@ -460,6 +460,14 @@
   .vl-card-main .title{font-weight:700;}
   .vl-card-meta{font-size:11.5px;color:var(--muted);margin-top:3px;}
   .vl-indicator{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;}
+  .dash-chip-col{display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+  .dash-chip{
+    font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:100px;
+    display:inline-flex;align-items:center;gap:5px;white-space:nowrap;border:1.5px solid transparent;
+  }
+  .dash-chip.ok{background:var(--green-soft);color:var(--green);border-color:var(--green);}
+  .dash-chip.warn{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);}
+  .dash-chip.alert{background:var(--red-soft);color:var(--red);border-color:var(--red);}
   .vl-indicator.red{color:var(--red);}
   .vl-indicator.green{color:var(--green);}
   .vl-indicator.amber{color:var(--amber);}
@@ -620,8 +628,6 @@ let vtFilterVerksted = '';
 let vtFilterType = '';
 let showAddVT = false;
 let vtPrefillVehicleId = '';
-let vtReturnScreen = null; // hvilken skjerm "← Tilbake"-knappen på Verkstedtimer skal føre til
-let vtReturnVehicleId = null; // hvis vtReturnScreen === 'bilkort': hvilket kjøretøy
 
 let dashExpandedId = null;
 // Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
@@ -1460,7 +1466,7 @@ function goTo(scr, vehicleId){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; vtReturnScreen = null; vtReturnVehicleId = null; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
@@ -1760,8 +1766,6 @@ async function deleteVT(id){
   render();
 }
 function goToRegisterVT(vehicleId){
-  vtReturnScreen = screen;
-  vtReturnVehicleId = (screen === 'bilkort') ? currentVehicleId : null;
   vtPrefillVehicleId = vehicleId;
   showAddVT = true;
   vtFilterBil = '';
@@ -2401,7 +2405,6 @@ function accordionRow(v){
   const vVT = vehicleVT(v.id);
   const vNesteVT = vVT.filter(t => t.dato >= todayISO()).sort((a,b) => a.dato.localeCompare(b.dato))[0] || null;
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
-  const openCount = vDamagesAktive.length;
   const kontrollertIdag = isKontrollertIdag(v.id);
 
   return `
@@ -2415,10 +2418,10 @@ function accordionRow(v){
           </div>
         </div>
         <div class="acc-head-right">
-          ${!kontrollertIdag ? `<span class="vl-indicator amber">🟡 Mangler kontroll</span>` : ''}
-          ${vAktiveVarsler.length > 0 ? `<span class="vl-indicator red">🔴 ${vAktiveVarsler.length}</span>` : `<span class="vl-indicator green">🟢</span>`}
-          ${vDamages.length > 0 ? `<span class="badge ${openCount > 0 ? 'overdue' : 'unset'}">${vDamages.length} skade${vDamages.length === 1 ? '' : 'r'}</span>` : ''}
-          <span class="badge ${v.status}">${STATUS_LABEL[v.status] || 'OK'}</span>
+          <div class="dash-chip-col">
+            <span class="dash-chip ${kontrollertIdag ? 'ok' : 'warn'}">${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}</span>
+            <span class="dash-chip ${vAktiveVarsler.length > 0 ? 'alert' : 'ok'}">${vAktiveVarsler.length > 0 ? `🚨 ${vAktiveVarsler.length} aktiv${vAktiveVarsler.length === 1 ? '' : 'e'} varsellampe${vAktiveVarsler.length === 1 ? '' : 'r'}` : '🟢 Ingen aktive varsler'}</span>
+          </div>
           <span class="chevron">⌄</span>
         </div>
       </div>
@@ -3283,7 +3286,7 @@ function renderVerksted(){
   const showTidligere = vtFilterType !== 'kommende';
 
   return `
-    ${vtReturnScreen ? `<div class="backrow"><button class="backbtn" id="vt-back">← Tilbake til ${vtReturnScreen === 'bilkort' ? 'bilkortet' : 'Dashboard'}</button></div>` : ''}
+    <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
     <div class="toolbar">
       <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
       <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
@@ -3389,11 +3392,7 @@ function vtCard(t, upcoming){
 }
 
 function attachVerkstedListeners(){
-  const backBtn = document.getElementById('vt-back');
-  if(backBtn) backBtn.addEventListener('click', () => {
-    if(vtReturnScreen === 'bilkort' && vtReturnVehicleId) goTo('bilkort', vtReturnVehicleId);
-    else goTo(vtReturnScreen || 'dashboard');
-  });
+  document.getElementById('vt-back').addEventListener('click', () => goTo('dashboard'));
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     if(!showAddVT) vtPrefillVehicleId = '';
