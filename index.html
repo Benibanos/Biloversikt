@@ -88,12 +88,14 @@
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
   .header-action-btn{
     background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
+    transition:background .15s ease, box-shadow .15s ease, border-color .15s ease, filter .15s ease;
   }
-  .header-action-btn:hover{background:var(--bg);}
+  button.header-action-btn:hover{background:var(--bg);filter:none;box-shadow:0 2px 8px rgba(0,0,0,.10);}
   .header-action-btn.active{
     background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);
     box-shadow:0 0 0 3px var(--amber-soft);
   }
+  button.header-action-btn.active:hover{background:var(--chrome-bg);filter:brightness(1.12);box-shadow:0 0 0 3px var(--amber-soft), 0 2px 8px rgba(0,0,0,.18);}
   .btn-label-short{display:none;}
   .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .menu-wrap{position:relative;}
@@ -512,8 +514,16 @@
     .filters-row{flex-direction:column;align-items:stretch;}
     .filters-row input, .filters-row select{width:100%;min-width:0;}
 
-    /* Varsellampe-avhukingsbokser: én stor, tydelig rad om gangen */
-    .chip-grid{grid-template-columns:1fr;}
+    /* Varsellampe-avhukingsbokser: to kolonner på mobil for å redusere scrolling,
+       med litt strammere padding enn på PC (fortsatt over 44px trykkflate). */
+    .chip-grid{grid-template-columns:1fr 1fr;gap:8px;}
+    .chip{padding:11px 10px;min-height:46px;gap:8px;font-size:13.5px;}
+    .chip-icon{font-size:17px;width:20px;}
+
+    /* Registrer kontroll: mindre luft mellom feltene og lavere tekstfelt på mobil,
+       siden skjemaet ellers blir unødvendig langt å scrolle gjennom. */
+    #kontroll-form .field{margin-bottom:10px !important;}
+    #kontroll-form .field textarea{min-height:60px;}
 
     /* Statistikk-kort: aldri mer enn to smale kort ved siden av hverandre */
     .stat-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
@@ -3678,16 +3688,18 @@ function renderKontroll(){
     <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
     ${kontrollDraftRestored ? `<div class="required-hint" style="margin-bottom:16px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
     <form class="panel" id="kontroll-form">
-      <div class="field" style="margin-bottom:14px;">
-        <label>Sjåførnavn</label>
-        <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
-      </div>
-      <div class="field" style="margin-bottom:14px;">
-        <label>Kjøretøy</label>
-        <select id="kt-vehicle" required>
-          <option value="">Velg bil...</option>
-          ${vehicleOptions(kontrollFormVehicleId)}
-        </select>
+      <div class="row2">
+        <div class="field" style="margin-bottom:0;">
+          <label>Kjøretøy</label>
+          <select id="kt-vehicle" required>
+            <option value="">Velg bil...</option>
+            ${vehicleOptions(kontrollFormVehicleId)}
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Sjåførnavn</label>
+          <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
+        </div>
       </div>
       ${v ? `
       <div class="kt-vehicle-card">
@@ -3703,12 +3715,18 @@ function renderKontroll(){
         ${activeVarsellysList.map(w => `<div class="active-lamp-row">🚨 <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
       </div>` : ''}` : ''}
 
-      <div class="field" style="margin-bottom:18px;">
-        <label>Kilometerstand</label>
-        <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
+      <div class="row2" style="margin-top:14px;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Kilometerstand</label>
+          <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Kommentar fra sjåfør</label>
+          <textarea id="kt-kommentar" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea>
+        </div>
       </div>
 
-      <div class="field" style="margin-bottom:18px;">
+      <div class="field" style="margin:18px 0;">
         <label>Varsellamper ${v ? `<span class="vl-status-badge ${vlStatus}">${vlStatusLabel}</span>` : ''}</label>
         <div class="chip-grid">
           ${VARSELLAMPE_ORDER.map(key => {
@@ -3729,7 +3747,7 @@ function renderKontroll(){
         </div>` : ''}
       </div>
 
-      <div class="field" style="margin-bottom:18px;">
+      <div class="field" style="margin-bottom:6px;">
         <label>Har du oppdaget nye skader?</label>
         <div class="chip-yn">
           <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
@@ -3750,11 +3768,6 @@ function renderKontroll(){
             `).join('')}</div>` : ''}
           </div>
         </div>` : ''}
-      </div>
-
-      <div class="field" style="margin-bottom:6px;">
-        <label>Kommentar fra sjåfør</label>
-        <textarea id="kt-kommentar" placeholder="Valgfritt">${esc(kontrollFormKommentar)}</textarea>
       </div>
 
       <div class="form-msg" id="kt-msg"></div>
