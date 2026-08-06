@@ -2,32 +2,14 @@
 <html lang="nb">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Sjåførkontroll — Bilpark</title>
-<meta name="theme-color" content="#1C2024">
-<link rel="manifest" href="manifest-sjafor.json">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<!--
-  Denne filen er kun en fast, lettlest inngangsdør for sjåførmodus (til bruk i
-  QR-kode, bokmerke på nettbrett i bilen osv.), slik at man slipper å huske
-  eller skrive inn "?sjafor=1" manuelt. Selve kontrollskjemaet ligger i
-  index.html — sjåførmodus der aktiveres via URL-parameteren ?sjafor=1
-  (se detectDriverMode() i index.html). Denne siden viderefører brukeren dit
-  med det samme, uten innlogging og uten tilgang til resten av systemet.
--->
-<meta http-equiv="refresh" content="0; url=./index.html?sjafor=1">
-<script>window.location.replace('./index.html?sjafor=1');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registrer kontroll</title>
+<meta http-equiv="refresh" content="0; url=index.html?sjafor=1">
 <style>
-  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-    background:#EEF0F0;color:#1C2024;font-family:system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box;}
-  a{color:#1C2024;font-weight:600;}
+  body{font-family:system-ui,sans-serif;background:#EEF0F0;color:#1C2024;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
 </style>
 </head>
 <body>
-  <div>
-    <p>Åpner sjåførkontroll …</p>
-    <p>Hvis du ikke sendes videre automatisk, <a href="./index.html?sjafor=1">trykk her</a>.</p>
-  </div>
+  <p>Åpner kontrollskjema … <a href="index.html?sjafor=1">Trykk her hvis du ikke sendes videre automatisk</a></p>
 </body>
 </html>
