@@ -1,0 +1,3 @@
+# Lar /kontroll (uten .html) vise kontroll.html — kun relevant på Apache-basert hosting.
+RewriteEngine On
+RewriteRule ^kontroll/?$ kontroll.html [L]
