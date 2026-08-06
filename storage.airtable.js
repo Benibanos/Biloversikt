@@ -97,7 +97,7 @@
     }},
     verkstedtimer: { table: 'WorkshopAppointments', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
-      beskrivelse: ['Beskrivelse'], notater: ['Notater']
+      beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],

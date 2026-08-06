@@ -75,7 +75,7 @@ text), `Alvorlighet` (text), `Kommentar` (long text), `Status` (text),
 
 **WorkshopAppointments**: `AppId`, `VehicleId` (text), `Verksted` (text),
 `Dato` (text), `Tidspunkt` (text), `Beskrivelse` (long text), `Notater`
-(long text)
+(long text), `Pris` (number — kostnad/verkstedregning for registreringen)
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

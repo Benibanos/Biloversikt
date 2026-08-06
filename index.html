@@ -662,6 +662,7 @@ let vtFilterVerksted = '';
 let vtFilterType = '';
 let showAddVT = false;
 let vtPrefillVehicleId = '';
+let vtOversiktOpenVehicles = new Set();
 
 let dashExpandedId = null;
 // Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
@@ -1177,6 +1178,11 @@ function fmt(iso){
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if(!m) return '—';
   return `${m[3]}/${m[2]}/${m[1]}`;
+}
+// Formaterer et kronebeløp med tusenskille, f.eks. 4850 -> "4 850 kr".
+function fmtKr(n){
+  if(n === undefined || n === null || n === '') return '';
+  return Number(n).toLocaleString('nb-NO') + ' kr';
 }
 // Kompakt dato uten årstall (DD/MM) — brukt i statuschips der plass er knapp.
 function fmtShort(iso){
@@ -1899,13 +1905,15 @@ async function submitAddVT(ev){
   const dato = readDateInput('vt-dato');
   const tidspunkt = readTimeInput('vt-tid');
   const beskrivelse = document.getElementById('vt-beskrivelse').value.trim();
+  const prisRaw = document.getElementById('vt-pris').value.trim();
+  const pris = prisRaw ? Number(prisRaw.replace(/\s/g,'').replace(',','.')) : null;
   const notater = document.getElementById('vt-notater').value.trim();
   const msgEl = document.getElementById('vt-msg');
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
     return;
   }
-  verkstedtimer.push({id: uid(), vehicleId, verksted, dato, tidspunkt, beskrivelse, notater});
+  verkstedtimer.push({id: uid(), vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater});
   await saveVerkstedtimer();
   showAddVT = false;
   vtPrefillVehicleId = '';
@@ -1925,6 +1933,8 @@ async function saveVTEdit(id){
   t.dato = newDato;
   t.tidspunkt = newTid;
   t.beskrivelse = document.getElementById('e-vt-beskrivelse-'+id).value.trim();
+  const prisRaw = document.getElementById('e-vt-pris-'+id).value.trim();
+  t.pris = prisRaw ? Number(prisRaw.replace(/\s/g,'').replace(',','.')) : null;
   t.notater = document.getElementById('e-vt-notater-'+id).value.trim();
   await saveVerkstedtimer();
   editingVTId = null;
@@ -2319,7 +2329,7 @@ function render(){
     ${mainScreens.includes(screen) ? `
     <div class="navtabs">
       <button class="navtab ${screen==='dashboard'?'active':''}" data-nav="dashboard">Dashboard</button>
-      <button class="navtab ${screen==='verksted'?'active':''}" data-nav="verksted">Verkstedtimer</button>
+      <button class="navtab ${screen==='verksted'?'active':''}" data-nav="verksted">Verkstedoversikt</button>
       <button class="navtab ${screen==='skader'?'active':''}" data-nav="skader">Skadeoversikt</button>
       <button class="navtab ${screen==='kontrolloversikt'?'active':''}" data-nav="kontrolloversikt">Kontrolloversikt</button>
     </div>` : ''}
@@ -2375,7 +2385,7 @@ function renderDrawer(){
       ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt')}
       ${drawerItemHtml('varsler', '🚨', 'Varseloversikt')}
       ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt')}
-      ${drawerItemHtml('verksted', '🔧', 'Verkstedtimer')}
+      ${drawerItemHtml('verksted', '🔧', 'Verkstedoversikt')}
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Administrasjon</div>
@@ -2537,10 +2547,10 @@ function renderDashboard(){
     </div>` : ''}
     <div class="dash-row-2">
       <div class="stat-grid">
-        <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">Totalt antall biler</div></div>
-        <div class="stat-card accent-red" data-stat-nav="skade-biler"><div class="stat-num">${vehiclesWithDamages}</div><div class="stat-label">Biler med registrerte skader</div></div>
-        <div class="stat-card accent-blue" data-stat-nav="kommende-vt"><div class="stat-num">${upcomingVT.length}</div><div class="stat-label">Kommende verkstedtimer</div></div>
-        <div class="stat-card accent-amber" data-stat-nav="apne-skader"><div class="stat-num">${openSkadesaker}</div><div class="stat-label">Åpne skadesaker</div></div>
+        <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">🚐 Antall biler</div></div>
+        <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount}</div><div class="stat-label">✅ Kontrollert idag</div></div>
+        <div class="stat-card accent-red" data-stat-nav="aktive-varsler"><div class="stat-num">${aktiveVarsler.length}</div><div class="stat-label">🚨 Aktive varsler</div></div>
+        <div class="stat-card accent-amber" data-stat-nav="nye-skader-idag"><div class="stat-num">${nyeSkaderIdag}</div><div class="stat-label">⚠️ Nye skader</div></div>
       </div>
       <div class="panel" style="margin-bottom:0;">
         <h3 style="margin-bottom:14px;">Sjåførkontroll</h3>
@@ -3799,6 +3809,46 @@ function verkstedSelectOptions(selected){
     .join('');
 }
 
+function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
+  const byVehicle = new Map();
+  itemsFiltered.forEach(t => {
+    if(!byVehicle.has(t.vehicleId)) byVehicle.set(t.vehicleId, []);
+    byVehicle.get(t.vehicleId).push(t);
+  });
+  const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
+  const kjentIder = new Set(vehicles.map(v => v.id));
+  const foreldrelose = itemsFiltered.filter(t => !kjentIder.has(t.vehicleId));
+  if(beroerteKjoretoy.length === 0 && foreldrelose.length === 0) return null;
+
+  const today = todayISO();
+  const grupper = KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
+    const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
+    return `
+    <div style="margin-bottom:22px;">
+      <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+      <div class="acc-list">
+        ${gruppeKjoretoy.map(v => {
+          const tList = byVehicle.get(v.id).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+          const open = openSet.has(v.id);
+          return `
+          <div class="acc-row ${open ? 'expanded' : ''}">
+            <div class="acc-head" data-${toggleAttr}="${v.id}">
+              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+              <div class="acc-head-right"><span class="group-count">${tList.length} verkstedregistrering${tList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+            </div>
+            ${open ? `<div class="acc-body"><div class="vt-list">${tList.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div></div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  const foreldreloseHtml = foreldrelose.length > 0 ? `
+    <div style="margin-bottom:22px;">
+      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="vt-list">${foreldrelose.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div>
+    </div>` : '';
+  return grupper + foreldreloseHtml;
+}
 function renderVerksted(){
   const filtered = verkstedtimer.filter(t => {
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
@@ -3806,16 +3856,36 @@ function renderVerksted(){
     return true;
   });
   const today = todayISO();
-  const kommende = filtered.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const tidligere = filtered.filter(t => t.dato < today).sort((a,b) => b.dato.localeCompare(a.dato));
-  const showKommende = vtFilterType !== 'tidligere';
-  const showTidligere = vtFilterType !== 'kommende';
+  const kommendeAlle = filtered.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const nearestVT = kommendeAlle[0] || null;
+  let visning = filtered;
+  if(vtFilterType === 'kommende') visning = filtered.filter(t => t.dato >= today);
+  else if(vtFilterType === 'tidligere') visning = filtered.filter(t => t.dato < today);
+
+  const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nearestVT ? nearestVT.id : null);
+
+  const kostnad30Dager = verkstedtimer.filter(t => t.pris && t.dato >= isoDaysAgo(29) && t.dato <= today).reduce((s,t) => s + Number(t.pris||0), 0);
+  const kostnadDenneManeden = verkstedtimer.filter(t => t.pris && t.dato && t.dato.startsWith(today.slice(0,7))).reduce((s,t) => s + Number(t.pris||0), 0);
+  const kostnadIAr = verkstedtimer.filter(t => t.pris && t.dato && t.dato.startsWith(today.slice(0,4))).reduce((s,t) => s + Number(t.pris||0), 0);
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
     <div class="toolbar">
       <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
       <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
+    </div>
+
+    ${nearestVT ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <span class="vt-next-badge">⭐ Neste verkstedtime</span>
+      <div class="vt-date" style="font-size:16px;margin-top:6px;">${fmt(nearestVT.dato)} – ${esc((vtVehicle(nearestVT)||{}).regnr || '?')}</div>
+    </div>` : ''}
+
+    <div class="dekk-status-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+      <div class="ov-item"><span class="ov-label">💰 Siste 30 dager</span><span class="ov-value" style="font-size:17px;">${fmtKr(kostnad30Dager)}</span></div>
+      <div class="ov-item"><span class="ov-label">💰 Denne måneden</span><span class="ov-value" style="font-size:17px;">${fmtKr(kostnadDenneManeden)}</span></div>
+      <div class="ov-item"><span class="ov-label">💰 I år</span><span class="ov-value" style="font-size:17px;">${fmtKr(kostnadIAr)}</span></div>
     </div>
 
     ${showAddVT ? `
@@ -3840,6 +3910,7 @@ function renderVerksted(){
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>
+      <div class="field" style="margin-bottom:10px;"><label>💰 Pris</label><input id="vt-pris" type="text" inputmode="numeric" placeholder="F.eks. 4850"></div>
       <div class="field" style="margin-bottom:6px;"><label>Notater</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
       <div class="form-msg" id="vt-msg"></div>
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
@@ -3861,19 +3932,8 @@ function renderVerksted(){
       </select>
     </div>
 
-    ${showKommende ? `
-    <div class="vt-section">
-      <div class="section-title">Kommende verkstedtimer <span class="group-count">${kommende.length}</span></div>
-      ${kommende.length === 0 ? `<div class="empty-note">Ingen kommende verkstedtimer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : `
-      <div class="vt-list">${kommende.map((t,i) => vtCard(t, true, i === 0)).join('')}</div>`}
-    </div>` : ''}
-
-    ${showTidligere ? `
-    <div class="vt-section">
-      <div class="section-title">Tidligere verkstedtimer <span class="group-count">${tidligere.length}</span></div>
-      ${tidligere.length === 0 ? `<div class="empty-note">Ingen tidligere verkstedtimer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : `
-      <div class="vt-list">${tidligere.map(t => vtCard(t, false)).join('')}</div>`}
-    </div>` : ''}
+    <div class="required-hint" style="margin-bottom:16px;">${visning.length} verkstedregistrering${visning.length===1?'':'er'}, gruppert per bil.</div>
+    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : oversiktBody}
   `;
 }
 
@@ -3893,6 +3953,7 @@ function vtCard(t, upcoming, isNext){
           ${isNext ? `<span class="vt-next-badge">⭐ Neste verkstedtime</span>` : ''}
           <div class="vt-date">${fmt(t.dato)}</div>
           ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
+          ${t.pris !== undefined && t.pris !== null && t.pris !== '' ? `<div class="vt-time">${fmtKr(t.pris)}</div>` : ''}
           ${within7 && !isNext ? `<span class="badge soon">Innen 7 dager</span>` : ''}
         </div>
       </div>
@@ -3907,6 +3968,7 @@ function vtCard(t, upcoming, isNext){
           <div class="field"><label>Tidspunkt</label><input id="e-vt-tid-${t.id}" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${t.tidspunkt||''}"></div>
         </div>
         <div class="field" style="margin-bottom:10px;"><label>Beskrivelse${upcoming ? '' : ' / utført arbeid'}</label><input id="e-vt-beskrivelse-${t.id}" type="text" value="${esc(t.beskrivelse)}"></div>
+        <div class="field" style="margin-bottom:10px;"><label>💰 Pris</label><input id="e-vt-pris-${t.id}" type="text" inputmode="numeric" placeholder="F.eks. 4850" value="${t.pris !== undefined && t.pris !== null ? t.pris : ''}"></div>
         <div class="field" style="margin-bottom:10px;"><label>Notater</label><textarea id="e-vt-notater-${t.id}">${esc(t.notater||'')}</textarea></div>
         <div class="panel-actions">
           <button class="btn small" id="vt-save-${t.id}">Lagre endringer</button>
@@ -3931,6 +3993,11 @@ function attachVerkstedListeners(){
   document.getElementById('vt-f-verksted').addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
   document.getElementById('vt-f-type').addEventListener('change', e => { vtFilterType = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
+  document.querySelectorAll('[data-toggle-vto-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleVtoVehicle;
+    if(vtOversiktOpenVehicles.has(id)) vtOversiktOpenVehicles.delete(id); else vtOversiktOpenVehicles.add(id);
+    render();
+  }));
   verkstedtimer.forEach(t => {
     const saveBtn = document.getElementById('vt-save-'+t.id);
     if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveVTEdit(t.id); });
