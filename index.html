@@ -19,6 +19,8 @@
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
 <script src="storage.airtable.js"></script>
+<!-- SheetJS — brukes til Excel-eksport av Verkstedoversikt (se exportVerkstedExcel()). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
@@ -663,6 +665,8 @@ let vtFilterType = '';
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtOversiktOpenVehicles = new Set();
+let vtPeriodeFilter = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
+let showVtEksportMeny = false;
 
 let dashExpandedId = null;
 // Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
@@ -1610,7 +1614,7 @@ function goTo(scr, vehicleId){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; showVtEksportMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
@@ -2517,14 +2521,14 @@ function renderDashboard(){
   const displayTittel = loggedInUser && loggedInUser.tittel ? loggedInUser.tittel : '';
 
   return `
-    <div class="greeting-card ${g.klasse}">
+    <div class="greeting-card ${g.klasse}" style="position:relative;">
+      <div class="greeting-actions" style="position:absolute;top:16px;right:18px;display:flex;gap:4px;">
+        <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
+        <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
+      </div>
       <div class="greeting-grid">
         <div class="greeting-left">
           <div class="greeting-title">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
-          <div class="greeting-actions" style="display:flex;gap:4px;margin:4px 0;">
-            <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
-            <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
-          </div>
           ${displayTittel ? `<div class="greeting-role">${esc(displayTittel)}</div>` : ''}
           <div class="greeting-sub">${g.sub}</div>
           <div class="greeting-datetime">${fmtDateTime(todayISO(), nowTimeOslo())}</div>
@@ -3854,6 +3858,41 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
     </div>` : '';
   return grupper + foreldreloseHtml;
 }
+function verkstedFilterByPeriode(list, periode){
+  const today = todayISO();
+  if(periode === '7dager') return list.filter(t => t.dato >= isoDaysAgo(6) && t.dato <= today);
+  if(periode === '30dager') return list.filter(t => t.dato >= isoDaysAgo(29) && t.dato <= today);
+  if(periode === 'maned') return list.filter(t => t.dato && t.dato.startsWith(today.slice(0,7)));
+  if(periode === 'ar') return list.filter(t => t.dato && t.dato.startsWith(today.slice(0,4)));
+  return list;
+}
+const VT_PERIODE_LABEL = {'7dager':'Siste 7 dager', '30dager':'Siste 30 dager', 'maned':'Denne måneden', 'ar':'I år'};
+const VT_PERIODE_FILNAVN = {'7dager':'Siste7Dager', '30dager':'Siste30Dager', 'maned':'DenneMåneden', 'ar':'IÅr'};
+function exportVerkstedExcel(periode){
+  const today = todayISO();
+  const rows = verkstedFilterByPeriode(verkstedtimer, periode).slice()
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const header = ['Dato','Tidspunkt','Bilnummer','Registreringsnummer','Løyvenummer','Verksted','Beskrivelse','Notater','Pris','Status'];
+  const data = rows.map(t => {
+    const v = vtVehicle(t);
+    return [
+      fmt(t.dato), t.tidspunkt || '',
+      v ? (v.bilnummer||'') : '', v ? (v.regnr||'') : '', v ? (v.loyvenummer||'') : '',
+      t.verksted || '', t.beskrivelse || '', t.notater || '',
+      (t.pris !== undefined && t.pris !== null && t.pris !== '') ? Number(t.pris) : '',
+      t.dato >= today ? 'Kommende' : 'Utført'
+    ];
+  });
+  const totalSum = rows.reduce((s,t) => s + Number(t.pris||0), 0);
+  const summaryRow = new Array(10).fill('');
+  summaryRow[7] = 'Totale verkstedkostnader:';
+  summaryRow[8] = totalSum;
+  const aoa = [header, ...data, new Array(10).fill(''), summaryRow];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Verkstedoversikt');
+  XLSX.writeFile(wb, `Verkstedoversikt_${VT_PERIODE_FILNAVN[periode] || 'Alle'}.xlsx`);
+}
 function renderVerksted(){
   const filtered = verkstedtimer.filter(t => {
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
@@ -3866,8 +3905,10 @@ function renderVerksted(){
   let visning = filtered;
   if(vtFilterType === 'kommende') visning = filtered.filter(t => t.dato >= today);
   else if(vtFilterType === 'tidligere') visning = filtered.filter(t => t.dato < today);
+  visning = verkstedFilterByPeriode(visning, vtPeriodeFilter);
 
   const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nearestVT ? nearestVT.id : null);
+  const visningTotalKr = visning.reduce((s,t) => s + Number(t.pris||0), 0);
 
   const kostnad30Dager = verkstedtimer.filter(t => t.pris && t.dato >= isoDaysAgo(29) && t.dato <= today).reduce((s,t) => s + Number(t.pris||0), 0);
   const kostnadDenneManeden = verkstedtimer.filter(t => t.pris && t.dato && t.dato.startsWith(today.slice(0,7))).reduce((s,t) => s + Number(t.pris||0), 0);
@@ -3921,6 +3962,21 @@ function renderVerksted(){
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
 
+    <div class="filters-row" style="margin-bottom:10px;">
+      <button class="btn small ${vtPeriodeFilter==='7dager'?'':'secondary'}" data-vt-periode="7dager">📅 Siste 7 dager</button>
+      <button class="btn small ${vtPeriodeFilter==='30dager'?'':'secondary'}" data-vt-periode="30dager">📅 Siste 30 dager</button>
+      <button class="btn small ${vtPeriodeFilter==='maned'?'':'secondary'}" data-vt-periode="maned">📅 Denne måneden</button>
+      <button class="btn small ${vtPeriodeFilter==='ar'?'':'secondary'}" data-vt-periode="ar">📅 I år</button>
+      <button class="btn secondary small" id="vt-eksporter-btn">📊 Eksporter til Excel</button>
+    </div>
+    ${showVtEksportMeny ? `
+    <div class="filters-row" style="margin-bottom:16px;">
+      <button class="btn small secondary" data-vt-eksporter-periode="7dager">Siste 7 dager</button>
+      <button class="btn small secondary" data-vt-eksporter-periode="30dager">Siste 30 dager</button>
+      <button class="btn small secondary" data-vt-eksporter-periode="maned">Denne måneden</button>
+      <button class="btn small secondary" data-vt-eksporter-periode="ar">I år</button>
+    </div>` : ''}
+
     <div class="filters-row">
       <select id="vt-f-bil">
         <option value="">Alle biler</option>
@@ -3938,7 +3994,10 @@ function renderVerksted(){
     </div>
 
     <div class="required-hint" style="margin-bottom:16px;">${visning.length} verkstedregistrering${visning.length===1?'':'er'}, gruppert per bil.</div>
-    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : oversiktBody}
+    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted||vtPeriodeFilter?' med gjeldende filter':''}.</div>` : oversiktBody}
+    <div class="panel" style="margin-top:16px;">
+      <div class="ov-item"><span class="ov-label">💰 Totale verkstedkostnader${vtPeriodeFilter ? ' – ' + VT_PERIODE_LABEL[vtPeriodeFilter] : ''}</span><span class="ov-value" style="font-size:20px;">${fmtKr(visningTotalKr)}</span></div>
+    </div>
   `;
 }
 
@@ -3997,6 +4056,20 @@ function attachVerkstedListeners(){
   document.getElementById('vt-f-bil').addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
   document.getElementById('vt-f-verksted').addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
   document.getElementById('vt-f-type').addEventListener('change', e => { vtFilterType = e.target.value; render(); });
+  document.querySelectorAll('[data-vt-periode]').forEach(el => el.addEventListener('click', () => {
+    const p = el.dataset.vtPeriode;
+    vtPeriodeFilter = vtPeriodeFilter === p ? '' : p;
+    render();
+  }));
+  document.getElementById('vt-eksporter-btn').addEventListener('click', () => {
+    showVtEksportMeny = !showVtEksportMeny;
+    render();
+  });
+  document.querySelectorAll('[data-vt-eksporter-periode]').forEach(el => el.addEventListener('click', () => {
+    exportVerkstedExcel(el.dataset.vtEksporterPeriode);
+    showVtEksportMeny = false;
+    render();
+  }));
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
   document.querySelectorAll('[data-toggle-vto-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleVtoVehicle;
