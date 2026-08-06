@@ -79,13 +79,18 @@
 
   /* ---- App shell ---- */
   .shell-top{
+    position:relative;overflow:hidden;
     display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
-    padding-bottom:14px;margin-bottom:14px;
-    border-bottom:3px solid transparent;
-    border-image:linear-gradient(90deg,#0B8457 0%,#0B8457 45%,#FF7A00 100%) 1;
+    padding:14px 18px;margin-bottom:16px;
+    background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
+    box-shadow:0 1px 4px rgba(0,0,0,.05);
+  }
+  .shell-top::after{
+    content:'';position:absolute;left:0;right:0;bottom:0;height:3px;
+    background:linear-gradient(90deg,#0B8457 0%,#0B8457 45%,#FF7A00 100%);
   }
   .brand-block{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
-  .brand{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
+  .brand{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;letter-spacing:0.01em;text-transform:uppercase;display:flex;align-items:center;gap:9px;}
   .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
   .header-action-btn{
@@ -537,8 +542,8 @@
     /* Statistikk-kort: aldri mer enn to smale kort ved siden av hverandre */
     .stat-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
 
-    /* Header/meny: knappene får lov til å ta hele bredden hver for seg om plassen er trang */
-    .shell-top-right{width:100%;justify-content:space-between;}
+    /* Header/meny: menyknappen holdes til høyre — lettest å nå med tommelen på mobil */
+    .shell-top-right{width:100%;justify-content:flex-end;}
 
     /* Kort og paneler: litt tettere luft, men fortsatt tydelig avstand */
     #app{padding:16px 12px 90px;}
@@ -2305,8 +2310,13 @@ async function deleteAdminUser(id){
 function brandBlockHtml(){
   return `
     <div class="brand-block">
-      <div class="brand">🚚 Bilpark</div>
-      <div class="brand-sub">Status, skader og oppfølging av bilparken</div>
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#0B8457" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" aria-hidden="true">
+          <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V16a1 1 0 0 1-1 1h-1a2 2 0 1 1-4 0H9a2 2 0 1 1-4 0H4a1 1 0 0 1-1-1v-3.5A1.5 1.5 0 0 1 4.5 11H5z"/>
+        </svg>
+        Bilpark
+      </div>
+      <div class="brand-sub">Kontroller • Registrer • Reager</div>
     </div>
   `;
 }
