@@ -42,6 +42,7 @@ er **uendret**, så det aller meste av appens forretningslogikk er urørt.
 | **Damages** | Skader | én skade |
 | **WarningLights** | Varsellamper (aktive og kvitterte) | én varsellampe-hendelse |
 | **WorkshopAppointments** | Verkstedtimer | én verkstedavtale |
+| **TireCosts** | Dekkkostnader (Kostnadsoversikt) | én dekkregistrering med kostnad |
 | **Users** | Administratorbrukere | én administrator |
 | **Settings** | Systeminnstillinger (tema, verkstedregister) og bilder | én nøkkel/verdi-rad |
 
@@ -66,7 +67,9 @@ JSON-liste), `AnnetTekst` (text), `HarNyeSkader` (checkbox),
 
 **Damages**: `AppId`, `VehicleId` (text), `Dato` (text), `Beskrivelse` (long
 text), `Alvorlighet` (text), `Kommentar` (long text), `Status` (text),
-`RegistrertAv` (text), `HasPhoto` (checkbox), `CreatedByControlId` (text)
+`RegistrertAv` (text), `HasPhoto` (checkbox), `CreatedByControlId` (text),
+`EstimertKostnad` (number — estimert kostnad på skaden, valgfritt, beholdes
+selv om skaden lukkes)
 
 **WarningLights**: `AppId`, `VehicleId` (text), `Type` (text), `AnnetTekst`
 (text), `Status` (text: aktiv/kvittert), `RegistrertDato` (text),
@@ -76,6 +79,11 @@ text), `Alvorlighet` (text), `Kommentar` (long text), `Status` (text),
 **WorkshopAppointments**: `AppId`, `VehicleId` (text), `Verksted` (text),
 `Dato` (text), `Tidspunkt` (text), `Beskrivelse` (long text), `Notater`
 (long text), `Pris` (number — kostnad/verkstedregning for registreringen)
+
+**TireCosts**: `AppId`, `VehicleId` (text), `Dato` (text), `Kostnad`
+(number), `Kommentar` (long text) — registrert fra Kostnadsoversikt
+("🛞 Nye dekk"), adskilt fra den eksisterende dekkskifte-loggen
+(sommer/vinter-bytte, se TireChanges).
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

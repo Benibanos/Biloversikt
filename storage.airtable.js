@@ -93,7 +93,7 @@
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
       alvorlighet: ['Alvorlighet'], kommentar: ['Kommentar'], status: ['Status'], registrertAv: ['RegistrertAv'],
-      hasPhoto: ['HasPhoto', 'bool'], createdByControlId: ['CreatedByControlId']
+      hasPhoto: ['HasPhoto', 'bool'], createdByControlId: ['CreatedByControlId'], estimertKostnad: ['EstimertKostnad', 'num']
     }},
     verkstedtimer: { table: 'WorkshopAppointments', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
@@ -115,6 +115,9 @@
     }},
     dekkhistorikk: { table: 'TireChanges', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar']
+    }},
+    dekkkostnader: { table: 'TireCosts', fields: {
+      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], kostnad: ['Kostnad', 'num'], kommentar: ['Kommentar']
     }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen,
