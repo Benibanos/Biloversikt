@@ -2520,9 +2520,9 @@ function renderDashboard(){
     <div class="greeting-card ${g.klasse}">
       <div class="greeting-grid">
         <div class="greeting-left">
-          <div class="greeting-actions" style="display:flex;gap:8px;margin-bottom:10px;">
-            <button class="btn small" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
-            <button class="btn small" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
+          <div class="greeting-actions" style="display:flex;gap:6px;margin-bottom:10px;">
+            <button style="background:var(--surface);border:none;padding:4px 7px;border-radius:6px;font-size:18px;line-height:1;cursor:pointer;" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
+            <button style="background:var(--surface);border:none;padding:4px 7px;border-radius:6px;font-size:18px;line-height:1;cursor:pointer;" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
           </div>
           <div class="greeting-title">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
           ${displayTittel ? `<div class="greeting-role">${esc(displayTittel)}</div>` : ''}
@@ -2542,18 +2542,18 @@ function renderDashboard(){
       ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
     <div class="dash-row-2">
+      <div class="dash-quick-links" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn secondary small" data-quick-page="kontrolloversikt" style="justify-content:flex-start;">📋 Kontrolloversikt (${kontrollertIdagCount})</button>
+        <button class="btn secondary small" data-quick-page="verksted" style="justify-content:flex-start;">🔧 Verkstedoversikt (${upcomingVT.length})</button>
+        <button class="btn secondary small" data-quick-page="skader" style="justify-content:flex-start;">⚠️ Skadeoversikt (${openSkadesaker})</button>
+        <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
+        <button class="btn secondary small" data-quick-page="dekkoversikt" style="justify-content:flex-start;">🛞 Dekkoversikt (${dekkOver5ArCount})</button>
+      </div>
       <div class="stat-grid">
         <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">🚐 Antall biler</div></div>
         <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount} / ${totalVehicles}</div><div class="stat-label">✅ Kontrollert idag</div></div>
         <div class="stat-card accent-red" data-stat-nav="aktive-varsler"><div class="stat-num">${aktiveVarsler.length}</div><div class="stat-label">🚨 Aktive varsler</div></div>
         <div class="stat-card accent-amber" data-stat-nav="nye-skader-idag"><div class="stat-num">${nyeSkaderIdag}</div><div class="stat-label">⚠️ Nye skader</div></div>
-      </div>
-      <div class="dash-quick-links" style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn secondary small" data-quick-page="kontrolloversikt" style="justify-content:flex-start;">📋 Kontrolloversikt (${kontrollertIdagCount})</button>
-        <button class="btn secondary small" data-quick-page="skader" style="justify-content:flex-start;">⚠️ Skadeoversikt (${openSkadesaker})</button>
-        <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
-        <button class="btn secondary small" data-quick-page="dekkoversikt" style="justify-content:flex-start;">🛞 Dekkoversikt (${dekkOver5ArCount})</button>
-        <button class="btn secondary small" data-quick-page="verksted" style="justify-content:flex-start;">🔧 Verkstedoversikt (${upcomingVT.length})</button>
       </div>
     </div>
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
