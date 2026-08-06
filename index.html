@@ -2311,14 +2311,11 @@ function render(){
   else if(screen === 'dekkoversikt') body = renderDekkoversikt();
   else if(screen === 'kontrolloversikt') body = renderKontrolloversikt();
 
-  const mainScreens = ['dashboard','register','skader','verksted','innstillinger','kontrolloversikt'];
   const menuActive = screen === 'register' || screen === 'innstillinger';
   app.innerHTML = `
     <div class="shell-top">
       ${brandBlockHtml()}
       <div class="shell-top-right">
-        <button class="btn small header-action-btn ${screen==='kontroll'?'active':''}" id="header-kontroll-btn"><span class="btn-label-full">✅ Registrer kontroll</span><span class="btn-label-short">✅ Kontroll</span></button>
-        <button class="btn small header-action-btn ${screen==='verksted'?'active':''}" id="header-vt-btn"><span class="btn-label-full">🔧 Registrer verkstedtime</span><span class="btn-label-short">🔧 Verksted</span></button>
         <div class="menu-wrap">
           <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
             ☰ Meny
@@ -2326,19 +2323,10 @@ function render(){
         </div>
       </div>
     </div>
-    ${mainScreens.includes(screen) ? `
-    <div class="navtabs">
-      <button class="navtab ${screen==='dashboard'?'active':''}" data-nav="dashboard">Dashboard</button>
-      <button class="navtab ${screen==='verksted'?'active':''}" data-nav="verksted">Verkstedoversikt</button>
-      <button class="navtab ${screen==='skader'?'active':''}" data-nav="skader">Skadeoversikt</button>
-      <button class="navtab ${screen==='kontrolloversikt'?'active':''}" data-nav="kontrolloversikt">Kontrolloversikt</button>
-    </div>` : ''}
     ${body}
   `;
 
   document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
-  document.getElementById('header-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
-  document.getElementById('header-vt-btn').addEventListener('click', () => goToRegisterVT(''));
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
 
   renderDrawer();
@@ -2509,6 +2497,10 @@ function renderDashboard(){
   const kontrollertIdagCount = vehicles.filter(v => isKontrollertIdag(v.id)).length;
   const manglerKontrollCount = totalVehicles - kontrollertIdagCount;
   const nyeSkaderIdag = damages.filter(d => d.dato === today).length;
+  const dekkOver5ArCount = vehicles.filter(v => {
+    const s = dekkAlderStatus(v.sommerdekkDot), w = dekkAlderStatus(v.vinterdekkDot);
+    return (s && s.status === 'gammel') || (w && w.status === 'gammel');
+  }).length;
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -2528,6 +2520,10 @@ function renderDashboard(){
     <div class="greeting-card ${g.klasse}">
       <div class="greeting-grid">
         <div class="greeting-left">
+          <div class="greeting-actions" style="display:flex;gap:8px;margin-bottom:10px;">
+            <button class="btn small" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
+            <button class="btn small" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
+          </div>
           <div class="greeting-title">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
           ${displayTittel ? `<div class="greeting-role">${esc(displayTittel)}</div>` : ''}
           <div class="greeting-sub">${g.sub}</div>
@@ -2548,18 +2544,16 @@ function renderDashboard(){
     <div class="dash-row-2">
       <div class="stat-grid">
         <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">🚐 Antall biler</div></div>
-        <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount}</div><div class="stat-label">✅ Kontrollert idag</div></div>
+        <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount} / ${totalVehicles}</div><div class="stat-label">✅ Kontrollert idag</div></div>
         <div class="stat-card accent-red" data-stat-nav="aktive-varsler"><div class="stat-num">${aktiveVarsler.length}</div><div class="stat-label">🚨 Aktive varsler</div></div>
         <div class="stat-card accent-amber" data-stat-nav="nye-skader-idag"><div class="stat-num">${nyeSkaderIdag}</div><div class="stat-label">⚠️ Nye skader</div></div>
       </div>
-      <div class="panel" style="margin-bottom:0;">
-        <h3 style="margin-bottom:14px;">Sjåførkontroll</h3>
-        <div class="sjafor-stats-grid">
-          <div class="ov-item ov-item-clickable" data-stat-nav="kontrollert-idag"><span class="ov-label">Kontrollert i dag</span><span class="ov-value" style="font-size:20px;color:var(--green);">✅ ${kontrollertIdagCount}</span></div>
-          <div class="ov-item ov-item-clickable" data-stat-nav="mangler-kontroll"><span class="ov-label">Mangler kontroll i dag</span><span class="ov-value" style="font-size:20px;color:${manglerKontrollCount>0?'var(--amber)':'var(--ink)'};">⚠️ ${manglerKontrollCount}</span></div>
-          <div class="ov-item ov-item-clickable" data-stat-nav="aktive-varsler"><span class="ov-label">Aktive varsellamper</span><span class="ov-value" style="font-size:20px;color:${aktiveVarsler.length>0?'var(--red)':'var(--ink)'};">🚨 ${aktiveVarsler.length}</span></div>
-          <div class="ov-item ov-item-clickable" data-stat-nav="nye-skader-idag"><span class="ov-label">Nye skader i dag</span><span class="ov-value" style="font-size:20px;color:${nyeSkaderIdag>0?'var(--amber)':'var(--ink)'};">⚠️ ${nyeSkaderIdag}</span></div>
-        </div>
+      <div class="dash-quick-links" style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn secondary small" data-quick-page="kontrolloversikt" style="justify-content:flex-start;">📋 Kontrolloversikt (${kontrollertIdagCount})</button>
+        <button class="btn secondary small" data-quick-page="skader" style="justify-content:flex-start;">⚠️ Skadeoversikt (${openSkadesaker})</button>
+        <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
+        <button class="btn secondary small" data-quick-page="dekkoversikt" style="justify-content:flex-start;">🛞 Dekkoversikt (${dekkOver5ArCount})</button>
+        <button class="btn secondary small" data-quick-page="verksted" style="justify-content:flex-start;">🔧 Verkstedoversikt (${upcomingVT.length})</button>
       </div>
     </div>
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
@@ -2660,6 +2654,9 @@ function accordionRow(v){
 }
 
 function attachDashboardListeners(){
+  document.getElementById('greet-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
+  document.getElementById('greet-vt-btn').addEventListener('click', () => goToRegisterVT(''));
+  document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
   const dbBanner = document.getElementById('db-warning-banner');
   if(dbBanner) dbBanner.addEventListener('click', () => {
     settingsOpenSections.add('database');
@@ -3063,6 +3060,7 @@ function renderDekkoversikt(){
   const sortert = sortedVehicles(vehicles);
 
   return `
+    <div class="backrow"><button class="backbtn" id="dekk-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🛞 Dekkoversikt</h2>
     <div class="required-hint" style="margin-bottom:16px;">Sommerdekk, vinterdekk og dekkhistorikk for hele flåten. Rediger dekkinfo på det enkelte bilkortet.</div>
 
@@ -3119,6 +3117,7 @@ function renderDekkoversikt(){
   `;
 }
 function attachDekkoversiktListeners(){
+  document.getElementById('dekk-back').addEventListener('click', () => goTo('dashboard'));
   document.querySelectorAll('[data-toggle-dekk-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleDekkVehicle;
     if(dekkOversiktOpenVehicles.has(id)) dekkOversiktOpenVehicles.delete(id); else dekkOversiktOpenVehicles.add(id);
@@ -3168,6 +3167,7 @@ function renderKontrolloversikt(){
   });
 
   return `
+    <div class="backrow"><button class="backbtn" id="ko-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">📋 Kontrolloversikt</h2>
     <div class="required-hint" style="margin-bottom:16px;">Analyse og oppfølging av sjåførkontroller per bil.</div>
 
@@ -3218,6 +3218,7 @@ function renderKontrolloversikt(){
   `;
 }
 function attachKontrolloversiktListeners(){
+  document.getElementById('ko-back').addEventListener('click', () => goTo('dashboard'));
   document.querySelectorAll('[data-periode]').forEach(el => el.addEventListener('click', () => { kontrolloversiktPeriode = el.dataset.periode; render(); }));
   const fraEl = document.getElementById('ko-fra');
   if(fraEl) fraEl.addEventListener('change', () => { kontrolloversiktFraDato = readDateInput('ko-fra'); render(); });
@@ -3255,6 +3256,7 @@ function renderVarslerOversikt(){
     .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
 
   return `
+    <div class="backrow"><button class="backbtn" id="varsler-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🚨 Varseloversikt</h2>
     <div class="required-hint" style="margin-bottom:16px;">${alle.length} aktiv${alle.length===1?'':'e'} varsellampe${alle.length===1?'':'r'} totalt, fordelt på ${beroerteKjoretoy.length} kjøretøy.</div>
     ${alle.length === 0 ? `<div class="empty-note">🟢 Ingen aktive varsellamper.</div>` : KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
@@ -3340,6 +3342,7 @@ function renderVarslerOversikt(){
   `;
 }
 function attachVarslerOversiktListeners(){
+  document.getElementById('varsler-back').addEventListener('click', () => goTo('dashboard'));
   document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
@@ -3693,6 +3696,7 @@ function renderSkader(){
   }));
 
   return `
+    <div class="backrow"><button class="backbtn" id="sk-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">⚠️ Skadeoversikt</h2>
     <div class="toolbar">
       <div class="count">${damages.length} skader totalt</div>
@@ -3763,6 +3767,7 @@ function renderSkader(){
   `;
 }
 function attachSkaderListeners(){
+  document.getElementById('sk-back').addEventListener('click', () => goTo('dashboard'));
   document.getElementById('add-skade-btn').addEventListener('click', () => {
     showAddSkade = !showAddSkade;
     if(!showAddSkade) skadePrefillVehicleId = '';
