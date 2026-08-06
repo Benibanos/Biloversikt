@@ -489,6 +489,10 @@
 <div id="app">Laster inn...</div>
 
 <script src="storage.local.js"></script>
+<!-- SheetJS (community/free): brukes til å generere ekte .xlsx-filer direkte i nettleseren
+     ved Excel-eksport av verkstedtimer. Ingen data sendes noe sted — filen bygges og
+     lastes ned lokalt på enheten. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ================= State =================
 let vehicles = [];
@@ -524,6 +528,11 @@ let skadePrefillVehicleId = '';
 let vtFilterBil = '';
 let vtFilterVerksted = '';
 let vtFilterType = '';
+let showVTExport = false;
+let vtExportPeriode = 'denne-maned'; // 'denne-maned' | 'siste-30' | 'dette-aret' | 'egendefinert' | 'alle'
+let vtExportFra = '';
+let vtExportTil = '';
+let vtExportType = 'tidligere'; // 'kommende' | 'tidligere' | 'begge' — tidligere er mest relevant for kostnadsoppfølging
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 
@@ -2989,6 +2998,107 @@ function attachSkaderListeners(){
 }
 
 // ================= scrVerkstedtimer =================
+// ================= Eksport til Excel (Verkstedtimer) =================
+// Genererer en ekte .xlsx-fil direkte i nettleseren via SheetJS (lastet fra CDN i
+// <head>). Ingenting sendes til noen server — filen bygges og lastes ned lokalt.
+// Kun tilgjengelig for innloggede administratorer (siden krever allerede innlogging,
+// men sjekkes eksplisitt her også som en ekstra sperre).
+function vtExportRange(){
+  const today = todayISO();
+  if(vtExportPeriode === 'denne-maned') return {fra: today.slice(0,7)+'-01', til: today};
+  if(vtExportPeriode === 'siste-30'){
+    const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-30);
+    return {fra: d.toISOString().slice(0,10), til: today};
+  }
+  if(vtExportPeriode === 'dette-aret') return {fra: today.slice(0,4)+'-01-01', til: today};
+  if(vtExportPeriode === 'egendefinert') return {fra: vtExportFra || '0000-01-01', til: vtExportTil || '9999-12-31'};
+  return {fra: '0000-01-01', til: '9999-12-31'}; // alle
+}
+function vtExportFilename(fra, til){
+  const ddmm = (iso) => iso.split('-').reverse().join('-');
+  const map = {
+    'denne-maned': 'Verkstedkostnader_' + todayISO().slice(0,7),
+    'siste-30': 'Verkstedkostnader_siste_30_dager',
+    'dette-aret': 'Verkstedkostnader_' + todayISO().slice(0,4),
+    'egendefinert': 'Verkstedkostnader_' + ddmm(fra) + '_' + ddmm(til),
+    'alle': 'Alle_verkstedregistreringer',
+  };
+  return (map[vtExportPeriode] || 'Verkstedregistreringer') + '.xlsx';
+}
+function exportVerkstedtimerToExcel(){
+  if(!isAdmin){ alert('Kun administratorer har tilgang til Excel-eksport.'); return; }
+  if(typeof XLSX === 'undefined'){
+    alert('Kunne ikke laste Excel-biblioteket (krever internettforbindelse). Prøv igjen.');
+    return;
+  }
+  const {fra, til} = vtExportRange();
+  const today = todayISO();
+  const rows = verkstedtimer.filter(t => {
+    if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
+    if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
+    if(t.dato < fra || t.dato > til) return false;
+    const isKommende = t.dato >= today;
+    if(vtExportType === 'kommende' && !isKommende) return false;
+    if(vtExportType === 'tidligere' && isKommende) return false;
+    return true;
+  }).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+
+  if(rows.length === 0){
+    alert('Ingen verkstedregistreringer å eksportere med gjeldende filter og periode.');
+    return;
+  }
+
+  const header = ['Dato','Tidspunkt','Bilnummer','Registreringsnummer','Merke','Kategori','Løyvenummer','Verksted','Beskrivelse','Utført arbeid','Notater','Pris','Status'];
+  const aoa = [header];
+  rows.forEach(t => {
+    const v = vtVehicle(t);
+    const isKommende = t.dato >= today;
+    aoa.push([
+      fmt(t.dato),
+      t.tidspunkt || '',
+      v ? v.bilnummer : '',
+      v ? v.regnr : '',
+      v ? (v.merke||'') : '',
+      v ? (KATEGORI_LABEL[v.kategori]||'') : '',
+      v ? (v.loyvenummer||'') : '',
+      t.verksted || '',
+      isKommende ? (t.beskrivelse||'') : '',
+      isKommende ? '' : (t.beskrivelse||''),
+      t.notater || '',
+      (t.pris !== null && t.pris !== undefined && t.pris !== '') ? Number(t.pris) : null,
+      isKommende ? 'Kommende' : 'Gjennomført',
+    ]);
+  });
+  const firstDataRow = 2;
+  const lastDataRow = aoa.length;
+  const sumRow = lastDataRow + 1;
+  aoa.push(['','','','','','','','','','','Totale verkstedkostnader:', null, '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['L'+sumRow] = { t:'n', f: `SUM(L${firstDataRow}:L${lastDataRow})` };
+
+  for(let r = firstDataRow; r <= sumRow; r++){
+    const ref = 'L'+r;
+    if(ws[ref] && ws[ref].t === 'n') ws[ref].z = '#,##0.00" kr"';
+  }
+
+  ws['!cols'] = [{wch:12},{wch:9},{wch:12},{wch:16},{wch:12},{wch:14},{wch:14},{wch:18},{wch:28},{wch:28},{wch:24},{wch:15},{wch:13}];
+  ws['!autofilter'] = { ref: 'A1:M1' };
+  // Fryser overskriftsraden der Excel-versjonen støtter det via denne gratis,
+  // nettleserbaserte metoden — ikke garantert i absolutt alle programmer som åpner filen.
+  ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', state: 'frozen' };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Verkstedtimer');
+
+  try{
+    XLSX.writeFile(wb, vtExportFilename(fra, til));
+  }catch(e){
+    console.error(e);
+    alert('Eksporten feilet. Sjekk internettforbindelsen og prøv igjen.');
+  }
+}
+
 function verkstedSelectOptions(selected){
   return verksteder
     .slice()
@@ -3026,8 +3136,44 @@ function renderVerksted(){
     </div>
     <div class="toolbar">
       <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
-      <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${isAdmin ? `<button class="btn secondary" id="vt-export-btn">📊 ${showVTExport ? 'Lukk eksport' : 'Eksporter til Excel'}</button>` : ''}
+        <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
+      </div>
     </div>
+
+    ${(showVTExport && isAdmin) ? `
+    <div class="panel">
+      <h3 style="margin-bottom:14px;">📊 Eksporter til Excel</h3>
+      <div class="required-hint" style="margin-bottom:14px;">
+        Eksporten følger de aktive filtrene over (bil/verksted). Filen genereres direkte på
+        denne enheten — ingen data sendes noe sted.
+      </div>
+      <div class="row2">
+        <div class="field"><label>Periode</label>
+          <select id="vt-export-periode">
+            <option value="denne-maned" ${vtExportPeriode==='denne-maned'?'selected':''}>Denne måneden</option>
+            <option value="siste-30" ${vtExportPeriode==='siste-30'?'selected':''}>Siste 30 dager</option>
+            <option value="dette-aret" ${vtExportPeriode==='dette-aret'?'selected':''}>Dette året</option>
+            <option value="egendefinert" ${vtExportPeriode==='egendefinert'?'selected':''}>Egendefinert periode</option>
+            <option value="alle" ${vtExportPeriode==='alle'?'selected':''}>Alle verkstedregistreringer</option>
+          </select>
+        </div>
+        <div class="field"><label>Type</label>
+          <select id="vt-export-type">
+            <option value="tidligere" ${vtExportType==='tidligere'?'selected':''}>Kun tidligere (gjennomførte)</option>
+            <option value="kommende" ${vtExportType==='kommende'?'selected':''}>Kun kommende</option>
+            <option value="begge" ${vtExportType==='begge'?'selected':''}>Begge deler</option>
+          </select>
+        </div>
+      </div>
+      ${vtExportPeriode === 'egendefinert' ? `
+      <div class="row2">
+        <div class="field"><label>Fra dato</label><input id="vt-export-fra" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${vtExportFra?fmt(vtExportFra):''}"></div>
+        <div class="field"><label>Til dato</label><input id="vt-export-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${vtExportTil?fmt(vtExportTil):''}"></div>
+      </div>` : ''}
+      <div class="panel-actions"><button class="btn" id="vt-export-run-btn">📊 Last ned .xlsx</button></div>
+    </div>` : ''}
 
     ${showAddVT ? `
     <form class="panel" id="add-vt-form">
@@ -3161,6 +3307,18 @@ function vtCard(t, upcoming){
 
 function attachVerkstedListeners(){
   document.querySelectorAll('[data-toggle-vt-group]').forEach(el => el.addEventListener('click', () => toggleVTGroup(el.dataset.toggleVtGroup)));
+  const exportBtn = document.getElementById('vt-export-btn');
+  if(exportBtn) exportBtn.addEventListener('click', () => { showVTExport = !showVTExport; render(); });
+  const periodeSel = document.getElementById('vt-export-periode');
+  if(periodeSel) periodeSel.addEventListener('change', e => { vtExportPeriode = e.target.value; render(); });
+  const typeSel = document.getElementById('vt-export-type');
+  if(typeSel) typeSel.addEventListener('change', e => { vtExportType = e.target.value; });
+  const fraInput = document.getElementById('vt-export-fra');
+  if(fraInput) fraInput.addEventListener('change', () => { vtExportFra = readDateInput('vt-export-fra'); });
+  const tilInput = document.getElementById('vt-export-til');
+  if(tilInput) tilInput.addEventListener('change', () => { vtExportTil = readDateInput('vt-export-til'); });
+  const runBtn = document.getElementById('vt-export-run-btn');
+  if(runBtn) runBtn.addEventListener('click', () => exportVerkstedtimerToExcel());
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     if(!showAddVT) vtPrefillVehicleId = '';
