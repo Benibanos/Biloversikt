@@ -670,6 +670,7 @@ let vtFilterBil = '';
 let vtFilterVerksted = '';
 let vtFilterType = '';
 let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
+let showVtFilterMeny = false;
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtOversiktOpenVehicles = new Set();
@@ -1654,7 +1655,7 @@ function goTo(scr, vehicleId){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; showVtFilterMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'kontroll'){
@@ -2592,7 +2593,10 @@ function renderDashboard(){
           ${weatherData ? `<div class="greeting-weather">${weatherData.ikon} ${weatherData.temp}°C i Larvik · ${esc(weatherData.tekst)}</div>` : ''}
         </div>
         <div class="greeting-right">
-          <span class="status-chip" data-stat-nav="kommende-vt">🔧 ${nearestVT ? fmtShort(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen verksted'}</span>
+          <div class="panel" style="cursor:pointer;padding:12px 16px;text-align:right;margin:0;" ${nearestVT ? `data-goto-vt-vehicle="${nearestVT.vehicleId}"` : `data-stat-nav="kommende-vt"`}>
+            <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;">⭐ Neste verkstedtime</div>
+            <div style="font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;">${nearestVT ? fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2721,6 +2725,16 @@ function attachDashboardListeners(){
   document.getElementById('greet-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
   document.getElementById('greet-vt-btn').addEventListener('click', () => goToRegisterVT(''));
   document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
+  document.querySelectorAll('[data-goto-vt-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const vehicleId = el.dataset.gotoVtVehicle;
+    vtFilterBil = vehicleId;
+    vtFilterVerksted = '';
+    vtFilterType = '';
+    vtFilterPeriode = '';
+    showVtFilterMeny = false;
+    vtOversiktOpenVehicles = new Set([vehicleId]);
+    goTo('verksted');
+  }));
   const dbBanner = document.getElementById('db-warning-banner');
   if(dbBanner) dbBanner.addEventListener('click', () => {
     settingsOpenSections.add('database');
@@ -4028,30 +4042,64 @@ const KOST_PERIODE_FILNAVN = {
   'siste-3-uker':'Siste3Ukene', 'siste-maned':'SisteManed', 'siste-6-maneder':'Siste6Maneder',
   'siste-aret':'SisteAret'
 };
-function renderVerksted(){
+function getFilteredVerkstedtimer(){
   const filtered = verkstedtimer.filter(t => {
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
     if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
     return true;
   });
   const today = todayISO();
-  const kommendeAlle = filtered.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const nearestVT = kommendeAlle[0] || null;
   let visning = filtered;
   if(vtFilterType === 'kommende') visning = filtered.filter(t => t.dato >= today);
   else if(vtFilterType === 'tidligere') visning = filtered.filter(t => t.dato < today);
-  visning = filterByPeriode(visning, vtFilterPeriode);
+  return filterByPeriode(visning, vtFilterPeriode);
+}
+function exportVerkstedExcel(){
+  const today = todayISO();
+  const rows = getFilteredVerkstedtimer().slice()
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const header = ['Dato','Tidspunkt','Bilnummer','Registreringsnummer','Løyvenummer','Verksted','Beskrivelse','Notater','Pris','Status'];
+  const data = rows.map(t => {
+    const v = vtVehicle(t);
+    return [
+      fmt(t.dato), t.tidspunkt || '',
+      v ? (v.bilnummer||'') : '', v ? (v.regnr||'') : '', v ? (v.loyvenummer||'') : '',
+      t.verksted || '', t.beskrivelse || '', t.notater || '',
+      (t.pris !== undefined && t.pris !== null && t.pris !== '') ? Number(t.pris) : '',
+      t.dato >= today ? 'Kommende' : 'Utført'
+    ];
+  });
+  const totalSum = rows.reduce((s,t) => s + Number(t.pris||0), 0);
+  const summaryRow = new Array(10).fill('');
+  summaryRow[7] = 'Totale verkstedkostnader:';
+  summaryRow[8] = totalSum;
+  const aoa = [header, ...data, new Array(10).fill(''), summaryRow];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Verkstedoversikt');
+  XLSX.writeFile(wb, 'Verkstedoversikt_Eksport.xlsx');
+}
+function renderVerksted(){
+  const visning = getFilteredVerkstedtimer();
+  const today = todayISO();
+  const kommendeAlle = verkstedtimer.filter(t => {
+      if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
+      if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
+      return t.dato >= today;
+    }).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const nearestVT = kommendeAlle[0] || null;
 
   const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nearestVT ? nearestVT.id : null);
   const totalKr = visning.reduce((s,t) => s + Number(t.pris||0), 0);
+  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode].filter(Boolean).length;
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
-    <div class="toolbar" style="margin-bottom:16px;">
+    <div class="toolbar" style="margin-bottom:16px;align-items:center;">
       <h2 style="font-size:19px;margin:0;">🔧 Verkstedoversikt</h2>
-      <div class="ov-item" style="align-items:flex-end;">
-        <span class="ov-label">💰 Total verkstedkostnad</span>
-        <span class="ov-value" style="font-size:18px;">${fmtKr(totalKr)}</span>
+      <div class="panel" style="padding:10px 16px;text-align:right;margin:0;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;">💰 Total verkstedkostnad</div>
+        <div style="font-size:20px;font-weight:700;font-family:'Space Grotesk',sans-serif;">${fmtKr(totalKr)}</div>
       </div>
     </div>
     <div class="toolbar">
@@ -4093,31 +4141,48 @@ function renderVerksted(){
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
 
-    <div class="filters-row">
-      <select id="vt-f-bil">
-        <option value="">Alle biler</option>
-        ${vehicleOptions(vtFilterBil)}
-      </select>
-      <select id="vt-f-verksted">
-        <option value="">Alle verksteder</option>
-        ${verkstedSelectOptions(vtFilterVerksted)}
-      </select>
-      <select id="vt-f-type">
-        <option value="" ${vtFilterType===''?'selected':''}>Kommende og tidligere</option>
-        <option value="kommende" ${vtFilterType==='kommende'?'selected':''}>Kun kommende timer</option>
-        <option value="tidligere" ${vtFilterType==='tidligere'?'selected':''}>Kun tidligere timer</option>
-      </select>
-      <select id="vt-f-periode">
-        <option value="" ${vtFilterPeriode===''?'selected':''}>🔽 Filtrer</option>
-        <option value="7dager" ${vtFilterPeriode==='7dager'?'selected':''}>Siste 7 dager</option>
-        <option value="30dager" ${vtFilterPeriode==='30dager'?'selected':''}>Siste 30 dager</option>
-        <option value="maned" ${vtFilterPeriode==='maned'?'selected':''}>Denne måneden</option>
-        <option value="ar" ${vtFilterPeriode==='ar'?'selected':''}>I år</option>
-      </select>
+    <div class="filters-row" style="margin-bottom:8px;">
+      <button class="btn secondary small" id="vt-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+      <button class="btn secondary small" id="vt-eksporter-btn">📊 Eksporter til Excel</button>
     </div>
+    ${showVtFilterMeny ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="row2">
+        <div class="field"><label>🚐 Bil</label>
+          <select id="vt-f-bil">
+            <option value="">Alle biler</option>
+            ${vehicleOptions(vtFilterBil)}
+          </select>
+        </div>
+        <div class="field"><label>🔧 Verksted</label>
+          <select id="vt-f-verksted">
+            <option value="">Alle verksteder</option>
+            ${verkstedSelectOptions(vtFilterVerksted)}
+          </select>
+        </div>
+      </div>
+      <div class="row2" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;"><label>📋 Type</label>
+          <select id="vt-f-type">
+            <option value="" ${vtFilterType===''?'selected':''}>Begge</option>
+            <option value="kommende" ${vtFilterType==='kommende'?'selected':''}>Kommende</option>
+            <option value="tidligere" ${vtFilterType==='tidligere'?'selected':''}>Tidligere</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;"><label>📅 Periode</label>
+          <select id="vt-f-periode">
+            <option value="" ${vtFilterPeriode===''?'selected':''}>Alle perioder</option>
+            <option value="7dager" ${vtFilterPeriode==='7dager'?'selected':''}>Siste 7 dager</option>
+            <option value="30dager" ${vtFilterPeriode==='30dager'?'selected':''}>Siste 30 dager</option>
+            <option value="maned" ${vtFilterPeriode==='maned'?'selected':''}>Denne måneden</option>
+            <option value="ar" ${vtFilterPeriode==='ar'?'selected':''}>I år</option>
+          </select>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div class="required-hint" style="margin-bottom:16px;">${visning.length} verkstedregistrering${visning.length===1?'':'er'}, gruppert per bil.</div>
-    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted||vtFilterPeriode?' med gjeldende filter':''}.</div>` : oversiktBody}
+    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${antallAktiveFiltre > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody}
   `;
 }
 
@@ -4173,10 +4238,19 @@ function attachVerkstedListeners(){
   });
   const f = document.getElementById('add-vt-form');
   if(f) f.addEventListener('submit', submitAddVT);
-  document.getElementById('vt-f-bil').addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
-  document.getElementById('vt-f-verksted').addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
-  document.getElementById('vt-f-type').addEventListener('change', e => { vtFilterType = e.target.value; render(); });
-  document.getElementById('vt-f-periode').addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
+  document.getElementById('vt-filter-toggle-btn').addEventListener('click', () => {
+    showVtFilterMeny = !showVtFilterMeny;
+    render();
+  });
+  document.getElementById('vt-eksporter-btn').addEventListener('click', () => exportVerkstedExcel());
+  const fBil = document.getElementById('vt-f-bil');
+  if(fBil) fBil.addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
+  const fVerksted = document.getElementById('vt-f-verksted');
+  if(fVerksted) fVerksted.addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
+  const fType = document.getElementById('vt-f-type');
+  if(fType) fType.addEventListener('change', e => { vtFilterType = e.target.value; render(); });
+  const fPeriode = document.getElementById('vt-f-periode');
+  if(fPeriode) fPeriode.addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
   document.querySelectorAll('[data-toggle-vto-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleVtoVehicle;
