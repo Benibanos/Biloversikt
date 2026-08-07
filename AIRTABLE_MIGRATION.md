@@ -43,6 +43,7 @@ er **uendret**, så det aller meste av appens forretningslogikk er urørt.
 | **WarningLights** | Varsellamper (aktive og kvitterte) | én varsellampe-hendelse |
 | **WorkshopAppointments** | Verkstedtimer | én verkstedavtale |
 | **TireCosts** | Dekkkostnader (Kostnadsoversikt) | én dekkregistrering med kostnad |
+| **AktiveSaker** | Aktive Saker | én sak/oppfølgingspunkt for et kjøretøy |
 | **Users** | Administratorbrukere | én administrator |
 | **Settings** | Systeminnstillinger (tema, verkstedregister) og bilder | én nøkkel/verdi-rad |
 
@@ -84,6 +85,22 @@ selv om skaden lukkes)
 (number), `Kommentar` (long text) — registrert fra Kostnadsoversikt
 ("🛞 Nye dekk"), adskilt fra den eksisterende dekkskifte-loggen
 (sommer/vinter-bytte, se TireChanges).
+
+**AktiveSaker** (ny i "Aktive Saker — Fase 1", grunnmur for fremtidig
+avviksoppfølging): `AppId`, `CaseId` (text — kort lesbart saksnummer, f.eks.
+"SAK-0001"), `VehicleId` (text), `RegistrationNumber` (text — øyeblikksbilde
+av regnr på registreringstidspunktet), `CaseType` (text — én av
+`varsellampe`/`skade`/`kontrollavvik`/`dekk`/`service`/`annet`), `Title`
+(text), `Description` (long text), `Status` (text — én av
+`ny`/`vurderes`/`tiltak-planlagt`/`verksted-bestilt`/`utfort`/`lukket`,
+standard `ny`), `Priority` (text — én av `lav`/`normal`/`hoy`/`kritisk`,
+standard `normal`), `SourceType` (text — tom/`manuell` i Fase 1; brukes i
+Fase 2 til å spore automatisk opprettede saker fra varsellamper/skader/
+kontroller), `SourceId` (text — id til kildeposten i Fase 2, tom i Fase 1),
+`ReportedBy` (text), `ReportedAt` (text), `AssignedTo` (text), `NextAction`
+(long text), `FollowUpDate` (text), `ResolvedAt` (text), `ResolvedBy`
+(text), `ResolutionNote` (long text), `CreatedAt` (text — ISO-tidsstempel),
+`UpdatedAt` (text — ISO-tidsstempel)
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

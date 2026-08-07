@@ -119,6 +119,14 @@
     dekkkostnader: { table: 'TireCosts', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], kostnad: ['Kostnad', 'num'], kommentar: ['Kommentar']
     }},
+    aktiveSaker: { table: 'AktiveSaker', fields: {
+      id: ['AppId'], caseId: ['CaseId'], vehicleId: ['VehicleId'], registrationNumber: ['RegistrationNumber'],
+      caseType: ['CaseType'], title: ['Title'], description: ['Description'], status: ['Status'],
+      priority: ['Priority'], sourceType: ['SourceType'], sourceId: ['SourceId'], reportedBy: ['ReportedBy'],
+      reportedAt: ['ReportedAt'], assignedTo: ['AssignedTo'], nextAction: ['NextAction'],
+      followUpDate: ['FollowUpDate'], resolvedAt: ['ResolvedAt'], resolvedBy: ['ResolvedBy'],
+      resolutionNote: ['ResolutionNote'], createdAt: ['CreatedAt'], updatedAt: ['UpdatedAt']
+    }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen,
   // med Key = nøkkelnavnet og Value = selve verdien (tekst) — dette gjelder
