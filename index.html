@@ -671,6 +671,7 @@ let vtFilterVerksted = '';
 let vtFilterType = '';
 let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
 let showVtFilterMeny = false;
+let vtGrupperApen = false;
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtOversiktOpenVehicles = new Set();
@@ -686,6 +687,7 @@ let dashExpandedId = null;
 // Hver bilgruppe på Dashboard er sin egen, uavhengige accordion — alle lukket som
 // standard. Ikke lagret på tvers av økter (tilbakestilles ved ny sideinnlasting).
 let dashGroupOpen = {bil:false, lastebil:false, montering:false, reserve:false};
+let dashBiloversiktApen = false;
 function toggleDashGroup(kat){
   dashGroupOpen[kat] = !dashGroupOpen[kat];
   render();
@@ -2621,29 +2623,37 @@ function renderDashboard(){
       </div>
     </div>
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
-    <div class="dash-group-grid">
-      ${KATEGORI_ORDER.filter(k => groups[k].length > 0).map(k => {
-        const open = !!dashGroupOpen[k];
-        const gruppeVehicleIds = new Set(groups[k].map(v => v.id));
-        const gruppeVarsler = aktiveVarsler.filter(w => gruppeVehicleIds.has(w.vehicleId)).length;
-        return `
-        <div class="panel dash-group-card" style="margin-bottom:0;">
-          <div class="group-card-head" data-toggle-group="${k}">
-            <div>
-              <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
-              <div class="group-card-sub">${groups[k].length} ${groups[k].length===1?'bil':'biler'}${gruppeVarsler>0 ? ` · 🚨 ${gruppeVarsler}` : ''}</div>
+    <div class="acc-row ${dashBiloversiktApen ? 'expanded' : ''}" style="margin-bottom:16px;">
+      <div class="acc-head" data-toggle-dash-biloversikt>
+        <div class="acc-head-left"><div class="flag-name">🚐 Biloversikt</div></div>
+        <div class="acc-head-right"><span class="chevron">⌄</span></div>
+      </div>
+      ${dashBiloversiktApen ? `<div class="acc-body">
+      <div class="dash-group-grid">
+        ${KATEGORI_ORDER.filter(k => groups[k].length > 0).map(k => {
+          const open = !!dashGroupOpen[k];
+          const gruppeVehicleIds = new Set(groups[k].map(v => v.id));
+          const gruppeVarsler = aktiveVarsler.filter(w => gruppeVehicleIds.has(w.vehicleId)).length;
+          return `
+          <div class="panel dash-group-card" style="margin-bottom:0;">
+            <div class="group-card-head" data-toggle-group="${k}">
+              <div>
+                <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+                <div class="group-card-sub">${groups[k].length} ${groups[k].length===1?'bil':'biler'}${gruppeVarsler>0 ? ` · 🚨 ${gruppeVarsler}` : ''}</div>
+              </div>
+              <span class="chevron ${open?'open':''}">⌄</span>
             </div>
-            <span class="chevron ${open?'open':''}">⌄</span>
-          </div>
-          <div class="vehicle-group-body ${open?'open':''}">
-            <div>
-              <div class="acc-list" style="margin-top:12px;">
-                ${groups[k].map(v => accordionRow(v)).join('')}
+            <div class="vehicle-group-body ${open?'open':''}">
+              <div>
+                <div class="acc-list" style="margin-top:12px;">
+                  ${groups[k].map(v => accordionRow(v)).join('')}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      `;}).join('')}
+        `;}).join('')}
+      </div>
+      </div>` : ''}
     </div>
     `}
   `;
@@ -2741,6 +2751,11 @@ function attachDashboardListeners(){
     goTo('innstillinger');
   });
   document.querySelectorAll('[data-toggle-group]').forEach(el => el.addEventListener('click', () => toggleDashGroup(el.dataset.toggleGroup)));
+  const biloversiktToggle = document.querySelector('[data-toggle-dash-biloversikt]');
+  if(biloversiktToggle) biloversiktToggle.addEventListener('click', () => {
+    dashBiloversiktApen = !dashBiloversiktApen;
+    render();
+  });
   document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
     dashExpandedId = dashExpandedId === el.dataset.toggle ? null : el.dataset.toggle;
     render();
@@ -3987,8 +4002,11 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
           return `
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
-              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-              <div class="acc-head-right"><span class="group-count">${tList.length} verkstedregistrering${tList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+              <div class="acc-head-left">
+                <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
+                <div class="flag-reason">${tList.length} verkstedregistrering${tList.length===1?'':'er'}</div>
+              </div>
+              <div class="acc-head-right"><span class="chevron">⌄</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="vt-list">${tList.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div></div>` : ''}
           </div>`;
@@ -4001,7 +4019,16 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
       <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
       <div class="vt-list">${foreldrelose.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div>
     </div>` : '';
-  return grupper + foreldreloseHtml;
+
+  return `
+    <div class="acc-row ${vtGrupperApen ? 'expanded' : ''}" style="margin-bottom:16px;">
+      <div class="acc-head" data-toggle-vt-grupper>
+        <div class="acc-head-left"><div class="flag-name">🚐 Biloversikt</div></div>
+        <div class="acc-head-right"><span class="chevron">⌄</span></div>
+      </div>
+      ${vtGrupperApen ? `<div class="acc-body">${grupper}${foreldreloseHtml}</div>` : ''}
+    </div>
+  `;
 }
 function filterByPeriode(list, periode){
   const today = todayISO();
@@ -4072,21 +4099,24 @@ function renderVerksted(){
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
 
-    <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
-      <div class="panel" style="text-align:center;padding:18px 14px;margin:0;">
-        <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;margin-bottom:8px;">📋 Verkstedtimer</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${verkstedtimer.length} totalt</div>
+    <div class="panel" style="padding:0;overflow:hidden;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid var(--line);">
+        <div style="padding:16px 14px;border-right:1.5px solid var(--line);text-align:center;">
+          <div class="ov-label">💰 Total verkstedkostnad</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;margin-top:4px;">${fmtKr(totalKr)}</div>
+        </div>
+        <button type="button" id="add-vt-btn" style="padding:16px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${showAddVT ? 'Avbryt' : '🔧 Registrer verkstedtime'}</div>
+        </button>
       </div>
-      <button type="button" class="panel" id="vt-filter-toggle-btn" style="text-align:center;padding:18px 14px;margin:0;cursor:pointer;font-family:inherit;color:inherit;">
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
-      </button>
-      <div class="panel" style="text-align:center;padding:18px 14px;margin:0;">
-        <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;margin-bottom:8px;">💰 Total verkstedkostnad</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(totalKr)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;">
+        <div style="padding:8px 14px;border-right:1.5px solid var(--line);text-align:center;">
+          <div style="font-size:12px;color:var(--muted);font-weight:600;">📋 ${verkstedtimer.length} verkstedtimer totalt</div>
+        </div>
+        <button type="button" id="vt-filter-toggle-btn" style="padding:8px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
+          <div style="font-size:12px;font-weight:700;">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
+        </button>
       </div>
-      <button type="button" class="panel" id="add-vt-btn" style="text-align:center;padding:18px 14px;margin:0;cursor:pointer;font-family:inherit;color:inherit;">
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${showAddVT ? 'Avbryt' : '🔧 Registrer verkstedtime'}</div>
-      </button>
     </div>
 
     ${nearestVT ? `
@@ -4159,7 +4189,6 @@ function renderVerksted(){
       </div>
     </div>` : ''}
 
-    <div class="required-hint" style="margin-bottom:16px;">${visning.length} verkstedregistrering${visning.length===1?'':'er'}, gruppert per bil.</div>
     ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${antallAktiveFiltre > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody}
   `;
 }
@@ -4229,6 +4258,11 @@ function attachVerkstedListeners(){
   const fPeriode = document.getElementById('vt-f-periode');
   if(fPeriode) fPeriode.addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
+  const grupperToggle = document.querySelector('[data-toggle-vt-grupper]');
+  if(grupperToggle) grupperToggle.addEventListener('click', () => {
+    vtGrupperApen = !vtGrupperApen;
+    render();
+  });
   document.querySelectorAll('[data-toggle-vto-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleVtoVehicle;
     if(vtOversiktOpenVehicles.has(id)) vtOversiktOpenVehicles.delete(id); else vtOversiktOpenVehicles.add(id);
