@@ -667,11 +667,11 @@ let skadePrefillVehicleId = '';
 let vtFilterBil = '';
 let vtFilterVerksted = '';
 let vtFilterType = '';
+let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtOversiktOpenVehicles = new Set();
-let kostnadPeriodeFilter = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
-let showKostnadEksportMeny = false;
+let kostnadPeriodeFilter = ''; // '' | 'denne-uke' | 'forrige-uke' | 'siste-2-uker' | 'siste-3-uker' | 'siste-maned' | 'siste-6-maneder' | 'siste-aret'
 let showAddDekkkostnad = false;
 
 let dashExpandedId = null;
@@ -1630,7 +1630,7 @@ function goTo(scr, vehicleId){
   headerMenuOpen = false;
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
-  if(scr !== 'kostnadsoversikt'){ showKostnadEksportMeny = false; showAddDekkkostnad = false; }
+  if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
     kontrollFormAnnet = false; kontrollFormHarSkader = false; pendingKontrollPhotos = [];
@@ -2639,9 +2639,9 @@ function accordionRow(v){
           <div>
             <div class="flag-name">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
             <div class="flag-reason">${v.loyvenummer ? esc(v.loyvenummer) : '–'} • KM: ${v.km ? Number(v.km).toLocaleString('nb-NO') : '–'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
-            ${vNesteVT ? `
+            ${vVT.length > 0 ? `
             <div class="flag-vt" style="margin-top:4px;font-size:12.5px;">
-              <span style="font-weight:600;">🔧 Verksted:</span> ${fmt(vNesteVT.dato)} — ${esc(vNesteVT.beskrivelse)}
+              🔧 ${vVT.length} verkstedregistrering${vVT.length === 1 ? '' : 'er'}
             </div>` : ''}
           </div>
         </div>
@@ -3083,6 +3083,29 @@ function varsellysCard(w){
 // ================= scrVarsler (Aktive varsellamper — hurtignavigasjon fra Dashboard) =================
 // ================= scrDekkoversikt (Dekkoversikt — hele flåten) =================
 let dekkOversiktOpenVehicles = new Set();
+async function submitAddDekkkostnad(ev){
+  ev.preventDefault();
+  const vehicleId = document.getElementById('dkk-vehicle').value;
+  const dato = readDateInput('dkk-dato');
+  const kostnadRaw = document.getElementById('dkk-kostnad').value.trim();
+  const kommentar = document.getElementById('dkk-kommentar').value.trim();
+  const msgEl = document.getElementById('dkk-msg');
+  if(!vehicleId || !dato || !kostnadRaw){
+    msgEl.textContent = 'Fyll ut bil, dato (DD/MM/ÅÅÅÅ) og kostnad.';
+    return;
+  }
+  const kostnad = Number(kostnadRaw.replace(/\s/g,'').replace(',','.'));
+  dekkkostnader.push({id: uid(), vehicleId, dato, kostnad, kommentar});
+  await saveDekkkostnader();
+  showAddDekkkostnad = false;
+  render();
+}
+async function deleteDekkkostnad(id){
+  if(!confirm('Slette denne dekkregistreringen?')) return;
+  dekkkostnader = dekkkostnader.filter(x => x.id !== id);
+  await saveDekkkostnader();
+  render();
+}
 function renderDekkoversikt(){
   const nesteDekkOvergang = nesteDekksesongOvergang();
   const bilerSomTrengerDekkskifte = nesteDekkOvergang ? vehicles.filter(v =>
@@ -3111,6 +3134,27 @@ function renderDekkoversikt(){
       🛞 Dekksesong nærmer seg — ${bilerSomTrengerDekkskifte} bil${bilerSomTrengerDekkskifte===1?'':'er'} bør planlegges for ${nesteDekkOvergang.retning === 'vinter' ? 'vinterdekk' : 'sommerdekk'}.
     </div>` : ''}
 
+    <div class="toolbar">
+      <div class="count">${dekkkostnader.length} dekkregistrering${dekkkostnader.length===1?'':'er'} totalt</div>
+      <button class="btn" id="add-dekkkostnad-btn">${showAddDekkkostnad ? 'Avbryt' : '🛞 Registrer nye dekk'}</button>
+    </div>
+    ${showAddDekkkostnad ? `
+    <form class="panel" id="add-dekkkostnad-form" style="margin-bottom:16px;">
+      <div class="row2">
+        <div class="field"><label>Bil</label>
+          <select id="dkk-vehicle" required>
+            <option value="">Velg bil...</option>
+            ${vehicleOptions('')}
+          </select>
+        </div>
+        <div class="field"><label>Dato</label><input id="dkk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>💰 Kostnad</label><input id="dkk-kostnad" type="text" inputmode="numeric" placeholder="F.eks. 12500" required></div>
+      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="dkk-kommentar" placeholder="F.eks. Nye vinterdekk"></textarea></div>
+      <div class="form-msg" id="dkk-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+    </form>` : ''}
+
     <div class="dekk-status-grid" style="margin-bottom:26px;">
       <div class="ov-item"><span class="ov-label">Dekk over 5 år</span><span class="ov-value" style="font-size:20px;color:${dekkOver5Ar>0?'var(--red)':'var(--ink)'};">🔴 ${dekkOver5Ar}</span></div>
       <div class="ov-item"><span class="ov-label">Trenger dekkkontroll</span><span class="ov-value" style="font-size:20px;color:${dekkTrengerKontroll>0?'var(--amber)':'var(--ink)'};">🛞 ${dekkTrengerKontroll}</span></div>
@@ -3128,6 +3172,7 @@ function renderDekkoversikt(){
             const sAlder = dekkAlderStatus(v.sommerdekkDot);
             const wAlder = dekkAlderStatus(v.vinterdekkDot);
             const vHist = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato)).slice(0, 5);
+            const vKostnader = dekkkostnader.filter(dk => dk.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
             const varselIkon = (sAlder && sAlder.status==='gammel') || (wAlder && wAlder.status==='gammel') ? '🔴' : (!sAlder || !wAlder || (sAlder&&sAlder.status!=='ok') || (wAlder&&wAlder.status!=='ok')) ? '🟡' : '🟢';
             return `
             <div class="acc-row ${open ? 'expanded' : ''}">
@@ -3149,6 +3194,11 @@ function renderDekkoversikt(){
                 <ul class="dmg-simple-list">
                   ${vHist.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${d.retning === 'sommer-vinter' ? 'Sommer → Vinter' : 'Vinter → Sommer'}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
                 </ul>`}
+                <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 8px;">💰 Dekkkostnader</h4>
+                ${vKostnader.length === 0 ? `<div class="empty-note">Ingen dekkkostnader registrert.</div>` : `
+                <ul class="dmg-simple-list">
+                  ${vKostnader.map(dk => `<li><span class="dmg-simple-main">${fmt(dk.dato)}${dk.kommentar ? ' — ' + esc(dk.kommentar) : ''} — ${fmtKr(dk.kostnad)}</span><button class="btn small danger-outline" data-delete-dekkkostnad="${dk.id}">Slett</button></li>`).join('')}
+                </ul>`}
                 <div class="panel-actions" style="margin-top:12px;"><button class="btn secondary small" data-goto-bilkort-dekk="${v.id}">Åpne bilkort</button></div>
               </div>` : ''}
             </div>`;
@@ -3160,6 +3210,13 @@ function renderDekkoversikt(){
 }
 function attachDekkoversiktListeners(){
   document.getElementById('dekk-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('add-dekkkostnad-btn').addEventListener('click', () => {
+    showAddDekkkostnad = !showAddDekkkostnad;
+    render();
+  });
+  const dkkForm = document.getElementById('add-dekkkostnad-form');
+  if(dkkForm) dkkForm.addEventListener('submit', submitAddDekkkostnad);
+  document.querySelectorAll('[data-delete-dekkkostnad]').forEach(el => el.addEventListener('click', () => deleteDekkkostnad(el.dataset.deleteDekkkostnad)));
   document.querySelectorAll('[data-toggle-dekk-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleDekkVehicle;
     if(dekkOversiktOpenVehicles.has(id)) dekkOversiktOpenVehicles.delete(id); else dekkOversiktOpenVehicles.add(id);
@@ -3174,6 +3231,17 @@ function attachDekkoversiktListeners(){
 function isoDaysAgo(n){
   const d = new Date(todayISO() + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0,10);
+}
+function isoMonthsAgo(n){
+  const d = new Date(todayISO() + 'T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0,10);
+}
+function mondayOfWeek(iso){
+  const d = new Date(iso + 'T00:00:00Z');
+  const day = d.getUTCDay(); // 0=søndag, 1=mandag, ...
+  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
   return d.toISOString().slice(0,10);
 }
 
@@ -3905,8 +3973,37 @@ function filterByPeriode(list, periode){
   if(periode === 'ar') return list.filter(t => t.dato && t.dato.startsWith(today.slice(0,4)));
   return list;
 }
-const KOST_PERIODE_LABEL = {'7dager':'Siste 7 dager', '30dager':'Siste 30 dager', 'maned':'Denne måneden', 'ar':'I år'};
-const KOST_PERIODE_FILNAVN = {'7dager':'Siste7Dager', '30dager':'Siste30Dager', 'maned':'DenneMåneden', 'ar':'IÅr'};
+function kostPeriodeRange(periode){
+  const today = todayISO();
+  if(periode === 'denne-uke') return {fra: mondayOfWeek(today), til: today};
+  if(periode === 'forrige-uke'){
+    const monThis = mondayOfWeek(today);
+    const dFra = new Date(monThis + 'T00:00:00Z'); dFra.setUTCDate(dFra.getUTCDate() - 7);
+    const dTil = new Date(monThis + 'T00:00:00Z'); dTil.setUTCDate(dTil.getUTCDate() - 1);
+    return {fra: dFra.toISOString().slice(0,10), til: dTil.toISOString().slice(0,10)};
+  }
+  if(periode === 'siste-2-uker') return {fra: isoDaysAgo(13), til: today};
+  if(periode === 'siste-3-uker') return {fra: isoDaysAgo(20), til: today};
+  if(periode === 'siste-maned') return {fra: isoMonthsAgo(1), til: today};
+  if(periode === 'siste-6-maneder') return {fra: isoMonthsAgo(6), til: today};
+  if(periode === 'siste-aret') return {fra: isoMonthsAgo(12), til: today};
+  return null;
+}
+function filterByKostPeriode(list, periode){
+  const range = kostPeriodeRange(periode);
+  if(!range) return list;
+  return list.filter(t => t.dato >= range.fra && t.dato <= range.til);
+}
+const KOST_PERIODE_LABEL = {
+  'denne-uke':'Denne uken', 'forrige-uke':'Forrige uke', 'siste-2-uker':'Siste 2 ukene',
+  'siste-3-uker':'Siste 3 ukene', 'siste-maned':'Siste måned', 'siste-6-maneder':'Siste 6 måneder',
+  'siste-aret':'Siste året'
+};
+const KOST_PERIODE_FILNAVN = {
+  'denne-uke':'DenneUken', 'forrige-uke':'ForrigeUke', 'siste-2-uker':'Siste2Ukene',
+  'siste-3-uker':'Siste3Ukene', 'siste-maned':'SisteManed', 'siste-6-maneder':'Siste6Maneder',
+  'siste-aret':'SisteAret'
+};
 function renderVerksted(){
   const filtered = verkstedtimer.filter(t => {
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
@@ -3919,12 +4016,20 @@ function renderVerksted(){
   let visning = filtered;
   if(vtFilterType === 'kommende') visning = filtered.filter(t => t.dato >= today);
   else if(vtFilterType === 'tidligere') visning = filtered.filter(t => t.dato < today);
+  visning = filterByPeriode(visning, vtFilterPeriode);
 
   const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nearestVT ? nearestVT.id : null);
+  const totalKr = visning.reduce((s,t) => s + Number(t.pris||0), 0);
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
+    <div class="toolbar" style="margin-bottom:16px;">
+      <h2 style="font-size:19px;margin:0;">🔧 Verkstedoversikt</h2>
+      <div class="ov-item" style="align-items:flex-end;">
+        <span class="ov-label">💰 Total verkstedkostnad</span>
+        <span class="ov-value" style="font-size:18px;">${fmtKr(totalKr)}</span>
+      </div>
+    </div>
     <div class="toolbar">
       <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
       <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
@@ -3978,13 +4083,17 @@ function renderVerksted(){
         <option value="kommende" ${vtFilterType==='kommende'?'selected':''}>Kun kommende timer</option>
         <option value="tidligere" ${vtFilterType==='tidligere'?'selected':''}>Kun tidligere timer</option>
       </select>
+      <select id="vt-f-periode">
+        <option value="" ${vtFilterPeriode===''?'selected':''}>🔽 Filtrer</option>
+        <option value="7dager" ${vtFilterPeriode==='7dager'?'selected':''}>Siste 7 dager</option>
+        <option value="30dager" ${vtFilterPeriode==='30dager'?'selected':''}>Siste 30 dager</option>
+        <option value="maned" ${vtFilterPeriode==='maned'?'selected':''}>Denne måneden</option>
+        <option value="ar" ${vtFilterPeriode==='ar'?'selected':''}>I år</option>
+      </select>
     </div>
 
     <div class="required-hint" style="margin-bottom:16px;">${visning.length} verkstedregistrering${visning.length===1?'':'er'}, gruppert per bil.</div>
-    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted?' med gjeldende filter':''}.</div>` : oversiktBody}
-    <div class="panel" style="margin-top:16px;">
-      <div class="ov-item"><span class="ov-label">💰 Totale verkstedkostnader</span><span class="ov-value" style="font-size:20px;">${fmtKr(visning.reduce((s,t) => s + Number(t.pris||0), 0))}</span></div>
-    </div>
+    ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${vtFilterBil||vtFilterVerksted||vtFilterPeriode?' med gjeldende filter':''}.</div>` : oversiktBody}
   `;
 }
 
@@ -4043,6 +4152,7 @@ function attachVerkstedListeners(){
   document.getElementById('vt-f-bil').addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
   document.getElementById('vt-f-verksted').addEventListener('change', e => { vtFilterVerksted = e.target.value; render(); });
   document.getElementById('vt-f-type').addEventListener('change', e => { vtFilterType = e.target.value; render(); });
+  document.getElementById('vt-f-periode').addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
   document.querySelectorAll('[data-toggle-vto-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleVtoVehicle;
@@ -4060,37 +4170,14 @@ function attachVerkstedListeners(){
 }
 
 // ================= scrKostnadsoversikt =================
-// Samler alt som har med penger/kostnader å gjøre på tvers av Verkstedoversikt
-// (verkstedtimer.pris), Dekkoversikt (egen dekkkostnader-liste) og Skadeoversikt
-// (damages.estimertKostnad) — se filterByPeriode() for periodefiltreringen som
-// deles på tvers av alle tre.
-async function submitAddDekkkostnad(ev){
-  ev.preventDefault();
-  const vehicleId = document.getElementById('dkk-vehicle').value;
-  const dato = readDateInput('dkk-dato');
-  const kostnadRaw = document.getElementById('dkk-kostnad').value.trim();
-  const kommentar = document.getElementById('dkk-kommentar').value.trim();
-  const msgEl = document.getElementById('dkk-msg');
-  if(!vehicleId || !dato || !kostnadRaw){
-    msgEl.textContent = 'Fyll ut bil, dato (DD/MM/ÅÅÅÅ) og kostnad.';
-    return;
-  }
-  const kostnad = Number(kostnadRaw.replace(/\s/g,'').replace(',','.'));
-  dekkkostnader.push({id: uid(), vehicleId, dato, kostnad, kommentar});
-  await saveDekkkostnader();
-  showAddDekkkostnad = false;
-  render();
-}
-async function deleteDekkkostnad(id){
-  if(!confirm('Slette denne dekkregistreringen?')) return;
-  dekkkostnader = dekkkostnader.filter(x => x.id !== id);
-  await saveDekkkostnader();
-  render();
-}
+// Ren informasjons- og rapportside som samler kostnader på tvers av
+// Verkstedoversikt (verkstedtimer.pris), Dekkoversikt (dekkkostnader) og
+// Skadeoversikt (damages.estimertKostnad). All registrering skjer på de
+// respektive sidene — her vises kun tall, filtrert med filterByKostPeriode().
 function exportKostnadExcel(periode){
-  const verkstedI = filterByPeriode(verkstedtimer.filter(t => t.pris), periode);
-  const dekkI = filterByPeriode(dekkkostnader.filter(dk => dk.kostnad), periode);
-  const skadeI = filterByPeriode(damages.filter(d => d.estimertKostnad), periode);
+  const verkstedI = filterByKostPeriode(verkstedtimer.filter(t => t.pris), periode);
+  const dekkI = filterByKostPeriode(dekkkostnader.filter(dk => dk.kostnad), periode);
+  const skadeI = filterByKostPeriode(damages.filter(d => d.estimertKostnad), periode);
   const header = ['Dato','Bil','Kostnadstype','Beskrivelse','Kostnad'];
   const rows = [];
   verkstedI.forEach(t => {
@@ -4116,99 +4203,67 @@ function exportKostnadExcel(periode){
   XLSX.utils.book_append_sheet(wb, ws, 'Kostnadsoversikt');
   XLSX.writeFile(wb, `Kostnadsoversikt_${KOST_PERIODE_FILNAVN[periode] || 'Alle'}.xlsx`);
 }
+function kostCardHtml(icon, label, verdi, storFont){
+  return `
+    <div class="panel" style="text-align:center;padding:18px 14px;">
+      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;margin-bottom:8px;">${icon} ${label}</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:${storFont ? '26px' : '20px'};">${verdi}</div>
+    </div>
+  `;
+}
 function renderKostnadsoversikt(){
-  const verkstedI = filterByPeriode(verkstedtimer, kostnadPeriodeFilter);
-  const dekkI = filterByPeriode(dekkkostnader, kostnadPeriodeFilter);
-  const skadeI = filterByPeriode(damages, kostnadPeriodeFilter);
+  const verkstedI = filterByKostPeriode(verkstedtimer, kostnadPeriodeFilter);
+  const dekkI = filterByKostPeriode(dekkkostnader, kostnadPeriodeFilter);
+  const skadeI = filterByKostPeriode(damages, kostnadPeriodeFilter);
 
   const verkstedSum = verkstedI.reduce((s,t) => s + Number(t.pris||0), 0);
   const dekkSum = dekkI.reduce((s,dk) => s + Number(dk.kostnad||0), 0);
   const skadeSum = skadeI.reduce((s,d) => s + Number(d.estimertKostnad||0), 0);
   const totalSum = verkstedSum + dekkSum + skadeSum;
 
-  const dekkListe = dekkkostnader.slice().sort((a,b) => b.dato.localeCompare(a.dato));
-
   return `
     <div class="backrow"><button class="backbtn" id="kost-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:16px;">💰 Kostnadsoversikt</h2>
+    <h2 style="font-size:19px;margin-bottom:4px;">💰 Kostnadsoversikt</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${kostnadPeriodeFilter ? 'Viser kostnader for: ' + KOST_PERIODE_LABEL[kostnadPeriodeFilter] : 'Viser kostnader for hele perioden. Velg et filter nederst for å avgrense.'}</div>
 
-    <div class="filters-row" style="margin-bottom:10px;">
-      <button class="btn small ${kostnadPeriodeFilter==='7dager'?'':'secondary'}" data-kost-periode="7dager">📅 Siste 7 dager</button>
-      <button class="btn small ${kostnadPeriodeFilter==='30dager'?'':'secondary'}" data-kost-periode="30dager">📅 Siste 30 dager</button>
-      <button class="btn small ${kostnadPeriodeFilter==='maned'?'':'secondary'}" data-kost-periode="maned">📅 Denne måneden</button>
-      <button class="btn small ${kostnadPeriodeFilter==='ar'?'':'secondary'}" data-kost-periode="ar">📅 I år</button>
+    <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px;">
+      ${kostCardHtml('💰', 'Totale kostnader', fmtKr(totalSum), true)}
+      ${kostCardHtml('🔧', 'Verkstedkostnader', fmtKr(verkstedSum), false)}
+      ${kostCardHtml('🛞', 'Dekkkostnader', fmtKr(dekkSum), false)}
+      ${kostCardHtml('⚠️', 'Skadekostnader', fmtKr(skadeSum), false)}
+    </div>
+
+    <div class="filters-row" style="margin-bottom:8px;">
+      <select id="kost-f-periode">
+        <option value="" ${kostnadPeriodeFilter===''?'selected':''}>🔽 Filtrer</option>
+        <option value="denne-uke" ${kostnadPeriodeFilter==='denne-uke'?'selected':''}>Denne uken</option>
+        <option value="forrige-uke" ${kostnadPeriodeFilter==='forrige-uke'?'selected':''}>Forrige uke</option>
+        <option value="siste-2-uker" ${kostnadPeriodeFilter==='siste-2-uker'?'selected':''}>Siste 2 ukene</option>
+        <option value="siste-3-uker" ${kostnadPeriodeFilter==='siste-3-uker'?'selected':''}>Siste 3 ukene</option>
+        <option value="siste-maned" ${kostnadPeriodeFilter==='siste-maned'?'selected':''}>Siste måned</option>
+        <option value="siste-6-maneder" ${kostnadPeriodeFilter==='siste-6-maneder'?'selected':''}>Siste 6 måneder</option>
+        <option value="siste-aret" ${kostnadPeriodeFilter==='siste-aret'?'selected':''}>Siste året</option>
+      </select>
       <button class="btn secondary small" id="kost-eksporter-btn">📊 Eksporter til Excel</button>
     </div>
-    ${showKostnadEksportMeny ? `
-    <div class="filters-row" style="margin-bottom:16px;">
-      <button class="btn small secondary" data-kost-eksporter-periode="7dager">Siste 7 dager</button>
-      <button class="btn small secondary" data-kost-eksporter-periode="30dager">Siste 30 dager</button>
-      <button class="btn small secondary" data-kost-eksporter-periode="maned">Denne måneden</button>
-      <button class="btn small secondary" data-kost-eksporter-periode="ar">I år</button>
-    </div>` : ''}
-
-    <div class="dekk-status-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
-      <div class="ov-item"><span class="ov-label">🔧 Verkstedkostnader</span><span class="ov-value" style="font-size:17px;">${fmtKr(verkstedSum)}</span></div>
-      <div class="ov-item"><span class="ov-label">🛞 Dekkkostnader</span><span class="ov-value" style="font-size:17px;">${fmtKr(dekkSum)}</span></div>
-      <div class="ov-item"><span class="ov-label">⚠️ Skadekostnader</span><span class="ov-value" style="font-size:17px;">${fmtKr(skadeSum)}</span></div>
-    </div>
-    <div class="panel" style="margin-bottom:24px;">
-      <div class="ov-item"><span class="ov-label">💰 Totale kostnader${kostnadPeriodeFilter ? ' – ' + KOST_PERIODE_LABEL[kostnadPeriodeFilter] : ''}</span><span class="ov-value" style="font-size:22px;">${fmtKr(totalSum)}</span></div>
-    </div>
-
-    <h3 style="margin-bottom:10px;">🛞 Nye dekk</h3>
-    <div class="toolbar" style="margin-bottom:12px;">
-      <div class="count">${dekkkostnader.length} dekkregistrering${dekkkostnader.length===1?'':'er'} totalt</div>
-      <button class="btn" id="add-dekkkostnad-btn">${showAddDekkkostnad ? 'Avbryt' : '+ Registrer nye dekk'}</button>
-    </div>
-    ${showAddDekkkostnad ? `
-    <form class="panel" id="add-dekkkostnad-form" style="margin-bottom:16px;">
-      <div class="row2">
-        <div class="field"><label>Bil</label>
-          <select id="dkk-vehicle" required>
-            <option value="">Velg bil...</option>
-            ${vehicleOptions('')}
-          </select>
-        </div>
-        <div class="field"><label>Dato</label><input id="dkk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-      </div>
-      <div class="field" style="margin-bottom:10px;"><label>💰 Kostnad</label><input id="dkk-kostnad" type="text" inputmode="numeric" placeholder="F.eks. 12500" required></div>
-      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="dkk-kommentar" placeholder="F.eks. Nye vinterdekk"></textarea></div>
-      <div class="form-msg" id="dkk-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
-    </form>` : ''}
-    ${dekkListe.length === 0 ? `<div class="empty-note">Ingen dekk registrert ennå.</div>` : `
-    <ul class="dmg-simple-list">
-      ${dekkListe.map(dk => {
-        const v = vehicles.find(x => x.id === dk.vehicleId);
-        return `<li><span class="dmg-simple-main">${fmt(dk.dato)} — ${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}${dk.kommentar ? ' · ' + esc(dk.kommentar) : ''} — ${fmtKr(dk.kostnad)}</span> <button class="btn small danger-outline" data-delete-dekkkostnad="${dk.id}" style="margin-left:8px;">Slett</button></li>`;
-      }).join('')}
-    </ul>`}
+    <div class="form-msg" id="kost-eksport-msg"></div>
   `;
 }
 function attachKostnadsoversiktListeners(){
   document.getElementById('kost-back').addEventListener('click', () => goTo('dashboard'));
-  document.querySelectorAll('[data-kost-periode]').forEach(el => el.addEventListener('click', () => {
-    const p = el.dataset.kostPeriode;
-    kostnadPeriodeFilter = kostnadPeriodeFilter === p ? '' : p;
+  document.getElementById('kost-f-periode').addEventListener('change', e => {
+    kostnadPeriodeFilter = e.target.value;
     render();
-  }));
+  });
   document.getElementById('kost-eksporter-btn').addEventListener('click', () => {
-    showKostnadEksportMeny = !showKostnadEksportMeny;
-    render();
+    const msgEl = document.getElementById('kost-eksport-msg');
+    if(!kostnadPeriodeFilter){
+      msgEl.textContent = 'Velg en periode i "🔽 Filtrer" før du eksporterer.';
+      return;
+    }
+    msgEl.textContent = '';
+    exportKostnadExcel(kostnadPeriodeFilter);
   });
-  document.querySelectorAll('[data-kost-eksporter-periode]').forEach(el => el.addEventListener('click', () => {
-    exportKostnadExcel(el.dataset.kostEksporterPeriode);
-    showKostnadEksportMeny = false;
-    render();
-  }));
-  document.getElementById('add-dekkkostnad-btn').addEventListener('click', () => {
-    showAddDekkkostnad = !showAddDekkkostnad;
-    render();
-  });
-  const f = document.getElementById('add-dekkkostnad-form');
-  if(f) f.addEventListener('submit', submitAddDekkkostnad);
-  document.querySelectorAll('[data-delete-dekkkostnad]').forEach(el => el.addEventListener('click', () => deleteDekkkostnad(el.dataset.deleteDekkkostnad)));
 }
 
 // ================= scrInnstillinger =================
