@@ -428,8 +428,10 @@
   .chip-text{flex:1;}
   .chip:has(input:checked){border-color:var(--ink);background:var(--amber-soft);}
   .chip.checked{border-color:var(--ink);background:var(--amber-soft);}
-  .chip.chip-active-lamp{border-color:var(--red);background:var(--red-soft);cursor:not-allowed;}
-  .chip.chip-active-lamp .chip-text{color:var(--ink);}
+  .chip.chip-active-lamp{border-color:var(--green);background:var(--green-soft);cursor:not-allowed;opacity:1;}
+  .chip.chip-active-lamp .chip-text{color:var(--green);font-weight:600;}
+  button.chip{font-family:inherit;text-align:left;width:100%;}
+  button.chip:disabled{cursor:not-allowed;}
   .vl-status-badge{
     display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:100px;
     font-size:11.5px;font-weight:700;border:1.5px solid transparent;margin-left:8px;
@@ -733,6 +735,8 @@ function toggleBilkortSkadeSub(key){
   render();
 }
 let showAddAdminUser = false;
+let changingPasswordForId = null;
+let passwordChangeError = '';
 
 let kontroller = [];
 let kontrollPrefillVehicleId = '';
@@ -1038,7 +1042,7 @@ async function loadAll(){
     // forbeholdet ved definisjonen av ADMIN_SCREENS lenger opp i filen.
     adminUsers = [
       {id: uid(), rolle: 'Pedersen',   tittel: 'Administrator',  brukernavn: 'pedersen',   passord: 'bring2026'},
-      {id: uid(), rolle: 'Gustavsen',  tittel: 'Koordinator',    brukernavn: 'gustavsen',  passord: 'bring2026'},
+      {id: uid(), rolle: 'Gustavsen',  tittel: 'Driftskoordinator',    brukernavn: 'gustavsen',  passord: 'bring2026'},
       {id: uid(), rolle: 'Jakobsen',   tittel: 'Transportleder', brukernavn: 'jakobsen',   passord: 'bring2026'},
     ];
     await saveAdminUsers();
@@ -1108,14 +1112,36 @@ async function saveAdminUserCredentials(id){
   const navn = (document.getElementById('admin-user-'+id+'-navn').value || '').trim();
   const tittel = document.getElementById('admin-user-'+id+'-tittel').value;
   const brukernavn = (document.getElementById('admin-user-'+id+'-brukernavn').value || '').trim();
-  const passord = document.getElementById('admin-user-'+id+'-passord').value || '';
-  if(!navn || !brukernavn || !passord){ alert('Navn, brukernavn og passord må alle fylles ut.'); return; }
-  u.rolle = navn; u.tittel = tittel; u.brukernavn = brukernavn; u.passord = passord;
+  if(!navn || !brukernavn){ alert('Navn og brukernavn må fylles ut.'); return; }
+  u.rolle = navn; u.tittel = tittel; u.brukernavn = brukernavn;
   await saveAdminUsers();
   if(loggedInRole === gammeltNavn && navn !== gammeltNavn){
     loggedInRole = navn;
   }
   alert('Lagret endringer for ' + u.rolle + '.');
+  render();
+}
+async function changeAdminPassword(id){
+  const u = adminUsers.find(x => x.id === id);
+  if(!u) return;
+  const current = document.getElementById('pwd-current-'+id).value || '';
+  const nytt = document.getElementById('pwd-new-'+id).value || '';
+  const bekreft = document.getElementById('pwd-confirm-'+id).value || '';
+  if(current !== u.passord){
+    passwordChangeError = 'Feil nåværende passord.';
+    render();
+    return;
+  }
+  if(!nytt || nytt !== bekreft){
+    passwordChangeError = 'Passordene stemmer ikke overens.';
+    render();
+    return;
+  }
+  u.passord = nytt;
+  await saveAdminUsers();
+  changingPasswordForId = null;
+  passwordChangeError = '';
+  alert('Passord endret for ' + u.rolle + '.');
   render();
 }
 async function saveVehicles(){
@@ -2566,9 +2592,7 @@ function renderDashboard(){
           ${weatherData ? `<div class="greeting-weather">${weatherData.ikon} ${weatherData.temp}°C i Larvik · ${esc(weatherData.tekst)}</div>` : ''}
         </div>
         <div class="greeting-right">
-          <span class="status-chip" data-stat-nav="kontrollert-idag">✅ ${kontrollertIdagCount} kontrollert i dag</span>
           <span class="status-chip" data-stat-nav="kommende-vt">🔧 ${nearestVT ? fmtShort(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen verksted'}</span>
-          <span class="status-chip" data-stat-nav="aktive-varsler">${aktiveVarsler.length > 0 ? `🚨 ${aktiveVarsler.length} aktive varsler` : '✅ Ingen aktive varsler'}</span>
         </div>
       </div>
     </div>
@@ -2587,8 +2611,8 @@ function renderDashboard(){
         <button class="btn secondary small" data-quick-page="kontrolloversikt" style="justify-content:flex-start;">📋 Kontrolloversikt (${kontrollertIdagCount})</button>
         <button class="btn secondary small" data-quick-page="verksted" style="justify-content:flex-start;">🔧 Verkstedoversikt (${upcomingVT.length})</button>
         <button class="btn secondary small" data-quick-page="skader" style="justify-content:flex-start;">⚠️ Skadeoversikt (${openSkadesaker})</button>
-        <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
         <button class="btn secondary small" data-quick-page="dekkoversikt" style="justify-content:flex-start;">🛞 Dekkoversikt (${dekkOver5ArCount})</button>
+        <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
         <button class="btn secondary small" data-quick-page="kostnadsoversikt" style="justify-content:flex-start;">💰 Kostnadsoversikt (${kostnaderDenneManedCount})</button>
       </div>
     </div>
@@ -4335,13 +4359,31 @@ function renderInnstillinger(){
               <select id="admin-user-${u.id}-tittel">
                 <option value="" ${!u.tittel?'selected':''}>Ingen</option>
                 <option value="Administrator" ${u.tittel==='Administrator'?'selected':''}>Administrator</option>
-                <option value="Koordinator" ${u.tittel==='Koordinator'?'selected':''}>Koordinator</option>
+                <option value="Driftskoordinator" ${u.tittel==='Driftskoordinator'?'selected':''}>Driftskoordinator</option>
                 <option value="Transportleder" ${u.tittel==='Transportleder'?'selected':''}>Transportleder</option>
               </select>
             </div>
             <div class="field"><label>Brukernavn</label><input type="text" id="admin-user-${u.id}-brukernavn" value="${esc(u.brukernavn)}"></div>
-            <div class="field"><label>Passord</label><input type="text" id="admin-user-${u.id}-passord" value="${esc(u.passord)}"></div>
+            <div class="field"><label>Passord</label>
+              <div style="display:flex;align-items:center;gap:8px;min-height:44px;">
+                <span style="font-family:monospace;letter-spacing:2px;">********</span>
+                <button type="button" class="btn secondary small" data-toggle-change-password="${u.id}">${changingPasswordForId===u.id ? 'Avbryt' : 'Endre passord'}</button>
+              </div>
+            </div>
           </div>
+          ${changingPasswordForId === u.id ? `
+          <div class="panel" style="margin-top:2px;">
+            <div class="row3">
+              <div class="field"><label>Nåværende passord</label><input type="password" id="pwd-current-${u.id}" autocomplete="current-password"></div>
+              <div class="field"><label>Nytt passord</label><input type="password" id="pwd-new-${u.id}" autocomplete="new-password"></div>
+              <div class="field"><label>Bekreft nytt passord</label><input type="password" id="pwd-confirm-${u.id}" autocomplete="new-password"></div>
+            </div>
+            ${passwordChangeError ? `<div class="form-msg">${esc(passwordChangeError)}</div>` : ''}
+            <div class="panel-actions">
+              <button type="button" class="btn small" data-save-password="${u.id}">Lagre nytt passord</button>
+              <button type="button" class="btn secondary small" data-cancel-password="${u.id}">Avbryt</button>
+            </div>
+          </div>` : ''}
           <button class="btn secondary small" data-save-admin-user="${u.id}" style="align-self:flex-start;">✏️ Lagre endringer</button>
         </div>
       `).join('')}
@@ -4354,12 +4396,12 @@ function renderInnstillinger(){
           <select id="new-admin-tittel">
             <option value="">Ingen</option>
             <option value="Administrator">Administrator</option>
-            <option value="Koordinator">Koordinator</option>
+            <option value="Driftskoordinator">Driftskoordinator</option>
             <option value="Transportleder">Transportleder</option>
           </select>
         </div>
         <div class="field"><label>Brukernavn</label><input type="text" id="new-admin-brukernavn"></div>
-        <div class="field"><label>Passord</label><input type="text" id="new-admin-passord"></div>
+        <div class="field"><label>Passord</label><input type="password" id="new-admin-passord" autocomplete="new-password"></div>
       </div>
       <button class="btn small" id="save-new-admin-btn" style="align-self:flex-start;">Lagre ny administrator</button>
     </div>` : `
@@ -4567,6 +4609,23 @@ function attachInnstillingerListeners(){
 
   document.querySelectorAll('[data-save-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveAdminUserCredentials(el.dataset.saveAdminUser); }));
   document.querySelectorAll('[data-del-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteAdminUser(el.dataset.delAdminUser); }));
+  document.querySelectorAll('[data-toggle-change-password]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.toggleChangePassword;
+    changingPasswordForId = changingPasswordForId === id ? null : id;
+    passwordChangeError = '';
+    render();
+  }));
+  document.querySelectorAll('[data-cancel-password]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changingPasswordForId = null;
+    passwordChangeError = '';
+    render();
+  }));
+  document.querySelectorAll('[data-save-password]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    changeAdminPassword(el.dataset.savePassword);
+  }));
   const showAddAdminBtn = document.getElementById('show-add-admin-btn');
   if(showAddAdminBtn) showAddAdminBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddAdminUser = true; render(); });
   const saveNewAdminBtn = document.getElementById('save-new-admin-btn');
@@ -4634,15 +4693,9 @@ function renderKontroll(){
         ${activeVarsellysList.map(w => `<div class="active-lamp-row">🚨 <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
       </div>` : ''}` : ''}
 
-      <div class="row2" style="margin-top:14px;">
-        <div class="field" style="margin-bottom:0;">
-          <label>Kilometerstand</label>
-          <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
-        </div>
-        <div class="field" style="margin-bottom:0;">
-          <label>Kommentar fra sjåfør</label>
-          <textarea id="kt-kommentar" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea>
-        </div>
+      <div class="field" style="margin-top:14px;margin-bottom:0;">
+        <label>Kilometerstand</label>
+        <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
       </div>
 
       <div class="field" style="margin:18px 0;">
@@ -4662,11 +4715,10 @@ function renderKontroll(){
                 const isActive = activeTypes.has(key);
                 const isChecked = isActive || kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
                 return `
-                <label class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" for="kt-varsel-${key}">
-                  <input type="checkbox" id="kt-varsel-${key}" ${isChecked ? 'checked':''} ${isActive ? 'disabled':''}>
-                  <span class="chip-icon">${VARSELLAMPE_ICON[key]}</span>
-                  <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' <span style="font-weight:400;opacity:.75;">— 🚨 aktiv</span>' : ''}</span>
-                </label>
+                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}" ${isActive ? 'disabled' : ''}>
+                  <span class="chip-icon">${isActive ? '🟩' : VARSELLAMPE_ICON[key]}</span>
+                  <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — allerede meldt inn' : ''}</span>
+                </button>
               `;}).join('')}
             </div>
             ${kontrollFormAnnet ? `
@@ -4678,7 +4730,12 @@ function renderKontroll(){
         </div>
       </div>
 
-      <div class="field" style="margin-bottom:6px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Kommentar fra sjåfør</label>
+        <textarea id="kt-kommentar" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea>
+      </div>
+
+      <div class="field" style="margin-bottom:6px;margin-top:18px;">
         <label>Har du oppdaget nye skader?</label>
         <div class="chip-yn">
           <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
@@ -4736,20 +4793,20 @@ function attachKontrollListeners(){
   const skadeBeskrivelseInput = document.getElementById('kt-skade-beskrivelse');
   if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; saveKontrollDraft(); });
 
-  const annetBox = document.getElementById('kt-varsel-annet');
-  if(annetBox) annetBox.addEventListener('change', () => {
-    annetBox.closest('.chip').classList.toggle('checked', annetBox.checked);
-    kontrollFormAnnet = annetBox.checked;
+  const annetBtn = document.getElementById('kt-varsel-annet');
+  if(annetBtn && !annetBtn.disabled) annetBtn.addEventListener('click', () => {
+    kontrollFormAnnet = !kontrollFormAnnet;
+    if(!kontrollFormAnnet) kontrollFormAnnetTekst = '';
     saveKontrollDraft();
     render();
   });
   VARSELLAMPE_ORDER.filter(k => k !== 'annet').forEach(key => {
-    const box = document.getElementById('kt-varsel-'+key);
-    if(box) box.addEventListener('change', () => {
-      box.closest('.chip').classList.toggle('checked', box.checked);
-      kontrollFormVarsellamper = kontrollFormVarsellamper.filter(k => k !== key);
-      if(box.checked) kontrollFormVarsellamper.push(key);
+    const btn = document.getElementById('kt-varsel-'+key);
+    if(btn && !btn.disabled) btn.addEventListener('click', () => {
+      if(kontrollFormVarsellamper.includes(key)) kontrollFormVarsellamper = kontrollFormVarsellamper.filter(k => k !== key);
+      else kontrollFormVarsellamper.push(key);
       saveKontrollDraft();
+      render();
     });
   });
 
