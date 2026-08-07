@@ -4054,31 +4054,6 @@ function getFilteredVerkstedtimer(){
   else if(vtFilterType === 'tidligere') visning = filtered.filter(t => t.dato < today);
   return filterByPeriode(visning, vtFilterPeriode);
 }
-function exportVerkstedExcel(){
-  const today = todayISO();
-  const rows = getFilteredVerkstedtimer().slice()
-    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const header = ['Dato','Tidspunkt','Bilnummer','Registreringsnummer','Løyvenummer','Verksted','Beskrivelse','Notater','Pris','Status'];
-  const data = rows.map(t => {
-    const v = vtVehicle(t);
-    return [
-      fmt(t.dato), t.tidspunkt || '',
-      v ? (v.bilnummer||'') : '', v ? (v.regnr||'') : '', v ? (v.loyvenummer||'') : '',
-      t.verksted || '', t.beskrivelse || '', t.notater || '',
-      (t.pris !== undefined && t.pris !== null && t.pris !== '') ? Number(t.pris) : '',
-      t.dato >= today ? 'Kommende' : 'Utført'
-    ];
-  });
-  const totalSum = rows.reduce((s,t) => s + Number(t.pris||0), 0);
-  const summaryRow = new Array(10).fill('');
-  summaryRow[7] = 'Totale verkstedkostnader:';
-  summaryRow[8] = totalSum;
-  const aoa = [header, ...data, new Array(10).fill(''), summaryRow];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Verkstedoversikt');
-  XLSX.writeFile(wb, 'Verkstedoversikt_Eksport.xlsx');
-}
 function renderVerksted(){
   const visning = getFilteredVerkstedtimer();
   const today = todayISO();
@@ -4095,16 +4070,23 @@ function renderVerksted(){
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
-    <div class="toolbar" style="margin-bottom:16px;align-items:center;">
-      <h2 style="font-size:19px;margin:0;">🔧 Verkstedoversikt</h2>
-      <div class="panel" style="padding:10px 16px;text-align:right;margin:0;">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;">💰 Total verkstedkostnad</div>
-        <div style="font-size:20px;font-weight:700;font-family:'Space Grotesk',sans-serif;">${fmtKr(totalKr)}</div>
+    <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
+
+    <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
+      <div class="panel" style="text-align:center;padding:18px 14px;margin:0;">
+        <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;margin-bottom:8px;">📋 Verkstedtimer</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${verkstedtimer.length} totalt</div>
       </div>
-    </div>
-    <div class="toolbar">
-      <div class="count">${verkstedtimer.length} verkstedtimer totalt</div>
-      <button class="btn" id="add-vt-btn">${showAddVT ? 'Avbryt' : '+ Registrer verkstedtime'}</button>
+      <button type="button" class="panel" id="vt-filter-toggle-btn" style="text-align:center;padding:18px 14px;margin:0;cursor:pointer;font-family:inherit;color:inherit;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
+      </button>
+      <div class="panel" style="text-align:center;padding:18px 14px;margin:0;">
+        <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;margin-bottom:8px;">💰 Total verkstedkostnad</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(totalKr)}</div>
+      </div>
+      <button type="button" class="panel" id="add-vt-btn" style="text-align:center;padding:18px 14px;margin:0;cursor:pointer;font-family:inherit;color:inherit;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${showAddVT ? 'Avbryt' : '🔧 Registrer verkstedtime'}</div>
+      </button>
     </div>
 
     ${nearestVT ? `
@@ -4141,10 +4123,6 @@ function renderVerksted(){
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
 
-    <div class="filters-row" style="margin-bottom:8px;">
-      <button class="btn secondary small" id="vt-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
-      <button class="btn secondary small" id="vt-eksporter-btn">📊 Eksporter til Excel</button>
-    </div>
     ${showVtFilterMeny ? `
     <div class="panel" style="margin-bottom:16px;">
       <div class="row2">
@@ -4242,7 +4220,6 @@ function attachVerkstedListeners(){
     showVtFilterMeny = !showVtFilterMeny;
     render();
   });
-  document.getElementById('vt-eksporter-btn').addEventListener('click', () => exportVerkstedExcel());
   const fBil = document.getElementById('vt-f-bil');
   if(fBil) fBil.addEventListener('change', e => { vtFilterBil = e.target.value; render(); });
   const fVerksted = document.getElementById('vt-f-verksted');
@@ -4910,6 +4887,48 @@ document.addEventListener('keydown', (e) => {
 });
 const drawerOverlayEl = document.getElementById('drawer-overlay');
 if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
+
+// ================= Sveipenavigasjon (mobil) =================
+// Sveip høyre på en oversiktsside = samme som ← Tilbake (til Dashboard).
+// Sveip venstre hvor som helst = åpne sidemenyen (samme som ☰ Meny).
+// Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
+// textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt'];
+let swipeStartX = null, swipeStartY = null, swipeIgnored = false;
+const SWIPE_TERSKEL = 70;
+document.addEventListener('touchstart', (e) => {
+  if(e.touches.length !== 1){ swipeStartX = null; return; }
+  const target = e.target;
+  swipeIgnored = !!(target.closest && target.closest('input, select, textarea, button, a, [data-kind], .datepicker-popup, .timepicker-popup'));
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}, {passive: true});
+document.addEventListener('touchmove', (e) => {
+  if(swipeStartX === null || swipeIgnored) return;
+  const dx = e.touches[0].clientX - swipeStartX;
+  const dy = e.touches[0].clientY - swipeStartY;
+  // Klart vertikal bevegelse (scrolling) — ikke tolk som sveip.
+  if(Math.abs(dy) > Math.abs(dx)){ swipeIgnored = true; }
+}, {passive: true});
+document.addEventListener('touchend', (e) => {
+  if(swipeStartX === null || swipeIgnored){ swipeStartX = null; return; }
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - swipeStartX;
+  const dy = touch.clientY - swipeStartY;
+  swipeStartX = null;
+  if(Math.abs(dx) < SWIPE_TERSKEL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  if(dx > 0){
+    // Sveip høyre: tilbake til Dashboard på oversiktssider. Ingenting på Dashboard selv.
+    if(!driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)){
+      goTo('dashboard');
+    }
+  } else {
+    // Sveip venstre: åpne menyen (kun der menyknappen finnes).
+    if(!driverMode && loggedInRole){
+      toggleHeaderMenu();
+    }
+  }
+}, {passive: true});
 
 detectDriverMode();
 if(driverMode){ screen = 'kontroll'; kontrollDraftRestored = loadKontrollDraft(); }
