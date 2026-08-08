@@ -149,7 +149,18 @@ angis ved lukking; brukes sammen med `EstimatedCost` til å vise avvik),
 `RequiresProvision` (checkbox — om saken krever regnskapsmessig avsetting),
 `ProvisionAmount` (number — avsettingsbeløp, kun relevant når
 `RequiresProvision` er sann), `ProvisionMonth` (text — avsettingsmåned i
-format ÅÅÅÅ-MM, kun relevant når `RequiresProvision` er sann)
+format ÅÅÅÅ-MM, kun relevant når `RequiresProvision` er sann). Lagt til i
+"Optimalisering 3 — Kontrollsletting med full cleanup": `CreatedByControlId`
+(text — samme mønster som på Damages/WarningLights: peker på kontrollen som
+først opprettet saken, kun satt ved førstegangsopprettelse, brukt til å
+avgjøre hva "full cleanup" av en slettet kontroll skal fjerne)
+
+**⚠️ Manuelt steg gjenstår:** som ved tidligere feltendringer i denne
+sesjonen var ikke `storage.airtable.js` tilgjengelig, så feltmappingen der må
+oppdateres manuelt: legg til `CreatedByControlId` i AktiveSaker-delen av
+`LIST_TABLES` (samme mønster som feltet allerede har for Damages/
+WarningLights), samt selve kolonnen i Airtable-basen. Uten dette lagres
+feltet kun lokalt i appens minne inntil siden lastes på nytt.
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

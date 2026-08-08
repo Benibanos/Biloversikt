@@ -195,6 +195,34 @@
     .drawer{width:100%;box-shadow:none;}
   }
 
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;
+    display:flex;align-items:flex-end;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .modal-overlay.open{opacity:1;pointer-events:auto;}
+  .modal-sheet{
+    background:var(--surface);width:100%;max-width:480px;max-height:88vh;overflow-y:auto;
+    border-radius:20px 20px 0 0;padding:22px 20px calc(20px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -10px 34px rgba(0,0,0,.22);
+    transform:translateY(100%);transition:transform .22s ease;
+  }
+  .modal-overlay.open .modal-sheet{transform:translateY(0);}
+  .modal-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;margin-bottom:14px;}
+  .modal-btn-big{
+    width:100%;min-height:56px;border-radius:12px;font-size:14.5px;font-weight:700;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:12px 14px;margin-bottom:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);
+  }
+  .modal-btn-big .modal-btn-sub{font-size:11.5px;font-weight:600;color:var(--muted);}
+  .modal-btn-big.primary{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
+  .modal-btn-big.danger{background:var(--red-soft);color:var(--red);border-color:var(--red);}
+  .modal-btn-big:disabled{opacity:.45;cursor:not-allowed;}
+  @media (min-width:641px){
+    .modal-overlay{align-items:center;}
+    .modal-sheet{border-radius:16px;}
+  }
+
   .navtabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
   .navtab{background:none;border:1.5px solid var(--line);color:var(--muted);padding:8px 15px;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Inter',sans-serif;min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
   .navtab.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
@@ -615,6 +643,9 @@
      fylles/oppdateres av renderDrawer() i JS. -->
 <div id="drawer-overlay" class="drawer-overlay"></div>
 <div id="app-drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Meny"></div>
+<!-- Optimalisering 3: smart slettedialog for kontroller. Samme mønster som drawer over
+     (egen container utenfor #app), fylles av renderKontrollSlettModal(). -->
+<div id="kontroll-slett-modal"></div>
 <div id="app">Laster inn...</div>
 
 <script>
@@ -652,6 +683,12 @@ let verksteder = [];
 let loaded = false;
 
 let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
+// Optimalisering 1 — Universell tilbakeknapp: stack av {screen, vehicleId} som goTo()
+// bygger opp automatisk ved vanlig navigasjon, og som goBack() spoler tilbake gjennom.
+// Sikrer at "← Tilbake" alltid går til stedet brukeren faktisk kom fra (ikke en fast
+// side), uten å måtte tilpasse hvert enkelt sted i koden som kaller goTo().
+let screenHistory = [];
+const SCREEN_HISTORY_MAX = 30;
 let currentVehicleId = null;
 let pendingVehiclePhoto = null;
 let editingDamageId = null;
@@ -1022,7 +1059,7 @@ function nesteSakId(){
 // historikken i stedet for å opprette en ny sak (se "Bil 7 mandag/tirsdag/
 // onsdag"-eksempelet). For skader er sourceId alltid unik (damage-id), så
 // hver skade får naturlig sin egen sak uten spesialtilfelle.
-function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, prioritet, reportedBy, reportedAt, kommentar}){
+function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, prioritet, reportedBy, reportedAt, kommentar, controlId}){
   const now = new Date().toISOString();
   let sak = aktiveSaker.find(s => s.vehicleId === vehicleId && s.caseType === caseType && s.sourceId === sourceId && sakErApen(s));
   const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: kommentar || ''};
@@ -1043,17 +1080,36 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
       resolvedAt: null, resolvedBy: null, resolutionNote: '',
       reportCount: 1, lastReportedAt: now,
       historikk: [historikkOppforsel],
+      // Optimalisering 3 — Kontrollsletting: peker på kontrollen som først opprettet
+      // saken (kun satt ved førstegangsopprettelse, akkurat som på damages/varsellys),
+      // brukes til å avgjøre hva "full cleanup" av en slettet kontroll skal fjerne.
+      createdByControlId: controlId || null,
       createdAt: now, updatedAt: now
     };
     aktiveSaker.push(sak);
   }
   return sak;
 }
+// En sak regnes som "viderebehandlet" når den har beveget seg forbi utgangspunktet
+// den ble opprettet i — status endret, rapportert på nytt, fått oppfølging satt av
+// administrator, eller fått bestilt verksted. Brukes til sikkerhetsregelen ved
+// kontrollsletting: slike saker skal ALDRI fjernes automatisk uten eksplisitt bekreftelse.
+function sakHarBlittViderebehandlet(sak){
+  if(sak.status !== 'ny') return true;
+  if((sak.reportCount || 1) > 1) return true;
+  if(sak.nextAction || sak.followUpDate) return true;
+  if(sak.linkedVtId) return true;
+  return false;
+}
 const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy', 'annet-avvik'];
 const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
 const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
+// ---- Optimalisering 3 (Kontrollsletting med full cleanup) ----
+let kontrollSlettDialog = null; // {ids:[...]} | null — når satt vises modal-dialogen
+let kontrollSlettArsak = ''; // valgfri årsak til sletting, logges i bilens historikk
+let kontrollSlettBekreftViderebehandlet = false; // eksplisitt bekreftelse kreves før viderebehandlede saker kan fjernes
 let vlhSelectedIds = new Set(); // admin-only: valgte varsellampe-kvitteringer for sletting
 let kthOpenVehicles = new Set(); // hvilke biler som er utvidet i gruppert sjåførkontroll-historikk
 let vlhOpenVehicles = new Set(); // hvilke biler som er utvidet i gruppert varsellampe-kvitteringshistorikk
@@ -1195,6 +1251,7 @@ function logout(){
   isAdmin = false;
   headerMenuOpen = false;
   screen = 'login';
+  screenHistory = [];
   clearRememberedLogin();
   render();
 }
@@ -1901,11 +1958,22 @@ function ruteNumber(v){
 }
 
 // ================= Navigation =================
-function goTo(scr, vehicleId){
+function goTo(scr, vehicleId, _isBack){
   closeDatepicker();
   closeTimepicker();
+  kontrollSlettDialog = null;
   if(ADMIN_SCREENS.includes(scr) && !driverMode && !loggedInRole){
     scr = 'login';
+  }
+  // Universell navigasjonshistorikk: legg gjeldende skjerm på stacken FØR vi bytter,
+  // slik at goBack() kan spole tilbake til den. Hopper over ved tilbake-navigasjon
+  // (_isBack, satt av goBack selv — ellers ville "Tilbake" laget en løkke), ved
+  // retur til/fra innloggingssiden, og når målet er nøyaktig samme skjerm/bil som nå
+  // (unngår tomme duplikatoppføringer, f.eks. ved å trykke samme menyvalg to ganger).
+  const erSammeMal = screen === scr && (vehicleId === undefined || vehicleId === currentVehicleId);
+  if(!_isBack && !erSammeMal && screen !== 'login' && scr !== 'login'){
+    screenHistory.push({screen, vehicleId: currentVehicleId});
+    if(screenHistory.length > SCREEN_HISTORY_MAX) screenHistory.shift();
   }
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
@@ -1928,6 +1996,19 @@ function goTo(scr, vehicleId){
     kontrollFormSjaforNavn = '';
   }
   render();
+}
+// Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
+// Dashboard (eller en oppgitt fallback-skjerm) dersom historikken er tom, f.eks. ved
+// direkte lasting/refresh av en underside.
+function goBack(fallback){
+  // Rydder bort ev. oppføring(er) som peker på skjermen vi allerede står på (kan skje
+  // ved rask navigering fram og tilbake), så "Tilbake" alltid beveger seg videre.
+  while(screenHistory.length > 0 && screenHistory[screenHistory.length - 1].screen === screen && screenHistory[screenHistory.length - 1].vehicleId === currentVehicleId){
+    screenHistory.pop();
+  }
+  const prev = screenHistory.pop();
+  if(prev) goTo(prev.screen, prev.vehicleId, true);
+  else goTo(fallback || 'dashboard');
 }
 // ================= Dashboard: klikkbar hurtignavigasjon =================
 // Delte hjelpefunksjoner som navigerer til riktig side MED riktig filter aktivert,
@@ -2601,7 +2682,8 @@ async function submitKontroll(ev){
         vehicleId, caseType: 'varsellampe', sourceId: key,
         tittel: 'Varsellampe registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
         prioritet: 'hoy', reportedBy: sjafor, reportedAt: dato,
-        kommentar: (key === 'annet' ? annetTekst : VARSELLAMPE_LABEL[key]) + (kommentar ? ' · ' + kommentar : '')
+        kommentar: (key === 'annet' ? annetTekst : VARSELLAMPE_LABEL[key]) + (kommentar ? ' · ' + kommentar : ''),
+        controlId: id
       });
       sakerEndret = true;
     });
@@ -2609,7 +2691,8 @@ async function submitKontroll(ev){
       registrerAvvikSomSak({
         vehicleId, caseType: 'kontrollavvik', sourceId: key,
         tittel: KONTROLLAVVIK_LABEL[key] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
-        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar
+        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
+        controlId: id
       });
       sakerEndret = true;
     });
@@ -2617,7 +2700,8 @@ async function submitKontroll(ev){
       registrerAvvikSomSak({
         vehicleId, caseType: 'skade', sourceId: linkedDamageId,
         tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (skadeBeskrivelse ? ' ' + skadeBeskrivelse : ''),
-        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar
+        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
+        controlId: id
       });
       sakerEndret = true;
     }
@@ -2679,99 +2763,157 @@ async function deleteKontrollPhotos(k){
   }
 }
 
-// Full tilbakeføring av én eller flere slettede kontroller: fjerner varsellamper som
-// ikke lenger støttes av noen gjenværende kontroll på bilen, regner kilometerstand på
-// nytt fra siste gjenværende kontroll, og rydder opp automatisk opprettede skader
-// (kun dersom de fortsatt står urørt siden kontrollen opprettet dem).
-async function performKontrollDeletion(toDelete){
+// Analyserer hva én eller flere kontroller har opprettet, til bruk i slettedialogen
+// og i selve slettelogikken. Ren analyse — endrer ingenting.
+function analyserKontrollPavirkning(ids){
+  const idSet = new Set(ids);
+  const kontrollerListe = kontroller.filter(k => idSet.has(k.id));
+  const vehicleIds = [...new Set(kontrollerListe.map(k => k.vehicleId))];
+  const paavirkedeSkader = damages.filter(d => d.createdByControlId && idSet.has(d.createdByControlId));
+  const paavirkedeVarsler = varsellys.filter(w => w.createdByControlId && idSet.has(w.createdByControlId) && w.status === 'aktiv');
+  const paavirkedeSaker = aktiveSaker.filter(s => s.createdByControlId && idSet.has(s.createdByControlId));
+  const viderebehandledeSaker = paavirkedeSaker.filter(sakHarBlittViderebehandlet);
+  const sikreSaker = paavirkedeSaker.filter(s => !sakHarBlittViderebehandlet(s));
+  const historikkhendelser = paavirkedeSaker.reduce((sum, s) => sum + (Array.isArray(s.historikk) ? s.historikk.length : 1), 0);
+  const oppfolgingspunkter = paavirkedeSaker.filter(s => s.followUpDate || s.nextAction).length;
+  return {kontrollerListe, vehicleIds, paavirkedeSkader, paavirkedeVarsler, paavirkedeSaker, viderebehandledeSaker, sikreSaker, historikkhendelser, oppfolgingspunkter};
+}
+
+// Full tilbakeføring av én eller flere slettede kontroller.
+// modus 'kun' (Alternativ 1): fjerner KUN kontrollen(e) selv + tilhørende bilder.
+// Aktive saker, varsellamper, skader og all annen historikk står urørt — brukes når
+// kontrollen ble registrert ved en feil, men den underliggende saken fortsatt er reell.
+// modus 'full' (Alternativ 2): fjerner i tillegg alt som utelukkende stammer fra denne/
+// disse kontrollen(e) — skader og varsellamper (kun dersom fortsatt uendret/ikke lenger
+// støttet av gjenværende kontroller, som før), og nå også aktive saker (kun dersom IKKE
+// viderebehandlet, med mindre administrator har krysset av for å bekrefte likevel).
+// Uansett modus: kilometerstand rekalkuleres alltid (rent avledet tall, ingen "sak"),
+// og det logges én bevart historikkhendelse ("Kontroll slettet") på hver berørte bil.
+async function performKontrollDeletion(toDelete, opts){
+  const fullCleanup = !!(opts && opts.fullCleanup);
+  const arsak = (opts && opts.arsak) || '';
+  const bekreftViderebehandlet = !!(opts && opts.bekreftViderebehandlet);
   const affectedVehicleIds = [...new Set(toDelete.map(k => k.vehicleId))];
   const deletedIds = new Set(toDelete.map(k => k.id));
+
+  // Historikkhendelse FØR kontrollen fjernes, slik at den bevares i Kjøretøyhistorikk
+  // (vehicleHistorikkTidslinje) selv om selve kontrollen forsvinner — gjenbruker det
+  // eksisterende StatusHistorikk-feltet fra Fase 7 fremfor å opprette et nytt.
+  affectedVehicleIds.forEach(vehicleId => {
+    const v = vehicles.find(x => x.id === vehicleId);
+    if(!v) return;
+    if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
+    const antallHer = toDelete.filter(k => k.vehicleId === vehicleId).length;
+    v.statusHistorikk.push({
+      dato: todayISO(), handling: 'kontroll-slettet', arsak: arsak || '',
+      kommentar: `${antallHer} kontroll${antallHer===1?'':'er'} slettet (${fullCleanup ? 'full cleanup' : 'kun kontroll'})`,
+      av: loggedInRole || 'Ukjent'
+    });
+  });
 
   kontroller = kontroller.filter(k => !deletedIds.has(k.id));
   await saveKontroller();
 
   for(const k of toDelete) await deleteKontrollPhotos(k);
 
-  // Skader opprettet automatisk av kontrollen: slettes kun hvis de fortsatt har
-  // uendret status/alvorlighetsgrad (dvs. ingen administrator har rukket å behandle
-  // saken). Er den endret, beholdes skaden som en vanlig, uavhengig skaderegistrering.
-  let damagesChanged = false;
-  for(const k of toDelete){
-    if(!k.linkedDamageId) continue;
-    const d = damages.find(x => x.id === k.linkedDamageId);
-    if(!d) continue;
-    // Eldre skader (fra før createdByControlId fantes) har ikke referansen satt —
-    // faller da tilbake til den opprinnelige koblingen via kontrollens linkedDamageId.
-    const opprettetAvDenneKontrollen = d.createdByControlId !== undefined ? d.createdByControlId === k.id : true;
-    if(!opprettetAvDenneKontrollen) continue;
-    const uendretSidenOpprettelse = d.status === 'registrert' && d.alvorlighet === 'middels';
-    if(uendretSidenOpprettelse){
-      damages = damages.filter(x => x.id !== d.id);
-      if(d.hasPhoto) await deletePhoto('damage:'+d.id);
-      damagesChanged = true;
+  if(fullCleanup){
+    // Skader opprettet automatisk av kontrollen: slettes kun hvis de fortsatt har
+    // uendret status/alvorlighetsgrad (dvs. ingen administrator har rukket å behandle
+    // saken). Er den endret, beholdes skaden som en vanlig, uavhengig skaderegistrering.
+    let damagesChanged = false;
+    for(const k of toDelete){
+      if(!k.linkedDamageId) continue;
+      const d = damages.find(x => x.id === k.linkedDamageId);
+      if(!d) continue;
+      const opprettetAvDenneKontrollen = d.createdByControlId !== undefined ? d.createdByControlId === k.id : true;
+      if(!opprettetAvDenneKontrollen) continue;
+      const uendretSidenOpprettelse = d.status === 'registrert' && d.alvorlighet === 'middels';
+      if(uendretSidenOpprettelse){
+        damages = damages.filter(x => x.id !== d.id);
+        if(d.hasPhoto) await deletePhoto('damage:'+d.id);
+        damagesChanged = true;
+      }
     }
-  }
-  if(damagesChanged) await saveDamages();
+    if(damagesChanged) await saveDamages();
 
-  // Varsellamper og kilometerstand rekalkuleres per berørt bil ut fra hvilke
-  // kontroller som faktisk er igjen — ikke bare den ene som ble slettet.
-  let varsellysChanged = false;
-  for(const vehicleId of affectedVehicleIds){
-    const remaining = vehicleKontroller(vehicleId); // nyeste først
+    // Varsellamper rekalkuleres per berørt bil ut fra hvilke kontroller som faktisk
+    // er igjen — ikke bare den ene som ble slettet.
+    let varsellysChanged = false;
+    for(const vehicleId of affectedVehicleIds){
+      const remaining = vehicleKontroller(vehicleId); // nyeste først
+      const fortsattStøttet = new Set();
+      remaining.forEach(k => (k.varsellamper || []).forEach(type => fortsattStøttet.add(type)));
+      const before = varsellys.length;
+      varsellys = varsellys.filter(w => {
+        if(w.vehicleId !== vehicleId || w.status !== 'aktiv') return true; // rør ikke andre biler eller allerede kvitterte
+        const opprettetAvSlettet = w.createdByControlId ? deletedIds.has(w.createdByControlId) : true;
+        if(!opprettetAvSlettet) return true;
+        return fortsattStøttet.has(w.type); // fjern kun hvis ingen gjenværende kontroll lenger melder den
+      });
+      if(varsellys.length !== before) varsellysChanged = true;
+    }
+    if(varsellysChanged) await saveVarsellys();
 
-    const fortsattStøttet = new Set();
-    remaining.forEach(k => (k.varsellamper || []).forEach(type => fortsattStøttet.add(type)));
-    const before = varsellys.length;
-    varsellys = varsellys.filter(w => {
-      if(w.vehicleId !== vehicleId || w.status !== 'aktiv') return true; // rør ikke andre biler eller allerede kvitterte
-      // Bruker den eksplisitte referansen til å avgjøre om denne saken i det hele tatt
-      // stammer fra en av de slettede kontrollene (eldre saker uten referanse-felt
-      // vurderes uansett, for bakoverkompatibilitet med data fra før feltet fantes).
-      const opprettetAvSlettet = w.createdByControlId ? deletedIds.has(w.createdByControlId) : true;
-      if(!opprettetAvSlettet) return true;
-      return fortsattStøttet.has(w.type); // fjern kun hvis ingen gjenværende kontroll lenger melder den
+    // Aktive saker som utelukkende stammer fra denne/disse kontrollen(e): fjernes kun
+    // dersom de IKKE er viderebehandlet, eller administrator har eksplisitt bekreftet.
+    let sakerChanged = false;
+    aktiveSaker = aktiveSaker.filter(s => {
+      if(!s.createdByControlId || !deletedIds.has(s.createdByControlId)) return true;
+      const kanFjernesAutomatisk = !sakHarBlittViderebehandlet(s) || bekreftViderebehandlet;
+      if(kanFjernesAutomatisk){ sakerChanged = true; return false; }
+      s.createdByControlId = null; // beholdes, men referansen til den slettede kontrollen fjernes
+      return true;
     });
-    if(varsellys.length !== before) varsellysChanged = true;
-
-    const v = vehicles.find(x => x.id === vehicleId);
-    if(v && remaining.length > 0){
-      v.km = remaining[0].km; // km fra siste gjenværende kontroll på bilen
-    }
+    if(sakerChanged) await saveAktiveSaker();
+  } else {
+    // "Kun slett kontroll": rydder opp gjenværende referanser til den slettede
+    // kontrollen på det som bevisst beholdes, slik at ingenting peker på en kontroll
+    // som ikke lenger finnes ("spøkelsesreferanse") — selve innholdet er urørt.
+    let sakerRefRyddet = false;
+    aktiveSaker.forEach(s => { if(s.createdByControlId && deletedIds.has(s.createdByControlId)){ s.createdByControlId = null; sakerRefRyddet = true; } });
+    if(sakerRefRyddet) await saveAktiveSaker();
   }
-  if(varsellysChanged) await saveVarsellys();
+
+  // Kilometerstand rekalkuleres uansett modus — dette er kun et avledet tall, ikke en
+  // egen "sak" eller historikk, og skal aldri fortsette å vise data fra en slettet kontroll.
+  for(const vehicleId of affectedVehicleIds){
+    const remaining = vehicleKontroller(vehicleId);
+    const v = vehicles.find(x => x.id === vehicleId);
+    if(v && remaining.length > 0) v.km = remaining[0].km;
+  }
   await saveVehicles();
 }
 
-async function deleteKontroll(id){
-  if(!isAdmin) return;
-  const k = kontroller.find(x => x.id === id);
-  if(!k) return;
-  const harTilknyttetSkade = !!k.linkedDamageId && damages.some(d => d.id === k.linkedDamageId);
-  const harTilknyttetVarsel = varsellys.some(w => w.createdByControlId === k.id && w.status === 'aktiv');
-  const msg = (harTilknyttetSkade || harTilknyttetVarsel)
-    ? 'Denne kontrollen har opprettet varsler og/eller skader. Dersom du fortsetter vil også tilknyttede registreringer bli slettet. Ønsker du å fortsette?'
-    : 'Er du sikker på at du vil slette denne kontrollen?';
-  if(!confirm(msg)) return;
-  await performKontrollDeletion([k]);
-  kthSelectedIds.delete(id);
+// ---- Slettedialog (erstatter tidligere window.confirm()-baserte sletting) ----
+function openKontrollSlettDialog(ids){
+  if(!isAdmin || !ids || ids.length === 0) return;
+  kontrollSlettDialog = {ids};
+  kontrollSlettArsak = '';
+  kontrollSlettBekreftViderebehandlet = false;
   render();
 }
-async function deleteSelectedKontroller(){
-  if(!isAdmin || kthSelectedIds.size === 0) return;
-  const antall = kthSelectedIds.size;
-  const valgte = kontroller.filter(k => kthSelectedIds.has(k.id));
-  const harTilknyttetData = valgte.some(k =>
-    (!!k.linkedDamageId && damages.some(d => d.id === k.linkedDamageId)) ||
-    varsellys.some(w => w.createdByControlId === k.id && w.status === 'aktiv')
-  );
-  const msg = harTilknyttetData
-    ? 'Én eller flere av de ' + antall + ' valgte kontrollene har opprettet varsler og/eller skader. Dersom du fortsetter vil også tilknyttede registreringer bli slettet. Ønsker du å fortsette?'
-    : 'Er du sikker på at du vil slette ' + antall + ' valgte kontroll' + (antall === 1 ? '' : 'er') + '?';
-  if(!confirm(msg)) return;
-  const toDelete = kontroller.filter(k => kthSelectedIds.has(k.id));
-  await performKontrollDeletion(toDelete);
-  kthSelectedIds.clear();
+function lukkKontrollSlettDialog(){
+  kontrollSlettDialog = null;
   render();
+}
+async function utforKontrollSletting(fullCleanup){
+  if(!kontrollSlettDialog) return;
+  const { viderebehandledeSaker } = analyserKontrollPavirkning(kontrollSlettDialog.ids);
+  if(fullCleanup && viderebehandledeSaker.length > 0 && !kontrollSlettBekreftViderebehandlet) return; // knappen skal være deaktivert i dette tilfellet, men dobbeltsjekk uansett
+  const toDelete = kontroller.filter(k => kontrollSlettDialog.ids.includes(k.id));
+  await performKontrollDeletion(toDelete, {
+    fullCleanup, arsak: kontrollSlettArsak, bekreftViderebehandlet: kontrollSlettBekreftViderebehandlet
+  });
+  kontrollSlettDialog.ids.forEach(id => kthSelectedIds.delete(id));
+  kontrollSlettDialog = null;
+  render();
+}
+function deleteKontroll(id){
+  openKontrollSlettDialog([id]);
+}
+function deleteSelectedKontroller(){
+  if(!isAdmin || kthSelectedIds.size === 0) return;
+  openKontrollSlettDialog([...kthSelectedIds]);
 }
 
 
@@ -2903,6 +3045,8 @@ function render(){
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
 
   renderDrawer();
+  renderKontrollSlettModal();
+  attachKontrollSlettModalListeners();
 
   if(screen === 'dashboard') attachDashboardListeners();
   else if(screen === 'register') attachRegisterListeners();
@@ -3002,6 +3146,82 @@ function toggleHeaderMenu(){
   if(headerMenuOpen) closeDrawer(); else openDrawer();
 }
 
+// ================= Optimalisering 3: smart slettedialog for kontroller =================
+const KONTROLL_SLETT_ARSAK_ALTERNATIVER = ['Feilregistrering', 'Duplikat', 'Testdata', 'Annet'];
+function renderKontrollSlettModal(){
+  const container = document.getElementById('kontroll-slett-modal');
+  if(!container) return;
+  if(!kontrollSlettDialog){
+    container.innerHTML = '';
+    document.body.style.overflow = headerMenuOpen ? 'hidden' : '';
+    return;
+  }
+  const { ids } = kontrollSlettDialog;
+  const flertall = ids.length > 1;
+  const a = analyserKontrollPavirkning(ids);
+  const harData = a.paavirkedeSaker.length > 0 || a.historikkhendelser > 0 || a.oppfolgingspunkter > 0;
+  const fullDeaktivert = a.viderebehandledeSaker.length > 0 && !kontrollSlettBekreftViderebehandlet;
+
+  container.innerHTML = `
+    <div class="modal-overlay open" id="kontroll-slett-overlay">
+      <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Slett kontroll">
+        <div class="modal-title">🗑️ Slette ${flertall ? ids.length + ' kontroller' : 'kontroll'}?</div>
+        ${harData ? `
+        <div class="panel" style="margin-bottom:14px;">
+          <div class="ov-label" style="margin-bottom:8px;">${flertall ? 'De valgte kontrollene har' : 'Denne kontrollen har'} opprettet:</div>
+          <ul class="dmg-simple-list">
+            ${a.paavirkedeSaker.length > 0 ? `<li><span class="dmg-simple-main">🗂️ ${a.paavirkedeSaker.length} aktiv${a.paavirkedeSaker.length===1?'':'e'} sak${a.paavirkedeSaker.length===1?'':'er'}</span></li>` : ''}
+            ${a.historikkhendelser > 0 ? `<li><span class="dmg-simple-main">🕐 ${a.historikkhendelser} historikkhendelse${a.historikkhendelser===1?'':'r'}</span></li>` : ''}
+            ${a.oppfolgingspunkter > 0 ? `<li><span class="dmg-simple-main">📅 ${a.oppfolgingspunkter} oppfølgingspunkt${a.oppfolgingspunkter===1?'':'er'}</span></li>` : ''}
+          </ul>
+        </div>` : `<div class="empty-note" style="margin-bottom:14px;">Ingen tilknyttede saker eller varsler funnet — kontrollen kan trygt slettes.</div>`}
+
+        ${a.viderebehandledeSaker.length > 0 ? `
+        <div class="required-hint" style="background:var(--red-soft);color:var(--red);padding:12px 14px;border-radius:10px;font-weight:600;margin-bottom:12px;">
+          ⚠️ ${a.viderebehandledeSaker.length} sak${a.viderebehandledeSaker.length===1?'':'er'} ${a.viderebehandledeSaker.length===1?'er':'er'} allerede viderebehandlet (f.eks. verksted bestilt eller nye registreringer). Automatisk sletting anbefales ikke.
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:8px;margin:0 0 14px;font-size:13.5px;font-weight:600;cursor:pointer;">
+          <input type="checkbox" id="kontroll-slett-bekreft-videre" style="width:20px;height:20px;flex-shrink:0;margin-top:1px;" ${kontrollSlettBekreftViderebehandlet?'checked':''}>
+          Jeg forstår, og ønsker å fjerne disse sakene også
+        </label>` : ''}
+
+        <div class="field" style="margin-bottom:16px;"><label>Årsak til sletting (valgfritt)</label>
+          <select id="kontroll-slett-arsak">
+            <option value="">Ingen valgt</option>
+            ${KONTROLL_SLETT_ARSAK_ALTERNATIVER.map(a2 => `<option value="${a2}" ${kontrollSlettArsak===a2?'selected':''}>${a2}</option>`).join('')}
+          </select>
+        </div>
+
+        <button type="button" class="modal-btn-big" id="kontroll-slett-kun-btn">
+          Kun slett kontroll
+          <span class="modal-btn-sub">Beholder aktive saker, historikk og oppfølging</span>
+        </button>
+        <button type="button" class="modal-btn-big danger" id="kontroll-slett-full-btn" ${fullDeaktivert ? 'disabled' : ''}>
+          Slett kontroll og alle tilknyttede data
+          <span class="modal-btn-sub">${fullDeaktivert ? 'Bekreft advarselen over for å aktivere' : 'Fjerner alt som utelukkende stammer herfra'}</span>
+        </button>
+        <button type="button" class="modal-btn-big" id="kontroll-slett-avbryt-btn">Avbryt</button>
+      </div>
+    </div>
+  `;
+  document.body.style.overflow = 'hidden';
+}
+function attachKontrollSlettModalListeners(){
+  if(!kontrollSlettDialog) return;
+  const overlay = document.getElementById('kontroll-slett-overlay');
+  if(overlay) overlay.addEventListener('click', (e) => { if(e.target === overlay) lukkKontrollSlettDialog(); });
+  const avbrytBtn = document.getElementById('kontroll-slett-avbryt-btn');
+  if(avbrytBtn) avbrytBtn.addEventListener('click', () => lukkKontrollSlettDialog());
+  const kunBtn = document.getElementById('kontroll-slett-kun-btn');
+  if(kunBtn) kunBtn.addEventListener('click', () => utforKontrollSletting(false));
+  const fullBtn = document.getElementById('kontroll-slett-full-btn');
+  if(fullBtn) fullBtn.addEventListener('click', () => utforKontrollSletting(true));
+  const bekreftCheck = document.getElementById('kontroll-slett-bekreft-videre');
+  if(bekreftCheck) bekreftCheck.addEventListener('change', (e) => { kontrollSlettBekreftViderebehandlet = e.target.checked; render(); });
+  const arsakSelect = document.getElementById('kontroll-slett-arsak');
+  if(arsakSelect) arsakSelect.addEventListener('change', (e) => { kontrollSlettArsak = e.target.value; });
+}
+
 // ================= Sjåførmodus: minimal skall med kun kontrollskjemaet =================
 function renderDriverShell(){
   app.innerHTML = `
@@ -3088,33 +3308,9 @@ function renderDashboard(){
     dekkkostnader.filter(dk => dk.kostnad && dk.dato && dk.dato.startsWith(today.slice(0,7))).length +
     damages.filter(d => d.estimertKostnad && d.dato && d.dato.startsWith(today.slice(0,7))).length;
   const apneSakerCount = aktiveSaker.filter(sakErApen).length;
-  const kreverHandlingSaker = aktiveSaker.filter(s => sakKreverHandling(s));
-  const SAK_PRIO_SORT = {kritisk:0, hoy:1, normal:2, lav:3};
-  const kreverHandlingTop5 = kreverHandlingSaker.slice().sort((a,b) => {
-    const pa = SAK_PRIO_SORT[a.priority] ?? 2, pb = SAK_PRIO_SORT[b.priority] ?? 2;
-    if(pa !== pb) return pa - pb;
-    return (a.reportedAt||'').localeCompare(b.reportedAt||'');
-  }).slice(0, 5);
-  // Fase 5 — Oppfølgingsmotor: forfalte saker og dagens oppfølginger, samt kommende
-  // verkstedtimer denne uken, brukt til "Viktige varsler" og de to nye seksjonene.
-  const forfalteSaker = sakerForfalt().sort((a,b) => (a.followUpDate||'').localeCompare(b.followUpDate||''));
-  const oppfolgingIdagSaker = sakerOppfolgingIdag();
-  const vtDenneUken = upcomingVT.filter(t => vtWithinWeek(t.dato));
-  // Fase 3: "Bil på verksted" = biler med minst én åpen sak i status "Verksted bestilt"
-  // eller "Utført - venter bekreftelse", eller en registrert (ikke nødvendigvis
-  // saks-tilknyttet) verkstedtime i dag eller fremover.
-  const bilerPaVerksted = new Set([
-    ...aktiveSaker.filter(s => sakErApen(s) && (s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')).map(s => s.vehicleId),
-    ...verkstedtimer.filter(t => t.dato >= today).map(t => t.vehicleId)
-  ]);
   const nesteVerkstedtimerTop5 = verkstedtimer.filter(t => t.dato >= today)
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))
     .slice(0, 5);
-  // Fase 7 (Bilstatus 2.0) — bilparkhelse bygget på den sentrale, prioriterte
-  // statusmotoren (vehicleHovedstatus), slik at Dashboard, Biloversikt og
-  // Kjøretøyprofil alltid viser samme hovedstatus for en bil.
-  const bilparkhelse = {'ute-av-drift':0, kritisk:0, verksted:0, oppfolging:0, 'ikke-kontrollert':0, operativ:0};
-  vehicles.forEach(v => { bilparkhelse[vehicleHovedstatus(v.id)]++; });
   const kritiskeBiler = vehicles.filter(v => vehicleHovedstatus(v.id) === 'kritisk');
   const verkstedBestiltCount = aktiveSaker.filter(s => sakErApen(s) && s.status === 'verksted-bestilt').length;
   const eldsteApneSakerTop5 = aktiveSaker.filter(sakErApen).slice().sort((a,b) => (a.reportedAt||'').localeCompare(b.reportedAt||'')).slice(0, 5);
@@ -3124,6 +3320,34 @@ function renderDashboard(){
     .reduce((sum,s) => sum + Number(s.estimatedCost||0), 0);
   const avsettingerApneDash = aktiveSaker.filter(s => sakErApen(s) && s.requiresProvision && s.provisionAmount !== undefined && s.provisionAmount !== null)
     .reduce((sum,s) => sum + Number(s.provisionAmount||0), 0);
+
+  // ---- Optimalisering 2 (Rydd Dashboard) — ÉN samlet "Krever handling nå" ----
+  // Alt som krever driftskoordinators oppmerksomhet samles i tre kategorier og vises
+  // kun ÉTT sted på dashboardet (i stedet for spredt over "Viktige varsler", en egen
+  // "Forfalte saker"-liste, en egen "Oppfølging i dag"-liste og en egen "Krever
+  // handling"-metrikk som før). Gjenbruker eksisterende sakKreverHandling() — ingen ny
+  // forretningslogikk, kun samlet presentasjon.
+  const kritiskeSakerAlle = aktiveSaker.filter(s => sakErApen(s) && s.priority === 'kritisk');
+  const oppfolgingKreverHandlingSaker = aktiveSaker.filter(s => sakErApen(s) && s.priority !== 'kritisk' && sakKreverHandling(s));
+  const uteAvDriftBiler = vehicles.filter(v => v.uteAvDrift);
+  const dashTotalHandlinger = kritiskeSakerAlle.length + oppfolgingKreverHandlingSaker.length + manglerKontrollCount;
+  const dashKreverListe = [];
+  uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || ''}));
+  kritiskeSakerAlle.forEach(s => {
+    const alder = sakAlderDager(s);
+    dashKreverListe.push({sort:0, ikon:'🔴', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`});
+  });
+  oppfolgingKreverHandlingSaker.forEach(s => {
+    const op = sakOppfolgingStatus(s);
+    const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
+    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2});
+  });
+  vehicles.filter(v => !isKontrollertIdag(v.id)).forEach(v => {
+    dashKreverListe.push({sort:3, ikon:'🟡', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:''});
+  });
+  dashKreverListe.sort((a,b) => a.sort - b.sort);
+  const dashKreverTop5 = dashKreverListe.slice(0, 5);
+
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -3173,125 +3397,61 @@ function renderDashboard(){
         </div>
       </div>
     </div>
-    ${(forfalteSaker.length > 0 || oppfolgingIdagSaker.length > 0 || vtDenneUken.length > 0 || kritiskeBiler.length > 0 || manglerKontrollCount > 0) ? `
-    <div class="panel" style="margin:0 0 16px;">
-      <div class="ov-label" style="margin-bottom:8px;">⚠️ Viktige varsler</div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:600;">
-        ${kritiskeBiler.length > 0 ? `<div style="color:var(--red);">🔴 ${kritiskeBiler.length} kritisk${kritiskeBiler.length===1?' sak':'e saker'}</div>` : ''}
-        ${forfalteSaker.length > 0 ? `<div style="color:var(--red);">🔴 ${forfalteSaker.length} forfalt${forfalteSaker.length===1?' sak':'e saker'}</div>` : ''}
-        ${manglerKontrollCount > 0 ? `<div style="color:var(--orange);">🟠 ${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll</div>` : ''}
-        ${oppfolgingIdagSaker.length > 0 ? `<div style="color:var(--orange);">🟠 ${oppfolgingIdagSaker.length} oppfølging${oppfolgingIdagSaker.length===1?'':'er'} i dag</div>` : ''}
-        ${vtDenneUken.length > 0 ? `<div style="color:var(--amber);">🟡 ${vtDenneUken.length} verkstedtime${vtDenneUken.length===1?'':'r'} denne uken</div>` : ''}
-      </div>
-    </div>
-    <div class="dash-quick-links" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
-      <button class="btn secondary small" id="dash-hurtig-forfalt" style="justify-content:center;">🔴 Forfalte saker</button>
-      <button class="btn secondary small" id="dash-hurtig-idag" style="justify-content:center;">🟠 Oppfølging i dag</button>
-      <button class="btn secondary small" id="dash-hurtig-verksted" style="justify-content:center;">📅 Kommende verksted</button>
-    </div>` : ''}
-    ${forfalteSaker.length > 0 ? `
-    <div class="panel" id="dash-forfalt-card" style="cursor:pointer;margin-bottom:16px;border-color:var(--red);background:var(--red-soft);" data-goto-forfalt>
-      <div class="ov-label" style="color:var(--red);margin-bottom:10px;">🔴 Forfalte saker</div>
-      <div class="dmg-list">
-        ${forfalteSaker.slice(0, 5).map(s => {
-          const v = sakVehicle(s);
-          const dagerForfalt = -daysUntil(s.followUpDate);
-          return `
-          <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">🔴 ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-                <div class="desc">Oppfølging forfalt med ${dagerForfalt} dag${dagerForfalt===1?'':'er'}</div>
-                <div class="dmg-meta">${esc(s.title)}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
-    ${oppfolgingIdagSaker.length > 0 ? `
-    <div class="panel" id="dash-oppfolging-idag-card" style="cursor:pointer;margin-bottom:16px;border-color:var(--orange);background:var(--orange-soft);" data-goto-oppfolging-idag>
-      <div class="ov-label" style="color:var(--orange);margin-bottom:10px;">🟠 Oppfølging i dag</div>
-      <div class="dmg-list">
-        ${oppfolgingIdagSaker.map(s => {
-          const v = sakVehicle(s);
-          return `
-          <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-                <div class="desc">${esc(s.title)}</div>
-                <div class="dmg-meta">${esc(sakVarslingTekst(s))}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
+
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
-    <div class="required-hint" id="db-warning-banner" style="margin:0 0 20px;background:var(--amber-soft);padding:12px 14px;border-radius:10px;font-weight:600;color:var(--ink);cursor:pointer;">
+    <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:10px;font-weight:600;color:var(--ink);cursor:pointer;">
       ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
+
+    <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
+      <div class="ov-label" style="${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'color:var(--red);' : ''}margin-bottom:10px;">${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? '⚡' : '✅'} Krever handling nå</div>
+      ${dashTotalHandlinger === 0 && uteAvDriftBiler.length === 0 ? `
+      <div style="color:var(--green);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
+      ` : `
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:600;margin-bottom:12px;">
+        ${kritiskeSakerAlle.length > 0 ? `<div style="color:var(--red);">🔴 ${kritiskeSakerAlle.length} kritisk${kritiskeSakerAlle.length===1?' sak':'e saker'}</div>` : ''}
+        ${uteAvDriftBiler.length > 0 ? `<div style="color:var(--red);">⛔ ${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift</div>` : ''}
+        ${oppfolgingKreverHandlingSaker.length > 0 ? `<div style="color:var(--orange);">🟠 ${oppfolgingKreverHandlingSaker.length} oppfølging${oppfolgingKreverHandlingSaker.length===1?'':'er'} i dag</div>` : ''}
+        ${manglerKontrollCount > 0 ? `<div style="color:var(--amber);">🟡 ${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll</div>` : ''}
+      </div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;${dashTotalHandlinger > 0 ? 'color:var(--red);' : ''}margin-bottom:12px;">Totalt: ${dashTotalHandlinger} handling${dashTotalHandlinger===1?'':'er'}</div>
+      <div class="dmg-list">
+        ${dashKreverTop5.map(item => {
+          const v = vehicles.find(x => x.id === item.vehicleId);
+          return `
+          <div class="dmg-item" style="cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
+            <div class="dmg-top">
+              <div class="dmg-text">
+                <div class="main">${item.ikon} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
+                <div class="desc">${esc(item.linje1)}</div>
+                ${item.linje2 ? `<div class="dmg-meta">${esc(item.linje2)}</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${dashKreverListe.length > 5 ? `<div class="required-hint" style="margin-top:8px;">+ ${dashKreverListe.length - 5} til — se Aktive Saker eller Biloversikt for full liste.</div>` : ''}
+      `}
+    </div>
+
     <div class="stat-grid" style="margin-bottom:16px;">
       <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">🚚 Totale biler</div></div>
       <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount}</div><div class="stat-label">✅ Kontrollert i dag</div></div>
-      <div class="stat-card" data-stat-nav="mangler-kontroll"><div class="stat-num">${manglerKontrollCount}</div><div class="stat-label">⚪ Ikke kontrollert</div></div>
       <div class="stat-card" data-quick-page="aktivesaker"><div class="stat-num">${apneSakerCount}</div><div class="stat-label">📋 Aktive saker</div></div>
       <div class="stat-card" data-quick-page="verksted"><div class="stat-num">${verkstedBestiltCount}</div><div class="stat-label">🔧 Verksted bestilt</div></div>
       <div class="stat-card ${kritiskeBiler.length > 0 ? 'accent-red' : ''}" data-goto-biloversikt-filter="kritisk"><div class="stat-num">${kritiskeBiler.length}</div><div class="stat-label">🚨 Kritiske biler</div></div>
     </div>
-    <div class="panel" id="dash-krever-handling-card" style="cursor:pointer;margin-bottom:16px;${kreverHandlingSaker.length > 0 ? 'border-color:var(--red);background:var(--red-soft);' : ''}" data-goto-krever-handling>
-      <div class="ov-label" style="${kreverHandlingSaker.length > 0 ? 'color:var(--red);' : ''}">${kreverHandlingSaker.length > 0 ? '🔴' : '🟢'} Krever handling</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;${kreverHandlingSaker.length > 0 ? 'color:var(--red);' : ''}">${kreverHandlingSaker.length} sak${kreverHandlingSaker.length===1?'':'er'}</div>
-    </div>
-
-    ${kreverHandlingTop5.length > 0 ? `
-    <div class="panel" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:10px;">⚡ Krever handling nå</h3>
-      <div class="dmg-list">
-        ${kreverHandlingTop5.map(s => {
-          const v = sakVehicle(s);
-          const alder = sakAlderDager(s);
-          return `
-          <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-                <div class="desc">${SAK_TYPE_IKON[s.caseType] || '📁'} ${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · ${SAK_STATUS_LABEL[s.status] || s.status}</div>
-                <div class="desc">Åpen i ${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}</div>
-                <div class="dmg-meta">${s.nextAction ? '➡️ ' + esc(s.nextAction) : '⚠️ Neste handling mangler'}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
 
     <div class="panel" id="dash-mangler-kontroll-card" style="cursor:pointer;margin-bottom:16px;" data-stat-nav="mangler-kontroll">
-      <div class="ov-label">✅ Kontroller i dag</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;">${kontrollertIdagCount} / ${totalVehicles} kontrollert</div>
-      ${manglerKontrollCount > 0 ? `<div class="required-hint" style="margin-top:4px;">${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll</div>` : `<div class="required-hint" style="margin-top:4px;color:var(--green);">Alle biler kontrollert i dag</div>`}
-    </div>
-
-    ${kritiskeBiler.length > 0 ? `
-    <div class="panel" style="margin-bottom:16px;border-color:var(--red);background:var(--red-soft);">
-      <div class="ov-label" style="color:var(--red);margin-bottom:10px;">🚨 Kritiske biler</div>
-      <div class="dmg-list">
-        ${kritiskeBiler.map(v => {
-          const kritSak = vehicleKritiskeSaker(v.id)[0];
-          return `
-          <div class="dmg-item" style="cursor:pointer;" ${kritSak ? `data-goto-sak="${kritSak.id}"` : `data-edit="${v.id}"`}>
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">🔴 ${esc(vehicleLabel(v))}</div>
-                <div class="desc">${kritSak ? esc(kritSak.title) : 'Kritisk'}</div>
-                <div class="dmg-meta">Kritisk</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
+      <div class="ov-label" style="margin-bottom:8px;">✅ Kontrollstatus</div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${kontrollertIdagCount} / ${totalVehicles} kontrollert</span>
+        <span style="font-size:13px;font-weight:700;color:${manglerKontrollCount > 0 ? 'var(--amber)' : 'var(--green)'};">${totalVehicles > 0 ? Math.round((kontrollertIdagCount/totalVehicles)*100) : 0}%</span>
       </div>
-    </div>` : ''}
+      <div style="height:10px;border-radius:6px;background:var(--line);overflow:hidden;">
+        <div style="height:100%;border-radius:6px;background:${manglerKontrollCount === 0 && totalVehicles > 0 ? 'var(--green)' : 'var(--amber)'};width:${totalVehicles > 0 ? Math.round((kontrollertIdagCount/totalVehicles)*100) : 0}%;"></div>
+      </div>
+    </div>
 
     ${nesteVerkstedtimerTop5.length > 0 ? `
     <div class="panel" style="margin-bottom:16px;">
@@ -3336,18 +3496,6 @@ function renderDashboard(){
         }).join('')}
       </div>
     </div>` : ''}
-
-    <div class="panel" id="dash-bilparkhelse-card" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:10px;">🩺 Bilparkhelse</div>
-      <div class="ov-grid">
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="operativ"><span class="ov-label">🟢 Operative</span><span class="ov-value">${bilparkhelse.operativ}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="oppfolging"><span class="ov-label">🟡 Under oppfølging</span><span class="ov-value">${bilparkhelse.oppfolging}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="verksted"><span class="ov-label">🟠 Verksted bestilt</span><span class="ov-value">${bilparkhelse.verksted}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🔴 Kritiske biler</span><span class="ov-value">${bilparkhelse.kritisk}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="ute-av-drift"><span class="ov-label">⛔ Ute av drift</span><span class="ov-value">${bilparkhelse['ute-av-drift']}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="ikke-kontrollert"><span class="ov-label">⚪ Ikke kontrollert</span><span class="ov-value">${bilparkhelse['ikke-kontrollert']}</span></div>
-      </div>
-    </div>
 
     <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
       <div class="panel" id="dash-forventet-kostnad-card" style="cursor:pointer;" data-quick-page="kostnadsoversikt">
@@ -3539,21 +3687,10 @@ function attachDashboardListeners(){
     vtOversiktOpenVehicles = new Set([vehicleId]);
     goTo('verksted');
   }));
-  const kreverHandlingCard = document.getElementById('dash-krever-handling-card');
-  if(kreverHandlingCard) kreverHandlingCard.addEventListener('click', () => goToAktiveSakerKreverHandling());
-  const hurtigForfalt = document.getElementById('dash-hurtig-forfalt');
-  if(hurtigForfalt) hurtigForfalt.addEventListener('click', () => goToAktiveSakerOppfolging('forfalt'));
-  const hurtigIdag = document.getElementById('dash-hurtig-idag');
-  if(hurtigIdag) hurtigIdag.addEventListener('click', () => goToAktiveSakerOppfolging('idag'));
-  const hurtigVerksted = document.getElementById('dash-hurtig-verksted');
-  if(hurtigVerksted) hurtigVerksted.addEventListener('click', () => goToVerkstedFiltered('kommende'));
-  const forfaltCard = document.getElementById('dash-forfalt-card');
-  if(forfaltCard) forfaltCard.addEventListener('click', () => goToAktiveSakerOppfolging('forfalt'));
-  const oppfolgingIdagCard = document.getElementById('dash-oppfolging-idag-card');
-  if(oppfolgingIdagCard) oppfolgingIdagCard.addEventListener('click', () => goToAktiveSakerOppfolging('idag'));
   const avsettingerCard = document.getElementById('dash-avsettinger-card');
   if(avsettingerCard) avsettingerCard.addEventListener('click', () => goToKostnadsoversiktAvsettinger());
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
+  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goTo('bilkort', el.dataset.gotoBilkort); }));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
     if(!vt) return;
@@ -4097,7 +4234,7 @@ function renderDekkoversikt(){
   `;
 }
 function attachDekkoversiktListeners(){
-  document.getElementById('dekk-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('dekk-back').addEventListener('click', () => goBack());
   document.getElementById('add-dekkkostnad-btn').addEventListener('click', () => {
     showAddDekkkostnad = !showAddDekkkostnad;
     render();
@@ -4216,7 +4353,7 @@ function renderKontrolloversikt(){
   `;
 }
 function attachKontrolloversiktListeners(){
-  document.getElementById('ko-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('ko-back').addEventListener('click', () => goBack());
   document.querySelectorAll('[data-periode]').forEach(el => el.addEventListener('click', () => { kontrolloversiktPeriode = el.dataset.periode; render(); }));
   const fraEl = document.getElementById('ko-fra');
   if(fraEl) fraEl.addEventListener('change', () => { kontrolloversiktFraDato = readDateInput('ko-fra'); render(); });
@@ -4340,7 +4477,7 @@ function renderVarslerOversikt(){
   `;
 }
 function attachVarslerOversiktListeners(){
-  document.getElementById('varsler-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('varsler-back').addEventListener('click', () => goBack());
   document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
@@ -4403,7 +4540,11 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
   });
   if(v && Array.isArray(v.statusHistorikk)){
     v.statusHistorikk.forEach(h => {
-      hendelser.push({dato: h.dato, tid: '', type: 'statusendring', tekst: h.handling === 'ute-av-drift' ? 'Markert ute av drift' + (h.arsak ? ': ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '') : 'Satt tilbake i drift' + (h.kommentar ? ': ' + h.kommentar : ''), av: h.av || ''});
+      let tekst;
+      if(h.handling === 'ute-av-drift') tekst = 'Markert ute av drift' + (h.arsak ? ': ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '');
+      else if(h.handling === 'kontroll-slettet') tekst = 'Kontroll slettet av administrator' + (h.arsak ? ' · Årsak: ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '');
+      else tekst = 'Satt tilbake i drift' + (h.kommentar ? ': ' + h.kommentar : '');
+      hendelser.push({dato: h.dato, tid: '', type: 'statusendring', tekst, av: h.av || ''});
     });
   }
   let filtered = hendelser.filter(h => h.dato);
@@ -4731,7 +4872,7 @@ function renderBilkort(){
   `;
 
   return `
-    <div class="backrow"><button class="backbtn" id="back-to-register">← Bilregister</button></div>
+    <div class="backrow"><button class="backbtn" id="back-to-register">← Tilbake</button></div>
     <div class="bilkort-head">
       <div class="bilkort-title">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
@@ -4786,7 +4927,7 @@ function renderBilkort(){
 }
 function attachBilkortListeners(){
   const v = vehicles.find(x => x.id === currentVehicleId);
-  document.getElementById('back-to-register').addEventListener('click', () => goTo('register'));
+  document.getElementById('back-to-register').addEventListener('click', () => goBack('register'));
   document.getElementById('del-vehicle').addEventListener('click', () => deleteVehicle(currentVehicleId));
   document.querySelectorAll('[data-toggle-bilkort]').forEach(el => el.addEventListener('click', () => toggleBilkortSection(el.dataset.toggleBilkort)));
   document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
@@ -4989,7 +5130,7 @@ function renderSkader(){
   `;
 }
 function attachSkaderListeners(){
-  document.getElementById('sk-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('sk-back').addEventListener('click', () => goBack());
   document.getElementById('add-skade-btn').addEventListener('click', () => {
     showAddSkade = !showAddSkade;
     if(!showAddSkade) skadePrefillVehicleId = '';
@@ -5323,7 +5464,7 @@ function renderAktiveSaker(){
   `;
 }
 function attachAktiveSakerListeners(){
-  document.getElementById('sak-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('sak-back').addEventListener('click', () => goBack());
   document.getElementById('sak-filter-toggle-btn').addEventListener('click', () => {
     showSakFilterMeny = !showSakFilterMeny;
     render();
@@ -5665,7 +5806,7 @@ function vtCard(t, upcoming, isNext){
 }
 
 function attachVerkstedListeners(){
-  document.getElementById('vt-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('vt-back').addEventListener('click', () => goBack());
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     if(!showAddVT){ vtPrefillVehicleId = ''; vtPrefillSakId = ''; }
@@ -6063,7 +6204,7 @@ function rapportFilterPanelHtml(){
 function rapportHeaderHtml(){
   const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length;
   return `
-    <div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← ${rapportType ? 'Rapporter' : 'Dashboard'}</button></div>
+    <div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
     ${rapportType ? `
     <div class="toolbar" style="margin-bottom:16px;">
@@ -6247,7 +6388,7 @@ function renderKostnadsoversikt(){
   `;
 }
 function attachKostnadsoversiktListeners(){
-  document.getElementById('kost-back').addEventListener('click', () => goTo('dashboard'));
+  document.getElementById('kost-back').addEventListener('click', () => goBack());
   document.getElementById('kost-filter-toggle-btn').addEventListener('click', () => {
     showKostFilterMeny = !showKostFilterMeny;
     render();
@@ -6432,7 +6573,7 @@ function attachRapporterListeners(){
   const tilbakeBtn = document.getElementById('rapport-tilbake-btn');
   if(tilbakeBtn) tilbakeBtn.addEventListener('click', () => {
     if(rapportType){ rapportType = ''; showRapportFilterMeny = false; render(); }
-    else goTo('dashboard');
+    else goBack();
   });
   document.querySelectorAll('[data-goto-rapport]').forEach(el => el.addEventListener('click', () => goToRapport(el.dataset.gotoRapport)));
   const filterToggleBtn = document.getElementById('rapport-filter-toggle-btn');
@@ -6617,7 +6758,7 @@ function analyseFilterPanelHtml(){
 function analyseHeaderHtml(){
   const antallAktiveFiltre = [analyseFilterBil, analyseFilterGruppe, analyseFilterManed, analyseFilterAr, analyseFilterType, analyseFilterStatus].filter(Boolean).length;
   return `
-    <div class="backrow"><button class="backbtn" id="analyse-tilbake-btn">← ${analyseType ? 'Analyse' : 'Dashboard'}</button></div>
+    <div class="backrow"><button class="backbtn" id="analyse-tilbake-btn">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">${analyseType ? ANALYSE_IKON[analyseType] + ' ' + ANALYSE_LABEL[analyseType] : '🔍 Analyse'}</h2>
     ${analyseType ? `
     <div class="toolbar" style="margin-bottom:16px;">
@@ -6782,7 +6923,7 @@ function attachAnalyseListeners(){
   const tilbakeBtn = document.getElementById('analyse-tilbake-btn');
   if(tilbakeBtn) tilbakeBtn.addEventListener('click', () => {
     if(analyseType){ analyseType = ''; showAnalyseFilterMeny = false; render(); }
-    else goTo('dashboard');
+    else goBack();
   });
   document.querySelectorAll('[data-goto-analyse]').forEach(el => el.addEventListener('click', () => goToAnalyse(el.dataset.gotoAnalyse)));
   const filterToggleBtn = document.getElementById('analyse-filter-toggle-btn');
@@ -7313,10 +7454,7 @@ function attachKontrollListeners(){
   const avvikHead = document.querySelector('[data-toggle-kt-avvik]');
   if(avvikHead) avvikHead.addEventListener('click', () => { kontrollAvvikOpen = !kontrollAvvikOpen; render(); });
   const backBtn = document.getElementById('kt-back');
-  if(backBtn) backBtn.addEventListener('click', () => {
-    if(kontrollPrefillVehicleId) goTo('bilkort', kontrollPrefillVehicleId);
-    else goTo('dashboard');
-  });
+  if(backBtn) backBtn.addEventListener('click', () => goBack());
   document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
 
   document.getElementById('kt-vehicle').addEventListener('change', e => {
@@ -7397,7 +7535,7 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // Sveip venstre hvor som helst = åpne sidemenyen (samme som ☰ Meny).
 // Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
 // textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt'];
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'bilkort', 'kontroll'];
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false;
 const SWIPE_TERSKEL = 70;
 document.addEventListener('touchstart', (e) => {
@@ -7422,9 +7560,16 @@ document.addEventListener('touchend', (e) => {
   swipeStartX = null;
   if(Math.abs(dx) < SWIPE_TERSKEL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   if(dx > 0){
-    // Sveip høyre: tilbake til Dashboard på oversiktssider. Ingenting på Dashboard selv.
+    // Sveip høyre: samme "tilbake"-logikk som ← Tilbake-knappen (går til reell
+    // forrige skjerm via navigasjonshistorikken). Ingenting på Dashboard selv.
     if(!driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)){
-      goTo('dashboard');
+      if((screen === 'rapporter' && rapportType) || (screen === 'analyse' && analyseType)){
+        if(screen === 'rapporter'){ rapportType = ''; showRapportFilterMeny = false; }
+        else { analyseType = ''; showAnalyseFilterMeny = false; }
+        render();
+      } else {
+        goBack(screen === 'bilkort' ? 'register' : 'dashboard');
+      }
     }
   } else {
     // Sveip venstre: åpne menyen (kun der menyknappen finnes).
