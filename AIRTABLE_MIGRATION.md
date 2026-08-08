@@ -57,7 +57,25 @@ hvilket kjøretøy en sjåførkontroll gjelder).
 **Vehicles**: `AppId` (text), `Bilnummer` (text), `Regnr` (text), `Merke`
 (text), `Modell` (text), `Årsmodell` (text), `Kategori` (text: bil/lastebil/
 montering), `Status` (text: ok/oppfolging/verksted), `Dekk` (text), `KM`
-(number), `Løyvenummer` (text), `HasPhoto` (checkbox)
+(number), `Løyvenummer` (text), `HasPhoto` (checkbox). Lagt til i
+"Fase 7 — Bilstatus 2.0 og Komplett Kjøretøyhistorikk" (administratorfunksjonen
+«Marker ute av drift» / «Sett tilbake i drift» på Kjøretøyprofil):
+`UteAvDrift` (checkbox — overstyrer alt annet i den sentrale
+statusmotoren, se `vehicleHovedstatus()` i `index.html`), `UteAvDriftArsak`
+(text), `UteAvDriftKommentar` (long text), `UteAvDriftDato` (text,
+DD/MM/ÅÅÅÅ — dato for siste "ute av drift"-markering), `StatusHistorikk`
+(long text/JSON — logg over hver ute av drift/tilbake i drift-hendelse:
+`{dato, handling, arsak, kommentar, av}`; slettes aldri, kun lagt til i)
+
+**⚠️ Manuelt steg gjenstår:** `storage.airtable.js` (feltmappingen mellom
+appens kjøretøy-objekt og Airtable-kolonnene for Vehicles-tabellen) var ikke
+tilgjengelig i dette prosjektet under denne økten, og kunne derfor ikke
+oppdateres automatisk. Legg til de 5 feltene over — `UteAvDrift`,
+`UteAvDriftArsak`, `UteAvDriftKommentar`, `UteAvDriftDato`, `StatusHistorikk`
+— i Vehicles-delen av `storage.airtable.js` sin `LIST_TABLES`-oppsett (samme
+mønster som de øvrige Vehicles-feltene), samt selve kolonnene i Airtable-
+basen. Uten dette lagres feltene kun lokalt i appens minne inntil siden
+lastes på nytt.
 
 **DriverChecks**: `AppId`, `VehicleId` (text — samme verdi som `AppId` på
 den aktuelle Vehicles-raden), `Dato` (text, DD/MM/ÅÅÅÅ), `Tidspunkt` (text),
