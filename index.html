@@ -3287,8 +3287,6 @@ function isFlagged(v){
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   const totalVehicles = vehicles.length;
-  const vehiclesWithDamages = new Set(damages.map(d => d.vehicleId)).size;
-  const openSkadesaker = damages.filter(skadeIsOpen).length;
 
   const today = todayISO();
   const upcomingVT = verkstedtimer.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
@@ -3298,28 +3296,12 @@ function renderDashboard(){
   const aktiveVarsler = allActiveVarsellys();
   const kontrollertIdagCount = vehicles.filter(v => isKontrollertIdag(v.id)).length;
   const manglerKontrollCount = totalVehicles - kontrollertIdagCount;
-  const nyeSkaderIdag = damages.filter(d => d.dato === today).length;
-  const dekkOver5ArCount = vehicles.filter(v => {
-    const s = dekkAlderStatus(v.sommerdekkDot), w = dekkAlderStatus(v.vinterdekkDot);
-    return (s && s.status === 'gammel') || (w && w.status === 'gammel');
-  }).length;
-  const kostnaderDenneManedCount =
-    verkstedtimer.filter(t => t.pris && t.dato && t.dato.startsWith(today.slice(0,7))).length +
-    dekkkostnader.filter(dk => dk.kostnad && dk.dato && dk.dato.startsWith(today.slice(0,7))).length +
-    damages.filter(d => d.estimertKostnad && d.dato && d.dato.startsWith(today.slice(0,7))).length;
   const apneSakerCount = aktiveSaker.filter(sakErApen).length;
   const nesteVerkstedtimerTop5 = verkstedtimer.filter(t => t.dato >= today)
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))
     .slice(0, 5);
   const kritiskeBiler = vehicles.filter(v => vehicleHovedstatus(v.id) === 'kritisk');
   const verkstedBestiltCount = aktiveSaker.filter(s => sakErApen(s) && s.status === 'verksted-bestilt').length;
-  const eldsteApneSakerTop5 = aktiveSaker.filter(sakErApen).slice().sort((a,b) => (a.reportedAt||'').localeCompare(b.reportedAt||'')).slice(0, 5);
-  // Fase 4: forventede kostnader = sum av estimert kostnad på åpne saker.
-  // Avsettinger = sum av avsettingsbeløp på åpne saker som krever avsetting.
-  const forventetKostnadDash = aktiveSaker.filter(s => sakErApen(s) && s.estimatedCost !== undefined && s.estimatedCost !== null)
-    .reduce((sum,s) => sum + Number(s.estimatedCost||0), 0);
-  const avsettingerApneDash = aktiveSaker.filter(s => sakErApen(s) && s.requiresProvision && s.provisionAmount !== undefined && s.provisionAmount !== null)
-    .reduce((sum,s) => sum + Number(s.provisionAmount||0), 0);
 
   // ---- Optimalisering 2 (Rydd Dashboard) — ÉN samlet "Krever handling nå" ----
   // Alt som krever driftskoordinators oppmerksomhet samles i tre kategorier og vises
@@ -3348,6 +3330,12 @@ function renderDashboard(){
   dashKreverListe.sort((a,b) => a.sort - b.sort);
   const dashKreverTop5 = dashKreverListe.slice(0, 5);
 
+  // Optimalisering 4 (Dashboard Pro) — kompakt Bilparkhelse-telling, bygget på samme
+  // sentrale, prioriterte statusmotor (vehicleHovedstatus) som Biloversikt-filteret og
+  // Kjøretøyprofil, slik at tallene alltid stemmer overens.
+  const bilparkhelse = {'ute-av-drift':0, kritisk:0, verksted:0, oppfolging:0, 'ikke-kontrollert':0, operativ:0};
+  vehicles.forEach(v => { bilparkhelse[vehicleHovedstatus(v.id)]++; });
+  const nesteVerkstedtimerTop3 = nesteVerkstedtimerTop5.slice(0, 3);
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -3403,6 +3391,18 @@ function renderDashboard(){
       ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
+    <div class="panel" id="dash-hovedstatus-card" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:8px;">🚚 Hovedstatus</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;margin-bottom:10px;cursor:pointer;" data-stat-nav="alle-biler">${totalVehicles} biler totalt</div>
+      <div class="ov-grid">
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Kontrollert</span><span class="ov-value">${kontrollertIdagCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${manglerKontrollCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="aktivesaker"><span class="ov-label">📋 Aktive saker</span><span class="ov-value">${apneSakerCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="verksted"><span class="ov-label">🔧 Verksted</span><span class="ov-value">${verkstedBestiltCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🚨 Kritisk</span><span class="ov-value">${kritiskeBiler.length}</span></div>
+      </div>
+    </div>
+
     <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
       <div class="ov-label" style="${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'color:var(--red);' : ''}margin-bottom:10px;">${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? '⚡' : '✅'} Krever handling nå</div>
       ${dashTotalHandlinger === 0 && uteAvDriftBiler.length === 0 ? `
@@ -3415,6 +3415,7 @@ function renderDashboard(){
         ${manglerKontrollCount > 0 ? `<div style="color:var(--amber);">🟡 ${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll</div>` : ''}
       </div>
       <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;${dashTotalHandlinger > 0 ? 'color:var(--red);' : ''}margin-bottom:12px;">Totalt: ${dashTotalHandlinger} handling${dashTotalHandlinger===1?'':'er'}</div>
+      <div class="ov-label" style="margin-bottom:8px;">📋 Operativ arbeidsliste</div>
       <div class="dmg-list">
         ${dashKreverTop5.map(item => {
           const v = vehicles.find(x => x.id === item.vehicleId);
@@ -3434,37 +3435,28 @@ function renderDashboard(){
       `}
     </div>
 
-    <div class="stat-grid" style="margin-bottom:16px;">
-      <div class="stat-card" data-stat-nav="alle-biler"><div class="stat-num">${totalVehicles}</div><div class="stat-label">🚚 Totale biler</div></div>
-      <div class="stat-card" data-stat-nav="kontrollert-idag"><div class="stat-num">${kontrollertIdagCount}</div><div class="stat-label">✅ Kontrollert i dag</div></div>
-      <div class="stat-card" data-quick-page="aktivesaker"><div class="stat-num">${apneSakerCount}</div><div class="stat-label">📋 Aktive saker</div></div>
-      <div class="stat-card" data-quick-page="verksted"><div class="stat-num">${verkstedBestiltCount}</div><div class="stat-label">🔧 Verksted bestilt</div></div>
-      <div class="stat-card ${kritiskeBiler.length > 0 ? 'accent-red' : ''}" data-goto-biloversikt-filter="kritisk"><div class="stat-num">${kritiskeBiler.length}</div><div class="stat-label">🚨 Kritiske biler</div></div>
-    </div>
-
-    <div class="panel" id="dash-mangler-kontroll-card" style="cursor:pointer;margin-bottom:16px;" data-stat-nav="mangler-kontroll">
-      <div class="ov-label" style="margin-bottom:8px;">✅ Kontrollstatus</div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${kontrollertIdagCount} / ${totalVehicles} kontrollert</span>
-        <span style="font-size:13px;font-weight:700;color:${manglerKontrollCount > 0 ? 'var(--amber)' : 'var(--green)'};">${totalVehicles > 0 ? Math.round((kontrollertIdagCount/totalVehicles)*100) : 0}%</span>
-      </div>
-      <div style="height:10px;border-radius:6px;background:var(--line);overflow:hidden;">
-        <div style="height:100%;border-radius:6px;background:${manglerKontrollCount === 0 && totalVehicles > 0 ? 'var(--green)' : 'var(--amber)'};width:${totalVehicles > 0 ? Math.round((kontrollertIdagCount/totalVehicles)*100) : 0}%;"></div>
-      </div>
-    </div>
-
-    ${nesteVerkstedtimerTop5.length > 0 ? `
     <div class="panel" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:10px;">📅 Neste verkstedtimer</h3>
+      <div class="ov-label" style="margin-bottom:8px;">☀️ Morgenoversikt — i dag</div>
+      <div class="ov-grid">
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Biler klare</span><span class="ov-value">${totalVehicles - manglerKontrollCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${manglerKontrollCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="verksted"><span class="ov-label">🔧 På verksted</span><span class="ov-value">${verkstedBestiltCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="aktivesaker"><span class="ov-label">📋 Oppfølginger</span><span class="ov-value">${oppfolgingKreverHandlingSaker.length}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🚨 Kritisk</span><span class="ov-value">${kritiskeSakerAlle.length}</span></div>
+      </div>
+    </div>
+
+    ${nesteVerkstedtimerTop3.length > 0 ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:10px;">📅 Kommende verkstedtimer</h3>
       <div class="vt-list">
-        ${nesteVerkstedtimerTop5.map(t => {
+        ${nesteVerkstedtimerTop3.map(t => {
           const tv = vtVehicle(t);
           return `
           <div class="vt-card unset" style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
             <div class="vt-top">
               <div class="vt-main">
                 <div class="vt-vehicle">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'}</div>
-                <div class="vt-desc">${esc(t.beskrivelse)}</div>
               </div>
               <div class="vt-when">
                 <div class="vt-date">${fmt(t.dato)}</div>
@@ -3476,46 +3468,25 @@ function renderDashboard(){
       </div>
     </div>` : ''}
 
-    ${eldsteApneSakerTop5.length > 0 ? `
-    <div class="panel" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:10px;">🕐 Eldste åpne saker</h3>
-      <div class="dmg-list">
-        ${eldsteApneSakerTop5.map(s => {
-          const v = sakVehicle(s);
-          const alder = sakAlderDager(s);
-          return `
-          <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-                <div class="desc">${SAK_TYPE_IKON[s.caseType] || '📁'} ${SAK_TYPE_LABEL[s.caseType] || 'Annet'}</div>
-                <div class="dmg-meta">${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
-
-    <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
-      <div class="panel" id="dash-forventet-kostnad-card" style="cursor:pointer;" data-quick-page="kostnadsoversikt">
-        <div class="ov-label">📋 Forventede kostnader</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(forventetKostnadDash)}</div>
-      </div>
-      <div class="panel" id="dash-avsettinger-card" style="cursor:pointer;" data-goto-avsettinger>
-        <div class="ov-label">📦 Avsettinger</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(avsettingerApneDash)}</div>
+    <div class="panel" id="dash-bilparkhelse-card" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:8px;">🩺 Bilparkhelse</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">
+        <span style="cursor:pointer;" data-goto-biloversikt-filter="operativ">🟢 ${bilparkhelse.operativ}</span>
+        <span style="cursor:pointer;" data-goto-biloversikt-filter="oppfolging">🟡 ${bilparkhelse.oppfolging}</span>
+        <span style="cursor:pointer;" data-goto-biloversikt-filter="verksted">🟠 ${bilparkhelse.verksted}</span>
+        <span style="cursor:pointer;" data-goto-biloversikt-filter="kritisk">🔴 ${bilparkhelse.kritisk}</span>
+        <span style="cursor:pointer;" data-goto-biloversikt-filter="ikke-kontrollert">⚪ ${bilparkhelse['ikke-kontrollert']}</span>
       </div>
     </div>
 
-    <div class="dash-quick-links" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
-      <button class="btn secondary small" data-quick-page="kontrolloversikt" style="justify-content:flex-start;">📋 Kontrolloversikt (${kontrollertIdagCount})</button>
-      <button class="btn secondary small" data-quick-page="verksted" style="justify-content:flex-start;">🔧 Verkstedoversikt (${upcomingVT.length})</button>
-      <button class="btn secondary small" data-quick-page="skader" style="justify-content:flex-start;">⚠️ Skadeoversikt (${openSkadesaker})</button>
-      <button class="btn secondary small" data-quick-page="dekkoversikt" style="justify-content:flex-start;">🛞 Dekkoversikt (${dekkOver5ArCount})</button>
-      <button class="btn secondary small" data-quick-page="varsler" style="justify-content:flex-start;">🚨 Varseloversikt (${aktiveVarsler.length})</button>
-      <button class="btn secondary small" data-quick-page="kostnadsoversikt" style="justify-content:flex-start;">💰 Kostnadsoversikt (${kostnaderDenneManedCount})</button>
-      <button class="btn secondary small" data-quick-page="aktivesaker" style="justify-content:flex-start;">🗂️ Aktive Saker (${apneSakerCount})</button>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:10px;">➕ Hurtighandlinger</div>
+      <div class="dash-quick-links" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn secondary small" id="dash-hh-kontroll-btn" style="justify-content:flex-start;">➕ Registrer kontroll</button>
+        <button class="btn secondary small" id="dash-hh-skade-btn" style="justify-content:flex-start;">➕ Registrer skade</button>
+        <button class="btn secondary small" id="dash-hh-verksted-btn" style="justify-content:flex-start;">➕ Registrer verksted</button>
+        <button class="btn secondary small" id="dash-hh-sak-btn" style="justify-content:flex-start;">➕ Opprett sak</button>
+      </div>
     </div>
 
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
@@ -3687,8 +3658,14 @@ function attachDashboardListeners(){
     vtOversiktOpenVehicles = new Set([vehicleId]);
     goTo('verksted');
   }));
-  const avsettingerCard = document.getElementById('dash-avsettinger-card');
-  if(avsettingerCard) avsettingerCard.addEventListener('click', () => goToKostnadsoversiktAvsettinger());
+  const dashHhKontroll = document.getElementById('dash-hh-kontroll-btn');
+  if(dashHhKontroll) dashHhKontroll.addEventListener('click', () => goToRegisterKontroll(''));
+  const dashHhSkade = document.getElementById('dash-hh-skade-btn');
+  if(dashHhSkade) dashHhSkade.addEventListener('click', () => goToRegisterSkade(''));
+  const dashHhVerksted = document.getElementById('dash-hh-verksted-btn');
+  if(dashHhVerksted) dashHhVerksted.addEventListener('click', () => goToRegisterVT(''));
+  const dashHhSak = document.getElementById('dash-hh-sak-btn');
+  if(dashHhSak) dashHhSak.addEventListener('click', () => goToRegisterSak(''));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goTo('bilkort', el.dataset.gotoBilkort); }));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
