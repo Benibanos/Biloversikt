@@ -670,6 +670,7 @@ let vtFilterBil = '';
 let vtFilterVerksted = '';
 let vtFilterType = '';
 let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
+let vtFilterSakStatus = ''; // '' | 'apen' | 'lukket' — filtrerer på status til tilknyttet Aktiv Sak (Fase 3)
 let showVtFilterMeny = false;
 let vtGrupperApen = false;
 
@@ -686,8 +687,18 @@ let editingSakId = null;
 let sakOversiktOpenVehicles = new Set();
 let showAddVT = false;
 let vtPrefillVehicleId = '';
+let vtPrefillSakId = '';
 let vtOversiktOpenVehicles = new Set();
-let kostnadPeriodeFilter = ''; // '' | 'denne-uke' | 'forrige-uke' | 'siste-2-uker' | 'siste-3-uker' | 'siste-maned' | 'siste-6-maneder' | 'siste-aret'
+let kostFilterBil = '';
+let kostFilterGruppe = '';
+let kostFilterType = ''; // sakstype (SAK_TYPE_ORDER)
+let kostFilterManed = ''; // '01'..'12'
+let kostFilterAr = ''; // 'ÅÅÅÅ'
+let kostFilterKilde = ''; // '' | 'verksted' | 'skade' | 'dekk' | 'annet'
+let kostFilterSakStatus = ''; // '' | 'apen' | 'lukket'
+let kostFilterKunAvsettinger = false;
+let showKostFilterMeny = false;
+let kostOversiktOpenVehicles = new Set();
 let showAddDekkkostnad = false;
 
 let dashExpandedId = null;
@@ -765,6 +776,8 @@ let kontrollFormKommentar = '';
 let kontrollFormSjaforNavn = '';
 let kontrollFormVarsellamper = []; // huket-av varsellampe-nøkler (utenom 'annet', som spores separat i kontrollFormAnnet)
 let kontrollVarsellamperOpen = false; // om avkrysningslisten for varsellamper er utvidet (samlet i en dropdown for å spare plass)
+let kontrollFormAvvik = []; // huket-av kontrollavvik-nøkler (slitte dekk, defekt lys, osv.), se KONTROLLAVVIK_ORDER
+let kontrollAvvikOpen = false;
 let pendingKontrollPhotos = []; // array av dataURL-er, flere skadebilder per kontroll
 
 // ---- Midlertidig lagring av sjåførkontroll-skjemaet ----
@@ -780,6 +793,7 @@ function saveKontrollDraft(){
     const draft = {
       vehicleId: kontrollFormVehicleId, sjaforNavn: kontrollFormSjaforNavn, km: kontrollFormKm,
       varsellamper: kontrollFormVarsellamper, annet: kontrollFormAnnet, annetTekst: kontrollFormAnnetTekst,
+      avvik: kontrollFormAvvik,
       harNyeSkader: kontrollFormHarSkader, skadeBeskrivelse: kontrollFormSkadeBeskrivelse,
       kommentar: kontrollFormKommentar, savedAt: Date.now()
     };
@@ -801,10 +815,12 @@ function loadKontrollDraft(){
     kontrollFormVarsellamper = Array.isArray(draft.varsellamper) ? draft.varsellamper : [];
     kontrollFormAnnet = !!draft.annet;
     kontrollFormAnnetTekst = draft.annetTekst || '';
+    kontrollFormAvvik = Array.isArray(draft.avvik) ? draft.avvik : [];
     kontrollFormHarSkader = !!draft.harNyeSkader;
     kontrollFormSkadeBeskrivelse = draft.skadeBeskrivelse || '';
     kontrollFormKommentar = draft.kommentar || '';
     if(kontrollFormVarsellamper.length > 0 || kontrollFormAnnet) kontrollVarsellamperOpen = true;
+    if(kontrollFormAvvik.length > 0) kontrollAvvikOpen = true;
     return true;
   }catch(e){ return false; }
 }
@@ -827,14 +843,47 @@ let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut var
 const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
-const SAK_STATUS_ORDER = ['ny', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort', 'lukket'];
-const SAK_STATUS_LABEL = {'ny':'Ny', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort':'Utført', 'lukket':'Lukket'};
+const SAK_STATUS_ORDER = ['ny', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'utfort', 'lukket'];
+const SAK_STATUS_LABEL = {'ny':'Ny', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'utfort':'Utført', 'lukket':'Lukket'};
+const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
+const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
 const SAK_PRIORITET_ORDER = ['kritisk', 'hoy', 'normal', 'lav'];
 const SAK_PRIORITET_LABEL = {kritisk:'Kritisk', hoy:'Høy', normal:'Normal', lav:'Lav'};
 const SAK_PRIORITET_IKON = {kritisk:'🔴', hoy:'🟠', normal:'🟡', lav:'🟢'};
 function sakErApen(s){ return s.status !== 'lukket'; }
 function sakKreverHandling(s){ return sakErApen(s) && (s.status === 'ny' || s.status === 'vurderes' || (s.followUpDate && s.followUpDate <= todayISO())); }
 function sakVehicle(s){ return vehicles.find(v => v.id === s.vehicleId); }
+// Fase 2/3: automatisk bilstatus utledet fra Aktive Saker (uavhengig av det manuelt
+// satte v.status-feltet som styrer "På verksted"/"Trenger oppfølging" andre steder).
+// RØD = minst én åpen sak med prioritet Kritisk, ORANSJE = minst én sak med status
+// "Verksted bestilt" (eller "Utført - venter bekreftelse"), GUL = minst én åpen sak,
+// GRØNN = ingen. Kritisk prioritet overstyrer alltid verkstedstatus.
+function vehicleSakStatus(vehicleId){
+  const apneSaker = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakErApen(s));
+  if(apneSaker.length === 0) return 'gronn';
+  if(apneSaker.some(s => s.priority === 'kritisk')) return 'rod';
+  if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'oransje';
+  return 'gul';
+}
+const SAK_BILSTATUS_IKON = {gronn:'🟢', gul:'🟡', oransje:'🟠', rod:'🔴'};
+// Fase 3: verksteddato passert på en "Verksted bestilt"-sak flytter den automatisk til
+// "Utført - venter bekreftelse", uten at administrator må gjøre det manuelt. Kjøres ved
+// boot og hver gang Aktive Saker/Dashboard rendres (billig, idempotent operasjon).
+function oppdaterVerkstedStatuser(){
+  const today = todayISO();
+  let endret = false;
+  aktiveSaker.forEach(s => {
+    if(s.status === 'verksted-bestilt' && s.linkedVtId){
+      const vt = verkstedtimer.find(t => t.id === s.linkedVtId);
+      if(vt && vt.dato < today){
+        s.status = 'utfort-venter-bekreftelse';
+        s.updatedAt = new Date().toISOString();
+        endret = true;
+      }
+    }
+  });
+  return endret;
+}
 async function saveAktiveSaker(){
   try{ await window.storage.set('aktiveSaker', JSON.stringify(aktiveSaker), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
@@ -847,6 +896,46 @@ function nesteSakId(){
   });
   return 'SAK-' + String(maks + 1).padStart(4, '0');
 }
+// ---- Fase 2: automatisk opprettelse av Aktive Saker med duplikatkontroll ----
+// Kalles fra sjåførkontroll (varsellamper, kontrollavvik) og skaderegistrering.
+// Synkron og lagrer IKKE selv — kalleren samler flere kall og kjører
+// saveAktiveSaker() én gang til slutt, slik at flere avvik i samme
+// innsending ikke gir unødvendig mange separate skrivinger.
+// Duplikatkontroll: matcher på vehicleId + caseType + sourceId blant ÅPNE
+// saker. Finnes en match fra før økes reportCount og observasjonen legges i
+// historikken i stedet for å opprette en ny sak (se "Bil 7 mandag/tirsdag/
+// onsdag"-eksempelet). For skader er sourceId alltid unik (damage-id), så
+// hver skade får naturlig sin egen sak uten spesialtilfelle.
+function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, prioritet, reportedBy, reportedAt, kommentar}){
+  const now = new Date().toISOString();
+  let sak = aktiveSaker.find(s => s.vehicleId === vehicleId && s.caseType === caseType && s.sourceId === sourceId && sakErApen(s));
+  const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: kommentar || ''};
+  if(sak){
+    sak.reportCount = (sak.reportCount || 1) + 1;
+    sak.lastReportedAt = now;
+    sak.updatedAt = now;
+    if(!Array.isArray(sak.historikk)) sak.historikk = [];
+    sak.historikk.push(historikkOppforsel);
+  } else {
+    const v = vehicles.find(x => x.id === vehicleId);
+    sak = {
+      id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
+      caseType, title: tittel, description: beskrivelse, status: 'ny', priority: prioritet,
+      sourceType: 'auto', sourceId,
+      reportedBy: reportedBy || 'Ukjent', reportedAt,
+      assignedTo: '', nextAction: '', followUpDate: null,
+      resolvedAt: null, resolvedBy: null, resolutionNote: '',
+      reportCount: 1, lastReportedAt: now,
+      historikk: [historikkOppforsel],
+      createdAt: now, updatedAt: now
+    };
+    aktiveSaker.push(sak);
+  }
+  return sak;
+}
+const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy', 'annet-avvik'];
+const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
+const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 let vlhSelectedIds = new Set(); // admin-only: valgte varsellampe-kvitteringer for sletting
@@ -1065,6 +1154,7 @@ async function loadAll(){
   catch(e){ dekkkostnader = []; }
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
+  if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
   try{
     const vs = await window.storage.get('verksteder', true);
     verksteder = vs && vs.value ? JSON.parse(vs.value) : null;
@@ -1698,10 +1788,11 @@ function goTo(scr, vehicleId){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; editingVTId = null; showVtFilterMeny = false; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; }
+  if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
     kontrollFormAnnet = false; kontrollFormHarSkader = false; pendingKontrollPhotos = [];
@@ -1743,6 +1834,8 @@ function goToRegisterKontroll(vehicleId){
   kontrollFormHarSkader = false;
   kontrollFormVarsellamper = [];
   kontrollVarsellamperOpen = false;
+  kontrollFormAvvik = [];
+  kontrollAvvikOpen = false;
   pendingKontrollPhotos = [];
   kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
   kontrollFormSjaforNavn = loggedInRole || '';
@@ -1891,6 +1984,12 @@ async function submitAddSkade(ev){
   await saveDamages();
   if(pendingPhotoData) await savePhoto('damage:'+id, pendingPhotoData);
   pendingPhotoData = null;
+  registrerAvvikSomSak({
+    vehicleId, caseType: 'skade', sourceId: id,
+    tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
+    prioritet: 'normal', reportedBy: loggedInRole || 'Ukjent', reportedAt: dato, kommentar: kommentar
+  });
+  await saveAktiveSaker();
   showAddSkade = false;
   skadePrefillVehicleId = '';
   render();
@@ -1998,6 +2097,29 @@ async function saveSakEdit(id){
   const s = aktiveSaker.find(x => x.id === id);
   if(!s) return;
   const nyStatus = document.getElementById('e-sak-status-'+id).value;
+  const verkstedResultat = document.getElementById('e-sak-resultat-'+id).value;
+  const utfortDatoRaw = document.getElementById('e-sak-utfort-dato-'+id).value.trim();
+  const resolutionNote = document.getElementById('e-sak-losningsnotat-'+id).value.trim();
+  if(nyStatus === 'lukket' && (!verkstedResultat || !resolutionNote || !utfortDatoRaw)){
+    alert('For å lukke saken må resultat, sluttkommentar og faktisk utført dato fylles ut.');
+    return;
+  }
+  const completedAt = utfortDatoRaw ? readDateInput('e-sak-utfort-dato-'+id) : null;
+  if(nyStatus === 'lukket' && utfortDatoRaw && !completedAt){
+    alert('Ugyldig utført dato. Bruk format DD/MM/ÅÅÅÅ.');
+    return;
+  }
+  const kreverAvsetting = document.getElementById('e-sak-krever-avsetting-'+id).value === 'ja';
+  const avsettingsManedEl = document.getElementById('e-sak-avsettingsmaned-'+id);
+  const avsettingsBelopEl = document.getElementById('e-sak-avsettingsbelop-'+id);
+  const avsettingsManed = avsettingsManedEl ? avsettingsManedEl.value : '';
+  const avsettingsBelopRaw = avsettingsBelopEl ? avsettingsBelopEl.value.trim() : '';
+  if(kreverAvsetting && (!avsettingsManed || !avsettingsBelopRaw)){
+    alert('Fyll ut avsettingsmåned og avsettingsbeløp når "Krever avsetting" er satt til Ja.');
+    return;
+  }
+  const estimertRaw = document.getElementById('e-sak-estimert-'+id).value.trim();
+  const faktiskRaw = document.getElementById('e-sak-faktisk-'+id).value.trim();
   s.vehicleId = document.getElementById('e-sak-vehicle-'+id).value;
   const v = vehicles.find(x => x.id === s.vehicleId);
   s.registrationNumber = v ? v.regnr : s.registrationNumber;
@@ -2009,8 +2131,14 @@ async function saveSakEdit(id){
   s.nextAction = document.getElementById('e-sak-neste-handling-'+id).value.trim();
   const followUpRaw = document.getElementById('e-sak-oppfolgingsdato-'+id).value.trim();
   s.followUpDate = followUpRaw ? readDateInput('e-sak-oppfolgingsdato-'+id) : null;
-  const resolutionNote = document.getElementById('e-sak-losningsnotat-'+id).value.trim();
   s.resolutionNote = resolutionNote;
+  s.verkstedResultat = verkstedResultat || null;
+  s.completedAt = completedAt;
+  s.estimatedCost = estimertRaw ? Number(estimertRaw.replace(/\s/g,'').replace(',','.')) : null;
+  s.actualCost = faktiskRaw ? Number(faktiskRaw.replace(/\s/g,'').replace(',','.')) : null;
+  s.requiresProvision = kreverAvsetting;
+  s.provisionMonth = kreverAvsetting ? avsettingsManed : null;
+  s.provisionAmount = kreverAvsetting && avsettingsBelopRaw ? Number(avsettingsBelopRaw.replace(/\s/g,'').replace(',','.')) : null;
   const varGammelStatusLukket = s.status === 'lukket';
   s.status = nyStatus;
   if(nyStatus === 'lukket' && !varGammelStatusLukket){
@@ -2036,6 +2164,29 @@ function goToRegisterSak(vehicleId){
   sakPrefillVehicleId = vehicleId;
   showAddSak = true;
   sakFilterBil = '';
+  goTo('aktivesaker');
+}
+function goToAktiveSakerKreverHandling(){
+  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
+  sakFilterKunApne = false; sakFilterKreverHandling = true;
+  showSakFilterMeny = true;
+  goTo('aktivesaker');
+}
+function goToKostnadsoversiktAvsettinger(){
+  kostFilterBil = ''; kostFilterGruppe = ''; kostFilterType = ''; kostFilterManed = ''; kostFilterAr = '';
+  kostFilterKilde = ''; kostFilterSakStatus = '';
+  kostFilterKunAvsettinger = true;
+  showKostFilterMeny = true;
+  goTo('kostnadsoversikt');
+}
+function goToSakDetalj(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
+  sakFilterKunApne = false; sakFilterKreverHandling = false;
+  showSakFilterMeny = false;
+  sakOversiktOpenVehicles = new Set([s.vehicleId]);
+  editingSakId = s.id;
   goTo('aktivesaker');
 }
 
@@ -2084,15 +2235,32 @@ async function submitAddVT(ev){
   const prisRaw = document.getElementById('vt-pris').value.trim();
   const pris = prisRaw ? Number(prisRaw.replace(/\s/g,'').replace(',','.')) : null;
   const notater = document.getElementById('vt-notater').value.trim();
+  const kontaktEl = document.getElementById('vt-kontaktperson');
+  const telefonEl = document.getElementById('vt-telefon');
+  const kontaktperson = kontaktEl ? kontaktEl.value.trim() : '';
+  const telefon = telefonEl ? telefonEl.value.trim() : '';
   const msgEl = document.getElementById('vt-msg');
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
     return;
   }
-  verkstedtimer.push({id: uid(), vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater});
+  const nyVtId = uid();
+  const sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
+  verkstedtimer.push({
+    id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
+    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon
+  });
   await saveVerkstedtimer();
+  if(sak){
+    sak.status = 'verksted-bestilt';
+    sak.linkedVtId = nyVtId;
+    if(pris !== null && pris !== undefined) sak.estimatedCost = pris;
+    sak.updatedAt = new Date().toISOString();
+    await saveAktiveSaker();
+  }
   showAddVT = false;
   vtPrefillVehicleId = '';
+  vtPrefillSakId = '';
   render();
 }
 function toggleEditVT(id){
@@ -2109,6 +2277,8 @@ async function saveVTEdit(id){
   t.dato = newDato;
   t.tidspunkt = newTid;
   t.beskrivelse = document.getElementById('e-vt-beskrivelse-'+id).value.trim();
+  t.kontaktperson = document.getElementById('e-vt-kontaktperson-'+id).value.trim();
+  t.telefon = document.getElementById('e-vt-telefon-'+id).value.trim();
   const prisRaw = document.getElementById('e-vt-pris-'+id).value.trim();
   t.pris = prisRaw ? Number(prisRaw.replace(/\s/g,'').replace(',','.')) : null;
   t.notater = document.getElementById('e-vt-notater-'+id).value.trim();
@@ -2125,6 +2295,18 @@ async function deleteVT(id){
 }
 function goToRegisterVT(vehicleId){
   vtPrefillVehicleId = vehicleId;
+  vtPrefillSakId = '';
+  showAddVT = true;
+  vtFilterBil = '';
+  goTo('verksted');
+}
+// Fase 3: "Registrer verkstedtime" direkte fra en Aktiv Sak — bil, sakstype,
+// beskrivelse og registreringsdato hentes automatisk fra saken (se submitAddVT).
+function goToRegisterVTFraSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  vtPrefillVehicleId = s.vehicleId;
+  vtPrefillSakId = sakId;
   showAddVT = true;
   vtFilterBil = '';
   goTo('verksted');
@@ -2161,10 +2343,9 @@ async function submitKontroll(ev){
     if(!confirm('Kilometerstanden du oppga (' + Number(km).toLocaleString('nb-NO') + ' km) er lavere enn det som er registrert fra før (' + Number(v.km||0).toLocaleString('nb-NO') + ' km). Registrere likevel?')) return;
   }
 
-  const varsellamper = VARSELLAMPE_ORDER.filter(key => {
-    const box = document.getElementById('kt-varsel-'+key);
-    return box && box.checked;
-  });
+  const varsellamper = kontrollFormVarsellamper.slice();
+  if(kontrollFormAnnet && !varsellamper.includes('annet')) varsellamper.push('annet');
+  const avvik = kontrollFormAvvik.slice();
   const annetTekst = kontrollFormAnnet ? (document.getElementById('kt-annet-tekst').value || '').trim() : '';
   const harNyeSkader = kontrollFormHarSkader;
   const skadeBeskrivelse = harNyeSkader ? (document.getElementById('kt-skade-beskrivelse').value || '').trim() : '';
@@ -2239,6 +2420,39 @@ async function submitKontroll(ev){
     });
     if(nyeVarselsaker) await saveVarsellys();
 
+    // ---- Fase 2: automatisk opprettelse/oppdatering av Aktive Saker ----
+    // Kjøres synkront (ingen egne await/save per kall) — samlet lagring til slutt.
+    let sakerEndret = false;
+    varsellamper.forEach(key => {
+      registrerAvvikSomSak({
+        vehicleId, caseType: 'varsellampe', sourceId: key,
+        tittel: 'Varsellampe registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
+        prioritet: 'hoy', reportedBy: sjafor, reportedAt: dato,
+        kommentar: (key === 'annet' ? annetTekst : VARSELLAMPE_LABEL[key]) + (kommentar ? ' · ' + kommentar : '')
+      });
+      sakerEndret = true;
+    });
+    avvik.forEach(key => {
+      registrerAvvikSomSak({
+        vehicleId, caseType: 'kontrollavvik', sourceId: key,
+        tittel: KONTROLLAVVIK_LABEL[key] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
+        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar
+      });
+      sakerEndret = true;
+    });
+    if(harNyeSkader && linkedDamageId){
+      registrerAvvikSomSak({
+        vehicleId, caseType: 'skade', sourceId: linkedDamageId,
+        tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (skadeBeskrivelse ? ' ' + skadeBeskrivelse : ''),
+        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar
+      });
+      sakerEndret = true;
+    }
+    if(sakerEndret){
+      await saveAktiveSaker();
+      console.log('[submitKontroll] Aktive Saker oppdatert (Fase 2)');
+    }
+
     v.km = km;
     await saveVehicles();
     console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
@@ -2247,6 +2461,7 @@ async function submitKontroll(ev){
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
+    kontrollFormAvvik = []; kontrollAvvikOpen = false;
     clearKontrollDraft();
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
     alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
@@ -2671,6 +2886,7 @@ function isFlagged(v){
 }
 
 function renderDashboard(){
+  if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   const totalVehicles = vehicles.length;
   const vehiclesWithDamages = new Set(damages.map(d => d.vehicleId)).size;
   const openSkadesaker = damages.filter(skadeIsOpen).length;
@@ -2693,6 +2909,29 @@ function renderDashboard(){
     dekkkostnader.filter(dk => dk.kostnad && dk.dato && dk.dato.startsWith(today.slice(0,7))).length +
     damages.filter(d => d.estimertKostnad && d.dato && d.dato.startsWith(today.slice(0,7))).length;
   const apneSakerCount = aktiveSaker.filter(sakErApen).length;
+  const kreverHandlingSaker = aktiveSaker.filter(s => sakErApen(s) && (s.status === 'ny' || s.status === 'vurderes'));
+  const SAK_PRIO_SORT = {kritisk:0, hoy:1, normal:2, lav:3};
+  const kreverHandlingTop5 = kreverHandlingSaker.slice().sort((a,b) => {
+    const pa = SAK_PRIO_SORT[a.priority] ?? 2, pb = SAK_PRIO_SORT[b.priority] ?? 2;
+    if(pa !== pb) return pa - pb;
+    return (a.reportedAt||'').localeCompare(b.reportedAt||'');
+  }).slice(0, 5);
+  // Fase 3: "Bil på verksted" = biler med minst én åpen sak i status "Verksted bestilt"
+  // eller "Utført - venter bekreftelse", eller en registrert (ikke nødvendigvis
+  // saks-tilknyttet) verkstedtime i dag eller fremover.
+  const bilerPaVerksted = new Set([
+    ...aktiveSaker.filter(s => sakErApen(s) && (s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')).map(s => s.vehicleId),
+    ...verkstedtimer.filter(t => t.dato >= today).map(t => t.vehicleId)
+  ]);
+  const nesteVerkstedtimerTop5 = verkstedtimer.filter(t => t.dato >= today)
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))
+    .slice(0, 5);
+  // Fase 4: forventede kostnader = sum av estimert kostnad på åpne saker.
+  // Avsettinger = sum av avsettingsbeløp på åpne saker som krever avsetting.
+  const forventetKostnadDash = aktiveSaker.filter(s => sakErApen(s) && s.estimatedCost !== undefined && s.estimatedCost !== null)
+    .reduce((sum,s) => sum + Number(s.estimatedCost||0), 0);
+  const avsettingerApneDash = aktiveSaker.filter(s => sakErApen(s) && s.requiresProvision && s.provisionAmount !== undefined && s.provisionAmount !== null)
+    .reduce((sum,s) => sum + Number(s.provisionAmount||0), 0);
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -2751,6 +2990,70 @@ function renderDashboard(){
         <button class="btn secondary small" data-quick-page="aktivesaker" style="justify-content:flex-start;">🗂️ Aktive Saker (${apneSakerCount})</button>
       </div>
     </div>
+    <div class="panel" id="dash-krever-handling-card" style="cursor:pointer;margin-bottom:16px;${kreverHandlingSaker.length > 0 ? 'border-color:var(--red);background:var(--red-soft);' : ''}" data-goto-krever-handling>
+      <div class="ov-label" style="${kreverHandlingSaker.length > 0 ? 'color:var(--red);' : ''}">${kreverHandlingSaker.length > 0 ? '🔴' : '🟢'} Krever handling</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;${kreverHandlingSaker.length > 0 ? 'color:var(--red);' : ''}">${kreverHandlingSaker.length} sak${kreverHandlingSaker.length===1?'':'er'}</div>
+    </div>
+
+    ${kreverHandlingTop5.length > 0 ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:10px;">⚡ Krever handling nå</h3>
+      <div class="dmg-list">
+        ${kreverHandlingTop5.map(s => {
+          const v = sakVehicle(s);
+          return `
+          <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
+            <div class="dmg-top">
+              <div class="dmg-text">
+                <div class="main">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
+                <div class="desc">${esc(s.title)}</div>
+                <div class="dmg-meta">${SAK_STATUS_LABEL[s.status] || s.status}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="panel" id="dash-pa-verksted-card" style="cursor:pointer;margin-bottom:16px;" data-quick-page="verksted">
+      <div class="ov-label">🔧 Bil på verksted</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;">${bilerPaVerksted.size} bil${bilerPaVerksted.size===1?'':'er'}</div>
+    </div>
+
+    <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
+      <div class="panel" id="dash-forventet-kostnad-card" style="cursor:pointer;" data-quick-page="kostnadsoversikt">
+        <div class="ov-label">📋 Forventede kostnader</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(forventetKostnadDash)}</div>
+      </div>
+      <div class="panel" id="dash-avsettinger-card" style="cursor:pointer;" data-goto-avsettinger>
+        <div class="ov-label">📦 Avsettinger</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;">${fmtKr(avsettingerApneDash)}</div>
+      </div>
+    </div>
+
+    ${nesteVerkstedtimerTop5.length > 0 ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:10px;">📅 Neste verkstedtimer</h3>
+      <div class="vt-list">
+        ${nesteVerkstedtimerTop5.map(t => {
+          const tv = vtVehicle(t);
+          return `
+          <div class="vt-card unset" style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
+            <div class="vt-top">
+              <div class="vt-main">
+                <div class="vt-vehicle">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'}</div>
+                <div class="vt-desc">${esc(t.beskrivelse)}</div>
+              </div>
+              <div class="vt-when">
+                <div class="vt-date">${fmt(t.dato)}</div>
+                ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
     ${totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : `
     <div class="acc-row ${dashBiloversiktApen ? 'expanded' : ''}" style="margin-bottom:16px;">
       <div class="acc-head" data-toggle-dash-biloversikt>
@@ -2804,7 +3107,7 @@ function accordionRow(v){
         <div class="acc-head-left">
           <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
           <div>
-            <div class="flag-name">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
+            <div class="flag-name">${SAK_BILSTATUS_IKON[vehicleSakStatus(v.id)]} ${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
             <div class="flag-reason">${v.loyvenummer ? esc(v.loyvenummer) : '–'} • KM: ${v.km ? Number(v.km).toLocaleString('nb-NO') : '–'}${reasons.length ? ' · ' + esc(reasons.join(' · ')) : ''}</div>
             ${vVT.length > 0 ? `
             <div class="flag-vt" style="margin-top:4px;font-size:12.5px;">
@@ -2872,6 +3175,19 @@ function attachDashboardListeners(){
     vtFilterPeriode = '';
     showVtFilterMeny = false;
     vtOversiktOpenVehicles = new Set([vehicleId]);
+    goTo('verksted');
+  }));
+  const kreverHandlingCard = document.getElementById('dash-krever-handling-card');
+  if(kreverHandlingCard) kreverHandlingCard.addEventListener('click', () => goToAktiveSakerKreverHandling());
+  const avsettingerCard = document.getElementById('dash-avsettinger-card');
+  if(avsettingerCard) avsettingerCard.addEventListener('click', () => goToKostnadsoversiktAvsettinger());
+  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
+  document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
+    const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
+    if(!vt) return;
+    vtFilterBil = vt.vehicleId; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
+    showVtFilterMeny = false;
+    vtOversiktOpenVehicles = new Set([vt.vehicleId]);
     goTo('verksted');
   }));
   const dbBanner = document.getElementById('db-warning-banner');
@@ -3653,6 +3969,29 @@ function attachVarslerOversiktListeners(){
 }
 
 // ================= scrBilkort =================
+// Fase 3: samlet, kronologisk tidslinje for én bil på tvers av skader,
+// varsellamper, kontrollavvik (fra Aktive Saker) og verkstedbesøk. Når en sak
+// lukkes forsvinner den ikke — resultatet og lukkingen legges inn i samme
+// tidslinje, slik at hele forløpet for bilen forblir synlig.
+function vehicleHistorikkTidslinje(vehicleId){
+  const hendelser = [];
+  damages.filter(d => d.vehicleId === vehicleId).forEach(d => {
+    hendelser.push({dato: d.dato, tekst: '⚠️ Skade registrert: ' + (d.beskrivelse || '')});
+  });
+  varsellys.filter(w => w.vehicleId === vehicleId).forEach(w => {
+    hendelser.push({dato: w.registrertDato, tekst: '🚨 Varsellampe registrert: ' + varsellysLabel(w)});
+    if(w.kvittertDato) hendelser.push({dato: w.kvittertDato, tekst: '✅ Varsellampe kvittert: ' + varsellysLabel(w)});
+  });
+  aktiveSaker.filter(s => s.vehicleId === vehicleId).forEach(s => {
+    if(s.caseType === 'kontrollavvik') hendelser.push({dato: s.reportedAt, tekst: '📋 Kontrollavvik registrert: ' + s.title});
+    if(s.completedAt && s.verkstedResultat) hendelser.push({dato: s.completedAt, tekst: '🔧 ' + (SAK_RESULTAT_LABEL[s.verkstedResultat] || s.verkstedResultat)});
+    if(s.resolvedAt) hendelser.push({dato: s.resolvedAt, tekst: '🔒 Sak lukket: ' + s.title});
+  });
+  verkstedtimer.filter(t => t.vehicleId === vehicleId).forEach(t => {
+    hendelser.push({dato: t.dato, tekst: '🔧 Verkstedtime registrert: ' + (t.beskrivelse || '')});
+  });
+  return hendelser.filter(h => h.dato).sort((a,b) => a.dato.localeCompare(b.dato));
+}
 function bilkortAccordionRow(key, title, count, bodyHtml){
   const open = bilkortOpenSections.has(key);
   return `
@@ -3680,6 +4019,11 @@ function renderBilkort(){
   const vKontrollertIdag = isKontrollertIdag(v.id);
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
   const vVarselHistorikk = historikkVarsellysForVehicle(v.id);
+  const vHistorikkTidslinje = vehicleHistorikkTidslinje(v.id);
+  const historikkTidslinjeBody = vHistorikkTidslinje.length === 0 ? `<div class="empty-note">Ingen hendelser registrert ennå.</div>` : `
+    <ul class="dmg-simple-list">
+      ${vHistorikkTidslinje.map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)} — ${esc(h.tekst)}</span></li>`).join('')}
+    </ul>`;
 
   const infoBody = `
     <div class="row3">
@@ -3866,6 +4210,7 @@ function renderBilkort(){
 
     <div class="acc-list">
       ${bilkortAccordionRow('info', 'Bilinformasjon', null, infoBody)}
+      ${bilkortAccordionRow('historikk', 'Historikk', vHistorikkTidslinje.length, historikkTidslinjeBody)}
       ${bilkortAccordionRow('kontroll', 'Kontrollhistorikk', vKontroller.length, kontrollBody)}
       ${bilkortAccordionRow('skade', 'Skadehistorikk', vDamages.length, skadeBody)}
       ${bilkortAccordionRow('dekk', 'Dekkoversikt', null, dekkBody)}
@@ -4112,7 +4457,7 @@ function sakCard(s, showVehicle){
           ${s.description ? `<div class="desc">${esc(s.description)}</div>` : ''}
           ${s.nextAction ? `<div class="desc">➡️ Neste handling: ${esc(s.nextAction)}</div>` : ''}
           ${s.followUpDate ? `<div class="desc">📅 Oppfølging: ${fmt(s.followUpDate)}</div>` : ''}
-          <div class="dmg-meta">${esc(s.caseId || '')} · ${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · Registrert ${fmt(s.reportedAt)}${s.reportedBy ? ' av ' + esc(s.reportedBy) : ''}</div>
+          <div class="dmg-meta">${esc(s.caseId || '')} · ${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · Registrert ${fmt(s.reportedAt)}${s.reportedBy ? ' av ' + esc(s.reportedBy) : ''}${s.reportCount > 1 ? ` · Rapportert ${s.reportCount} ganger` : ''}</div>
         </div>
         <div class="dmg-badges">
           <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${SAK_PRIORITET_LABEL[s.priority] || 'Normal'}</span>
@@ -4148,7 +4493,77 @@ function sakCard(s, showVehicle){
           <div class="field"><label>Oppfølgingsdato</label><input id="e-sak-oppfolgingsdato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.followUpDate ? fmt(s.followUpDate) : ''}"></div>
         </div>
         <div class="field" style="margin-bottom:10px;"><label>Neste handling</label><input id="e-sak-neste-handling-${s.id}" type="text" placeholder="Valgfritt" value="${esc(s.nextAction||'')}"></div>
-        <div class="field" style="margin-bottom:10px;"><label>Løsningsnotat</label><textarea id="e-sak-losningsnotat-${s.id}" placeholder="Fylles ut når saken lukkes">${esc(s.resolutionNote||'')}</textarea></div>
+
+        <div class="field" style="margin:16px 0 10px;">
+          <label>🔧 Verkstedoppfølging</label>
+          ${(() => {
+            const linkedVt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
+            if(!linkedVt){
+              return `<div class="panel-actions" style="margin-top:4px;"><button type="button" class="btn small" data-registrer-vt-fra-sak="${s.id}">🔧 Registrer verkstedtime</button></div>`;
+            }
+            return `
+            <div class="panel" style="margin-top:4px;">
+              <div class="ov-grid">
+                <div class="ov-item"><span class="ov-label">Verksted</span><span class="ov-value">${esc(linkedVt.verksted)}</span></div>
+                <div class="ov-item"><span class="ov-label">Verksteddato</span><span class="ov-value">${fmt(linkedVt.dato)}${linkedVt.tidspunkt ? ' kl. ' + esc(linkedVt.tidspunkt) : ''}</span></div>
+                ${linkedVt.kontaktperson ? `<div class="ov-item"><span class="ov-label">Kontaktperson</span><span class="ov-value">${esc(linkedVt.kontaktperson)}</span></div>` : ''}
+                ${linkedVt.telefon ? `<div class="ov-item"><span class="ov-label">Telefonnummer</span><span class="ov-value">${esc(linkedVt.telefon)}</span></div>` : ''}
+                ${linkedVt.pris !== undefined && linkedVt.pris !== null && linkedVt.pris !== '' ? `<div class="ov-item"><span class="ov-label">Estimert kostnad</span><span class="ov-value">${fmtKr(linkedVt.pris)}</span></div>` : ''}
+                ${linkedVt.notater ? `<div class="ov-item"><span class="ov-label">Kommentar</span><span class="ov-value">${esc(linkedVt.notater)}</span></div>` : ''}
+              </div>
+              <div class="panel-actions" style="margin-top:10px;">
+                <button type="button" class="btn secondary small" data-goto-vt="${linkedVt.id}">Åpne i Verkstedoversikt</button>
+                <button type="button" class="btn secondary small" data-registrer-vt-fra-sak="${s.id}">🔧 Ny verkstedtime</button>
+              </div>
+            </div>`;
+          })()}
+        </div>
+
+        <div class="field" style="margin:16px 0 10px;">
+          <label>💰 Kostnader og avsetting</label>
+          <div class="row2" style="margin-top:4px;">
+            <div class="field"><label>Estimert kostnad</label><input id="e-sak-estimert-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 12000" value="${s.estimatedCost !== undefined && s.estimatedCost !== null ? s.estimatedCost : ''}"></div>
+            <div class="field"><label>Faktisk kostnad</label><input id="e-sak-faktisk-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 13700" value="${s.actualCost !== undefined && s.actualCost !== null ? s.actualCost : ''}"></div>
+          </div>
+          ${s.estimatedCost !== undefined && s.estimatedCost !== null && s.actualCost !== undefined && s.actualCost !== null ? (() => {
+            const avvik = Number(s.actualCost) - Number(s.estimatedCost);
+            return `<div class="ov-grid" style="margin-bottom:10px;">
+              <div class="ov-item"><span class="ov-label">Estimert</span><span class="ov-value">${fmtKr(s.estimatedCost)}</span></div>
+              <div class="ov-item"><span class="ov-label">Faktisk</span><span class="ov-value">${fmtKr(s.actualCost)}</span></div>
+              <div class="ov-item"><span class="ov-label">Avvik</span><span class="ov-value" style="color:${avvik>0?'var(--red)':(avvik<0?'var(--green)':'var(--ink)')};">${avvik>0?'+':''}${fmtKr(avvik)}</span></div>
+            </div>`;
+          })() : ''}
+          <div class="field"><label>Krever avsetting</label>
+            <select id="e-sak-krever-avsetting-${s.id}">
+              <option value="nei" ${!s.requiresProvision?'selected':''}>Nei</option>
+              <option value="ja" ${s.requiresProvision?'selected':''}>Ja</option>
+            </select>
+          </div>
+          ${s.requiresProvision ? `
+          <div class="row2">
+            <div class="field"><label>Avsettingsmåned</label><input id="e-sak-avsettingsmaned-${s.id}" type="month" value="${s.provisionMonth||''}"></div>
+            <div class="field"><label>Avsettingsbeløp</label><input id="e-sak-avsettingsbelop-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 4500" value="${s.provisionAmount !== undefined && s.provisionAmount !== null ? s.provisionAmount : ''}"></div>
+          </div>` : ''}
+        </div>
+
+        <div class="row2">
+          <div class="field"><label>Resultat fra verksted</label>
+            <select id="e-sak-resultat-${s.id}">
+              <option value="" ${!s.verkstedResultat?'selected':''}>Ikke satt</option>
+              ${SAK_RESULTAT_ORDER.map(r => `<option value="${r}" ${s.verkstedResultat===r?'selected':''}>${SAK_RESULTAT_LABEL[r]}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Faktisk utført dato</label><input id="e-sak-utfort-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.completedAt ? fmt(s.completedAt) : ''}"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Løsningsnotat / sluttkommentar</label><textarea id="e-sak-losningsnotat-${s.id}" placeholder="Fylles ut når saken lukkes">${esc(s.resolutionNote||'')}</textarea></div>
+        <div class="required-hint" style="margin-bottom:10px;">For å lukke saken: velg status "Lukket" og fyll ut resultat, sluttkommentar og faktisk utført dato.</div>
+        ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
+        <div class="field" style="margin-bottom:10px;">
+          <label>Historikk</label>
+          <ul class="dmg-simple-list">
+            ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — Registrert av ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
+          </ul>
+        </div>` : ''}
         <div class="panel-actions">
           <button class="btn small" id="e-sak-save-${s.id}">Lagre endringer</button>
           <button class="btn secondary small" id="e-sak-cancel-${s.id}">Avbryt</button>
@@ -4181,7 +4596,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
           return `
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
-              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+              <div class="acc-head-left"><div class="flag-name">${SAK_BILSTATUS_IKON[vehicleSakStatus(v.id)]} 📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
               <div class="acc-head-right"><span class="group-count">${sList.length} sak${sList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="dmg-list">${sList.map(s => sakCard(s, false)).join('')}</div></div>` : ''}
@@ -4198,6 +4613,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
   return grupper + foreldreloseHtml;
 }
 function renderAktiveSaker(){
+  if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   const visning = aktiveSaker.filter(s => {
     if(sakFilterBil && s.vehicleId !== sakFilterBil) return false;
     if(sakFilterType && s.caseType !== sakFilterType) return false;
@@ -4336,7 +4752,26 @@ function attachAktiveSakerListeners(){
     if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingSakId = null; render(); });
     const delBtn = document.getElementById('e-sak-delete-'+s.id);
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSak(s.id); });
+    const kreverAvsettingSelect = document.getElementById('e-sak-krever-avsetting-'+s.id);
+    if(kreverAvsettingSelect) kreverAvsettingSelect.addEventListener('change', (e) => {
+      e.stopPropagation();
+      s.requiresProvision = kreverAvsettingSelect.value === 'ja';
+      render();
+    });
   });
+  document.querySelectorAll('[data-registrer-vt-fra-sak]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToRegisterVTFraSak(el.dataset.registrerVtFraSak);
+  }));
+  document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
+    if(!vt) return;
+    vtFilterBil = vt.vehicleId; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
+    showVtFilterMeny = false;
+    vtOversiktOpenVehicles = new Set([vt.vehicleId]);
+    goTo('verksted');
+  }));
 }
 
 
@@ -4408,41 +4843,15 @@ function filterByPeriode(list, periode){
   if(periode === 'ar') return list.filter(t => t.dato && t.dato.startsWith(today.slice(0,4)));
   return list;
 }
-function kostPeriodeRange(periode){
-  const today = todayISO();
-  if(periode === 'denne-uke') return {fra: mondayOfWeek(today), til: today};
-  if(periode === 'forrige-uke'){
-    const monThis = mondayOfWeek(today);
-    const dFra = new Date(monThis + 'T00:00:00Z'); dFra.setUTCDate(dFra.getUTCDate() - 7);
-    const dTil = new Date(monThis + 'T00:00:00Z'); dTil.setUTCDate(dTil.getUTCDate() - 1);
-    return {fra: dFra.toISOString().slice(0,10), til: dTil.toISOString().slice(0,10)};
-  }
-  if(periode === 'siste-2-uker') return {fra: isoDaysAgo(13), til: today};
-  if(periode === 'siste-3-uker') return {fra: isoDaysAgo(20), til: today};
-  if(periode === 'siste-maned') return {fra: isoMonthsAgo(1), til: today};
-  if(periode === 'siste-6-maneder') return {fra: isoMonthsAgo(6), til: today};
-  if(periode === 'siste-aret') return {fra: isoMonthsAgo(12), til: today};
-  return null;
-}
-function filterByKostPeriode(list, periode){
-  const range = kostPeriodeRange(periode);
-  if(!range) return list;
-  return list.filter(t => t.dato >= range.fra && t.dato <= range.til);
-}
-const KOST_PERIODE_LABEL = {
-  'denne-uke':'Denne uken', 'forrige-uke':'Forrige uke', 'siste-2-uker':'Siste 2 ukene',
-  'siste-3-uker':'Siste 3 ukene', 'siste-maned':'Siste måned', 'siste-6-maneder':'Siste 6 måneder',
-  'siste-aret':'Siste året'
-};
-const KOST_PERIODE_FILNAVN = {
-  'denne-uke':'DenneUken', 'forrige-uke':'ForrigeUke', 'siste-2-uker':'Siste2Ukene',
-  'siste-3-uker':'Siste3Ukene', 'siste-maned':'SisteManed', 'siste-6-maneder':'Siste6Maneder',
-  'siste-aret':'SisteAret'
-};
 function getFilteredVerkstedtimer(){
   const filtered = verkstedtimer.filter(t => {
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
     if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
+    if(vtFilterSakStatus){
+      const linkedSak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
+      if(vtFilterSakStatus === 'apen' && (!linkedSak || !sakErApen(linkedSak))) return false;
+      if(vtFilterSakStatus === 'lukket' && (!linkedSak || sakErApen(linkedSak))) return false;
+    }
     return true;
   });
   const today = todayISO();
@@ -4463,7 +4872,7 @@ function renderVerksted(){
 
   const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nearestVT ? nearestVT.id : null);
   const totalKr = visning.reduce((s,t) => s + Number(t.pris||0), 0);
-  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode].filter(Boolean).length;
+  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length;
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
@@ -4495,9 +4904,26 @@ function renderVerksted(){
       <div class="vt-date" style="font-size:16px;margin-top:6px;">${fmt(nearestVT.dato)} – ${esc((vtVehicle(nearestVT)||{}).regnr || '?')}</div>
     </div>` : ''}
 
-    ${showAddVT ? `
+    ${showAddVT ? (() => {
+      const linkedSak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
+      const lv = linkedSak ? sakVehicle(linkedSak) : null;
+      return `
     <form class="panel" id="add-vt-form">
-      <h3>Ny verkstedtime</h3>
+      <h3>${linkedSak ? 'Registrer verkstedtime for sak' : 'Ny verkstedtime'}</h3>
+      ${linkedSak ? `
+      <div class="required-hint" style="margin-bottom:14px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">
+        🗂️ ${esc(linkedSak.caseId)} — ${esc(linkedSak.title)}<br>
+        ${lv ? esc(vehicleLabel(lv)) : ''} · ${SAK_TYPE_LABEL[linkedSak.caseType] || 'Annet'} · Registrert ${fmt(linkedSak.reportedAt)}
+      </div>
+      <input type="hidden" id="vt-vehicle" value="${linkedSak.vehicleId}">
+      <input type="hidden" id="vt-beskrivelse" value="${esc(linkedSak.title)}">
+      <div class="field"><label>Verksted</label>
+        <select id="vt-verksted" required>
+          <option value="">Velg verksted...</option>
+          ${verkstedSelectOptions('')}
+        </select>
+      </div>
+      ` : `
       <div class="row2">
         <div class="field"><label>Bil</label>
           <select id="vt-vehicle" required>
@@ -4512,16 +4938,22 @@ function renderVerksted(){
           </select>
         </div>
       </div>
+      `}
       <div class="row2">
         <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
-      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>
-      <div class="field" style="margin-bottom:10px;"><label>💰 Pris</label><input id="vt-pris" type="text" inputmode="numeric" placeholder="F.eks. 4850"></div>
-      <div class="field" style="margin-bottom:6px;"><label>Notater</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
+      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>`}
+      <div class="row2">
+        <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
+        <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>💰 Estimert kostnad</label><input id="vt-pris" type="text" inputmode="numeric" placeholder="F.eks. 4850"></div>
+      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
       <div class="form-msg" id="vt-msg"></div>
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
-    </form>` : ''}
+    </form>`;
+    })() : ''}
 
     ${showVtFilterMeny ? `
     <div class="panel" style="margin-bottom:16px;">
@@ -4557,6 +4989,15 @@ function renderVerksted(){
           </select>
         </div>
       </div>
+      <div class="row2" style="margin-bottom:0;margin-top:12px;">
+        <div class="field" style="margin-bottom:0;"><label>🗂️ Tilknyttet sak</label>
+          <select id="vt-f-sakstatus">
+            <option value="" ${vtFilterSakStatus===''?'selected':''}>Alle</option>
+            <option value="apen" ${vtFilterSakStatus==='apen'?'selected':''}>Kun åpne saker</option>
+            <option value="lukket" ${vtFilterSakStatus==='lukket'?'selected':''}>Kun lukkede saker</option>
+          </select>
+        </div>
+      </div>
     </div>` : ''}
 
     ${oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${antallAktiveFiltre > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody}
@@ -4567,6 +5008,7 @@ function vtCard(t, upcoming, isNext){
   const v = vtVehicle(t);
   const editing = editingVTId === t.id;
   const within7 = upcoming && vtWithinWeek(t.dato);
+  const linkedSak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
   return `
     <div class="vt-card ${isNext ? 'next-vt' : (upcoming ? (within7 ? 'soon' : 'ok') : 'unset')}">
       <div class="vt-top" data-toggle-vt="${t.id}">
@@ -4574,6 +5016,7 @@ function vtCard(t, upcoming, isNext){
           <div class="vt-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
           <div class="vt-desc">${esc(t.beskrivelse)}${upcoming ? '' : ' (utført arbeid)'}</div>
           <div class="dmg-meta">${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
+          ${linkedSak ? `<div class="dmg-meta" data-goto-sak="${linkedSak.id}" style="cursor:pointer;text-decoration:underline;">🗂️ Aktiv sak: ${esc(linkedSak.title)}</div>` : ''}
         </div>
         <div class="vt-when">
           ${isNext ? `<span class="vt-next-badge">⭐ Neste verkstedtime</span>` : ''}
@@ -4594,8 +5037,13 @@ function vtCard(t, upcoming, isNext){
           <div class="field"><label>Tidspunkt</label><input id="e-vt-tid-${t.id}" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${t.tidspunkt||''}"></div>
         </div>
         <div class="field" style="margin-bottom:10px;"><label>Beskrivelse${upcoming ? '' : ' / utført arbeid'}</label><input id="e-vt-beskrivelse-${t.id}" type="text" value="${esc(t.beskrivelse)}"></div>
+        <div class="row2">
+          <div class="field"><label>Kontaktperson</label><input id="e-vt-kontaktperson-${t.id}" type="text" value="${esc(t.kontaktperson||'')}"></div>
+          <div class="field"><label>Telefonnummer</label><input id="e-vt-telefon-${t.id}" type="text" inputmode="tel" value="${esc(t.telefon||'')}"></div>
+        </div>
         <div class="field" style="margin-bottom:10px;"><label>💰 Pris</label><input id="e-vt-pris-${t.id}" type="text" inputmode="numeric" placeholder="F.eks. 4850" value="${t.pris !== undefined && t.pris !== null ? t.pris : ''}"></div>
         <div class="field" style="margin-bottom:10px;"><label>Notater</label><textarea id="e-vt-notater-${t.id}">${esc(t.notater||'')}</textarea></div>
+        ${linkedSak ? `<div class="required-hint" style="margin-bottom:10px;">🗂️ Tilknyttet ${esc(linkedSak.caseId)} — ${esc(linkedSak.title)}</div>` : ''}
         <div class="panel-actions">
           <button class="btn small" id="vt-save-${t.id}">Lagre endringer</button>
           <button class="btn secondary small" id="vt-cancel-${t.id}">Avbryt</button>
@@ -4610,7 +5058,7 @@ function attachVerkstedListeners(){
   document.getElementById('vt-back').addEventListener('click', () => goTo('dashboard'));
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
-    if(!showAddVT) vtPrefillVehicleId = '';
+    if(!showAddVT){ vtPrefillVehicleId = ''; vtPrefillSakId = ''; }
     render();
   });
   const f = document.getElementById('add-vt-form');
@@ -4627,7 +5075,10 @@ function attachVerkstedListeners(){
   if(fType) fType.addEventListener('change', e => { vtFilterType = e.target.value; render(); });
   const fPeriode = document.getElementById('vt-f-periode');
   if(fPeriode) fPeriode.addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
+  const fSakStatus = document.getElementById('vt-f-sakstatus');
+  if(fSakStatus) fSakStatus.addEventListener('change', e => { vtFilterSakStatus = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
+  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   const grupperToggle = document.querySelector('[data-toggle-vt-grupper]');
   if(grupperToggle) grupperToggle.addEventListener('click', () => {
     vtGrupperApen = !vtGrupperApen;
@@ -4648,40 +5099,111 @@ function attachVerkstedListeners(){
   });
 }
 
-// ================= scrKostnadsoversikt =================
-// Ren informasjons- og rapportside som samler kostnader på tvers av
-// Verkstedoversikt (verkstedtimer.pris), Dekkoversikt (dekkkostnader) og
-// Skadeoversikt (damages.estimertKostnad). All registrering skjer på de
-// respektive sidene — her vises kun tall, filtrert med filterByKostPeriode().
-function exportKostnadExcel(periode){
-  const verkstedI = filterByKostPeriode(verkstedtimer.filter(t => t.pris), periode);
-  const dekkI = filterByKostPeriode(dekkkostnader.filter(dk => dk.kostnad), periode);
-  const skadeI = filterByKostPeriode(damages.filter(d => d.estimertKostnad), periode);
-  const header = ['Dato','Bil','Kostnadstype','Beskrivelse','Kostnad'];
-  const rows = [];
-  verkstedI.forEach(t => {
-    const v = vtVehicle(t);
-    rows.push([fmt(t.dato), v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy', 'Verksted', t.beskrivelse || '', Number(t.pris)]);
+// ================= scrKostnadsoversikt (Fase 4) =================
+// Eneste side som håndterer kostnader og avsetting. Samler data fra tre kilder
+// til én enhetlig liste av "kostnadsposter":
+//  1) Aktive Saker med estimatedCost/actualCost — hovedkilden fremover, siden
+//     Fase 2 auto-oppretter en sak for hver skade/varsellampe/kontrollavvik.
+//  2) Verkstedtimer UTEN tilknyttet sak (sakId tom) — historiske/frittstående
+//     verkstedregistreringer som aldri har gått via en sak.
+//  3) Dekkkostnader (har ingen sak-konsept ennå) og "foreldreløse" skader uten
+//     en tilhørende sak (kun aktuelt for data fra før Fase 2/3).
+// Dette unngår dobbelttelling samtidig som ingenting historisk blir usynlig.
+function getKostnadsposter(){
+  const poster = [];
+  aktiveSaker.forEach(s => {
+    const kilde = s.caseType === 'skade' ? 'skade' : (s.caseType === 'dekk' ? 'dekk' : (s.caseType === 'annet' ? 'annet' : 'verksted'));
+    poster.push({
+      id: 'sak:'+s.id, sakId: s.id, vehicleId: s.vehicleId, dato: s.reportedAt,
+      kilde, caseType: s.caseType, tittel: s.title,
+      estimert: (s.estimatedCost !== undefined && s.estimatedCost !== null) ? Number(s.estimatedCost) : null,
+      faktisk: (s.actualCost !== undefined && s.actualCost !== null) ? Number(s.actualCost) : null,
+      sakStatus: sakErApen(s) ? 'apen' : 'lukket',
+      requiresProvision: !!s.requiresProvision,
+      provisionAmount: s.provisionAmount !== undefined && s.provisionAmount !== null ? Number(s.provisionAmount) : null,
+      provisionMonth: s.provisionMonth || null
+    });
   });
-  dekkI.forEach(dk => {
-    const v = vehicles.find(x => x.id === dk.vehicleId);
-    rows.push([fmt(dk.dato), v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy', 'Dekk', dk.kommentar || '', Number(dk.kostnad)]);
+  verkstedtimer.filter(t => !t.sakId).forEach(t => {
+    poster.push({
+      id: 'vt:'+t.id, sakId: null, vehicleId: t.vehicleId, dato: t.dato,
+      kilde: 'verksted', caseType: null, tittel: t.beskrivelse || t.verksted || 'Verkstedtime',
+      estimert: null, faktisk: (t.pris !== undefined && t.pris !== null && t.pris !== '') ? Number(t.pris) : null,
+      sakStatus: null, requiresProvision: false, provisionAmount: null, provisionMonth: null
+    });
   });
-  skadeI.forEach(d => {
-    const v = dmgVehicle(d);
-    rows.push([fmt(d.dato), v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy', 'Skade', d.beskrivelse || '', Number(d.estimertKostnad)]);
+  dekkkostnader.forEach(dk => {
+    poster.push({
+      id: 'dekk:'+dk.id, sakId: null, vehicleId: dk.vehicleId, dato: dk.dato,
+      kilde: 'dekk', caseType: null, tittel: dk.kommentar || 'Dekk',
+      estimert: null, faktisk: (dk.kostnad !== undefined && dk.kostnad !== null) ? Number(dk.kostnad) : null,
+      sakStatus: null, requiresProvision: false, provisionAmount: null, provisionMonth: null
+    });
   });
-  rows.sort((a,b) => a[0].localeCompare(b[0]));
-  const totalSum = rows.reduce((s,r) => s + Number(r[4]||0), 0);
-  const summaryRow = new Array(5).fill('');
+  const sakSkadeIder = new Set(aktiveSaker.filter(s => s.caseType === 'skade').map(s => s.sourceId));
+  damages.filter(d => d.estimertKostnad && !sakSkadeIder.has(d.id)).forEach(d => {
+    poster.push({
+      id: 'skade:'+d.id, sakId: null, vehicleId: d.vehicleId, dato: d.dato,
+      kilde: 'skade', caseType: null, tittel: d.beskrivelse || 'Skade',
+      estimert: null, faktisk: Number(d.estimertKostnad),
+      sakStatus: d.status === 'utbedret' ? 'lukket' : 'apen', requiresProvision: false, provisionAmount: null, provisionMonth: null
+    });
+  });
+  return poster;
+}
+function bestKostnad(post){
+  if(post.faktisk !== null && post.faktisk !== undefined) return post.faktisk;
+  if(post.estimert !== null && post.estimert !== undefined) return post.estimert;
+  return 0;
+}
+function filteredKostnadsposter(){
+  return getKostnadsposter().filter(p => {
+    if(kostFilterBil && p.vehicleId !== kostFilterBil) return false;
+    if(kostFilterGruppe){
+      const v = vehicles.find(x => x.id === p.vehicleId);
+      if(!v || v.kategori !== kostFilterGruppe) return false;
+    }
+    if(kostFilterType && p.caseType !== kostFilterType) return false;
+    if(kostFilterKilde && p.kilde !== kostFilterKilde) return false;
+    if(kostFilterSakStatus && p.sakStatus !== kostFilterSakStatus) return false;
+    if(kostFilterKunAvsettinger && !p.requiresProvision) return false;
+    if((kostFilterManed || kostFilterAr) && p.dato){
+      const [ar, maned] = p.dato.split('-');
+      if(kostFilterAr && ar !== kostFilterAr) return false;
+      if(kostFilterManed && maned !== kostFilterManed) return false;
+    } else if(kostFilterManed || kostFilterAr){
+      return false;
+    }
+    return true;
+  });
+}
+function exportKostnadExcel(){
+  const poster = filteredKostnadsposter().slice().sort((a,b) => (a.dato||'').localeCompare(b.dato||''));
+  const header = ['Bil','Sakstype','Status','Estimert kostnad','Faktisk kostnad','Avsetting','Måned','Dato'];
+  const rows = poster.map(p => {
+    const v = vehicles.find(x => x.id === p.vehicleId);
+    return [
+      v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy',
+      p.caseType ? (SAK_TYPE_LABEL[p.caseType] || p.caseType) : (KOST_KILDE_LABEL[p.kilde] || p.kilde),
+      p.sakStatus ? (p.sakStatus === 'apen' ? 'Åpen' : 'Lukket') : '',
+      p.estimert !== null ? Number(p.estimert) : '',
+      p.faktisk !== null ? Number(p.faktisk) : '',
+      p.requiresProvision ? fmtKr(p.provisionAmount) : '',
+      p.provisionMonth || '',
+      fmt(p.dato)
+    ];
+  });
+  const totalSum = poster.reduce((s,p) => s + bestKostnad(p), 0);
+  const summaryRow = new Array(8).fill('');
   summaryRow[2] = 'Totale kostnader:';
   summaryRow[4] = totalSum;
-  const aoa = [header, ...rows, new Array(5).fill(''), summaryRow];
+  const aoa = [header, ...rows, new Array(8).fill(''), summaryRow];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Kostnadsoversikt');
-  XLSX.writeFile(wb, `Kostnadsoversikt_${KOST_PERIODE_FILNAVN[periode] || 'Alle'}.xlsx`);
+  XLSX.writeFile(wb, 'Kostnadsoversikt_Eksport.xlsx');
 }
+const KOST_KILDE_LABEL = {verksted:'Verksted', skade:'Skade', dekk:'Dekk', annet:'Annet'};
 function kostCardHtml(icon, label, verdi, storFont){
   return `
     <div class="panel" style="text-align:center;padding:18px 14px;">
@@ -4691,58 +5213,205 @@ function kostCardHtml(icon, label, verdi, storFont){
   `;
 }
 function renderKostnadsoversikt(){
-  const verkstedI = filterByKostPeriode(verkstedtimer, kostnadPeriodeFilter);
-  const dekkI = filterByKostPeriode(dekkkostnader, kostnadPeriodeFilter);
-  const skadeI = filterByKostPeriode(damages, kostnadPeriodeFilter);
+  const alleposter = getKostnadsposter();
+  const poster = filteredKostnadsposter();
+  const today = todayISO();
+  const iArPoster = alleposter.filter(p => p.dato && p.dato.startsWith(today.slice(0,4)));
+  const totalIAr = iArPoster.reduce((s,p) => s + bestKostnad(p), 0);
+  const forventetKostnad = alleposter.filter(p => p.sakStatus === 'apen' && p.estimert !== null).reduce((s,p) => s + p.estimert, 0);
+  const avsettingerApne = alleposter.filter(p => p.requiresProvision && p.sakStatus !== 'lukket').reduce((s,p) => s + (p.provisionAmount||0), 0);
+  const bilerMedKostnad = new Set(alleposter.map(p => p.vehicleId));
+  const totaltAlleposter = alleposter.reduce((s,p) => s + bestKostnad(p), 0);
+  const snittPerBil = vehicles.length > 0 ? totaltAlleposter / vehicles.length : 0;
 
-  const verkstedSum = verkstedI.reduce((s,t) => s + Number(t.pris||0), 0);
-  const dekkSum = dekkI.reduce((s,dk) => s + Number(dk.kostnad||0), 0);
-  const skadeSum = skadeI.reduce((s,d) => s + Number(d.estimertKostnad||0), 0);
-  const totalSum = verkstedSum + dekkSum + skadeSum;
+  const verkstedSum = poster.filter(p => p.kilde === 'verksted').reduce((s,p) => s + bestKostnad(p), 0);
+  const skadeSum = poster.filter(p => p.kilde === 'skade').reduce((s,p) => s + bestKostnad(p), 0);
+  const dekkSum = poster.filter(p => p.kilde === 'dekk').reduce((s,p) => s + bestKostnad(p), 0);
+  const andreSum = poster.filter(p => p.kilde === 'annet').reduce((s,p) => s + bestKostnad(p), 0);
+  const totalSum = verkstedSum + skadeSum + dekkSum + andreSum;
+
+  const antallAktiveFiltre = [kostFilterBil, kostFilterGruppe, kostFilterType, kostFilterManed, kostFilterAr, kostFilterKilde, kostFilterSakStatus].filter(Boolean).length + (kostFilterKunAvsettinger?1:0);
+
+  const arISystemet = [...new Set(alleposter.map(p => p.dato ? p.dato.slice(0,4) : null).filter(Boolean))].sort().reverse();
+  const MANED_LABEL = {'01':'Januar','02':'Februar','03':'Mars','04':'April','05':'Mai','06':'Juni','07':'Juli','08':'August','09':'September','10':'Oktober','11':'November','12':'Desember'};
+
+  // Listevisning gruppert per bil
+  const byVehicle = new Map();
+  poster.forEach(p => {
+    if(!byVehicle.has(p.vehicleId)) byVehicle.set(p.vehicleId, []);
+    byVehicle.get(p.vehicleId).push(p);
+  });
+  const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
+  const listevisningBody = beroerteKjoretoy.length === 0 ? `<div class="empty-note">Ingen kostnader${antallAktiveFiltre>0?' med gjeldende filter':''}.</div>` : `
+    <div class="acc-list">
+      ${beroerteKjoretoy.map(v => {
+        const vPoster = byVehicle.get(v.id).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+        const open = kostOversiktOpenVehicles.has(v.id);
+        const vTotal = vPoster.reduce((s,p) => s + bestKostnad(p), 0);
+        return `
+        <div class="acc-row ${open ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-kost-vehicle="${v.id}">
+            <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+            <div class="acc-head-right"><span class="group-count">${fmtKr(vTotal)}</span><span class="chevron">⌄</span></div>
+          </div>
+          ${open ? `<div class="acc-body">
+            <ul class="dmg-simple-list">
+              ${vPoster.map(p => `<li><span class="dmg-simple-main">${esc(p.tittel)}<br>Estimert: ${p.estimert !== null ? fmtKr(p.estimert) : '—'}<br>${p.faktisk !== null ? 'Faktisk: ' + fmtKr(p.faktisk) : 'Ikke utført ennå'}</span></li>`).join('')}
+            </ul>
+            <div class="required-hint" style="margin-top:8px;font-weight:700;">Totale kostnader ${esc(v.bilnummer||v.regnr)}: ${fmtKr(vTotal)}</div>
+          </div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  // Avsettingspanel gruppert per måned
+  const avsettingsposter = poster.filter(p => p.requiresProvision && p.provisionAmount !== null);
+  const byManed = new Map();
+  avsettingsposter.forEach(p => {
+    const key = p.provisionMonth || 'Ikke satt';
+    if(!byManed.has(key)) byManed.set(key, []);
+    byManed.get(key).push(p);
+  });
+  const manedNokler = [...byManed.keys()].sort();
+  const avsettingsBody = manedNokler.length === 0 ? `<div class="empty-note">Ingen avsettinger${antallAktiveFiltre>0?' med gjeldende filter':''}.</div>` : manedNokler.map(mnd => {
+    const gruppePoster = byManed.get(mnd);
+    const gruppeSum = gruppePoster.reduce((s,p) => s + (p.provisionAmount||0), 0);
+    const [ar, maned] = mnd.includes('-') ? mnd.split('-') : ['',''];
+    const mndLabel = maned && MANED_LABEL[maned] ? MANED_LABEL[maned] + ' ' + ar : mnd;
+    return `
+    <div style="margin-bottom:18px;">
+      <div class="group-card-title" style="margin-bottom:8px;">${esc(mndLabel)}</div>
+      <ul class="dmg-simple-list">
+        ${gruppePoster.map(p => {
+          const v = vehicles.find(x => x.id === p.vehicleId);
+          return `<li><span class="dmg-simple-main">${esc(p.tittel)} ${v ? '– ' + esc(vehicleLabel(v)) : ''}<br>${fmtKr(p.provisionAmount)}</span></li>`;
+        }).join('')}
+      </ul>
+      <div class="required-hint" style="margin-top:6px;font-weight:700;">Total avsetting: ${fmtKr(gruppeSum)}</div>
+    </div>`;
+  }).join('');
 
   return `
     <div class="backrow"><button class="backbtn" id="kost-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:4px;">💰 Kostnadsoversikt</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${kostnadPeriodeFilter ? 'Viser kostnader for: ' + KOST_PERIODE_LABEL[kostnadPeriodeFilter] : 'Viser kostnader for hele perioden. Velg et filter nederst for å avgrense.'}</div>
+    <h2 style="font-size:19px;margin-bottom:16px;">💰 Kostnadsoversikt</h2>
 
     <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px;">
-      ${kostCardHtml('💰', 'Totale kostnader', fmtKr(totalSum), true)}
-      ${kostCardHtml('🔧', 'Verkstedkostnader', fmtKr(verkstedSum), false)}
-      ${kostCardHtml('🛞', 'Dekkkostnader', fmtKr(dekkSum), false)}
-      ${kostCardHtml('⚠️', 'Skadekostnader', fmtKr(skadeSum), false)}
+      ${kostCardHtml('💰', 'Totale kostnader i år', fmtKr(totalIAr), true)}
+      ${kostCardHtml('📋', 'Forventede kostnader', fmtKr(forventetKostnad), false)}
+      ${kostCardHtml('📦', 'Avsettinger åpne saker', fmtKr(avsettingerApne), false)}
+      ${kostCardHtml('🚐', 'Snitt kostnad per bil', fmtKr(Math.round(snittPerBil)), false)}
+    </div>
+
+    <h3 style="margin-bottom:10px;">📍 Kostnader per bil</h3>
+    ${listevisningBody}
+
+    <h3 style="margin:22px 0 10px;">📦 Avsettinger</h3>
+    ${avsettingsBody}
+
+    <div class="panel" style="margin:20px 0;">
+      <h3 style="margin-bottom:12px;">💰 Samlet kostnadsoppsummering</h3>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Totale verkstedkostnader</span><span class="ov-value">${fmtKr(verkstedSum)}</span></div>
+        <div class="ov-item"><span class="ov-label">Totale skadekostnader</span><span class="ov-value">${fmtKr(skadeSum)}</span></div>
+        <div class="ov-item"><span class="ov-label">Totale dekkostnader</span><span class="ov-value">${fmtKr(dekkSum)}</span></div>
+        <div class="ov-item"><span class="ov-label">Andre kostnader</span><span class="ov-value">${fmtKr(andreSum)}</span></div>
+        <div class="ov-item"><span class="ov-label">Total kostnad</span><span class="ov-value" style="font-size:18px;font-weight:700;">${fmtKr(totalSum)}</span></div>
+      </div>
     </div>
 
     <div class="filters-row" style="margin-bottom:8px;">
-      <select id="kost-f-periode">
-        <option value="" ${kostnadPeriodeFilter===''?'selected':''}>🔽 Filtrer</option>
-        <option value="denne-uke" ${kostnadPeriodeFilter==='denne-uke'?'selected':''}>Denne uken</option>
-        <option value="forrige-uke" ${kostnadPeriodeFilter==='forrige-uke'?'selected':''}>Forrige uke</option>
-        <option value="siste-2-uker" ${kostnadPeriodeFilter==='siste-2-uker'?'selected':''}>Siste 2 ukene</option>
-        <option value="siste-3-uker" ${kostnadPeriodeFilter==='siste-3-uker'?'selected':''}>Siste 3 ukene</option>
-        <option value="siste-maned" ${kostnadPeriodeFilter==='siste-maned'?'selected':''}>Siste måned</option>
-        <option value="siste-6-maneder" ${kostnadPeriodeFilter==='siste-6-maneder'?'selected':''}>Siste 6 måneder</option>
-        <option value="siste-aret" ${kostnadPeriodeFilter==='siste-aret'?'selected':''}>Siste året</option>
-      </select>
+      <button class="btn secondary small" id="kost-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
       <button class="btn secondary small" id="kost-eksporter-btn">📊 Eksporter til Excel</button>
     </div>
-    <div class="form-msg" id="kost-eksport-msg"></div>
+    ${showKostFilterMeny ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="row2">
+        <div class="field"><label>🚐 Bil</label>
+          <select id="kost-f-bil">
+            <option value="">Alle biler</option>
+            ${vehicleOptions(kostFilterBil)}
+          </select>
+        </div>
+        <div class="field"><label>🗂️ Bilgruppe</label>
+          <select id="kost-f-gruppe">
+            <option value="">Alle bilgrupper</option>
+            ${KATEGORI_ORDER.map(k => `<option value="${k}" ${kostFilterGruppe===k?'selected':''}>${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>📁 Sakstype</label>
+          <select id="kost-f-type">
+            <option value="">Alle sakstyper</option>
+            ${SAK_TYPE_ORDER.map(t => `<option value="${t}" ${kostFilterType===t?'selected':''}>${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>🔎 Kilde</label>
+          <select id="kost-f-kilde">
+            <option value="">Alle kilder</option>
+            <option value="verksted" ${kostFilterKilde==='verksted'?'selected':''}>Kun verksted</option>
+            <option value="skade" ${kostFilterKilde==='skade'?'selected':''}>Kun skader</option>
+            <option value="dekk" ${kostFilterKilde==='dekk'?'selected':''}>Kun dekk</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>📅 Måned</label>
+          <select id="kost-f-maned">
+            <option value="">Alle måneder</option>
+            ${Object.keys(MANED_LABEL).map(m => `<option value="${m}" ${kostFilterManed===m?'selected':''}>${MANED_LABEL[m]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>📆 År</label>
+          <select id="kost-f-ar">
+            <option value="">Alle år</option>
+            ${arISystemet.map(a => `<option value="${a}" ${kostFilterAr===a?'selected':''}>${a}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>📋 Sakstatus</label>
+        <select id="kost-f-sakstatus">
+          <option value="">Alle</option>
+          <option value="apen" ${kostFilterSakStatus==='apen'?'selected':''}>Kun åpne saker</option>
+          <option value="lukket" ${kostFilterSakStatus==='lukket'?'selected':''}>Kun lukkede saker</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-bottom:0;font-size:13.5px;font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="kost-f-kun-avsettinger" style="width:20px;height:20px;flex-shrink:0;" ${kostFilterKunAvsettinger?'checked':''}>
+        Kun avsettinger
+      </label>
+    </div>` : ''}
   `;
 }
 function attachKostnadsoversiktListeners(){
   document.getElementById('kost-back').addEventListener('click', () => goTo('dashboard'));
-  document.getElementById('kost-f-periode').addEventListener('change', e => {
-    kostnadPeriodeFilter = e.target.value;
+  document.getElementById('kost-filter-toggle-btn').addEventListener('click', () => {
+    showKostFilterMeny = !showKostFilterMeny;
     render();
   });
-  document.getElementById('kost-eksporter-btn').addEventListener('click', () => {
-    const msgEl = document.getElementById('kost-eksport-msg');
-    if(!kostnadPeriodeFilter){
-      msgEl.textContent = 'Velg en periode i "🔽 Filtrer" før du eksporterer.';
-      return;
-    }
-    msgEl.textContent = '';
-    exportKostnadExcel(kostnadPeriodeFilter);
-  });
+  document.getElementById('kost-eksporter-btn').addEventListener('click', () => exportKostnadExcel());
+  const fBil = document.getElementById('kost-f-bil');
+  if(fBil) fBil.addEventListener('change', e => { kostFilterBil = e.target.value; render(); });
+  const fGruppe = document.getElementById('kost-f-gruppe');
+  if(fGruppe) fGruppe.addEventListener('change', e => { kostFilterGruppe = e.target.value; render(); });
+  const fType = document.getElementById('kost-f-type');
+  if(fType) fType.addEventListener('change', e => { kostFilterType = e.target.value; render(); });
+  const fKilde = document.getElementById('kost-f-kilde');
+  if(fKilde) fKilde.addEventListener('change', e => { kostFilterKilde = e.target.value; render(); });
+  const fManed = document.getElementById('kost-f-maned');
+  if(fManed) fManed.addEventListener('change', e => { kostFilterManed = e.target.value; render(); });
+  const fAr = document.getElementById('kost-f-ar');
+  if(fAr) fAr.addEventListener('change', e => { kostFilterAr = e.target.value; render(); });
+  const fSakStatus = document.getElementById('kost-f-sakstatus');
+  if(fSakStatus) fSakStatus.addEventListener('change', e => { kostFilterSakStatus = e.target.value; render(); });
+  const fKunAvsettinger = document.getElementById('kost-f-kun-avsettinger');
+  if(fKunAvsettinger) fKunAvsettinger.addEventListener('change', e => { kostFilterKunAvsettinger = e.target.checked; render(); });
+  document.querySelectorAll('[data-toggle-kost-vehicle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleKostVehicle;
+    if(kostOversiktOpenVehicles.has(id)) kostOversiktOpenVehicles.delete(id); else kostOversiktOpenVehicles.add(id);
+    render();
+  }));
 }
 
 // ================= scrInnstillinger =================
@@ -5109,6 +5778,7 @@ function renderKontroll(){
   const v = vehicles.find(x => x.id === kontrollFormVehicleId);
   const activeVarsellysList = kontrollFormVehicleId ? activeVarsellysForVehicle(kontrollFormVehicleId) : [];
   const activeTypes = new Set(activeVarsellysList.map(w => w.type));
+  const activeAvvikTypes = kontrollFormVehicleId ? new Set(aktiveSaker.filter(s => s.vehicleId === kontrollFormVehicleId && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId)) : new Set();
   let vlStatus = 'green';
   if(activeVarsellysList.length > 0){
     const alleNylige = activeVarsellysList.every(w => { const d = daysSince(w.registrertDato); return d !== null && d <= 1; });
@@ -5168,11 +5838,12 @@ function renderKontroll(){
             <div class="chip-grid">
               ${VARSELLAMPE_ORDER.map(key => {
                 const isActive = activeTypes.has(key);
-                const isChecked = isActive || kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
+                const isSelected = kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
+                const isChecked = isActive || isSelected;
                 return `
-                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}" ${isActive ? 'disabled' : ''}>
-                  <span class="chip-icon">${isActive ? '🟩' : VARSELLAMPE_ICON[key]}</span>
-                  <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — allerede meldt inn' : ''}</span>
+                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}">
+                  <span class="chip-icon">${isActive ? '✅' : VARSELLAMPE_ICON[key]}</span>
+                  <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
                 </button>
               `;}).join('')}
             </div>
@@ -5181,6 +5852,34 @@ function renderKontroll(){
               <label>Beskriv «Annet»</label>
               <input id="kt-annet-tekst" type="text" placeholder="Beskriv varselet" value="${esc(kontrollFormAnnetTekst)}" ${activeTypes.has('annet') ? 'disabled' : ''}>
             </div>` : ''}
+          </div>` : ''}
+        </div>
+      </div>
+
+      <div class="field" style="margin:18px 0;">
+        <div class="acc-row ${kontrollAvvikOpen ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-kt-avvik>
+            <div class="acc-head-left">
+              <div class="flag-name">Kontrollavvik</div>
+            </div>
+            <div class="acc-head-right">
+              ${kontrollFormAvvik.length > 0 ? `<span class="group-count">${kontrollFormAvvik.length} valgt</span>` : ''}
+              <span class="chevron">⌄</span>
+            </div>
+          </div>
+          ${kontrollAvvikOpen ? `<div class="acc-body">
+            <div class="chip-grid">
+              ${KONTROLLAVVIK_ORDER.map(key => {
+                const isActive = activeAvvikTypes.has(key);
+                const isSelected = kontrollFormAvvik.includes(key);
+                const isChecked = isActive || isSelected;
+                return `
+                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-avvik-${key}" data-kt-avvik="${key}">
+                  <span class="chip-icon">${isActive ? '✅' : KONTROLLAVVIK_IKON[key]}</span>
+                  <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
+                </button>
+              `;}).join('')}
+            </div>
           </div>` : ''}
         </div>
       </div>
@@ -5221,6 +5920,8 @@ function renderKontroll(){
 function attachKontrollListeners(){
   const varsellamperHead = document.querySelector('[data-toggle-kt-varsellamper]');
   if(varsellamperHead) varsellamperHead.addEventListener('click', () => { kontrollVarsellamperOpen = !kontrollVarsellamperOpen; render(); });
+  const avvikHead = document.querySelector('[data-toggle-kt-avvik]');
+  if(avvikHead) avvikHead.addEventListener('click', () => { kontrollAvvikOpen = !kontrollAvvikOpen; render(); });
   const backBtn = document.getElementById('kt-back');
   if(backBtn) backBtn.addEventListener('click', () => {
     if(kontrollPrefillVehicleId) goTo('bilkort', kontrollPrefillVehicleId);
@@ -5249,7 +5950,7 @@ function attachKontrollListeners(){
   if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; saveKontrollDraft(); });
 
   const annetBtn = document.getElementById('kt-varsel-annet');
-  if(annetBtn && !annetBtn.disabled) annetBtn.addEventListener('click', () => {
+  if(annetBtn) annetBtn.addEventListener('click', () => {
     kontrollFormAnnet = !kontrollFormAnnet;
     if(!kontrollFormAnnet) kontrollFormAnnetTekst = '';
     saveKontrollDraft();
@@ -5257,9 +5958,18 @@ function attachKontrollListeners(){
   });
   VARSELLAMPE_ORDER.filter(k => k !== 'annet').forEach(key => {
     const btn = document.getElementById('kt-varsel-'+key);
-    if(btn && !btn.disabled) btn.addEventListener('click', () => {
+    if(btn) btn.addEventListener('click', () => {
       if(kontrollFormVarsellamper.includes(key)) kontrollFormVarsellamper = kontrollFormVarsellamper.filter(k => k !== key);
       else kontrollFormVarsellamper.push(key);
+      saveKontrollDraft();
+      render();
+    });
+  });
+  KONTROLLAVVIK_ORDER.forEach(key => {
+    const btn = document.getElementById('kt-avvik-'+key);
+    if(btn) btn.addEventListener('click', () => {
+      if(kontrollFormAvvik.includes(key)) kontrollFormAvvik = kontrollFormAvvik.filter(k => k !== key);
+      else kontrollFormAvvik.push(key);
       saveKontrollDraft();
       render();
     });

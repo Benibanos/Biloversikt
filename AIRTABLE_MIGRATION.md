@@ -79,7 +79,11 @@ selv om skaden lukkes)
 
 **WorkshopAppointments**: `AppId`, `VehicleId` (text), `Verksted` (text),
 `Dato` (text), `Tidspunkt` (text), `Beskrivelse` (long text), `Notater`
-(long text), `Pris` (number — kostnad/verkstedregning for registreringen)
+(long text), `Pris` (number — kostnad/verkstedregning for registreringen),
+`SakId` (text — intern id til Aktiv Sak denne verkstedtimen er registrert
+fra, se AktiveSaker), `CaseId` (text — lesbart saksnummer, f.eks.
+"SAK-0001", for visning uten oppslag), `Kontaktperson` (text), `Telefon`
+(text) — de to siste lagt til i "Fase 3 — Verkstedflyt"
 
 **TireCosts**: `AppId`, `VehicleId` (text), `Dato` (text), `Kostnad`
 (number), `Kommentar` (long text) — registrert fra Kostnadsoversikt
@@ -87,20 +91,47 @@ selv om skaden lukkes)
 (sommer/vinter-bytte, se TireChanges).
 
 **AktiveSaker** (ny i "Aktive Saker — Fase 1", grunnmur for fremtidig
-avviksoppfølging): `AppId`, `CaseId` (text — kort lesbart saksnummer, f.eks.
-"SAK-0001"), `VehicleId` (text), `RegistrationNumber` (text — øyeblikksbilde
-av regnr på registreringstidspunktet), `CaseType` (text — én av
+avviksoppfølging; utvidet i "Fase 2 — Automatisk opprettelse" og
+"Fase 3 — Verkstedflyt" og "Fase 4 — Kostnadsoversikt og
+avsettingsstyring"): `AppId`,
+`CaseId` (text — kort lesbart saksnummer, f.eks. "SAK-0001"), `VehicleId`
+(text), `RegistrationNumber` (text — øyeblikksbilde av regnr på
+registreringstidspunktet), `CaseType` (text — én av
 `varsellampe`/`skade`/`kontrollavvik`/`dekk`/`service`/`annet`), `Title`
 (text), `Description` (long text), `Status` (text — én av
-`ny`/`vurderes`/`tiltak-planlagt`/`verksted-bestilt`/`utfort`/`lukket`,
+`ny`/`vurderes`/`tiltak-planlagt`/`verksted-bestilt`/
+`utfort-venter-bekreftelse`/`utfort`/`lukket`,
 standard `ny`), `Priority` (text — én av `lav`/`normal`/`hoy`/`kritisk`,
-standard `normal`), `SourceType` (text — tom/`manuell` i Fase 1; brukes i
-Fase 2 til å spore automatisk opprettede saker fra varsellamper/skader/
-kontroller), `SourceId` (text — id til kildeposten i Fase 2, tom i Fase 1),
+standard `normal`), `SourceType` (text — `manuell` for saker opprettet fra
+Aktive Saker-siden, `auto` for saker opprettet automatisk fra
+kontrollregistrering i Fase 2), `SourceId` (text — for automatisk opprettede
+saker: nøkkelen til den konkrete varsellampetypen/kontrollavviket, eller
+skade-id-en, brukt til duplikatkontroll sammen med `CaseType`+`VehicleId`),
 `ReportedBy` (text), `ReportedAt` (text), `AssignedTo` (text), `NextAction`
-(long text), `FollowUpDate` (text), `ResolvedAt` (text), `ResolvedBy`
-(text), `ResolutionNote` (long text), `CreatedAt` (text — ISO-tidsstempel),
-`UpdatedAt` (text — ISO-tidsstempel)
+(long text), `FollowUpDate` (text), `ResolvedAt` (text — auto-utfylt
+systemtidspunkt når saken lukkes), `ResolvedBy`
+(text — auto-utfylt fra innlogget bruker), `ResolutionNote` (long text —
+sluttkommentar), `CreatedAt` (text — ISO-tidsstempel),
+`UpdatedAt` (text — ISO-tidsstempel), `ReportCount` (number — hvor mange
+ganger samme avvik er rapportert inn, standard 1, økes ved duplikat i
+stedet for å opprette en ny sak), `LastReportedAt` (text — ISO-tidsstempel
+for siste observasjon), `Historikk` (long text/JSON — liste over hver
+observasjon: `{dato, tidspunkt, av, kommentar}`, brukes til
+"Historikk"-seksjonen på sakskortet), `LinkedVtId` (text — intern id til
+tilknyttet verkstedtime, brukes bl.a. til å oppdage når verksteddato er
+passert slik at status kan flyttes automatisk til
+"Utført - venter bekreftelse"), `VerkstedResultat` (text — én av
+`feil-utbedret`/`ingen-feil-funnet`/`midlertidig-reparert`/
+`avventer-deler`/`ny-verkstedtime-nodvendig`, fylles ut ved lukking),
+`CompletedAt` (text — faktisk utført dato, angitt av administrator ved
+lukking, kan avvike fra `ResolvedAt`), `EstimatedCost` (number — estimert
+kostnad på saken, synkroniseres fra `Pris` når verkstedtime registreres fra
+saken, men kan også settes direkte), `ActualCost` (number — faktisk kostnad,
+angis ved lukking; brukes sammen med `EstimatedCost` til å vise avvik),
+`RequiresProvision` (checkbox — om saken krever regnskapsmessig avsetting),
+`ProvisionAmount` (number — avsettingsbeløp, kun relevant når
+`RequiresProvision` er sann), `ProvisionMonth` (text — avsettingsmåned i
+format ÅÅÅÅ-MM, kun relevant når `RequiresProvision` er sann)
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

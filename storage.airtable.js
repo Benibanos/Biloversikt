@@ -97,7 +97,8 @@
     }},
     verkstedtimer: { table: 'WorkshopAppointments', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
-      beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num']
+      beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
+      sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -125,7 +126,12 @@
       priority: ['Priority'], sourceType: ['SourceType'], sourceId: ['SourceId'], reportedBy: ['ReportedBy'],
       reportedAt: ['ReportedAt'], assignedTo: ['AssignedTo'], nextAction: ['NextAction'],
       followUpDate: ['FollowUpDate'], resolvedAt: ['ResolvedAt'], resolvedBy: ['ResolvedBy'],
-      resolutionNote: ['ResolutionNote'], createdAt: ['CreatedAt'], updatedAt: ['UpdatedAt']
+      resolutionNote: ['ResolutionNote'], createdAt: ['CreatedAt'], updatedAt: ['UpdatedAt'],
+      reportCount: ['ReportCount', 'num'], lastReportedAt: ['LastReportedAt'], historikk: ['Historikk', 'json'],
+      linkedVtId: ['LinkedVtId'], verkstedResultat: ['VerkstedResultat'], completedAt: ['CompletedAt'],
+      estimatedCost: ['EstimatedCost', 'num'], actualCost: ['ActualCost', 'num'],
+      requiresProvision: ['RequiresProvision', 'bool'], provisionAmount: ['ProvisionAmount', 'num'],
+      provisionMonth: ['ProvisionMonth']
     }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen,
