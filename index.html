@@ -1149,6 +1149,98 @@ function driverLink(){
   return window.location.origin + window.location.pathname.replace(/kontroll\.html$/i, 'index.html') + '?sjafor=1';
 }
 
+// ---- Ny funksjon: Aktiv Biløkt / Min Bil ----
+// Kontrollen tilhører BILEN (lagres på kjøretøyet, se isKontrollertIdag), mens biløkten
+// tilhører SJÅFØREN og skjer på ENHETEN sjåføren bruker. Selve biløkt-tilstanden
+// (hvem som er aktiv på hvilken bil) er autoritativ på kjøretøyet i Airtable
+// (v.aktivSjafor/v.aktivSjaforSiden), slik at driftskoordinator ser den på Biloversikt/
+// Dashboard fra hvilken som helst enhet. driverScreen/driverActiveVehicleId/driverNavn
+// er kun DENNE enhetens lokale posisjon i sjåførflyten, husket i localStorage slik at en
+// gjenåpnet PWA havner rett tilbake på riktig skjerm.
+let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil'
+let driverActiveVehicleId = '';
+let driverVelgBilId = '';
+let driverNavn = '';
+// Min Bil — hvilken av de tre hurtigregistreringene som er åpen (kun én av gangen)
+let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt'
+let minBilSkadeBeskrivelse = '';
+let minBilSkadeAlvorlighet = 'middels';
+let minBilSkadeKommentar = '';
+let pendingMinBilFoto = null;
+let minBilVarselType = '';
+let minBilVarselAnnetTekst = '';
+let minBilAvvikType = '';
+const DRIVER_SESSION_KEY = 'bilpark_driver_session_v1';
+function saveDriverLocalSession(){
+  try{ window.localStorage.setItem(DRIVER_SESSION_KEY, JSON.stringify({vehicleId: driverActiveVehicleId, navn: driverNavn})); }
+  catch(e){ /* ikke kritisk, f.eks. privat nettlesermodus */ }
+}
+function loadDriverLocalSession(){
+  try{
+    const raw = window.localStorage.getItem(DRIVER_SESSION_KEY);
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    driverActiveVehicleId = s.vehicleId || '';
+    driverNavn = s.navn || '';
+  }catch(e){ /* ignorer */ }
+}
+function clearDriverLocalSession(){
+  try{ window.localStorage.removeItem(DRIVER_SESSION_KEY); }catch(e){ /* ignorer */ }
+  driverActiveVehicleId = '';
+}
+// Aktiv sjåfør på en bil — regnes alltid live mot operativt dagskille (04:00), akkurat
+// som isKontrollertIdag(). En biløkt fra en tidligere operativ dag regnes som avsluttet
+// selv om feltene på kjøretøyet ikke er ryddet opp ennå (se ryddOppBiloktDagskille).
+function vehicleAktivSjafor(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v || !v.aktivSjafor || !v.aktivSjaforSiden) return null;
+  if(isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== todayISO()) return null;
+  return v.aktivSjafor;
+}
+// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
+// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
+async function startBilokt(vehicleId, navn){
+  const navnTrim = (navn || '').trim();
+  vehicles.forEach(v => {
+    if(v.id !== vehicleId && navnTrim && v.aktivSjafor && v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase()){
+      v.aktivSjafor = ''; v.aktivSjaforSiden = '';
+    }
+  });
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(v){ v.aktivSjafor = navnTrim; v.aktivSjaforSiden = new Date().toISOString(); }
+  await saveVehicles();
+  driverActiveVehicleId = vehicleId;
+  driverNavn = navnTrim;
+  saveDriverLocalSession();
+}
+// "Sjekk ut bil": avslutter biløkten. Kontrollstatus skal IKKE påvirkes — den står
+// fortsatt som kontrollert resten av den operative dagen (isKontrollertIdag er uendret).
+async function avsluttBilokt(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(v){ v.aktivSjafor = ''; v.aktivSjaforSiden = ''; await saveVehicles(); }
+  clearDriverLocalSession();
+  driverScreen = 'velg-bil';
+  driverVelgBilId = '';
+}
+// Rydder opp biløkter fra en tidligere operativ dag (dagskille kl. 04:00). Skriving til
+// Airtable her er kun for å holde dataene ryddige — selve statusen er uansett alltid
+// korrekt live via vehicleAktivSjafor() selv før denne har rukket å kjøre.
+async function ryddOppBiloktDagskille(){
+  const idag = todayISO();
+  let endret = false;
+  vehicles.forEach(v => {
+    if(v.aktivSjafor && v.aktivSjaforSiden && isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== idag){
+      v.aktivSjafor = ''; v.aktivSjaforSiden = '';
+      endret = true;
+    }
+  });
+  if(endret) await saveVehicles();
+  if(driverActiveVehicleId && !vehicleAktivSjafor(driverActiveVehicleId)){
+    clearDriverLocalSession();
+    driverScreen = 'velg-bil';
+  }
+}
+
 // ---- Værmelding (Larvik) ----
 // Henter gjeldende temperatur/værtype fra Open-Meteo (gratis, ingen API-nøkkel).
 // Kun ett kall per øktoppstart — ikke ved hvert render(). Feiler kallet (f.eks.
@@ -1384,6 +1476,23 @@ async function loadAll(){
     themePreference = (th && th.value) ? th.value : 'system';
   }catch(e){ themePreference = 'system'; }
   applyTheme();
+  if(driverMode){
+    // Rydd opp ev. biløkter fra en tidligere operativ dag (dagskille kl. 04:00) FØR vi
+    // avgjør hvilken skjerm denne enheten skal starte på.
+    await ryddOppBiloktDagskille();
+    loadDriverLocalSession();
+    if(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId)){
+      driverScreen = 'min-bil';
+    } else {
+      clearDriverLocalSession();
+      driverScreen = 'velg-bil';
+    }
+  } else {
+    // Administrasjonssiden holder ofte appen åpnest lengst (Dashboard) — kjør samme
+    // opprydding her også, slik at biløkter fra en tidligere operativ dag ikke blir
+    // stående i Airtable selv om ingen sjåfør åpner appen før driftskoordinator gjør det.
+    ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
+  }
   loaded = true;
   window.subscribeLiveSync(async (key) => {
     // Kalles jevnlig (se POLL_INTERVAL_MS i storage.airtable.js — Airtable
@@ -1514,12 +1623,26 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 function esc(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 const APP_TIMEZONE = 'Europe/Oslo';
+// Operativt dagskille kl. 04:00 (se "Aktiv Biløkt / Min Bil") — hos oss kan arbeidsdager
+// vare til 02:00–03:00, så et rent kalenderdøgn ved midnatt ville feilaktig krevd ny
+// kontroll midt i et vaktskifte. Klokkeslett 00:00–03:59 Europe/Oslo regnes derfor som
+// FORRIGE operative dag i hele appen — ikke bare for biløkter, men overalt "i dag"
+// allerede brukes (kontrollstatus, Dashboard, Morgenvisning, rapporter osv.), siden
+// isKontrollertIdag() og alt annet "i dag"-relatert allerede regnes live ut fra denne
+// ene todayISO()-funksjonen. Ingen egen, parallell "operativ dag"-logikk innføres.
+const OPERATIONAL_DAY_START_HOUR = 4;
+function isoDateForOperationalDay(date){
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', hourCycle:'h23'}).formatToParts(date);
+  const y = Number(parts.find(p => p.type === 'year').value);
+  const m = Number(parts.find(p => p.type === 'month').value);
+  const d = Number(parts.find(p => p.type === 'day').value);
+  const h = Number(parts.find(p => p.type === 'hour').value);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if(h < OPERATIONAL_DAY_START_HOUR) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
 function todayISO(){
-  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date());
-  const y = parts.find(p => p.type === 'year').value;
-  const m = parts.find(p => p.type === 'month').value;
-  const d = parts.find(p => p.type === 'day').value;
-  return `${y}-${m}-${d}`;
+  return isoDateForOperationalDay(new Date());
 }
 function nowTimeOslo(){
   return new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date());
@@ -2217,6 +2340,73 @@ async function submitAddSkade(ev){
   skadePrefillVehicleId = '';
   render();
 }
+// ---- Ny funksjon: Aktiv Biløkt — Min Bil-hurtigregistreringer ----
+// Samme underliggende datamønster som submitAddSkade/submitKontroll — kun en lettere,
+// bilforhåndsvalgt inngang for en sjåfør som allerede har sjekket inn for dagen og
+// oppdager noe nytt midt på dagen (kontrollen i seg selv trenger ikke gjøres på nytt).
+async function submitMinBilSkade(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  if(!v) return;
+  const beskrivelse = minBilSkadeBeskrivelse.trim();
+  if(!beskrivelse){ alert('Beskriv skaden før du lagrer.'); return; }
+  const id = uid();
+  const dato = todayISO();
+  damages.push({
+    id, vehicleId: v.id, dato, beskrivelse, alvorlighet: minBilSkadeAlvorlighet,
+    kommentar: minBilSkadeKommentar.trim(), status: 'registrert', estimertKostnad: null,
+    registrertAv: driverNavn || 'Ukjent', hasPhoto: !!pendingMinBilFoto, createdByControlId: null
+  });
+  await saveDamages();
+  if(pendingMinBilFoto) await savePhoto('damage:'+id, pendingMinBilFoto);
+  registrerAvvikSomSak({
+    vehicleId: v.id, caseType: 'skade', sourceId: id,
+    tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
+    prioritet: 'normal', reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: minBilSkadeKommentar.trim()
+  });
+  await saveAktiveSaker();
+  minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeAlvorlighet = 'middels'; pendingMinBilFoto = null;
+  alert('Skade registrert.');
+  render();
+}
+async function submitMinBilVarsel(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  if(!v || !minBilVarselType){ alert('Velg en varsellampe.'); return; }
+  const dato = todayISO();
+  const alleredeAktiv = varsellys.some(w => w.vehicleId === v.id && w.type === minBilVarselType && w.status === 'aktiv');
+  if(!alleredeAktiv){
+    varsellys.push({
+      id: uid(), vehicleId: v.id, type: minBilVarselType, annetTekst: minBilVarselType === 'annet' ? minBilVarselAnnetTekst.trim() : '',
+      status: 'aktiv', registrertDato: dato, registrertAv: driverNavn || 'Ukjent', kvittertDato: '', kvittertAv: '',
+      createdByControlId: null
+    });
+    await saveVarsellys();
+  }
+  registrerAvvikSomSak({
+    vehicleId: v.id, caseType: 'varsellampe', sourceId: minBilVarselType,
+    tittel: 'Varsellampe registrert', beskrivelse: 'Automatisk generert fra sjåførregistrering.',
+    prioritet: 'hoy', reportedBy: driverNavn || 'Ukjent', reportedAt: dato,
+    kommentar: minBilVarselType === 'annet' ? minBilVarselAnnetTekst.trim() : (VARSELLAMPE_LABEL[minBilVarselType] || '')
+  });
+  await saveAktiveSaker();
+  minBilAksjon = ''; minBilVarselType = ''; minBilVarselAnnetTekst = '';
+  alert('Varsellampe registrert.');
+  render();
+}
+async function submitMinBilAvvik(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  if(!v || !minBilAvvikType){ alert('Velg et avvik.'); return; }
+  const dato = todayISO();
+  registrerAvvikSomSak({
+    vehicleId: v.id, caseType: 'kontrollavvik', sourceId: minBilAvvikType,
+    tittel: KONTROLLAVVIK_LABEL[minBilAvvikType] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra sjåførregistrering.',
+    prioritet: 'normal', reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: ''
+  });
+  await saveAktiveSaker();
+  minBilAksjon = ''; minBilAvvikType = '';
+  alert('Avvik registrert.');
+  render();
+}
+
 function toggleEditDamage(id){
   editingDamageId = editingDamageId === id ? null : id;
   pendingPhotoData = null;
@@ -2737,8 +2927,10 @@ async function submitKontroll(ev){
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
     alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
     if(driverMode){
-      // Sjåføren har ikke tilgang til Bilkort — bli værende på skjemaet, tomt og klart
-      // for neste bil/sjåfør som skal registrere en kontroll på samme enhet.
+      // Kontrollen er unnagjort — start biløkten på denne bilen for denne sjåføren, og
+      // send videre til Min Bil (sjåførens arbeidsflate resten av den operative dagen).
+      await startBilokt(vehicleId, sjafor);
+      driverScreen = 'min-bil';
       render();
     } else {
       goTo('bilkort', vehicleId);
@@ -3238,14 +3430,262 @@ function attachKontrollSlettModalListeners(){
 
 // ================= Sjåførmodus: minimal skall med kun kontrollskjemaet =================
 function renderDriverShell(){
+  let body = '';
+  if(driverScreen === 'kontroll') body = renderKontroll();
+  else if(driverScreen === 'allerede-kontrollert') body = renderDriverAlleredeKontrollert();
+  else if(driverScreen === 'min-bil') body = renderDriverMinBil();
+  else body = renderDriverVelgBil();
   app.innerHTML = `
     <div class="shell-top">
       ${brandBlockHtml()}
       <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span></div>
     </div>
-    ${renderKontroll()}
+    ${body}
   `;
-  attachKontrollListeners();
+  if(driverScreen === 'kontroll') attachKontrollListeners();
+  else if(driverScreen === 'allerede-kontrollert') attachDriverAlleredeKontrollertListeners();
+  else if(driverScreen === 'min-bil') attachDriverMinBilListeners();
+  else attachDriverVelgBilListeners();
+}
+
+// ---- Ny funksjon: Aktiv Biløkt / Min Bil — sjåførskjermer ----
+// Steg 1: Velg bil. Kontrollen tilhører bilen — appen sjekker selv om dagens kontroll
+// allerede er utført, og sender sjåføren rett videre uten å be om unødvendig dobbeltarbeid.
+function renderDriverVelgBil(){
+  return `
+    <h2 style="font-size:19px;margin-bottom:6px;">Velg bil</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag.</div>
+    <div class="field" style="margin-bottom:18px;">
+      <label>Ditt navn</label>
+      <input id="db-navn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(driverNavn)}" required>
+    </div>
+    <div id="db-navn-msg" class="form-msg"></div>
+    <div class="acc-list">
+      ${sortedVehicles(vehicles).map(v => {
+        const kontrollert = isKontrollertIdag(v.id);
+        const aktivSjafor = vehicleAktivSjafor(v.id);
+        return `
+        <div class="panel" style="cursor:pointer;margin-bottom:10px;padding:16px;" data-velg-bil="${v.id}">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <div>
+              <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
+              <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
+            </div>
+            <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+function attachDriverVelgBilListeners(){
+  document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
+    const navnInput = document.getElementById('db-navn');
+    const navn = ((navnInput ? navnInput.value : driverNavn) || '').trim();
+    if(!navn){
+      const msg = document.getElementById('db-navn-msg');
+      if(msg) msg.textContent = 'Skriv inn navnet ditt før du velger bil.';
+      if(navnInput) navnInput.focus();
+      return;
+    }
+    driverNavn = navn;
+    driverVelgBilId = el.dataset.velgBil;
+    if(isKontrollertIdag(driverVelgBilId)){
+      driverScreen = 'allerede-kontrollert';
+    } else {
+      kontrollFormVehicleId = driverVelgBilId;
+      kontrollFormSjaforNavn = navn;
+      syncKontrollAnnetFromActive(kontrollFormVehicleId);
+      driverScreen = 'kontroll';
+    }
+    render();
+  }));
+}
+
+// Steg 2a (kun hvis bilen IKKE er kontrollert i dag): gjenbruker det ordinære
+// kontrollskjemaet uendret (renderKontroll/submitKontroll) — se der for hvordan en
+// vellykket innsending i sjåførmodus starter biløkten og sender videre til Min Bil.
+
+// Steg 2b (kun hvis bilen ALLEREDE er kontrollert i dag): informerer i stedet for å be
+// om en ny, unødvendig kontroll.
+function renderDriverAlleredeKontrollert(){
+  const v = vehicles.find(x => x.id === driverVelgBilId);
+  if(!v){ driverScreen = 'velg-bil'; return renderDriverVelgBil(); }
+  const siste = lastKontrollForVehicle(v.id);
+  return `
+    <h2 style="font-size:19px;margin-bottom:14px;">${esc(vehicleLabel(v))}</h2>
+    <div class="panel" style="text-align:center;padding:30px 20px;margin-bottom:16px;">
+      <div style="font-size:40px;margin-bottom:12px;">✅</div>
+      <div style="font-weight:700;font-size:16.5px;margin-bottom:16px;">Denne bilen er allerede kontrollert i dag.</div>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Kontroll utført</span><span class="ov-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Kontrollert av</span><span class="ov-value">${siste && siste.sjafor ? esc(siste.sjafor) : '–'}</span></div>
+      </div>
+      <div class="required-hint" style="margin-top:16px;">Ny kontroll er ikke nødvendig.</div>
+    </div>
+    <button class="btn" id="db-til-min-bil-btn" style="width:100%;min-height:52px;">Gå til Min Bil</button>
+    <button class="btn secondary small" id="db-bytt-bil-btn" style="width:100%;min-height:52px;margin-top:10px;">← Velg en annen bil</button>
+  `;
+}
+function attachDriverAlleredeKontrollertListeners(){
+  const tilMinBilBtn = document.getElementById('db-til-min-bil-btn');
+  if(tilMinBilBtn) tilMinBilBtn.addEventListener('click', async () => {
+    await startBilokt(driverVelgBilId, driverNavn);
+    driverScreen = 'min-bil';
+    render();
+  });
+  const byttBilBtn = document.getElementById('db-bytt-bil-btn');
+  if(byttBilBtn) byttBilBtn.addEventListener('click', () => { driverVelgBilId = ''; driverScreen = 'velg-bil'; render(); });
+}
+
+// Steg 3: Min Bil — sjåførens arbeidsflate resten av den operative dagen.
+function renderDriverMinBil(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  if(!v){ driverScreen = 'velg-bil'; return renderDriverVelgBil(); }
+  const siste = lastKontrollForVehicle(v.id);
+  const vAktiveSaker = vehicleAktiveSaker(v.id);
+  const vNesteVT = vehicleVT(v.id).filter(t => t.dato >= todayISO()).sort((a,b) => a.dato.localeCompare(b.dato))[0] || null;
+  const hovedstatus = vehicleHovedstatus(v.id);
+  const activeVarsellysList = activeVarsellysForVehicle(v.id);
+  const activeVarselTypes = new Set(activeVarsellysList.map(w => w.type));
+  const activeAvvikTypes = new Set(aktiveSaker.filter(s => s.vehicleId === v.id && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId));
+
+  return `
+    <h2 style="font-size:19px;margin-bottom:2px;">Min Bil</h2>
+    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(driverNavn)}</div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="plate" style="margin-bottom:10px;"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+      <div style="font-weight:700;font-size:17px;font-family:'Space Grotesk',sans-serif;margin-bottom:10px;">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">✅ Kontrollert i dag</span></div>
+        <div class="ov-item"><span class="ov-label">Kontroll utført</span><span class="ov-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSaker.length}</span></div>
+        <div class="ov-item"><span class="ov-label">Neste verksted</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) : 'Ingen planlagt'}</span></div>
+        <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+      <button type="button" class="btn secondary" id="mb-skade-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer skade</button>
+      ${minBilAksjon === 'skade' ? `
+      <div class="panel">
+        <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="mb-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(minBilSkadeBeskrivelse)}</textarea></div>
+        <div class="field" style="margin-bottom:10px;"><label>Alvorlighet</label>
+          <select id="mb-skade-alvorlighet">
+            <option value="lav" ${minBilSkadeAlvorlighet==='lav'?'selected':''}>Lav</option>
+            <option value="middels" ${minBilSkadeAlvorlighet==='middels'?'selected':''}>Middels</option>
+            <option value="hoy" ${minBilSkadeAlvorlighet==='hoy'?'selected':''}>Høy</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="mb-skade-kommentar" placeholder="Valgfritt">${esc(minBilSkadeKommentar)}</textarea></div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Bilde</label>
+          <div class="photo-input-area">
+            <input type="file" accept="image/*" id="mb-skade-foto">
+            ${pendingMinBilFoto ? `<div class="kt-photo-grid"><div class="kt-photo-thumb"><img src="${pendingMinBilFoto}"><button type="button" id="mb-skade-foto-fjern">×</button></div></div>` : ''}
+          </div>
+        </div>
+        <div class="panel-actions"><button type="button" class="btn" id="mb-skade-lagre-btn">Lagre skade</button></div>
+      </div>` : ''}
+
+      <button type="button" class="btn secondary" id="mb-varsel-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer varsellampe</button>
+      ${minBilAksjon === 'varsel' ? `
+      <div class="panel">
+        <div class="chip-grid">
+          ${VARSELLAMPE_ORDER.map(key => {
+            const isActive = activeVarselTypes.has(key);
+            const isSelected = minBilVarselType === key;
+            return `
+            <button type="button" class="chip ${isSelected ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" data-mb-varsel="${key}">
+              <span class="chip-icon">${isActive ? '✅' : VARSELLAMPE_ICON[key]}</span>
+              <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — allerede aktiv' : ''}</span>
+            </button>`;
+          }).join('')}
+        </div>
+        ${minBilVarselType === 'annet' ? `<div class="field" style="margin-top:10px;"><label>Beskriv «Annet»</label><input id="mb-varsel-annet-tekst" type="text" value="${esc(minBilVarselAnnetTekst)}"></div>` : ''}
+        <div class="panel-actions"><button type="button" class="btn" id="mb-varsel-lagre-btn">Lagre varsellampe</button></div>
+      </div>` : ''}
+
+      <button type="button" class="btn secondary" id="mb-avvik-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer avvik</button>
+      ${minBilAksjon === 'avvik' ? `
+      <div class="panel">
+        <div class="chip-grid">
+          ${KONTROLLAVVIK_ORDER.map(key => {
+            const isActive = activeAvvikTypes.has(key);
+            const isSelected = minBilAvvikType === key;
+            return `
+            <button type="button" class="chip ${isSelected ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" data-mb-avvik="${key}">
+              <span class="chip-icon">${isActive ? '✅' : KONTROLLAVVIK_IKON[key]}</span>
+              <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — allerede aktivt' : ''}</span>
+            </button>`;
+          }).join('')}
+        </div>
+        <div class="panel-actions"><button type="button" class="btn" id="mb-avvik-lagre-btn">Lagre avvik</button></div>
+      </div>` : ''}
+
+      <button type="button" class="btn secondary" id="mb-kontakt-btn" style="width:100%;justify-content:flex-start;min-height:52px;">📞 Kontakt driftskoordinator</button>
+      ${minBilAksjon === 'kontakt' ? `
+      <div class="panel">
+        ${adminUsers.length === 0 ? `<div class="empty-note">Ingen driftskoordinatorer registrert.</div>` : `
+        <ul class="dmg-simple-list">
+          ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
+        </ul>`}
+      </div>` : ''}
+
+      <button type="button" class="btn danger-outline" id="mb-sjekk-ut-btn" style="width:100%;justify-content:center;min-height:52px;margin-top:6px;">✓ Sjekk ut bil</button>
+    </div>
+  `;
+}
+function attachDriverMinBilListeners(){
+  const skadeBtn = document.getElementById('mb-skade-btn');
+  if(skadeBtn) skadeBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'skade' ? '' : 'skade'; render(); });
+  const varselBtn = document.getElementById('mb-varsel-btn');
+  if(varselBtn) varselBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'varsel' ? '' : 'varsel'; render(); });
+  const avvikBtn = document.getElementById('mb-avvik-btn');
+  if(avvikBtn) avvikBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'avvik' ? '' : 'avvik'; render(); });
+  const kontaktBtn = document.getElementById('mb-kontakt-btn');
+  if(kontaktBtn) kontaktBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'kontakt' ? '' : 'kontakt'; render(); });
+  const sjekkUtBtn = document.getElementById('mb-sjekk-ut-btn');
+  if(sjekkUtBtn) sjekkUtBtn.addEventListener('click', async () => {
+    if(!confirm('Sjekke ut denne bilen? Kontrollstatus beholdes — du trenger ikke kontrollere den på nytt i dag.')) return;
+    await avsluttBilokt(driverActiveVehicleId);
+    render();
+  });
+
+  const skadeBeskrivelseInput = document.getElementById('mb-skade-beskrivelse');
+  if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { minBilSkadeBeskrivelse = e.target.value; });
+  const skadeAlvorInput = document.getElementById('mb-skade-alvorlighet');
+  if(skadeAlvorInput) skadeAlvorInput.addEventListener('change', e => { minBilSkadeAlvorlighet = e.target.value; });
+  const skadeKommentarInput = document.getElementById('mb-skade-kommentar');
+  if(skadeKommentarInput) skadeKommentarInput.addEventListener('input', e => { minBilSkadeKommentar = e.target.value; });
+  const skadeFotoInput = document.getElementById('mb-skade-foto');
+  if(skadeFotoInput) skadeFotoInput.addEventListener('change', async e => {
+    const file = (e.target.files || [])[0];
+    if(file) pendingMinBilFoto = await resizeImage(file);
+    render();
+  });
+  const skadeFotoFjernBtn = document.getElementById('mb-skade-foto-fjern');
+  if(skadeFotoFjernBtn) skadeFotoFjernBtn.addEventListener('click', (e) => { e.preventDefault(); pendingMinBilFoto = null; render(); });
+  const skadeLagreBtn = document.getElementById('mb-skade-lagre-btn');
+  if(skadeLagreBtn) skadeLagreBtn.addEventListener('click', submitMinBilSkade);
+
+  document.querySelectorAll('[data-mb-varsel]').forEach(el => el.addEventListener('click', () => {
+    minBilVarselType = minBilVarselType === el.dataset.mbVarsel ? '' : el.dataset.mbVarsel;
+    if(minBilVarselType !== 'annet') minBilVarselAnnetTekst = '';
+    render();
+  }));
+  const varselAnnetInput = document.getElementById('mb-varsel-annet-tekst');
+  if(varselAnnetInput) varselAnnetInput.addEventListener('input', e => { minBilVarselAnnetTekst = e.target.value; });
+  const varselLagreBtn = document.getElementById('mb-varsel-lagre-btn');
+  if(varselLagreBtn) varselLagreBtn.addEventListener('click', submitMinBilVarsel);
+
+  document.querySelectorAll('[data-mb-avvik]').forEach(el => el.addEventListener('click', () => {
+    minBilAvvikType = minBilAvvikType === el.dataset.mbAvvik ? '' : el.dataset.mbAvvik;
+    render();
+  }));
+  const avvikLagreBtn = document.getElementById('mb-avvik-lagre-btn');
+  if(avvikLagreBtn) avvikLagreBtn.addEventListener('click', submitMinBilAvvik);
 }
 
 // ================= scrLogin (kun administrasjonsdelen) =================
@@ -3360,6 +3800,8 @@ function renderDashboard(){
   const bilparkhelse = {'ute-av-drift':0, kritisk:0, verksted:0, oppfolging:0, 'ikke-kontrollert':0, operativ:0};
   vehicles.forEach(v => { bilparkhelse[vehicleHovedstatus(v.id)]++; });
   const nesteVerkstedtimerTop3 = nesteVerkstedtimerTop5.slice(0, 3);
+  // Ny funksjon: Aktiv Biløkt — antall biler med en aktiv sjåfør akkurat nå.
+  const bilerIDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -3373,6 +3815,8 @@ function renderDashboard(){
     if(dashBiloversiktFilter === 'ikke-kontrollert') return !isKontrollertIdag(v.id);
     if(dashBiloversiktFilter === 'har-saker') return vehicleAktiveSaker(v.id).length > 0;
     if(dashBiloversiktFilter === 'har-forfalt') return vehicleAktiveSaker(v.id).some(s => sakOppfolgingStatus(s) === 'forfalt');
+    if(dashBiloversiktFilter === 'har-aktiv-sjafor') return !!vehicleAktivSjafor(v.id);
+    if(dashBiloversiktFilter === 'tilgjengelig') return !vehicleAktivSjafor(v.id);
     return true;
   });
   sortedVehicles(biloversiktKandidater).forEach(v => { if(groups[v.kategori]) groups[v.kategori].push(v); });
@@ -3545,6 +3989,14 @@ function renderDashboard(){
       </div>
     </div>
 
+    <div class="panel" id="dash-biler-i-drift-card" style="cursor:pointer;margin-bottom:16px;" data-goto-biloversikt-filter="har-aktiv-sjafor">
+      <div class="ov-label" style="margin-bottom:8px;">🚗 Biler i drift nå</div>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Aktive biløkter</span><span class="ov-value">${bilerIDriftCount}</span></div>
+        <div class="ov-item"><span class="ov-label">Tilgjengelige biler</span><span class="ov-value">${totalVehicles - bilerIDriftCount}</span></div>
+      </div>
+    </div>
+
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">➕ Hurtighandlinger</div>
       <div class="dash-quick-links" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -3577,6 +4029,8 @@ function renderDashboard(){
             <option value="ikke-kontrollert" ${dashBiloversiktFilter==='ikke-kontrollert'?'selected':''}>⚪ Ikke kontrollert</option>
             <option value="har-saker" ${dashBiloversiktFilter==='har-saker'?'selected':''}>Har aktive saker</option>
             <option value="har-forfalt" ${dashBiloversiktFilter==='har-forfalt'?'selected':''}>Har forfalte oppfølginger</option>
+            <option value="har-aktiv-sjafor" ${dashBiloversiktFilter==='har-aktiv-sjafor'?'selected':''}>👤 Har aktiv sjåfør</option>
+            <option value="tilgjengelig" ${dashBiloversiktFilter==='tilgjengelig'?'selected':''}>⚪ Tilgjengelig (ingen aktiv sjåfør)</option>
           </select>
         </div>
       </div>` : ''}
@@ -3615,7 +4069,8 @@ function renderDashboard(){
 
 const DASH_BILOVERSIKT_FILTER_LABEL = {
   operativ:'Operative', oppfolging:'Under oppfølging', verksted:'Verksted bestilt',
-  kritisk:'Kritiske', 'ute-av-drift':'Ute av drift', 'ikke-kontrollert':'Ikke kontrollert', 'har-saker':'Har aktive saker', 'har-forfalt':'Har forfalte oppfølginger'
+  kritisk:'Kritiske', 'ute-av-drift':'Ute av drift', 'ikke-kontrollert':'Ikke kontrollert', 'har-saker':'Har aktive saker', 'har-forfalt':'Har forfalte oppfølginger',
+  'har-aktiv-sjafor':'Har aktiv sjåfør', tilgjengelig:'Tilgjengelig'
 };
 
 function accordionRow(v){
@@ -3643,6 +4098,8 @@ function accordionRow(v){
   // Optimalisering 5: "Dagens status" — raskt morgenperspektiv, supplerer (og erstatter
   // som chip) den enklere kontrollert/ikke-kontrollert-visningen fra før.
   const vDagensStatus = vehicleDagensStatus(v.id);
+  // Ny funksjon: Aktiv Biløkt — hvem som eventuelt er aktiv sjåfør på bilen akkurat nå.
+  const vAktivSjafor = vehicleAktivSjafor(v.id);
 
   return `
     <div class="acc-row ${v.status} ${expanded ? 'expanded' : ''}">
@@ -3659,12 +4116,16 @@ function accordionRow(v){
             <div class="flag-vt" style="margin-top:4px;font-size:12.5px;">
               📋 ${vAktiveSakerListe.length} aktiv${vAktiveSakerListe.length === 1 ? '' : 'e'} sak${vAktiveSakerListe.length === 1 ? '' : 'er'}${vKritiskeSakerListe.length > 0 ? ` · 🔴 ${vKritiskeSakerListe.length} kritisk${vKritiskeSakerListe.length === 1 ? '' : 'e'}` : ''}${vEldsteSak ? ` · Eldste sak: ${vEldsteSakAlder === null ? '–' : vEldsteSakAlder} dag${vEldsteSakAlder === 1 ? '' : 'er'}` : ''}
             </div>
+            <div class="flag-vt" style="margin-top:4px;font-size:12.5px;">
+              ${vAktivSjafor ? `👤 Aktiv sjåfør: ${esc(vAktivSjafor)}` : '⚪ Ingen aktiv sjåfør · Tilgjengelig'}
+            </div>
           </div>
         </div>
         <div class="acc-head-right">
           <div class="dash-chip-col">
             <span class="dash-chip ${DAGENS_STATUS_CHIP_KLASSE[vDagensStatus]}">${DAGENS_STATUS_IKON[vDagensStatus]} ${DAGENS_STATUS_LABEL[vDagensStatus]}</span>
             <span class="dash-chip ${vAktiveVarsler.length > 0 ? 'alert' : 'ok'}">${vAktiveVarsler.length > 0 ? `🚨 ${vAktiveVarsler.length} aktiv${vAktiveVarsler.length === 1 ? '' : 'e'} varsellampe${vAktiveVarsler.length === 1 ? '' : 'r'}` : '🟢 Ingen aktive varsler'}</span>
+            ${vAktivSjafor ? `<span class="dash-chip today">👤 ${esc(vAktivSjafor)}</span>` : ''}
             ${nesteOppfolgingTekst ? `<span class="dash-chip ${nesteOppfolgingChipKlasse}">${nesteOppfolgingTekst}</span>` : ''}
           </div>
           <span class="chevron">⌄</span>
@@ -7364,7 +7825,7 @@ function renderKontroll(){
   }
   const vlStatusLabel = {red:'🔴 Aktive varsler', amber:'🟡 Nylig registrert', green:'🟢 Ingen aktive varsler'}[vlStatus];
   return `
-    ${driverMode ? '' : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
+    ${driverMode ? `<div class="backrow"><button class="backbtn" id="kt-back">← Bytt bil</button></div>` : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
     <h2 style="font-size:19px;margin-bottom:6px;">Registrer kontroll</h2>
     <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
     ${kontrollDraftRestored ? `<div class="required-hint" style="margin-bottom:16px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
@@ -7501,7 +7962,18 @@ function attachKontrollListeners(){
   const avvikHead = document.querySelector('[data-toggle-kt-avvik]');
   if(avvikHead) avvikHead.addEventListener('click', () => { kontrollAvvikOpen = !kontrollAvvikOpen; render(); });
   const backBtn = document.getElementById('kt-back');
-  if(backBtn) backBtn.addEventListener('click', () => goBack());
+  if(backBtn) backBtn.addEventListener('click', () => {
+    if(driverMode){
+      kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormAnnetTekst = '';
+      kontrollFormVarsellamper = []; kontrollVarsellamperOpen = false;
+      kontrollFormAvvik = []; kontrollAvvikOpen = false;
+      driverVelgBilId = '';
+      driverScreen = 'velg-bil';
+      render();
+    } else {
+      goBack();
+    }
+  });
   document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
 
   document.getElementById('kt-vehicle').addEventListener('change', e => {
@@ -7511,6 +7983,10 @@ function attachKontrollListeners(){
     kontrollFormAnnetTekst = '';
     if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
     saveKontrollDraft();
+    if(driverMode && kontrollFormVehicleId && isKontrollertIdag(kontrollFormVehicleId)){
+      driverVelgBilId = kontrollFormVehicleId;
+      driverScreen = 'allerede-kontrollert';
+    }
     render();
   });
   const kmInput = document.getElementById('kt-km');

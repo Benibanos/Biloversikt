@@ -77,6 +77,21 @@ mønster som de øvrige Vehicles-feltene), samt selve kolonnene i Airtable-
 basen. Uten dette lagres feltene kun lokalt i appens minne inntil siden
 lastes på nytt.
 
+Lagt til i "Ny funksjon — Aktiv Biløkt / Min Bil" (kontrollen tilhører
+bilen, biløkten tilhører sjåføren): `AktivSjafor` (text — navnet på sjåføren
+som for øyeblikket er aktiv på bilen, tom = ingen aktiv biløkt/bilen er
+tilgjengelig), `AktivSjaforSiden` (text — ISO-tidsstempel for når biløkten
+startet, brukt til å avgjøre om biløkten hører til dagens operative dag, se
+`vehicleAktivSjafor()`). Samme forbehold om `storage.airtable.js` gjelder
+disse to feltene som feltene over.
+
+Kontrollstatus (`isKontrollertIdag`) er UENDRET som konsept — ingen nye felt
+for dette — men selve "i dag"-grensen er flyttet fra midnatt til kl. 04:00
+(se `isoDateForOperationalDay()`/`todayISO()` i `index.html`), siden
+arbeidsdager hos oss kan vare til 02:00–03:00. Dette gjelder automatisk for
+HELE appens "i dag"-begrep (kontrollstatus, Dashboard, Morgenvisning,
+rapporter osv.), ikke bare biløkter.
+
 **DriverChecks**: `AppId`, `VehicleId` (text — samme verdi som `AppId` på
 den aktuelle Vehicles-raden), `Dato` (text, DD/MM/ÅÅÅÅ), `Tidspunkt` (text),
 `Sjafor` (text), `KM` (number), `Varsellamper` (long text — lagres som
