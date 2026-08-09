@@ -596,6 +596,13 @@
     /* Verkstedtime/skade-kort: dato/tid under i stedet for presset til høyre */
     .vt-top{flex-direction:column;align-items:stretch;}
     .vt-when{align-items:flex-start;text-align:left;}
+
+    /* Aktive Saker-kort: prioritet/status/oppfølging-chipsene falt tidligere utenfor
+       kortets høyrekant på smale skjermer siden .dmg-badges verken hadde flex-wrap
+       eller en øvre bredde — de flyter nå ned på egen linje og holder seg innenfor
+       samme kortbredde som resten av kortet (Wizard UX Cleanup, punkt 8). */
+    .dmg-top{flex-wrap:wrap;}
+    .dmg-badges{flex-wrap:wrap;justify-content:flex-end;max-width:100%;}
   }
 
   /* Dashboard-kort under 768px: sjåførkontroll-/varsellampe-chippene på hver
@@ -2537,14 +2544,15 @@ async function settTilbakeIDrift(vehicleId){
 }
 
 // ================= Aktive Saker-mutasjoner (Fase 1 — kun manuell registrering) =================
-// Saksbehandling Wizard — hvilket steg en sak skal åpnes på, basert utelukkende på
-// eksisterende felt (ingen nye databasefelt). Lukkede saker åpnes alltid i lesemodus.
+// Saksbehandling Wizard — hvilket steg en sak skal åpnes på. Optimalisering (Wizard UX
+// Cleanup): åpner ALLTID på Steg 1 (Saksinformasjon) nå, uansett status — brukeren velger
+// selv "Vurder sak" eller "Fortsett saken" derfra. Tidligere hoppet den rett til Steg 2/3/4
+// basert på status, noe som skjulte problembeskrivelsen ved gjenåpning. Lukkede saker
+// åpnes fortsatt alltid i lesemodus (uendret, egen lesevisning, ikke del av denne saken).
 function sakWizardStartSteg(s){
-  if(!s) return 2;
+  if(!s) return 1;
   if(s.status === 'lukket') return 'lese';
-  if(s.status === 'verksted-bestilt') return 3;
-  if(s.status === 'utfort-venter-bekreftelse' || s.status === 'utfort') return 4;
-  return 2; // 'ny', 'vurderes', 'tiltak-planlagt' — fortsatt under vurdering
+  return 1;
 }
 function toggleEditSak(id){
   if(editingSakId === id){
@@ -5980,29 +5988,30 @@ function sakAndreAktiveVarsler(s){
   return activeVarsellysForVehicle(v.id);
 }
 const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
+// Wizard UX Cleanup (punkt 5-7): fremdriftsindikatoren er nå en ren, ikke-klikkbar
+// prikkerad (✅ for fullførte steg, • for resten) — ingen sidetall, ingen tekst, ingen
+// store "1 2 3 4"-stegknapper. ✅-emojien er allerede grønn i seg selv (punkt 6), ingen
+// egen fargelogikk nødvendig. Flyttet fra toppen til bunnen av wizard-boksen (se
+// sakWizardHtml) — hvert steg har uansett egne, formålsrettede "← Tilbake"/"Neste →"-
+// knapper i sin egen handlingsrad, så step-hopping via prikkene er bevisst fjernet.
 function sakWizardProgressHtml(sakId, step){
-  const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join('');
-  return `
-    <div style="margin-bottom:14px;">
-      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">(${step}/4) ${dots} ${SAK_WIZARD_STEG_TITTEL[step]}</div>
-      <div style="display:flex;gap:6px;">
-        ${[1,2,3,4].map(n => `<button type="button" class="chip ${n===step?'checked':''}" style="flex:1;justify-content:center;padding:8px 4px;font-size:12px;min-height:36px;" data-goto-wizard-steg="${sakId}:${n}">${n}</button>`).join('')}
-      </div>
-    </div>
-  `;
+  const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join(' ');
+  return `<div style="text-align:center;font-size:15px;letter-spacing:3px;color:var(--muted);margin-top:12px;" aria-label="Steg ${step} av 4 — ${SAK_WIZARD_STEG_TITTEL[step]}">${dots}</div>`;
 }
 // Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her.
-// Optimalisering 9 (Steg 1-sjekkliste): omdesignet for at driftskoordinator skal forstå
-// problemet og kunne ta en beslutning på 2-3 sekunder, uten scrolling på mobil. Rekkefølge:
-// bil (tydelig, øverst) → komprimert, PROBLEM-spesifikk overskrift (ikke generisk
-// "Varsellampe registrert") → status/prioritet → kort, spesifikk beskrivelse → ev. andre
-// aktive varsellamper på samme bil → metadata skjult bak "▼ Mer informasjon" → handling.
+// Wizard UX Cleanup: mest mulig beslutningsinformasjon, minst mulig administrativ
+// informasjon, uten scrolling på mobil. Rekkefølge: bil (tydelig, øverst) → komprimert,
+// PROBLEM-spesifikk overskrift (ikke generisk "Varsellampe registrert") → status/
+// prioritet → kort, spesifikk beskrivelse → ev. andre aktive varsellamper på samme bil →
+// metadata (saksnummer/registrert av/dato/kilde/alder/sist oppdatert/historikk) skjult
+// bak "▼ Mer informasjon" → handling.
 function sakWizardSteg1Html(s){
   const v = sakVehicle(s);
   const problemLabel = sakProblemLabel(s);
   const kortform = sakProblemLabelErKortform(s);
   const kortBeskrivelse = sakKortBeskrivelse(s);
   const andreVarsler = sakAndreAktiveVarsler(s);
+  const alder = sakAlderDager(s);
   // "Ikke vurdert" for status 'ny': ingen administrator har faktisk tatt stilling til
   // prioriteten ennå (det skjer først i Steg 2 — "Vurder sak") — selv om systemet har satt
   // en foreløpig startprioritet (f.eks. "Høy" på varsellamper), er den ikke bekreftet.
@@ -6014,7 +6023,7 @@ function sakWizardSteg1Html(s){
     <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;line-height:1.25;margin-bottom:10px;">
       ${SAK_TYPE_IKON[s.caseType] || '📁'} ${kortform ? esc(problemLabel).toUpperCase() : esc(problemLabel)}
     </div>
-    <div class="ov-grid" style="margin-bottom:10px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:10px;">
       <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${SAK_STATUS_LABEL[s.status] || s.status}</span></div>
       <div class="ov-item"><span class="ov-label">Prioritet</span><span class="ov-value">${prioritetVurdert ? (SAK_PRIORITET_IKON[s.priority]||'🟡') + ' ' + (SAK_PRIORITET_LABEL[s.priority]||'Normal') : '⚪ Ikke vurdert'}</span></div>
     </div>
@@ -6035,6 +6044,7 @@ function sakWizardSteg1Html(s){
         <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(s.reportedBy || 'Ukjent')}</span></div>
         <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
         <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeLabel(s))}</span></div>
+        ${sakErApen(s) ? `<div class="ov-item"><span class="ov-label">Åpen i</span><span class="ov-value">${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}</span></div>` : ''}
         ${s.updatedAt ? `<div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${fmt(s.updatedAt.slice(0,10))}</span></div>` : ''}
       </div>
       ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
@@ -6250,8 +6260,8 @@ function sakWizardHtml(s){
   const stegHtml = step === 1 ? sakWizardSteg1Html(s) : step === 2 ? sakWizardSteg2Html(s) : step === 3 ? sakWizardSteg3Html(s) : sakWizardSteg4Html(s);
   return `
     <div class="dmg-editbox">
-      ${sakWizardProgressHtml(s.id, step)}
       ${stegHtml}
+      ${sakWizardProgressHtml(s.id, step)}
       <div class="panel-actions" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
         <button type="button" class="btn danger-outline small" id="swz-delete-${s.id}">Slett saken</button>
       </div>
@@ -6265,9 +6275,20 @@ function sakCard(s, showVehicle){
   const statusBadgeKlasse = {'ny':'registrert','vurderes':'oppfolging','tiltak-planlagt':'oppfolging','verksted-bestilt':'verksted','utfort':'ok','lukket':'unset'}[s.status] || 'unset';
   const opStatus = sakOppfolgingStatus(s); // Fase 5 — null hvis saken er lukket
   const alder = sakAlderDager(s);
+  // Wizard UX Cleanup: når saken er åpen (wizard vises under), er dmg-top redusert til
+  // en slank, klikkbar "brødsmule"-linje (ikon + evt. bil + eksakt problem via
+  // sakProblemLabel — IKKE sakens generiske s.title) — ingen metadata, ingen badges.
+  // Steg 1 viser allerede status/prioritet/problem rett under på en ryddigere måte, så
+  // full dmg-top (som fortsatt brukes uendret i den KOLLAPSEDE listevisningen for rask
+  // skumlesing) ville bare gjentatt informasjon her.
   return `
     <div class="dmg-item ${!apen ? 'utbedret' : ''}">
       <div class="dmg-top" data-toggle-edit-sak="${s.id}">
+        ${isEditing ? `
+        <div class="dmg-text">
+          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(sakProblemLabel(s))}</div>
+        </div>
+        ` : `
         <div class="dmg-text">
           <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(s.title)}</div>
           ${s.description ? `<div class="desc">${esc(s.description)}</div>` : ''}
@@ -6281,6 +6302,7 @@ function sakCard(s, showVehicle){
           <span class="badge ${statusBadgeKlasse}">${SAK_STATUS_LABEL[s.status] || s.status}</span>
           ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
         </div>
+        `}
       </div>
       ${isEditing ? sakWizardHtml(s) : ''}
     </div>

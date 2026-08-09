@@ -461,12 +461,15 @@ inline hurtighandlinger: Registrer verkstedtime, Legg til oppfølging, Legg
 til kommentar. (4) Fullfør saken — resultat/utført dato/sluttkommentar,
 kostnad+avsetting kun vist når `s.linkedVtId` finnes.
 
-**Fleksibel, ikke lineær:** stegene er klikkbare piller — driftskoordinator
-kan hoppe fritt mellom dem. Åpningssteg beregnes av `sakWizardStartSteg(s)`
-ut fra sakens eksisterende `status` alene (ingen nye felt): `lukket` → lese-
-modus, `verksted-bestilt` → steg 3, `utfort`/`utfort-venter-bekreftelse` →
-steg 4, alt annet → steg 2. En lukket sak kan gjenåpnes (`reapneSak()`,
-setter status `vurderes`) — eneste vei ut av lesemodus.
+**Alltid Steg 1 ved åpning, deretter fri navigasjon.** `sakWizardStartSteg(s)`
+returnerer alltid `1` (uansett status) — eneste unntak er `lukket`, som
+fortsatt går til egen lesemodus. Driftskoordinator ser dermed alltid
+problemstillingen først, og velger selv "Vurder sak" eller "Fortsett saken"
+derfra. Steg 2/3/4 har hver sin egen, formålsrettede "← Tilbake"/"Neste →"-
+knapp i bunnen av stegets innhold (uendret) — det finnes ingen global
+steg-hopping-mekanisme lenger (se fremdriftsindikator under). En lukket sak
+kan gjenåpnes (`reapneSak()`, setter status `vurderes`) — eneste vei ut av
+lesemodus.
 
 **Status og prioritet lagres og valideres fortsatt strengt adskilt.**
 Velges status "Lukket" i steg 2, skjer INGEN lukking der — det sender kun
@@ -561,6 +564,60 @@ samler saksnummer, registrert av, registrert dato, kilde, sist oppdatert og
 full historikk (samme `<ul class="dmg-simple-list">`-oppsett som Steg 3) —
 alt som tidligere sto synlig i Steg 1 uansett behov, nå tilgjengelig ved
 behov i stedet for alltid.
+
+---
+
+# Wizard UX Cleanup
+
+Andre opprydningsrunde på Saksbehandling Wizard, bygget videre på "Steg 1 —
+Saksinformasjon" over. Mål: mest mulig beslutningsinformasjon, minst mulig
+administrativ informasjon, mindre scrolling. Ren visnings-/navigasjons-
+omlegging — ingen nye felt.
+
+**dmg-top blir slank når saken er åpen.** `sakCard(s, showVehicle)` viser nå
+to helt forskjellige header-varianter avhengig av `isEditing`: kollapset
+(listevisning, uendret) viser fortsatt full tittel/beskrivelse/metadata
+(`caseId`, type, registrert av/dato, rapportantall, "Åpen i X dager", "Sist
+oppdatert") og alle tre badges (prioritet/status/oppfølging) — nødvendig for
+rask skumlesing av mange saker i listen. Åpen (wizard synlig under) viser
+KUN én slank linje: ikon + evt. bil + `sakProblemLabel(s)` (samme
+problem-spesifikke etikett som Steg 1 bruker — IKKE sakens generiske
+`s.title`). All metadata og alle badges er fjernet herfra når saken er
+åpen, fordi Steg 1 allerede viser status/prioritet/problem rett under på en
+ryddigere måte — å vise det to ganger var nettopp klumpete duplisering.
+Den slanke linjen beholder `data-toggle-edit-sak`-klikkflaten for å lukke
+saken igjen.
+
+**Fremdriftsindikator flyttet til bunnen, redusert til ren prikkerad**
+(`sakWizardProgressHtml`): `(2/4) ✅✅•• Vurder sak`-teksten og de fire store
+"1 2 3 4"-stegknappene (klikkbare, kunne hoppe fritt) er fjernet. Erstattet
+av en enkel, IKKE-klikkbar rad `✅ ✅ • •` nederst i wizard-boksen (etter
+stegets eget innhold, før "Slett saken") — ingen sidetall, ingen tekst.
+✅-emojien er grønn i seg selv, ingen egen fargelogikk nødvendig. Fri
+step-hopping er bevisst fjernet: hvert steg har fortsatt sin egen,
+formålsrettede "← Tilbake"/"Neste →"-knapp i bunnen av stegets eget
+innhold (uendret på steg 2/3/4; steg 1 sine to handlingsknapper — "Vurder
+sak"/"Fortsett saken" — fyller samme rolle for det steget).
+
+**Alltid Steg 1 ved åpning** (se `sakWizardStartSteg(s)` over) — tidligere
+hoppet wizarden rett til steg 2/3/4 basert på status, slik at
+problembeskrivelsen i Steg 1 i praksis aldri ble sett ved gjenåpning av en
+sak som allerede var under behandling.
+
+**Statuschips overflyter ikke lenger på mobil** (`.dmg-top`/`.dmg-badges` i
+mobil-medieforespørselen `@media (max-width:640px)`): manglet tidligere
+`flex-wrap`, slik at tre brede chips (prioritet/status/oppfølging — f.eks.
+"⚪ Ingen oppfølgingsdato") kunne presse `.dmg-badges` bredere enn kortet og
+flyte utenfor høyre kant på smale skjermer. Samme mønster som den
+eksisterende `.vt-top`-fiksen i samme medieforespørsel. Gjelder kun den
+kollapsede listevisningen nå (den åpne visningen har ingen badges lenger,
+se over).
+
+**Status/Prioritet i Steg 1 tvinges side ved side** (ikke `.ov-grid`, som
+faller til én kolonne på smale skjermer) — begge er korte
+etikett/verdi-par som uansett har plass til to kolonner selv på de smaleste
+mobilskjermene, og stables derfor bevisst IKKE, for å holde Steg 1 så lavt
+som mulig.
 
 ---
 
@@ -699,6 +756,17 @@ boilerplate, status/prioritet ("Ikke vurdert" før Steg 2), andre aktive
 varsellamper på samme bil, metadata (saksnummer/registrert av/dato/kilde/
 historikk) skjult bak "▼ Mer informasjon". Ren visningsomlegging av Steg
 1 — ingen nye felt, ingen ny forretningslogikk
+
+Optimalisering 10 (implementert)
+Wizard UX Cleanup — se "Wizard UX Cleanup" over. Wizarden åpner alltid på
+Steg 1 nå (aldri direkte til Steg 2/3/4). dmg-top redusert til én slank,
+klikkbar linje med eksakt problem når saken er åpen (ingen metadata/badges
+— Steg 1 dekker det). Fremdriftsindikator flyttet til bunnen og redusert
+til en ren, ikke-klikkbar prikkerad (✅/•) — ingen sidetall, ingen store
+"1 2 3 4"-stegknapper. Fikset chip-overflow på mobil
+(`.dmg-top`/`.dmg-badges` manglet `flex-wrap`). Status/Prioritet i Steg 1
+tvinges side ved side for å holde høyden nede. Ren visnings-/
+navigasjonsomlegging — ingen nye felt
 
 ---
 

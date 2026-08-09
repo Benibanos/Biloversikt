@@ -333,3 +333,29 @@ Innhold:
 - Ingen dobbeltinformasjon, handlingsknappene (Vurder sak/Fortsett saken)
   uendret
 - Ren visningsomlegging — ingen nye felt, ingen ny forretningslogikk
+
+────────────────────────────
+
+✅ Optimalisering 10
+Wizard UX Cleanup
+
+Mål:
+Mest mulig beslutningsinformasjon, minst mulig administrativ informasjon,
+mindre scrolling, raskere vurdering av saken.
+
+Innhold:
+- Wizarden åpner alltid på Steg 1 (Saksinformasjon) nå, aldri direkte til
+  Steg 2/3/4
+- Kortheaderen (over wizarden) redusert til én slank linje med eksakt
+  problem når saken er åpen — ingen metadata, ingen badges (Steg 1 dekker
+  dette allerede lenger nede)
+- Fremdriftsindikator flyttet fra toppen til bunnen, redusert til en ren
+  prikkerad (✅ grønn/•) — ingen sidetall, ingen tekst
+- Fjernet de fire store "1 2 3 4"-stegknappene til fordel for hvert stegs
+  egne "← Tilbake"/"Neste →"-knapper
+- Fikset layoutfeil der statuschips (spesielt "Ingen oppfølgingsdato")
+  kunne flyte utenfor kortets høyrekant på mobil
+- Status og prioritet i Steg 1 holdes side ved side selv på smale
+  skjermer, for å redusere høyden ytterligere
+- Ren visnings-/navigasjonsomlegging — ingen nye felt, ingen ny
+  forretningslogikk
