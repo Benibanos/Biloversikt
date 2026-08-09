@@ -398,6 +398,52 @@ bil på nytt — men er alltid underlagt Airtable-tilstanden
 
 ---
 
+# Dashboard/Biloversikt-hurtigtilgang til aktiv bil — Optimalisering 8
+
+Videreutvikler Aktiv Biløkt / Min Bil over — ingen ny biløkt-modell, ingen
+nye Airtable-felt, alt beregnes live fra det samme `v.aktivSjafor`/
+`vehicleAktivSjafor()` som allerede er fasit.
+
+**"⭐ Min bil" på Dashboard** (`minBilVehicle` i `renderDashboard()`): vises
+kun dersom den innloggede administratorens visningsnavn (`loggedInRole`,
+samme navn som i velkomsthilsen) er identisk — case-insensitivt, samme
+sammenligning som `startBilokt()` allerede bruker ved bilbytte — med aktiv
+sjåfør på en bil. Dekker tilfellet der driftskoordinator også kjører selv.
+Plassert rett under Hovedstatus (før Morgenvisning), i tråd med "ingen
+dobbeltinformasjon"-prinsippet: skjules helt når ingen match finnes, tar
+ingen plass. "Åpne Min Bil"-knappen ruter til Kjøretøyprofil (`bilkort`,
+`data-goto-bilkort` — gjenbrukt uendret), IKKE til sjåførens driverMode
+Min Bil-skjerm, siden administrasjonssiden og sjåførflyten er bevisst
+adskilte systemer (se over) og det ikke er en ny registreringsflyt å bygge
+en bro mellom dem.
+
+**"Biler i drift nå" utvidet** med en liste (topp 5 + "+N til"-lenke, samme
+mønster som "Krever handling nå") over hvilken bil/sjåfør-par som er aktive
+akkurat nå, i tillegg til de eksisterende aggregerte tallene. Hver rad
+(`data-goto-bilkort`) åpner Kjøretøyprofil direkte.
+
+**"Bilgrupper"-hurtigkort** på Dashboard: ett kort per kategori
+(`KATEGORI_ORDER`) med antall biler/aktive/tilgjengelige for gruppen, trykk
+åpner Bilregister forhåndsfiltrert på kategorien
+(`goToRegisterKategori()`, samme filterfelt `filterKategori` som det
+manuelle kategorifilteret på Bilregister fra før — ingen ny filtermodell).
+
+**Aktiv sjåfør på Bilregister (`galleryCard`)**: bilkortene på selve
+Biloversikt-siden (`Oversikter ▼ → Biloversikt`) viste tidligere ikke
+aktiv sjåfør i det hele tatt — kun Dashboardets Biloversikt-akkordion og
+Kjøretøyprofil gjorde det. Lagt til som en ekstra linje
+(`👤 Aktiv sjåfør: X` / `⚪ Tilgjengelig`), samme `vehicleAktivSjafor()`.
+
+**Ingen manuell oppdatering nødvendig**: siden alt (`minBilVehicle`,
+`aktiveBilerListe`, `kategoriHurtigkort`, `galleryCard`-badgen) beregnes på
+nytt fra `vehicles`-arrayet ved hvert `render()`-kall, og `startBilokt()`/
+`avsluttBilokt()` begge kaller `saveVehicles()` (som trigger appens vanlige
+live-oppdatering), oppdateres alle disse visningene automatisk ved
+bilbytte/utsjekking — akkurat som "Biler i drift nå"-tellingen alltid har
+gjort. Ingen egen synk-mekanisme lagt til.
+
+---
+
 # Saksbehandling Wizard
 
 Erstatter det tidligere flate ett-skjema-redigeringsvinduet i `sakCard()` med
@@ -578,6 +624,16 @@ gjenbrukt uendret) — den opprinnelige "sveip høyre midt på skjermen =
 tilbake" beholdes uendret på oversiktssider. `← Tilbake` lagt til på
 Bilregister og Innstillinger, som tidligere manglet den. Ren navigasjons-
 og mobiloptimalisering — ingen nye sider/moduler/databasefelt
+
+Optimalisering 8 (implementert)
+Aktiv Sjåfør Hurtigvalg og Min Bil Hurtigtilgang — se "Dashboard/
+Biloversikt-hurtigtilgang til aktiv bil — Optimalisering 8" over.
+Videreutvikling av Aktiv Biløkt/Min Bil: "⭐ Min bil"-kort på Dashboard når
+innlogget administrators navn matcher aktiv sjåfør på en bil, utvidet
+"Biler i drift nå" med bil/sjåfør-liste, nye "Bilgrupper"-hurtigkort
+(åpner Bilregister forhåndsfiltrert på kategori), aktiv sjåfør synlig på
+Bilregister-siden. Alt beregnes live fra eksisterende `vehicleAktivSjafor()`
+— ingen nye Airtable-felt, ingen ny registreringsflyt
 
 ---
 

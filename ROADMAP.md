@@ -246,3 +246,68 @@ Innhold:
 - Dobbeltlagringsvern lagt til (fantes ikke i det tidligere skjemaet)
 - Ingen nye Airtable-felt, ingen parallell saksflyt — bygget som en
   presentasjonsomlegging av eksisterende, fungerende funksjonalitet
+
+────────────────────────────
+
+✅ Optimalisering 6
+Oversiktmeny
+
+Mål:
+Kortere sidemeny, raskere navigasjon, ryddigere struktur, bedre
+mobilopplevelse.
+
+Innhold:
+- Ny hovedmeny-rekkefølge: Dashboard → Aktive Saker → Rapporter → Analyse →
+  Oversikter ▼ → Innstillinger
+- "Oversikter ▼" samler Biloversikt (Bilregister), Kontrolloversikt,
+  Verkstedoversikt, Skadeoversikt, Varseloversikt, Dekkoversikt og
+  Kostnadsoversikt i én undermeny i stedet for syv separate rader
+- Undermenyen utvides automatisk når man allerede er på en av sidene i den,
+  slik at aktiv side alltid er synlig — tydelig ▼/▲-symbol ellers
+- Ren navigasjonsomorganisering: ingen sider fjernet, ingen ruter endret,
+  alle hurtigknapper/tilbakeknapper/navigasjonshistorikk uendret
+
+────────────────────────────
+
+✅ Optimalisering 7
+Sveip-navigasjon og Mobilflyt
+
+Mål:
+Færre trykk, raskere navigasjon, mer naturlig bruk på iPhone, bedre
+enhåndsbruk.
+
+Innhold:
+- Sveip høyre fra en smal sone helt i venstre skjermkant åpner sidemenyen
+  (samme meny som ☰-knappen)
+- Sveip høyre andre steder på skjermen beholder den opprinnelige
+  "tilbake"-oppførselen på oversiktssider (uendret fra Optimalisering 1)
+- Sveip venstre lukker sidemenyen når den er åpen
+- Trykk utenfor menyen lukker den (fantes allerede)
+- "← Tilbake" lagt til på Bilregister og Innstillinger, som tidligere
+  manglet den
+- Ren navigasjons- og mobiloptimalisering: ingen nye sider, ingen
+  databaseendringer
+
+────────────────────────────
+
+✅ Optimalisering 8
+Aktiv Sjåfør Hurtigvalg og Min Bil Hurtigtilgang
+
+Mål:
+Færre klikk og mindre scrolling for å finne riktig bil, tydeligere oversikt
+over hvem som bruker hvilken bil akkurat nå.
+
+Innhold:
+- "⭐ Min bil"-kort på Dashboard når innlogget administrators visningsnavn
+  matcher aktiv sjåfør på en bil — ett trykk åpner Kjøretøyprofil
+- "Biler i drift nå" utvidet med en liste over aktive bil/sjåfør-par (topp
+  5 + lenke til full liste), i tillegg til de eksisterende aggregerte
+  tallene
+- Nye "Bilgrupper"-hurtigkort på Dashboard: antall biler/aktive/
+  tilgjengelige per kategori, trykk åpner Bilregister forhåndsfiltrert på
+  gruppen
+- Aktiv sjåfør vises nå også på selve Bilregister-siden (tidligere kun på
+  Dashboard/Kjøretøyprofil)
+- Videreutvikling av eksisterende Aktiv Biløkt/Min Bil — alt beregnes live
+  fra `vehicleAktivSjafor()`, ingen nye Airtable-felt, ingen ny
+  registreringsflyt

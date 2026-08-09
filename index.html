@@ -2173,6 +2173,15 @@ function goToRegisterFiltered(kontrollStatus){
   showAddVehicleForm = false;
   goTo('register');
 }
+// Optimalisering 8: Bilgruppe-hurtigkort på Dashboard åpner Bilregister forhåndsfiltrert
+// på kategorien som ble trykket — samme mønster/filterfelt (filterKategori) som det
+// eksisterende gruppefilteret på Biloversikt-siden, ingen ny filtreringslogikk.
+function goToRegisterKategori(kategori){
+  filterSearch = ''; filterKontrollStatus = ''; filterLoyve = '';
+  filterKategori = kategori || '';
+  showAddVehicleForm = false;
+  goTo('register');
+}
 function goToSkaderFiltered(opts){
   opts = opts || {};
   skadeFilterBil = ''; skadeFilterDato = opts.dato || '';
@@ -3948,6 +3957,28 @@ function renderDashboard(){
   const nesteVerkstedtimerTop3 = nesteVerkstedtimerTop5.slice(0, 3);
   // Ny funksjon: Aktiv Biløkt — antall biler med en aktiv sjåfør akkurat nå.
   const bilerIDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
+  // Optimalisering 8: full liste over biler med aktiv sjåfør akkurat nå (til "Biler i
+  // drift nå"-listen), sortert etter bilnummer for gjenkjennelig rekkefølge. Bygger
+  // videre på samme vehicleAktivSjafor() som resten av appen — ingen ny datakilde.
+  const aktiveBilerListe = vehicles.filter(v => !!vehicleAktivSjafor(v.id))
+    .sort((a,b) => ruteNumber(a) - ruteNumber(b) || vehicleLabel(a).localeCompare(vehicleLabel(b)));
+  // Optimalisering 8: "⭐ Min bil" — dersom den innloggede administratorens visningsnavn
+  // (samme navn som i velkomsthilsen, loggedInRole) er identisk (case-insensitivt) med
+  // aktiv sjåfør på en bil, får driftskoordinatoren (som i praksis også kjører selv i
+  // dag) hurtigtilgang til akkurat den bilen. Samme case-insensitive matching som
+  // startBilokt() allerede bruker ved bilbytte — ingen ny sammenligningslogikk.
+  const minBilVehicle = loggedInRole ? vehicles.find(v => {
+    const sjafor = vehicleAktivSjafor(v.id);
+    return sjafor && sjafor.trim().toLowerCase() === loggedInRole.trim().toLowerCase();
+  }) : null;
+  // Optimalisering 8: "Bilgrupper"-hurtigkort — samme KATEGORI_ORDER/KATEGORI_GROUP_LABEL/
+  // GRUPPE_IKON som Biloversikt-akkordionen under, kun telling (aktiv sjåfør/tilgjengelig)
+  // per gruppe. Trykk åpner Bilregister forhåndsfiltrert på gruppen (goToRegisterKategori).
+  const kategoriHurtigkort = KATEGORI_ORDER.filter(k => vehicles.some(v => v.kategori === k)).map(k => {
+    const gruppeBiler = vehicles.filter(v => v.kategori === k);
+    const aktive = gruppeBiler.filter(v => !!vehicleAktivSjafor(v.id)).length;
+    return {kategori:k, antall:gruppeBiler.length, aktive, tilgjengelige: gruppeBiler.length - aktive};
+  });
 
   const groups = {};
   KATEGORI_ORDER.forEach(k => groups[k] = []);
@@ -4017,10 +4048,23 @@ function renderDashboard(){
       </div>
     </div>
 
+    ${minBilVehicle ? `
+    <div class="panel" id="dash-min-bil-card" style="margin-bottom:16px;border:1.5px solid var(--blue);">
+      <div class="ov-label" style="margin-bottom:8px;">⭐ Min bil</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;">${esc(vehicleLabel(minBilVehicle))}</div>
+          <div class="required-hint" style="margin-top:2px;">${isKontrollertIdag(minBilVehicle.id) ? '✅ Kontrollert' : '⚠️ Ikke kontrollert i dag'}</div>
+        </div>
+        <button class="btn small" style="min-height:44px;" data-goto-bilkort="${minBilVehicle.id}">Åpne Min Bil</button>
+      </div>
+    </div>` : ''}
+
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:8px;">☀️ Morgenvisning</div>
 
       <div class="ov-label" style="margin-bottom:8px;">Dagens situasjon</div>
+
       <div class="ov-grid" style="margin-bottom:14px;">
         <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Biler klare</span><span class="ov-value">${morgenKlareBiler}</span></div>
         <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${morgenManglerKontrollBiler.length}</span></div>
@@ -4135,13 +4179,44 @@ function renderDashboard(){
       </div>
     </div>
 
-    <div class="panel" id="dash-biler-i-drift-card" style="cursor:pointer;margin-bottom:16px;" data-goto-biloversikt-filter="har-aktiv-sjafor">
-      <div class="ov-label" style="margin-bottom:8px;">🚗 Biler i drift nå</div>
-      <div class="ov-grid">
+    <div class="panel" id="dash-biler-i-drift-card" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:8px;cursor:pointer;" data-goto-biloversikt-filter="har-aktiv-sjafor">🚗 Biler i drift nå</div>
+      <div class="ov-grid" style="margin-bottom:${aktiveBilerListe.length > 0 ? '10px' : '0'};cursor:pointer;" data-goto-biloversikt-filter="har-aktiv-sjafor">
         <div class="ov-item"><span class="ov-label">Aktive biløkter</span><span class="ov-value">${bilerIDriftCount}</span></div>
         <div class="ov-item"><span class="ov-label">Tilgjengelige biler</span><span class="ov-value">${totalVehicles - bilerIDriftCount}</span></div>
       </div>
+      ${aktiveBilerListe.length > 0 ? `
+      <div class="vt-list">
+        ${aktiveBilerListe.slice(0, 5).map(v => `
+        <div class="vt-card unset" style="cursor:pointer;" data-goto-bilkort="${v.id}">
+          <div class="vt-top">
+            <div class="vt-main">
+              <div class="vt-vehicle">${esc(vehicleLabel(v))}</div>
+              <div class="required-hint" style="margin-top:1px;">👤 ${esc(vehicleAktivSjafor(v.id))}</div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+      ${aktiveBilerListe.length > 5 ? `<div class="required-hint" style="margin-top:8px;cursor:pointer;" data-goto-biloversikt-filter="har-aktiv-sjafor">+ ${aktiveBilerListe.length - 5} til — se full liste.</div>` : ''}
+      ` : ''}
     </div>
+
+    ${kategoriHurtigkort.length > 0 ? `
+    <div class="panel" id="dash-bilgrupper-card" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:8px;">🗂️ Bilgrupper</div>
+      <div class="dash-group-grid">
+        ${kategoriHurtigkort.map(g => `
+        <div class="panel dash-group-card" style="margin-bottom:0;cursor:pointer;" data-goto-register-kategori="${g.kategori}">
+          <div class="group-card-head" style="cursor:pointer;">
+            <div>
+              <div class="group-card-title">${GRUPPE_IKON[g.kategori]} ${KATEGORI_GROUP_LABEL[g.kategori]}</div>
+              <div class="group-card-sub">${g.antall} ${g.antall===1?'bil':'biler'} · 👤 ${g.aktive} aktiv${g.aktive===1?'':'e'} · ⚪ ${g.tilgjengelige} tilgjengelig${g.tilgjengelige===1?'':'e'}</div>
+            </div>
+            <span class="chevron" aria-hidden="true">›</span>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">➕ Hurtighandlinger</div>
@@ -4366,6 +4441,10 @@ function attachDashboardListeners(){
     showDashBiloversiktFilterMeny = false;
     render();
   }));
+  document.querySelectorAll('[data-goto-register-kategori]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToRegisterKategori(el.dataset.gotoRegisterKategori);
+  }));
   const biloversiktFilterBtn = document.getElementById('dash-biloversikt-filter-btn');
   if(biloversiktFilterBtn) biloversiktFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -4523,6 +4602,9 @@ function galleryCard(v){
   const totalCount = damages.filter(d => d.vehicleId === v.id).length;
   const aktiveVarsler = activeVarsellysForVehicle(v.id);
   const kontrollertIdag = isKontrollertIdag(v.id);
+  // Optimalisering 8: samme vehicleAktivSjafor() som Dashboard/Kjøretøyprofil — ingen ny
+  // datakilde, kun lagt til visning her (manglet tidligere på selve Biloversikt-siden).
+  const aktivSjafor = vehicleAktivSjafor(v.id);
   return `
     <div class="gcard ${v.status}" data-open="${v.id}">
       <div class="gcard-head">
@@ -4535,6 +4617,9 @@ function galleryCard(v){
           </div>
           <div class="vl-indicator ${kontrollertIdag ? 'green' : 'amber'}" style="margin-top:2px;">
             ${kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag'}
+          </div>
+          <div class="vl-indicator ${aktivSjafor ? 'amber' : 'green'}" style="margin-top:2px;">
+            ${aktivSjafor ? `👤 Aktiv sjåfør: ${esc(aktivSjafor)}` : '⚪ Tilgjengelig'}
           </div>
         </div>
       </div>
