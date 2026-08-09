@@ -311,3 +311,25 @@ Innhold:
 - Videreutvikling av eksisterende Aktiv Biløkt/Min Bil — alt beregnes live
   fra `vehicleAktivSjafor()`, ingen nye Airtable-felt, ingen ny
   registreringsflyt
+
+────────────────────────────
+
+✅ Optimalisering 9
+Steg 1-sjekkliste (Saksbehandling Wizard)
+
+Mål:
+Steg 1 skal gi driftskoordinator nok informasjon til å ta riktig beslutning
+på 2-3 sekunder, uten unødvendig scrolling på mobil.
+
+Innhold:
+- Bil vist tydelig helt øverst ("Bil 5 – LS97571")
+- Komprimert, problem-spesifikk overskrift ("MOTORLAMPE"/"ABS") i stedet
+  for generisk automattekst ("Varsellampe registrert")
+- Kort, spesifikk beskrivelse i stedet for boilerplate-tekst
+- Status og prioritet vist direkte ("Ikke vurdert" inntil Steg 2)
+- Andre aktive varsellamper på samme bil vist samlet, ikke skjult
+- Metadata (saksnummer, registrert av, dato, kilde, sist oppdatert,
+  historikk) flyttet bak "▼ Mer informasjon" (lukket som standard)
+- Ingen dobbeltinformasjon, handlingsknappene (Vurder sak/Fortsett saken)
+  uendret
+- Ren visningsomlegging — ingen nye felt, ingen ny forretningslogikk

@@ -757,6 +757,10 @@ let sakWizardSaving = false; // dobbeltlagringsvern — låser lagreknapper mens
 let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i steg 3
 let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
 let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
+// Optimalisering 9 (Steg 1-sjekkliste): metadata (saksnummer/registrert av/dato/kilde/
+// sist oppdatert/historikk) er som standard skjult bak "▼ Mer informasjon" i Steg 1 —
+// samme "kun ett åpent om gangen, nullstilt ved sakbytte"-mønster som de tre over.
+let sakWizardSteg1MerOpen = false;
 let sakOversiktOpenVehicles = new Set();
 let showAddVT = false;
 let vtPrefillVehicleId = '';
@@ -2138,7 +2142,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -2550,7 +2554,7 @@ function toggleEditSak(id){
     editingSakId = id;
     sakWizardStep = sakWizardStartSteg(aktiveSaker.find(x => x.id === id));
   }
-  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false;
   render();
 }
 async function submitAddSak(ev){
@@ -2773,7 +2777,7 @@ function goToSakDetalj(sakId){
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
   editingSakId = s.id;
   sakWizardStep = sakWizardStartSteg(s);
-  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false;
   goTo('aktivesaker');
 }
 
@@ -5923,6 +5927,58 @@ function sakKildeLabel(s){
   if(s.caseType === 'kontrollavvik') return 'Kontrollavvik';
   return SAK_TYPE_LABEL[s.caseType] || 'Ukjent';
 }
+// Optimalisering 9 (Steg 1-sjekkliste): "vis eksakt problem" i stedet for den generiske
+// automatteksten ("Varsellampe registrert"/"Kontrollavvik registrert"). Bruker samme
+// sourceId/kilde-nøkkel som allerede lagres på saken (VARSELLAMPE_LABEL/
+// KONTROLLAVVIK_LABEL, samme oppslag som Min Bil/kontrollskjemaet bruker) — ingen nytt
+// felt, kun en visningsberegning. Faller tilbake til sakens egen tittel for sakstyper
+// uten en slik nøkkel (skade, service, manuelt opprettede saker) — disse er allerede
+// spesifikke siden de er brukerskrevet fritekst.
+function sakProblemLabel(s){
+  if(s.caseType === 'varsellampe' && s.sourceId && s.sourceId !== 'annet' && VARSELLAMPE_LABEL[s.sourceId]){
+    return VARSELLAMPE_LABEL[s.sourceId];
+  }
+  if(s.caseType === 'varsellampe' && s.sourceId === 'annet'){
+    // Fritekst for "Annet" ligger i første historikkoppføring sin kommentar (se
+    // registrerAvvikSomSak/submitKontroll) — henter ut kun selve teksten, ikke en ev.
+    // tilleggskommentar som ble limt på med " · ".
+    const forste = Array.isArray(s.historikk) && s.historikk.length > 0 ? s.historikk[0].kommentar || '' : '';
+    const fritekst = forste.split(' · ')[0].trim();
+    return fritekst || VARSELLAMPE_LABEL.annet;
+  }
+  if(s.caseType === 'kontrollavvik' && s.sourceId && KONTROLLAVVIK_LABEL[s.sourceId]){
+    return KONTROLLAVVIK_LABEL[s.sourceId];
+  }
+  return s.title;
+}
+// Kun kortnavn (uten "REGISTRERT"/ikon) egnet til STORE BOKSTAVER i en komprimert
+// overskrift — brukes kun når problemLabel kommer fra en kjent, kort konstant
+// (varsellampe/kontrollavvik). Frittekst-titler (skade m.fl.) beholder normal
+// tekstform i overskriften, siden hele setninger i store bokstaver er tyngre å lese.
+function sakProblemLabelErKortform(s){
+  return (s.caseType === 'varsellampe' && s.sourceId && s.sourceId !== 'annet' && !!VARSELLAMPE_LABEL[s.sourceId])
+    || (s.caseType === 'kontrollavvik' && s.sourceId && !!KONTROLLAVVIK_LABEL[s.sourceId]);
+}
+// Optimalisering 9: "kort beskrivelse" — erstatter automatikkens generiske
+// boilerplate-tekst ("Automatisk generert fra kontrollregistrering.") med én kort,
+// spesifikk linje. Brukerskrevne beskrivelser (manuelle saker/skader) vises uendret —
+// de er allerede spesifikke, ikke boilerplate.
+function sakKortBeskrivelse(s){
+  if(s.sourceType === 'auto'){
+    return `${sakProblemLabel(s)} — ${sakKildeLabel(s)}.`;
+  }
+  return s.description || '';
+}
+// Optimalisering 9: andre aktive varsellamper på SAMME bil (ikke bare denne saken) —
+// gjenbruker eksisterende activeVarsellysForVehicle(), ingen ny datakilde/relasjon.
+// Brukes kun for varsellampe-saker, og kun når bilen faktisk har 2+ aktive lamper, slik
+// at driftskoordinator ser hele bildet uten å måtte åpne flere saker/kort separat.
+function sakAndreAktiveVarsler(s){
+  if(s.caseType !== 'varsellampe') return [];
+  const v = sakVehicle(s);
+  if(!v) return [];
+  return activeVarsellysForVehicle(v.id);
+}
 const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
 function sakWizardProgressHtml(sakId, step){
   const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join('');
@@ -5936,21 +5992,61 @@ function sakWizardProgressHtml(sakId, step){
   `;
 }
 // Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her.
+// Optimalisering 9 (Steg 1-sjekkliste): omdesignet for at driftskoordinator skal forstå
+// problemet og kunne ta en beslutning på 2-3 sekunder, uten scrolling på mobil. Rekkefølge:
+// bil (tydelig, øverst) → komprimert, PROBLEM-spesifikk overskrift (ikke generisk
+// "Varsellampe registrert") → status/prioritet → kort, spesifikk beskrivelse → ev. andre
+// aktive varsellamper på samme bil → metadata skjult bak "▼ Mer informasjon" → handling.
 function sakWizardSteg1Html(s){
   const v = sakVehicle(s);
+  const problemLabel = sakProblemLabel(s);
+  const kortform = sakProblemLabelErKortform(s);
+  const kortBeskrivelse = sakKortBeskrivelse(s);
+  const andreVarsler = sakAndreAktiveVarsler(s);
+  // "Ikke vurdert" for status 'ny': ingen administrator har faktisk tatt stilling til
+  // prioriteten ennå (det skjer først i Steg 2 — "Vurder sak") — selv om systemet har satt
+  // en foreløpig startprioritet (f.eks. "Høy" på varsellamper), er den ikke bekreftet.
+  const prioritetVurdert = s.status !== 'ny';
   return `
-    <h4 style="margin-bottom:10px;">Saksinformasjon</h4>
-    <div class="ov-grid">
-      <div class="ov-item"><span class="ov-label">Bil</span><span class="ov-value">${v ? esc(v.bilnummer) : 'Ukjent'}</span></div>
-      <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${v ? esc(v.regnr) : '–'}</span></div>
-      <div class="ov-item"><span class="ov-label">Sakstype</span><span class="ov-value">${SAK_TYPE_IKON[s.caseType]||'📁'} ${SAK_TYPE_LABEL[s.caseType]||'Annet'}</span></div>
-      <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(s.reportedBy||'Ukjent')}</span></div>
-      <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
-      <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeLabel(s))}</span></div>
+    <div style="font-weight:700;font-size:14px;letter-spacing:.01em;margin-bottom:4px;color:var(--muted);text-transform:uppercase;">
+      ${v ? esc(v.bilnummer) + ' – ' + esc(v.regnr) : 'Ukjent kjøretøy'}
     </div>
-    <div class="field" style="margin:12px 0 8px;"><label>Tittel</label><div class="required-hint" style="font-weight:600;">${esc(s.title)}</div></div>
-    ${s.description ? `<div class="field" style="margin-bottom:8px;"><label>Beskrivelse</label><div class="required-hint">${esc(s.description)}</div></div>` : ''}
-    <div class="panel-actions" style="margin-top:14px;">
+    <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;line-height:1.25;margin-bottom:10px;">
+      ${SAK_TYPE_IKON[s.caseType] || '📁'} ${kortform ? esc(problemLabel).toUpperCase() : esc(problemLabel)}
+    </div>
+    <div class="ov-grid" style="margin-bottom:10px;">
+      <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${SAK_STATUS_LABEL[s.status] || s.status}</span></div>
+      <div class="ov-item"><span class="ov-label">Prioritet</span><span class="ov-value">${prioritetVurdert ? (SAK_PRIORITET_IKON[s.priority]||'🟡') + ' ' + (SAK_PRIORITET_LABEL[s.priority]||'Normal') : '⚪ Ikke vurdert'}</span></div>
+    </div>
+    ${kortBeskrivelse ? `<div class="required-hint" style="margin-bottom:10px;">${esc(kortBeskrivelse)}</div>` : ''}
+    ${andreVarsler.length > 1 ? `
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+        ${andreVarsler.map(w => `<span class="badge unset">${esc(w.type === 'annet' ? (w.annetTekst || 'Annet') : (VARSELLAMPE_LABEL[w.type] || w.type))}</span>`).join('')}
+      </div>
+      <div class="required-hint">${andreVarsler.length} varsler registrert</div>
+    </div>` : ''}
+
+    <button type="button" class="btn secondary small" id="swz-mer-toggle-${s.id}" style="justify-content:flex-start;margin-bottom:${sakWizardSteg1MerOpen ? '8px' : '12px'};">${sakWizardSteg1MerOpen ? '▲' : '▼'} Mer informasjon</button>
+    ${sakWizardSteg1MerOpen ? `
+    <div class="panel" style="margin-bottom:12px;">
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Saksnummer</span><span class="ov-value">${esc(s.caseId || '–')}</span></div>
+        <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(s.reportedBy || 'Ukjent')}</span></div>
+        <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
+        <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeLabel(s))}</span></div>
+        ${s.updatedAt ? `<div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${fmt(s.updatedAt.slice(0,10))}</span></div>` : ''}
+      </div>
+      ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
+      <div class="field" style="margin:10px 0 0;">
+        <label>Historikk</label>
+        <ul class="dmg-simple-list">
+          ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
+        </ul>
+      </div>` : ''}
+    </div>` : ''}
+
+    <div class="panel-actions">
       <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:2">Vurder sak</button>
       <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">Fortsett saken</button>
     </div>
@@ -6398,6 +6494,14 @@ function attachAktiveSakerListeners(){
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSak(s.id); });
     const reapneBtn = document.getElementById('swz-reapne-'+s.id);
     if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
+
+    // Steg 1 — "Mer informasjon" (metadata skjult som standard, se Optimalisering 9)
+    const merToggleBtn = document.getElementById('swz-mer-toggle-'+s.id);
+    if(merToggleBtn) merToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sakWizardSteg1MerOpen = !sakWizardSteg1MerOpen;
+      render();
+    });
 
     // Steg 2 — Vurder sak
     const vurderingLagreBtn = document.getElementById('swz-vurdering-lagre-'+s.id);

@@ -508,6 +508,62 @@ til som en liten, isolert utvidelse.
 
 ---
 
+# Steg 1 — Saksinformasjon (Optimalisering 9)
+
+Mål: driftskoordinator skal forstå problemet og kunne ta en beslutning på
+2–3 sekunder, uten scrolling på mobil. Ren visningsomlegging av
+`sakWizardSteg1Html(s)` — ingen nye felt, ingen ny forretningslogikk.
+
+**Rekkefølge (topp til bunn):** bil (`Bil 5 – LS97571`, alltid øverst) →
+komprimert, PROBLEM-spesifikk overskrift → status/prioritet → kort
+beskrivelse → ev. andre aktive varsellamper på samme bil → handlingsknapper
+(Vurder sak / Fortsett saken). Metadata skjult bak `▼ Mer informasjon`
+(lukket som standard).
+
+**Eksakt problem, ikke generisk automattekst** (`sakProblemLabel(s)`): den
+gamle, generiske tittelen ("Varsellampe registrert"/"Kontrollavvik
+registrert") erstattes av selve lampen/avviket, hentet fra `s.sourceId` mot
+de samme `VARSELLAMPE_LABEL`/`KONTROLLAVVIK_LABEL`-oppslagene
+kontrollskjemaet og Min Bil allerede bruker ved registrering — samme nøkkel,
+ingen ny relasjon. For "Annet"-lamper hentes fritekst fra første
+historikkoppføring (der den allerede lagres, se `submitKontroll`). Sakstyper
+uten en slik nøkkel (skade, service, manuelt opprettede saker) viser sakens
+egen tittel uendret — den er allerede brukerskrevet og spesifikk.
+`sakProblemLabelErKortform(s)` avgjør om overskriften vises med STORE
+BOKSTAVER (kun kjente korte konstant-etiketter) eller normal tekstform (fri
+tekst leser tyngre i store bokstaver).
+
+**Kort, spesifikk beskrivelse** (`sakKortBeskrivelse(s)`): for
+automatgenererte saker (`sourceType:'auto'`) erstattes boilerplate-teksten
+("Automatisk generert fra kontrollregistrering.") med
+`{problemLabel} — {kilde}.` (gjenbruker `sakKildeLabel()` uendret).
+Brukerskrevne beskrivelser (manuelle saker/skader) vises uendret — de er
+ikke boilerplate og skal ikke omskrives.
+
+**Prioritet vises som "Ikke vurdert" når status er `ny`** — ikke fordi
+saken mangler en prioritetsverdi (den har alltid én, satt av systemet ved
+opprettelse), men fordi ingen administrator faktisk har tatt stilling til
+den ennå; det skjer først i Steg 2 ("Vurder sak"). Så snart status har
+beveget seg forbi `ny`, vises den faktiske prioritetsverdien.
+
+**Andre aktive varsellamper på samme bil** (`sakAndreAktiveVarsler(s)`):
+kun for `caseType:'varsellampe'`, og kun vist når bilen har 2+ aktive
+lamper. Gjenbruker `activeVarsellysForVehicle()` uendret (samme funksjon
+som Dashboard/Biloversikt/Kjøretøyprofil) — ingen ny datakilde. Sikrer at
+driftskoordinator ser hele bildet på bilen uten å måtte åpne flere saker
+separat, i tråd med sjekklistens "ikke skjul hvilke lamper som faktisk er
+registrert".
+
+**"▼ Mer informasjon"** (`sakWizardSteg1MerOpen`, lukket som standard,
+samme "ett om gangen, nullstilt ved sakbytte"-mønster som
+`sakWizardVtOpen`/`sakWizardOppfolgingOpen`/`sakWizardKommentarOpen`):
+samler saksnummer, registrert av, registrert dato, kilde, sist oppdatert og
+full historikk (samme `<ul class="dmg-simple-list">`-oppsett som Steg 3) —
+alt som tidligere sto synlig i Steg 1 uansett behov, nå tilgjengelig ved
+behov i stedet for alltid.
+
+---
+
 # Nåværende utviklingsplan
 
 Fase 1
@@ -634,6 +690,15 @@ innlogget administrators navn matcher aktiv sjåfør på en bil, utvidet
 (åpner Bilregister forhåndsfiltrert på kategori), aktiv sjåfør synlig på
 Bilregister-siden. Alt beregnes live fra eksisterende `vehicleAktivSjafor()`
 — ingen nye Airtable-felt, ingen ny registreringsflyt
+
+Optimalisering 9 (implementert)
+Steg 1-sjekkliste (Saksbehandling Wizard) — se "Steg 1 — Saksinformasjon
+(Optimalisering 9)" over. Viser eksakt problem (f.eks. "MOTORLAMPE") i
+stedet for generisk automattekst, kort spesifikk beskrivelse i stedet for
+boilerplate, status/prioritet ("Ikke vurdert" før Steg 2), andre aktive
+varsellamper på samme bil, metadata (saksnummer/registrert av/dato/kilde/
+historikk) skjult bak "▼ Mer informasjon". Ren visningsomlegging av Steg
+1 — ingen nye felt, ingen ny forretningslogikk
 
 ---
 
