@@ -359,3 +359,28 @@ Innhold:
   skjermer, for å redusere høyden ytterligere
 - Ren visnings-/navigasjonsomlegging — ingen nye felt, ingen ny
   forretningslogikk
+
+────────────────────────────
+
+✅ Optimalisering 11
+Aktive Saker UX Cleanup
+
+Mål:
+Redusere støy og gjøre sakene raskere å skanne visuelt.
+
+Innhold:
+- Saksnummer skjult fra det kollapsede sakskortet — fortsatt tilgjengelig
+  i Steg 1 sin "Mer informasjon"
+- Korttittel viser eksakt varsellampe/problem i stedet for generisk tekst.
+  Ved flere samtidig aktive varsellamper på samme bil: "Motorlampe + ABS"
+  (nøyaktig 2) eller "N varsellamper registrert" (3+)
+- "Registrert {dato}" som liten tekst øverst til høyre erstatter tre
+  metadatalinjer (registrert av/dato, sist oppdatert, åpen i X dager) midt
+  på kortet
+- "+ Ny sak" flyttet opp på samme rad som "← Tilbake"
+- De to separate tellingene slått sammen til én linje ("N / M aktive
+  saker")
+- Mer kompakte, skannbare kort: bil (via gruppeoverskrift), eksakt
+  problem, status, prioritet og registreringsdato synlig uten å åpne saken
+- Ren visnings-/layoutomlegging — ingen nye felt, ingen endringer i
+  sakslogikk

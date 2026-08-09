@@ -621,6 +621,70 @@ som mulig.
 
 ---
 
+# Aktive Saker UX Cleanup
+
+Tredje opprydningsrunde, denne gangen på selve sakskortet i den KOLLAPSEDE
+listevisningen (ikke wizarden — se "Wizard UX Cleanup" over for den åpne
+visningen). Samme mål: mest mulig beslutningsinformasjon, minst mulig
+administrativ informasjon. Ren visnings-/layoutomlegging — ingen nye felt,
+ingen endringer i sakslogikk.
+
+**Saksnummer skjult fra hovedkortet** (`sakCard`): `s.caseId` vises ikke
+lenger i den kollapsede kortvisningen. Feltet er uendret i datamodellen og
+fortsatt tilgjengelig i Steg 1 sin `▼ Mer informasjon` når saken åpnes — kun
+fjernet fra det som vises uten å åpne saken. Det finnes ikke noe eget
+fritekstsøk på Aktive Saker i dag (kun nedtrekksfiltre), så "søkbart" her
+betyr at feltet fortsatt finnes og er tilgjengelig — ikke at det ble bygget
+en ny søkefunksjon.
+
+**Eksakt problem i overskriften** (`sakKortOverskrift(s)`, ny funksjon):
+kollapset korttittel bruker nå samme prinsipp som Steg 1
+(`sakProblemLabel`) i stedet for den generiske `s.title`. For
+varsellampe-saker der bilen har FLERE aktive lamper akkurat nå, gjenbrukes
+den samme `sakAndreAktiveVarsler()`-listen fra Steg 1: nøyaktig 2 aktive
+lamper → `"Motorlampe + ABS"`, 3 eller flere → `"3 varsellamper
+registrert"`. Med kun 1 aktiv lampe (det vanlige tilfellet) vises kun den
+ene, som i Steg 1. Effekten: ETHVERT varsellampe-kort for en bil med flere
+samtidige varsler gir hele bildet, uten å måtte åpne noen av dem — ingen
+kort er slått sammen eller endret i datamodellen, kun overskriftsteksten er
+delt mellom kortene som allerede fantes.
+`varsellysKortLabel(w)` er selve etikett-oppslaget (VARSELLAMPE_LABEL eller
+`annetTekst`), skilt ut som egen liten funksjon og gjenbrukt av både
+`sakKortOverskrift()` og Steg 1 sin chip-liste — var tidligere dupliserte
+inline-uttrykk begge steder.
+
+**"Registrert {dato}" erstatter tre metadatalinjer.** Kortet viste
+tidligere "Registrert av"/"Registrert dato" (i `dmg-meta`) og "Sist
+oppdatert" (i en egen `dmg-meta`-linje sammen med "Åpen i X dager") midt i
+kortet. Alle tre er fjernet fra hovedkortet. Én liten `Registrert {dato}`-
+tekst vises nå øverst til høyre, over prioritet-/status-/
+oppfølgingschipsene (samme høyre kolonne som badges alltid har hatt) —
+gir rask kontekst uten metadatastøyen. "Registrert av", "Sist oppdatert" og
+"Åpen i X dager" finnes fortsatt i Steg 1 sin `▼ Mer informasjon`, uendret
+fra forrige runde.
+
+**Bil/regnr vises IKKE på hvert enkelt kort.** Sjekklistens eksempel viser
+"Bil 5 – LS97571" på selve kortet, men Aktive Saker grupperer allerede alle
+saker under en synlig bil-overskrift (`sakGroupedSection` →
+"📍 Bil 5 – LS97571" over hver gruppe) — å gjenta det på hvert kort i
+gruppen hadde vært akkurat den typen duplisering resten av denne
+opprydningsserien har fjernet. `showVehicle`-parameteren til `sakCard()`
+er uendret og brukes fortsatt for det ene unntaket der det er nødvendig:
+saker knyttet til et slettet kjøretøy (`foreldrelose`), som ikke vises i
+noen bilgruppe.
+
+**"+ Ny sak" flyttet opp til `.backrow`**, på samme rad som `← Tilbake`
+(`margin-left:auto` skyver den til høyre) — samme knapp/id (`add-sak-btn`),
+kun flyttet i markup. Den gamle, egne verktøylinjen som kun inneholdt
+"N saker vist" + knappen er fjernet.
+
+**Tellingene slått sammen** til én linje, `${antall vist} / ${antall
+totalt} aktive saker`, alltid i dette formatet (også uten aktivt filter,
+f.eks. "18 / 18 aktive saker") — erstatter de to tidligere separate
+linjene ("N aktive saker totalt" og "N saker vist").
+
+---
+
 # Nåværende utviklingsplan
 
 Fase 1
@@ -767,6 +831,18 @@ til en ren, ikke-klikkbar prikkerad (✅/•) — ingen sidetall, ingen store
 (`.dmg-top`/`.dmg-badges` manglet `flex-wrap`). Status/Prioritet i Steg 1
 tvinges side ved side for å holde høyden nede. Ren visnings-/
 navigasjonsomlegging — ingen nye felt
+
+Optimalisering 11 (implementert)
+Aktive Saker UX Cleanup — se "Aktive Saker UX Cleanup" over. Saksnummer
+skjult fra det kollapsede sakskortet (fortsatt i Steg 1 sin "Mer
+informasjon"). Korttittel viser nå eksakt problem
+(`sakKortOverskrift()`) — "Motorlampe + ABS" ved nøyaktig 2 samtidig
+aktive lamper på bilen, "N varsellamper registrert" ved 3+. "Registrert
+{dato}" som liten tekst øverst til høyre erstatter tre metadatalinjer
+midt i kortet. "+ Ny sak" flyttet opp til samme rad som "← Tilbake".
+Tellingene ("N aktive saker totalt" / "N saker vist") slått sammen til
+én linje ("N / M aktive saker"). Ren visnings-/layoutomlegging — ingen
+nye felt, ingen endringer i sakslogikk
 
 ---
 

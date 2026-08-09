@@ -5987,6 +5987,23 @@ function sakAndreAktiveVarsler(s){
   if(!v) return [];
   return activeVarsellysForVehicle(v.id);
 }
+function varsellysKortLabel(w){
+  return w.type === 'annet' ? (w.annetTekst || 'Annet') : (VARSELLAMPE_LABEL[w.type] || w.type);
+}
+// Aktive Saker UX Cleanup: overskrift for det KOLLAPSEDE sakskortet (ikke Steg 1, som
+// har sin egen — se sakProblemLabel/sakWizardSteg1Html). For varsellampe-saker gjenbruker
+// den samme sakAndreAktiveVarsler()-listen som Steg 1 allerede viser, slik at ÉN hvilken
+// som helst av bilens varsellampe-kort i listen gir hele bildet uten å måtte åpne noen av
+// dem: kun denne lampen ("Motorlampe") ved kun 1 aktiv, "Motorlampe + ABS" ved nøyaktig 2,
+// "3 varsellamper registrert" ved 3 eller flere. Andre sakstyper er uendret
+// (sakProblemLabel — allerede spesifikk, brukerskrevet fritekst for skade/manuelt osv.).
+function sakKortOverskrift(s){
+  if(s.caseType !== 'varsellampe') return sakProblemLabel(s);
+  const andre = sakAndreAktiveVarsler(s);
+  if(andre.length <= 1) return sakProblemLabel(s);
+  if(andre.length === 2) return andre.map(varsellysKortLabel).join(' + ');
+  return `${andre.length} varsellamper registrert`;
+}
 const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
 // Wizard UX Cleanup (punkt 5-7): fremdriftsindikatoren er nå en ren, ikke-klikkbar
 // prikkerad (✅ for fullførte steg, • for resten) — ingen sidetall, ingen tekst, ingen
@@ -6031,7 +6048,7 @@ function sakWizardSteg1Html(s){
     ${andreVarsler.length > 1 ? `
     <div style="margin-bottom:10px;">
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
-        ${andreVarsler.map(w => `<span class="badge unset">${esc(w.type === 'annet' ? (w.annetTekst || 'Annet') : (VARSELLAMPE_LABEL[w.type] || w.type))}</span>`).join('')}
+        ${andreVarsler.map(w => `<span class="badge unset">${esc(varsellysKortLabel(w))}</span>`).join('')}
       </div>
       <div class="required-hint">${andreVarsler.length} varsler registrert</div>
     </div>` : ''}
@@ -6274,13 +6291,19 @@ function sakCard(s, showVehicle){
   const apen = sakErApen(s);
   const statusBadgeKlasse = {'ny':'registrert','vurderes':'oppfolging','tiltak-planlagt':'oppfolging','verksted-bestilt':'verksted','utfort':'ok','lukket':'unset'}[s.status] || 'unset';
   const opStatus = sakOppfolgingStatus(s); // Fase 5 — null hvis saken er lukket
-  const alder = sakAlderDager(s);
   // Wizard UX Cleanup: når saken er åpen (wizard vises under), er dmg-top redusert til
   // en slank, klikkbar "brødsmule"-linje (ikon + evt. bil + eksakt problem via
   // sakProblemLabel — IKKE sakens generiske s.title) — ingen metadata, ingen badges.
   // Steg 1 viser allerede status/prioritet/problem rett under på en ryddigere måte, så
   // full dmg-top (som fortsatt brukes uendret i den KOLLAPSEDE listevisningen for rask
   // skumlesing) ville bare gjentatt informasjon her.
+  //
+  // Aktive Saker UX Cleanup: den KOLLAPSEDE dmg-top er nå selv gjort mer skannbar og
+  // mindre administrativ — se sakKortOverskrift() (eksakt varsellampe/problem i stedet
+  // for generisk s.title). Saksnummer/registrert av/rapportantall/"Åpen i X dager"/
+  // "Sist oppdatert" er fjernet herfra (fortsatt tilgjengelig i Steg 1 sin "▼ Mer
+  // informasjon" ved behov) — erstattet av kun "Registrert {dato}" som liten tekst
+  // øverst til høyre, ved siden av prioritet/status/oppfølging-chipsene.
   return `
     <div class="dmg-item ${!apen ? 'utbedret' : ''}">
       <div class="dmg-top" data-toggle-edit-sak="${s.id}">
@@ -6290,17 +6313,18 @@ function sakCard(s, showVehicle){
         </div>
         ` : `
         <div class="dmg-text">
-          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(s.title)}</div>
-          ${s.description ? `<div class="desc">${esc(s.description)}</div>` : ''}
-          ${s.nextAction ? `<div class="desc">➡️ Neste handling: ${esc(s.nextAction)}</div>` : ''}
-          ${s.followUpDate ? `<div class="desc">📅 Oppfølging: ${fmt(s.followUpDate)}</div>` : ''}
-          <div class="dmg-meta">${esc(s.caseId || '')} · ${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · Registrert ${fmt(s.reportedAt)}${s.reportedBy ? ' av ' + esc(s.reportedBy) : ''}${s.reportCount > 1 ? ` · Rapportert ${s.reportCount} ganger` : ''}</div>
-          ${apen ? `<div class="dmg-meta">Åpen i ${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}${s.updatedAt ? ' · Sist oppdatert ' + fmt(s.updatedAt.slice(0,10)) : ''}</div>` : ''}
+          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(sakKortOverskrift(s))}</div>
+          ${showVehicle ? `<div class="desc">${esc(vehicleLabel(v))}</div>` : ''}
+          ${s.nextAction ? `<div class="desc">➡️ ${esc(s.nextAction)}</div>` : ''}
+          ${s.followUpDate ? `<div class="desc">📅 Oppfølging ${fmt(s.followUpDate)}</div>` : ''}
         </div>
-        <div class="dmg-badges">
-          <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${SAK_PRIORITET_LABEL[s.priority] || 'Normal'}</span>
-          <span class="badge ${statusBadgeKlasse}">${SAK_STATUS_LABEL[s.status] || s.status}</span>
-          ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+          <div class="required-hint" style="margin:0;white-space:nowrap;">Registrert ${fmt(s.reportedAt)}</div>
+          <div class="dmg-badges">
+            <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${SAK_PRIORITET_LABEL[s.priority] || 'Normal'}</span>
+            <span class="badge ${statusBadgeKlasse}">${SAK_STATUS_LABEL[s.status] || s.status}</span>
+            ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
+          </div>
         </div>
         `}
       </div>
@@ -6373,11 +6397,14 @@ function renderAktiveSaker(){
   const oversiktBody = sakGroupedSection(visning, sakOversiktOpenVehicles, 'toggle-sako-vehicle');
 
   return `
-    <div class="backrow"><button class="backbtn" id="sak-back">← Tilbake</button></div>
+    <div class="backrow">
+      <button class="backbtn" id="sak-back">← Tilbake</button>
+      <button class="btn small" id="add-sak-btn" style="margin-left:auto;">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
+    </div>
     <h2 style="font-size:19px;margin-bottom:16px;">🗂️ Aktive Saker</h2>
 
     <div class="toolbar">
-      <div class="count">${aktiveSaker.length} aktive saker totalt</div>
+      <div class="count">${visning.length} / ${aktiveSaker.length} aktive saker</div>
       <button class="btn secondary small" id="sak-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
     </div>
 
@@ -6429,11 +6456,6 @@ function renderAktiveSaker(){
         Kun åpne saker
       </label>
     </div>` : ''}
-
-    <div class="toolbar" style="margin-bottom:16px;">
-      <div class="required-hint">${visning.length} sak${visning.length===1?'':'er'} vist</div>
-      <button class="btn" id="add-sak-btn">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
-    </div>
 
     ${showAddSak ? `
     <form class="panel" id="add-sak-form">
