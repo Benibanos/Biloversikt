@@ -1006,6 +1006,20 @@ const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', kritisk:'Kritisk', ver
 // Gjenbruker eksisterende .badge-fargeklasser (rød/oransje/gul/grå/grønn) slik at
 // hovedstatusen får riktig farge overalt den vises (Kjøretøyprofil m.fl.).
 const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', kritisk:'overdue', verksted:'oppf-idag', oppfolging:'soon', 'ikke-kontrollert':'unset', operativ:'ok'};
+
+// ---- Optimalisering 5 (Operativ Morgenvisning): "Dagens status" per bil ----
+// Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
+// bilen klar for drift akkurat nå", uavhengig av lavere-prioriterte forhold som
+// "under oppfølging". Prioritet: kritisk sak > mangler kontroll > verksted i dag > klar.
+function vehicleDagensStatus(vehicleId){
+  if(vehicleAktiveSaker(vehicleId).some(s => s.priority === 'kritisk')) return 'kritisk';
+  if(!isKontrollertIdag(vehicleId)) return 'mangler-kontroll';
+  if(verkstedtimer.some(t => t.vehicleId === vehicleId && t.dato === todayISO())) return 'verksted-idag';
+  return 'klar';
+}
+const DAGENS_STATUS_IKON = {klar:'✅', 'mangler-kontroll':'⚪', 'verksted-idag':'🔧', kritisk:'🚨'};
+const DAGENS_STATUS_LABEL = {klar:'Klar for drift', 'mangler-kontroll':'Mangler kontroll', 'verksted-idag':'Verksted i dag', kritisk:'Kritisk sak'};
+const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verksted-idag':'today', kritisk:'alert'};
 // Fase 2/3: automatisk bilstatus utledet fra Aktive Saker (uavhengig av det manuelt
 // satte v.status-feltet som styrer "På verksted"/"Trenger oppfølging" andre steder).
 // RØD = minst én åpen sak med prioritet Kritisk, ORANSJE = minst én sak med status
@@ -3314,22 +3328,32 @@ function renderDashboard(){
   const uteAvDriftBiler = vehicles.filter(v => v.uteAvDrift);
   const dashTotalHandlinger = kritiskeSakerAlle.length + oppfolgingKreverHandlingSaker.length + manglerKontrollCount;
   const dashKreverListe = [];
-  uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || ''}));
+  uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
   kritiskeSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
-    dashKreverListe.push({sort:0, ikon:'🔴', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`});
+    dashKreverListe.push({sort:0, ikon:'🔴', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
   oppfolgingKreverHandlingSaker.forEach(s => {
     const op = sakOppfolgingStatus(s);
     const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
-    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2});
+    const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
+    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2, aksjon});
   });
   vehicles.filter(v => !isKontrollertIdag(v.id)).forEach(v => {
-    dashKreverListe.push({sort:3, ikon:'🟡', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:''});
+    dashKreverListe.push({sort:3, ikon:'🟡', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:'', aksjon:'Registrer kontroll'});
   });
   dashKreverListe.sort((a,b) => a.sort - b.sort);
   const dashKreverTop5 = dashKreverListe.slice(0, 5);
 
+  // ---- Optimalisering 5 (Operativ Morgenvisning) ----
+  // Egne, kompakte morgen-baserte utvalg. Ingen ny forretningslogikk — gjenbruker
+  // samme underliggende data som Krever handling nå/Bilparkhelse, kun filtrert til det
+  // som er relevant AKKURAT I DAG (ingen historiske tall, se Dashboardregel).
+  const morgenKlareBiler = totalVehicles - manglerKontrollCount;
+  const morgenManglerKontrollBiler = vehicles.filter(v => !isKontrollertIdag(v.id));
+  const morgenVerkstedIdagListe = verkstedtimer.filter(t => t.dato === today).sort((a,b) => (a.tidspunkt||'').localeCompare(b.tidspunkt||''));
+  const morgenVerkstedIdagBilerCount = new Set(morgenVerkstedIdagListe.map(t => t.vehicleId)).size;
+  const morgenKritiskeForhold = kritiskeSakerAlle;
   // Optimalisering 4 (Dashboard Pro) — kompakt Bilparkhelse-telling, bygget på samme
   // sentrale, prioriterte statusmotor (vehicleHovedstatus) som Biloversikt-filteret og
   // Kjøretøyprofil, slik at tallene alltid stemmer overens.
@@ -3403,6 +3427,59 @@ function renderDashboard(){
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:8px;">☀️ Morgenvisning</div>
+
+      <div class="ov-label" style="margin-bottom:8px;">Dagens situasjon</div>
+      <div class="ov-grid" style="margin-bottom:14px;">
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Biler klare</span><span class="ov-value">${morgenKlareBiler}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${morgenManglerKontrollBiler.length}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="verksted"><span class="ov-label">🔧 Verksted i dag</span><span class="ov-value">${morgenVerkstedIdagBilerCount}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-quick-page="aktivesaker"><span class="ov-label">📋 Oppfølging i dag</span><span class="ov-value">${oppfolgingKreverHandlingSaker.length}</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🚨 Kritiske saker</span><span class="ov-value">${morgenKritiskeForhold.length}</span></div>
+      </div>
+
+      <div class="ov-label" style="margin-bottom:8px;">📋 Må gjøres i dag</div>
+      ${dashKreverTop5.length === 0 ? `<div class="empty-note" style="padding:4px 0;margin-bottom:14px;">✅ Ingenting krever handling akkurat nå.</div>` : `
+      <ul class="dmg-simple-list" style="margin-bottom:14px;">
+        ${dashKreverTop5.map(item => {
+          const v = vehicles.find(x => x.id === item.vehicleId);
+          return `<li style="cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
+            <span class="dmg-simple-main">${item.ikon} ${esc(item.aksjon)} — ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</span>
+          </li>`;
+        }).join('')}
+      </ul>`}
+
+      <div class="ov-label" style="margin-bottom:8px;">⚪ Mangler kontroll</div>
+      ${morgenManglerKontrollBiler.length === 0 ? `<div class="empty-note" style="padding:4px 0;margin-bottom:14px;">✅ Alle biler er kontrollert i dag</div>` : `
+      <ul class="dmg-simple-list" style="margin-bottom:14px;">
+        ${morgenManglerKontrollBiler.map(v => `<li style="cursor:pointer;" data-goto-kontroll="${v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(v))}</span></li>`).join('')}
+      </ul>`}
+
+      ${morgenVerkstedIdagListe.length > 0 ? `
+      <div class="ov-label" style="margin-bottom:8px;">🔧 Verksted i dag</div>
+      <ul class="dmg-simple-list" style="margin-bottom:14px;">
+        ${morgenVerkstedIdagListe.map(t => {
+          const tv = vtVehicle(t);
+          return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
+            <span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${esc(t.beskrivelse)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</span>
+          </li>`;
+        }).join('')}
+      </ul>` : ''}
+
+      ${morgenKritiskeForhold.length > 0 ? `
+      <div class="ov-label" style="margin-bottom:8px;color:var(--red);">🚨 Kritiske forhold</div>
+      <ul class="dmg-simple-list">
+        ${morgenKritiskeForhold.map(s => {
+          const v = sakVehicle(s);
+          return `<li style="cursor:pointer;" data-goto-sak="${s.id}">
+            <span class="dmg-simple-main">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(s.title)}</span>
+            <span class="badge overdue">Kritisk</span>
+          </li>`;
+        }).join('')}
+      </ul>` : ''}
+    </div>
+
     <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
       <div class="ov-label" style="${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? 'color:var(--red);' : ''}margin-bottom:10px;">${dashTotalHandlinger > 0 || uteAvDriftBiler.length > 0 ? '⚡' : '✅'} Krever handling nå</div>
       ${dashTotalHandlinger === 0 && uteAvDriftBiler.length === 0 ? `
@@ -3433,17 +3510,6 @@ function renderDashboard(){
       </div>
       ${dashKreverListe.length > 5 ? `<div class="required-hint" style="margin-top:8px;">+ ${dashKreverListe.length - 5} til — se Aktive Saker eller Biloversikt for full liste.</div>` : ''}
       `}
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:8px;">☀️ Morgenoversikt — i dag</div>
-      <div class="ov-grid">
-        <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Biler klare</span><span class="ov-value">${totalVehicles - manglerKontrollCount}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${manglerKontrollCount}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-quick-page="verksted"><span class="ov-label">🔧 På verksted</span><span class="ov-value">${verkstedBestiltCount}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-quick-page="aktivesaker"><span class="ov-label">📋 Oppfølginger</span><span class="ov-value">${oppfolgingKreverHandlingSaker.length}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🚨 Kritisk</span><span class="ov-value">${kritiskeSakerAlle.length}</span></div>
-      </div>
     </div>
 
     ${nesteVerkstedtimerTop3.length > 0 ? `
@@ -3574,6 +3640,9 @@ function accordionRow(v){
   const vKritiskeSakerListe = vehicleKritiskeSaker(v.id);
   const vEldsteSak = vehicleEldsteApneSak(v.id);
   const vEldsteSakAlder = vEldsteSak ? sakAlderDager(vEldsteSak) : null;
+  // Optimalisering 5: "Dagens status" — raskt morgenperspektiv, supplerer (og erstatter
+  // som chip) den enklere kontrollert/ikke-kontrollert-visningen fra før.
+  const vDagensStatus = vehicleDagensStatus(v.id);
 
   return `
     <div class="acc-row ${v.status} ${expanded ? 'expanded' : ''}">
@@ -3594,7 +3663,7 @@ function accordionRow(v){
         </div>
         <div class="acc-head-right">
           <div class="dash-chip-col">
-            <span class="dash-chip ${kontrollertIdag ? 'ok' : 'warn'}">${kontrollertIdag ? '✅ Kontrollert i dag' : '❌ Ikke kontrollert i dag'}</span>
+            <span class="dash-chip ${DAGENS_STATUS_CHIP_KLASSE[vDagensStatus]}">${DAGENS_STATUS_IKON[vDagensStatus]} ${DAGENS_STATUS_LABEL[vDagensStatus]}</span>
             <span class="dash-chip ${vAktiveVarsler.length > 0 ? 'alert' : 'ok'}">${vAktiveVarsler.length > 0 ? `🚨 ${vAktiveVarsler.length} aktiv${vAktiveVarsler.length === 1 ? '' : 'e'} varsellampe${vAktiveVarsler.length === 1 ? '' : 'r'}` : '🟢 Ingen aktive varsler'}</span>
             ${nesteOppfolgingTekst ? `<span class="dash-chip ${nesteOppfolgingChipKlasse}">${nesteOppfolgingTekst}</span>` : ''}
           </div>
@@ -3666,6 +3735,7 @@ function attachDashboardListeners(){
   if(dashHhVerksted) dashHhVerksted.addEventListener('click', () => goToRegisterVT(''));
   const dashHhSak = document.getElementById('dash-hh-sak-btn');
   if(dashHhSak) dashHhSak.addEventListener('click', () => goToRegisterSak(''));
+  document.querySelectorAll('[data-goto-kontroll]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToRegisterKontroll(el.dataset.gotoKontroll); }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goTo('bilkort', el.dataset.gotoBilkort); }));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
