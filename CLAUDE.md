@@ -334,6 +334,70 @@ bil på nytt — men er alltid underlagt Airtable-tilstanden
 
 ---
 
+# Saksbehandling Wizard
+
+Erstatter det tidligere flate ett-skjema-redigeringsvinduet i `sakCard()` med
+en 4-stegs arbeidsflyt i **samme boks** (`sakWizardHtml()`), ikke en ny side
+eller modal. `editingSakId` styrer fortsatt HVILKEN sak som er åpen (uendret
+bruk fra alle eksisterende innganger — Dashboard, Morgenvisning,
+Kjøretøyprofil, `goToSakDetalj()`); `sakWizardStep` (1–4, eller `'lese'` for
+lukkede saker) styrer HVILKET steg som vises. Samme tilstandsmønster som
+Aktiv Biløkt sin `driverScreen`-flyt — bevisst gjenbrukt, ikke funnet opp på
+nytt.
+
+**Steg:** (1) Saksinformasjon — ren visning, ingenting lagres. (2) Vurder
+sak — prioritet og status, adskilt (se under). (3) Fortsett saken — tre
+inline hurtighandlinger: Registrer verkstedtime, Legg til oppfølging, Legg
+til kommentar. (4) Fullfør saken — resultat/utført dato/sluttkommentar,
+kostnad+avsetting kun vist når `s.linkedVtId` finnes.
+
+**Fleksibel, ikke lineær:** stegene er klikkbare piller — driftskoordinator
+kan hoppe fritt mellom dem. Åpningssteg beregnes av `sakWizardStartSteg(s)`
+ut fra sakens eksisterende `status` alene (ingen nye felt): `lukket` → lese-
+modus, `verksted-bestilt` → steg 3, `utfort`/`utfort-venter-bekreftelse` →
+steg 4, alt annet → steg 2. En lukket sak kan gjenåpnes (`reapneSak()`,
+setter status `vurderes`) — eneste vei ut av lesemodus.
+
+**Status og prioritet lagres og valideres fortsatt strengt adskilt.**
+Velges status "Lukket" i steg 2, skjer INGEN lukking der — det sender kun
+brukeren til steg 4, hvor den eksisterende lukkekravet (resultat +
+sluttkommentar + faktisk utført dato, håndhevet i
+`submitSakWizardFullfor(id, lukkSaken)`) fortsatt gjelder uendret. "Lagre
+uten å lukke" i steg 4 setter status `utfort`; kun eksplisitt "Lukk saken"
+setter `lukket` + `resolvedAt`/`resolvedBy`. Saken slettes aldri ved
+lukking.
+
+**Gjenbruk, ikke duplisering.** Steg 3 sitt "Registrer verkstedtime"-skjema
+bruker BEVISST samme element-id-er (`vt-vehicle`, `vt-verksted`, `vt-dato`
+osv.) som det frittstående skjemaet på Verkstedoversikt, og lagres av den
+helt uendrede `submitAddVT()` — kun bundet på nytt i
+`attachAktiveSakerListeners()`. "Legg til oppfølging"/"Legg til kommentar"
+skriver til nøyaktig de samme feltene (`nextAction`, `followUpDate`,
+`historikk`) som før, bare fordelt på egne, mindre lagringsfunksjoner i
+stedet for ett stort skjema — reduserer tidsvinduet der en samtidig endring
+fra en annen enhet kan bli overskrevet av `saveAktiveSaker()` sin "helt
+array"-lagring.
+
+**Ingen eksplisitt integrasjon nødvendig.** Dashboard, "Krever handling nå",
+Bilstatus 2.0 (`vehicleHovedstatus`), Bilparkhelse og Kjøretøyhistorikk
+(`vehicleHistorikkTidslinje`) leser alle `aktiveSaker` direkte og live ved
+hvert render — wizarden trenger aldri "varsle" noen av dem eksplisitt.
+
+**Kilde til saken** (steg 1) beregnes av `sakKildeLabel(s)` som en tilnærmet
+heuristikk over eksisterende felt (`sourceType`, `createdByControlId`,
+`caseType`) — presis nok til de fleste tilfeller, men kan i dag IKKE skille
+Aktiv Biløkt fra admin sin manuelle skaderegistrering (begge gir
+`sourceType:'auto'`, `createdByControlId:null`). Et eget `Kilde`-felt ble
+vurdert og bevisst utelatt (ikke nødvendig for lansering) — se den
+strategiske foranalysen for wizarden ved behov for presis kildesporing
+senere.
+
+**Dobbeltlagringsvern:** `sakWizardSaving` låser alle lagre-/lukk-knapper
+mens en lagring pågår — fantes ikke i det tidligere ett-skjema-vinduet, lagt
+til som en liten, isolert utvidelse.
+
+---
+
 # Nåværende utviklingsplan
 
 Fase 1
@@ -424,6 +488,15 @@ Allerede kontrollert → Min Bil), operativt dagskille kl. 04:00 (endrer
 `todayISO()` for hele appen, ikke et parallelt system), "Biler i drift
 nå" på Dashboard, "Aktiv sjåfør"/biløktstatus på Biloversikt. To nye felt:
 `AktivSjafor`, `AktivSjaforSiden` på Vehicles (se AIRTABLE_MIGRATION.md)
+
+Saksbehandling Wizard (implementert)
+Se "Saksbehandling Wizard" over. 4-stegs arbeidsflyt (Saksinformasjon →
+Vurder sak → Fortsett saken → Fullfør saken) i samme boks i Aktive Saker,
+erstatter det tidligere flate redigeringsvinduet. Fleksibel steg-navigasjon,
+databasert startsteg, status/prioritet fortsatt strengt adskilt, lukking
+krever fortsatt resultat+sluttkommentar+utført dato. Gjenbruker eksisterende
+skjemaer/funksjoner (`submitAddVT` uendret) — ingen parallell saksflyt,
+ingen nye Airtable-felt
 
 ---
 

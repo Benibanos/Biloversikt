@@ -219,3 +219,30 @@ Innhold:
 - Biloversikt: viser nå aktiv sjåfør og biløktstatus per bil
 - To nye felt: AktivSjafor, AktivSjaforSiden på Vehicles
   (se AIRTABLE_MIGRATION.md)
+
+────────────────────────────
+
+✅ Saksbehandling Wizard
+
+Mål:
+Behandle en sak fra registrert til lukket i én sammenhengende arbeidsflyt,
+uten å navigere mellom flere sider.
+
+Innhold:
+- 4-stegs wizard i samme boks i Aktive Saker: Saksinformasjon → Vurder sak →
+  Fortsett saken → Fullfør saken, med tydelig fremdriftsindikator
+- Fleksibel steg-navigasjon (klikkbare piller), ikke tvungen lineær flyt
+- Databasert startsteg ut fra sakens status — lukkede saker åpnes i
+  lesemodus (kan gjenåpnes ved behov)
+- Steg 3: inline hurtighandlinger — registrer verkstedtime (gjenbruker
+  eksisterende verkstedskjema uendret), legg til oppfølging, legg til
+  kommentar
+- Steg 4: resultat/utført dato/sluttkommentar, kostnad+avsetting kun vist
+  når verksted er registrert. Lukking (fortsatt krever alle tre feltene)
+  holdt adskilt fra "lagre uten å lukke"
+- Status og prioritet fortsatt strengt adskilt — "Lukket" kan aldri velges
+  som prioritet, og velges det som status i Steg 2 sendes brukeren til
+  Steg 4 for å fullføre lukkingen der
+- Dobbeltlagringsvern lagt til (fantes ikke i det tidligere skjemaet)
+- Ingen nye Airtable-felt, ingen parallell saksflyt — bygget som en
+  presentasjonsomlegging av eksisterende, fungerende funksjonalitet

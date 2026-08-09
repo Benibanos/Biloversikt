@@ -745,6 +745,15 @@ let showSakFilterMeny = false;
 let showAddSak = false;
 let sakPrefillVehicleId = '';
 let editingSakId = null;
+// ---- Saksbehandling Wizard ----
+// Erstatter det tidligere flate ett-skjema-redigeringsvinduet i sakCard() med en
+// 4-stegs arbeidsflyt i samme boks. editingSakId angir fortsatt HVILKEN sak som er
+// åpen (uendret bruk fra før); sakWizardStep angir HVILKET steg som vises nå.
+let sakWizardStep = null; // 1 | 2 | 3 | 4 | 'lese' | null
+let sakWizardSaving = false; // dobbeltlagringsvern — låser lagreknapper mens en lagring pågår
+let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i steg 3
+let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
+let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
 let sakOversiktOpenVehicles = new Set();
 let showAddVT = false;
 let vtPrefillVehicleId = '';
@@ -2122,7 +2131,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -2508,8 +2517,24 @@ async function settTilbakeIDrift(vehicleId){
 }
 
 // ================= Aktive Saker-mutasjoner (Fase 1 — kun manuell registrering) =================
+// Saksbehandling Wizard — hvilket steg en sak skal åpnes på, basert utelukkende på
+// eksisterende felt (ingen nye databasefelt). Lukkede saker åpnes alltid i lesemodus.
+function sakWizardStartSteg(s){
+  if(!s) return 2;
+  if(s.status === 'lukket') return 'lese';
+  if(s.status === 'verksted-bestilt') return 3;
+  if(s.status === 'utfort-venter-bekreftelse' || s.status === 'utfort') return 4;
+  return 2; // 'ny', 'vurderes', 'tiltak-planlagt' — fortsatt under vurdering
+}
 function toggleEditSak(id){
-  editingSakId = editingSakId === id ? null : id;
+  if(editingSakId === id){
+    editingSakId = null;
+    sakWizardStep = null;
+  } else {
+    editingSakId = id;
+    sakWizardStep = sakWizardStartSteg(aktiveSaker.find(x => x.id === id));
+  }
+  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
   render();
 }
 async function submitAddSak(ev){
@@ -2544,64 +2569,149 @@ async function submitAddSak(ev){
   sakPrefillVehicleId = '';
   render();
 }
-async function saveSakEdit(id){
+// ---- Saksbehandling Wizard — lagring per steg ----
+// Hvert steg lagrer kun sine egne felt, umiddelbart ved "Neste"/"Lagre" (i stedet for
+// ett stort skjema lagret samlet til slutt) — reduserer tidsvinduet for at en samtidig
+// endring fra en annen enhet skal bli overskrevet av "helt array"-lagringen i
+// saveAktiveSaker(), og gjør at ingenting går tapt ved intern navigering mellom steg.
+// Feltene og valideringsreglene er identiske med det tidligere ett-skjema-vinduet.
+async function submitSakWizardVurdering(id){
+  if(sakWizardSaving) return;
   const s = aktiveSaker.find(x => x.id === id);
   if(!s) return;
-  const nyStatus = document.getElementById('e-sak-status-'+id).value;
-  const verkstedResultat = document.getElementById('e-sak-resultat-'+id).value;
-  const utfortDatoRaw = document.getElementById('e-sak-utfort-dato-'+id).value.trim();
-  const resolutionNote = document.getElementById('e-sak-losningsnotat-'+id).value.trim();
-  if(nyStatus === 'lukket' && (!verkstedResultat || !resolutionNote || !utfortDatoRaw)){
-    alert('For å lukke saken må resultat, sluttkommentar og faktisk utført dato fylles ut.');
+  const nyPrioritet = document.getElementById('swz-prioritet-'+id).value;
+  const nyStatus = document.getElementById('swz-status-'+id).value;
+  sakWizardSaving = true; render();
+  s.priority = nyPrioritet;
+  if(nyStatus === 'lukket'){
+    // "Lukket" velges her kun som en snarvei til Steg 4 — selve lukkingen (med krav om
+    // resultat/sluttkommentar/utført dato) skjer ALLTID i submitSakWizardFullfor(), slik
+    // at den eksisterende lukkevalideringen aldri kan omgås fra prioritets-/statusvalget.
+    s.updatedAt = new Date().toISOString();
+    await saveAktiveSaker();
+    sakWizardSaving = false;
+    sakWizardStep = 4;
+    render();
     return;
   }
-  const completedAt = utfortDatoRaw ? readDateInput('e-sak-utfort-dato-'+id) : null;
-  if(nyStatus === 'lukket' && utfortDatoRaw && !completedAt){
-    alert('Ugyldig utført dato. Bruk format DD/MM/ÅÅÅÅ.');
-    return;
-  }
-  const kreverAvsetting = document.getElementById('e-sak-krever-avsetting-'+id).value === 'ja';
-  const avsettingsManedEl = document.getElementById('e-sak-avsettingsmaned-'+id);
-  const avsettingsBelopEl = document.getElementById('e-sak-avsettingsbelop-'+id);
-  const avsettingsManed = avsettingsManedEl ? avsettingsManedEl.value : '';
-  const avsettingsBelopRaw = avsettingsBelopEl ? avsettingsBelopEl.value.trim() : '';
-  if(kreverAvsetting && (!avsettingsManed || !avsettingsBelopRaw)){
-    alert('Fyll ut avsettingsmåned og avsettingsbeløp når "Krever avsetting" er satt til Ja.');
-    return;
-  }
-  const estimertRaw = document.getElementById('e-sak-estimert-'+id).value.trim();
-  const faktiskRaw = document.getElementById('e-sak-faktisk-'+id).value.trim();
-  s.vehicleId = document.getElementById('e-sak-vehicle-'+id).value;
-  const v = vehicles.find(x => x.id === s.vehicleId);
-  s.registrationNumber = v ? v.regnr : s.registrationNumber;
-  s.caseType = document.getElementById('e-sak-type-'+id).value;
-  s.title = document.getElementById('e-sak-tittel-'+id).value.trim();
-  s.description = document.getElementById('e-sak-beskrivelse-'+id).value.trim();
-  s.priority = document.getElementById('e-sak-prioritet-'+id).value;
-  s.assignedTo = document.getElementById('e-sak-tildelt-'+id).value.trim();
-  s.nextAction = document.getElementById('e-sak-neste-handling-'+id).value.trim();
-  const followUpRaw = document.getElementById('e-sak-oppfolgingsdato-'+id).value.trim();
-  s.followUpDate = followUpRaw ? readDateInput('e-sak-oppfolgingsdato-'+id) : null;
-  s.resolutionNote = resolutionNote;
-  s.verkstedResultat = verkstedResultat || null;
-  s.completedAt = completedAt;
-  s.estimatedCost = estimertRaw ? Number(estimertRaw.replace(/\s/g,'').replace(',','.')) : null;
-  s.actualCost = faktiskRaw ? Number(faktiskRaw.replace(/\s/g,'').replace(',','.')) : null;
-  s.requiresProvision = kreverAvsetting;
-  s.provisionMonth = kreverAvsetting ? avsettingsManed : null;
-  s.provisionAmount = kreverAvsetting && avsettingsBelopRaw ? Number(avsettingsBelopRaw.replace(/\s/g,'').replace(',','.')) : null;
-  const varGammelStatusLukket = s.status === 'lukket';
   s.status = nyStatus;
-  if(nyStatus === 'lukket' && !varGammelStatusLukket){
-    s.resolvedAt = todayISO();
-    s.resolvedBy = loggedInRole || 'Ukjent';
-  } else if(nyStatus !== 'lukket'){
-    s.resolvedAt = null;
-    s.resolvedBy = null;
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  sakWizardSaving = false;
+  sakWizardStep = 3;
+  render();
+}
+async function submitSakWizardOppfolging(id){
+  if(sakWizardSaving) return;
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  const nextAction = document.getElementById('swz-oppf-handling-'+id).value.trim();
+  const datoRaw = document.getElementById('swz-oppf-dato-'+id).value.trim();
+  const msgEl = document.getElementById('swz-oppf-msg-'+id);
+  const followUpDate = datoRaw ? readDateInput('swz-oppf-dato-'+id) : null;
+  if(datoRaw && !followUpDate){ if(msgEl) msgEl.textContent = 'Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'; return; }
+  const kommentar = document.getElementById('swz-oppf-kommentar-'+id).value.trim();
+  sakWizardSaving = true; render();
+  s.nextAction = nextAction;
+  s.followUpDate = followUpDate;
+  if(kommentar){
+    if(!Array.isArray(s.historikk)) s.historikk = [];
+    s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar});
   }
   s.updatedAt = new Date().toISOString();
   await saveAktiveSaker();
-  editingSakId = null;
+  sakWizardSaving = false;
+  sakWizardOppfolgingOpen = false;
+  render();
+}
+async function submitSakWizardKommentar(id){
+  if(sakWizardSaving) return;
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  const el = document.getElementById('swz-kommentar-tekst-'+id);
+  const kommentar = el ? el.value.trim() : '';
+  const msgEl = document.getElementById('swz-kommentar-msg-'+id);
+  if(!kommentar){ if(msgEl) msgEl.textContent = 'Skriv en kommentar først.'; return; }
+  sakWizardSaving = true; render();
+  if(!Array.isArray(s.historikk)) s.historikk = [];
+  s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar});
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  sakWizardSaving = false;
+  sakWizardKommentarOpen = false;
+  render();
+}
+// lukkSaken=false: lagrer resultat/utført dato/kommentar/kostnad uten å lukke saken
+// (status flyttes til "utfort" dersom noe av dette er fylt ut). lukkSaken=true: krever
+// resultat+sluttkommentar+utført dato (uendret regel fra tidligere), setter status
+// "lukket" og resolvedAt/resolvedBy — saken slettes ALDRI, kun status endres.
+async function submitSakWizardFullfor(id, lukkSaken){
+  if(sakWizardSaving) return;
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  const verkstedResultat = document.getElementById('swz-resultat-'+id).value;
+  const utfortDatoRaw = document.getElementById('swz-utfort-dato-'+id).value.trim();
+  const resolutionNote = document.getElementById('swz-sluttkommentar-'+id).value.trim();
+  const msgEl = document.getElementById('swz-fullfor-msg-'+id);
+  if(lukkSaken && (!verkstedResultat || !resolutionNote || !utfortDatoRaw)){
+    if(msgEl) msgEl.textContent = 'For å lukke saken må resultat, sluttkommentar og faktisk utført dato fylles ut.';
+    return;
+  }
+  const completedAt = utfortDatoRaw ? readDateInput('swz-utfort-dato-'+id) : null;
+  if(utfortDatoRaw && !completedAt){
+    if(msgEl) msgEl.textContent = 'Ugyldig utført dato. Bruk format DD/MM/ÅÅÅÅ.';
+    return;
+  }
+  let kreverAvsetting = false, avsettingsManed = '', avsettingsBelopRaw = '', estimertRaw = '', faktiskRaw = '';
+  if(s.linkedVtId){
+    const kreverAvsettingEl = document.getElementById('swz-krever-avsetting-'+id);
+    kreverAvsetting = kreverAvsettingEl ? kreverAvsettingEl.value === 'ja' : false;
+    const avsettingsManedEl = document.getElementById('swz-avsettingsmaned-'+id);
+    const avsettingsBelopEl = document.getElementById('swz-avsettingsbelop-'+id);
+    avsettingsManed = avsettingsManedEl ? avsettingsManedEl.value : '';
+    avsettingsBelopRaw = avsettingsBelopEl ? avsettingsBelopEl.value.trim() : '';
+    if(kreverAvsetting && (!avsettingsManed || !avsettingsBelopRaw)){
+      if(msgEl) msgEl.textContent = 'Fyll ut avsettingsmåned og avsettingsbeløp når "Krever avsetting" er satt til Ja.';
+      return;
+    }
+    estimertRaw = (document.getElementById('swz-estimert-'+id)||{}).value?.trim() || '';
+    faktiskRaw = (document.getElementById('swz-faktisk-'+id)||{}).value?.trim() || '';
+  }
+  sakWizardSaving = true; render();
+  s.resolutionNote = resolutionNote;
+  s.verkstedResultat = verkstedResultat || null;
+  s.completedAt = completedAt;
+  if(s.linkedVtId){
+    s.estimatedCost = estimertRaw ? Number(estimertRaw.replace(/\s/g,'').replace(',','.')) : null;
+    s.actualCost = faktiskRaw ? Number(faktiskRaw.replace(/\s/g,'').replace(',','.')) : null;
+    s.requiresProvision = kreverAvsetting;
+    s.provisionMonth = kreverAvsetting ? avsettingsManed : null;
+    s.provisionAmount = kreverAvsetting && avsettingsBelopRaw ? Number(avsettingsBelopRaw.replace(/\s/g,'').replace(',','.')) : null;
+  }
+  const varGammelStatusLukket = s.status === 'lukket';
+  if(lukkSaken){
+    s.status = 'lukket';
+    if(!varGammelStatusLukket){ s.resolvedAt = todayISO(); s.resolvedBy = loggedInRole || 'Ukjent'; }
+  } else if(verkstedResultat || resolutionNote || completedAt){
+    s.status = 'utfort';
+  }
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  sakWizardSaving = false;
+  if(lukkSaken){ editingSakId = null; sakWizardStep = null; }
+  render();
+}
+// Lesemodus-unntak: en lukket sak kan gjenåpnes ved behov (f.eks. lukket ved en feil).
+// Setter den tilbake til "vurderes" (nøytralt utgangspunkt) og åpner Steg 2.
+async function reapneSak(id){
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  if(!confirm('Gjenåpne denne saken? Den vises som aktiv igjen til den lukkes på nytt.')) return;
+  s.status = 'vurderes';
+  s.resolvedAt = null; s.resolvedBy = null;
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  sakWizardStep = 2;
   render();
 }
 async function deleteSak(id){
@@ -2609,6 +2719,7 @@ async function deleteSak(id){
   aktiveSaker = aktiveSaker.filter(x => x.id !== id);
   await saveAktiveSaker();
   editingSakId = null;
+  sakWizardStep = null;
   render();
 }
 function goToRegisterSak(vehicleId){
@@ -2645,6 +2756,8 @@ function goToSakDetalj(sakId){
   showSakFilterMeny = false;
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
   editingSakId = s.id;
+  sakWizardStep = sakWizardStartSteg(s);
+  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
   goTo('aktivesaker');
 }
 
@@ -5677,6 +5790,258 @@ function attachSkaderListeners(){
 }
 
 // ================= scrAktiveSaker (Fase 1 — grunnmur) =================
+// ================= Saksbehandling Wizard — rendering =================
+// Tilnærmet, feltfri kilde-heuristikk (se strategisk foranalyse): dagens datamodell
+// kan ikke 100% presist skille Aktiv Biløkt fra admin sin manuelle skaderegistrering
+// (begge ender som sourceType:'auto', createdByControlId:null) — dette er bevisst
+// akseptert fremfor å innføre et nytt Airtable-felt kun for visningsformål.
+function sakKildeLabel(s){
+  if(s.sourceType === 'manuell') return 'Registrert manuelt i Aktive Saker';
+  if(s.createdByControlId) return 'Sjåførkontroll';
+  if(s.caseType === 'skade') return 'Skaderegistrering';
+  if(s.caseType === 'varsellampe') return 'Varsellampe';
+  if(s.caseType === 'kontrollavvik') return 'Kontrollavvik';
+  return SAK_TYPE_LABEL[s.caseType] || 'Ukjent';
+}
+const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
+function sakWizardProgressHtml(sakId, step){
+  const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join('');
+  return `
+    <div style="margin-bottom:14px;">
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">(${step}/4) ${dots} ${SAK_WIZARD_STEG_TITTEL[step]}</div>
+      <div style="display:flex;gap:6px;">
+        ${[1,2,3,4].map(n => `<button type="button" class="chip ${n===step?'checked':''}" style="flex:1;justify-content:center;padding:8px 4px;font-size:12px;min-height:36px;" data-goto-wizard-steg="${sakId}:${n}">${n}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+// Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her.
+function sakWizardSteg1Html(s){
+  const v = sakVehicle(s);
+  return `
+    <h4 style="margin-bottom:10px;">Saksinformasjon</h4>
+    <div class="ov-grid">
+      <div class="ov-item"><span class="ov-label">Bil</span><span class="ov-value">${v ? esc(v.bilnummer) : 'Ukjent'}</span></div>
+      <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${v ? esc(v.regnr) : '–'}</span></div>
+      <div class="ov-item"><span class="ov-label">Sakstype</span><span class="ov-value">${SAK_TYPE_IKON[s.caseType]||'📁'} ${SAK_TYPE_LABEL[s.caseType]||'Annet'}</span></div>
+      <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(s.reportedBy||'Ukjent')}</span></div>
+      <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
+      <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeLabel(s))}</span></div>
+    </div>
+    <div class="field" style="margin:12px 0 8px;"><label>Tittel</label><div class="required-hint" style="font-weight:600;">${esc(s.title)}</div></div>
+    ${s.description ? `<div class="field" style="margin-bottom:8px;"><label>Beskrivelse</label><div class="required-hint">${esc(s.description)}</div></div>` : ''}
+    <div class="panel-actions" style="margin-top:14px;">
+      <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:2">Vurder sak</button>
+      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">Fortsett saken</button>
+    </div>
+  `;
+}
+// Steg 2 — Vurder sak: prioritet + status. Status og prioritet lagres og håndteres
+// bevisst adskilt (se strategisk foranalyse punkt 0/5) — "Lukket" er kun gyldig som
+// STATUS, aldri som prioritet, og selve lukkingen skjer alltid i Steg 4.
+function sakWizardSteg2Html(s){
+  return `
+    <h4 style="margin-bottom:10px;">Vurder sak</h4>
+    <div class="field" style="margin-bottom:12px;"><label>Prioritet</label>
+      <select id="swz-prioritet-${s.id}">
+        ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${s.priority===p?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:12px;"><label>Status</label>
+      <select id="swz-status-${s.id}">
+        ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${s.status===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
+      </select>
+    </div>
+    <div class="required-hint" style="margin-bottom:12px;">Velger du status "Lukket" tar vi deg til Steg 4 for å fullføre lukkingen — resultat, sluttkommentar og faktisk utført dato må fylles ut der.</div>
+    <div class="form-msg" id="swz-vurdering-msg-${s.id}"></div>
+    <div class="panel-actions">
+      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:1">← Tilbake</button>
+      <button type="button" class="btn small" id="swz-vurdering-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Neste →</button>
+    </div>
+  `;
+}
+// Inline "Registrer verkstedtime"-skjema — bruker BEVISST samme element-id-er som det
+// frittstående verkstedskjemaet på Verkstedoversikt, slik at den eksisterende
+// submitAddVT() kan gjenbrukes helt uendret (se strategisk foranalyse punkt 6.3).
+function sakWizardVtFormHtml(s){
+  return `
+    <form class="panel" id="add-vt-form">
+      <div class="required-hint" style="margin-bottom:12px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">🗂️ ${esc(s.caseId||'')} — ${esc(s.title)}</div>
+      <input type="hidden" id="vt-vehicle" value="${s.vehicleId}">
+      <input type="hidden" id="vt-beskrivelse" value="${esc(s.title)}">
+      <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+        <select id="vt-verksted" required>
+          <option value="">Velg verksted...</option>
+          ${verkstedSelectOptions('')}
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+        <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
+        <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>💰 Estimert kostnad</label><input id="vt-pris" type="text" inputmode="numeric" placeholder="F.eks. 4850"></div>
+      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
+      <div class="form-msg" id="vt-msg"></div>
+      <div class="panel-actions"><button class="btn small" type="submit">Lagre verkstedtime</button></div>
+    </form>
+  `;
+}
+// Steg 3 — Fortsett saken: tre hurtighandlinger, alle inline i samme boks.
+function sakWizardSteg3Html(s){
+  const linkedVt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
+  return `
+    <h4 style="margin-bottom:10px;">Fortsett saken</h4>
+    <div class="required-hint" style="margin-bottom:12px;">Flytt saken videre mot løsning.</div>
+
+    ${linkedVt ? `
+    <div class="panel" style="margin-bottom:12px;">
+      <div class="ov-label" style="margin-bottom:8px;">🔧 Verksted bestilt</div>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Verksted</span><span class="ov-value">${esc(linkedVt.verksted)}</span></div>
+        <div class="ov-item"><span class="ov-label">Dato</span><span class="ov-value">${fmt(linkedVt.dato)}${linkedVt.tidspunkt ? ' kl. ' + esc(linkedVt.tidspunkt) : ''}</span></div>
+        ${linkedVt.kontaktperson ? `<div class="ov-item"><span class="ov-label">Kontaktperson</span><span class="ov-value">${esc(linkedVt.kontaktperson)}</span></div>` : ''}
+      </div>
+      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn secondary small" data-goto-vt="${linkedVt.id}">Åpne i Verkstedoversikt</button></div>
+    </div>` : ''}
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
+      <button type="button" class="btn secondary" id="swz-vt-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">🔧 ${linkedVt ? 'Ny verkstedtime' : 'Registrer verkstedtime'}</button>
+      ${sakWizardVtOpen ? sakWizardVtFormHtml(s) : ''}
+
+      <button type="button" class="btn secondary" id="swz-oppf-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">📅 Legg til oppfølging</button>
+      ${sakWizardOppfolgingOpen ? `
+      <div class="panel">
+        <div class="field" style="margin-bottom:10px;"><label>Neste handling</label><input id="swz-oppf-handling-${s.id}" type="text" placeholder="F.eks. Kontakt verksted" value="${esc(s.nextAction||'')}"></div>
+        <div class="field" style="margin-bottom:10px;"><label>Oppfølgingsdato</label><input id="swz-oppf-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.followUpDate ? fmt(s.followUpDate) : ''}"></div>
+        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="swz-oppf-kommentar-${s.id}" placeholder="Valgfritt"></textarea></div>
+        <div class="form-msg" id="swz-oppf-msg-${s.id}"></div>
+        <div class="panel-actions"><button type="button" class="btn small" id="swz-oppf-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre</button></div>
+      </div>` : ''}
+
+      <button type="button" class="btn secondary" id="swz-kommentar-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">💬 Legg til kommentar</button>
+      ${sakWizardKommentarOpen ? `
+      <div class="panel">
+        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="swz-kommentar-tekst-${s.id}" placeholder="Skriv en kommentar..."></textarea></div>
+        <div class="form-msg" id="swz-kommentar-msg-${s.id}"></div>
+        <div class="panel-actions"><button type="button" class="btn small" id="swz-kommentar-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre</button></div>
+      </div>` : ''}
+    </div>
+
+    ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
+    <div class="field" style="margin-bottom:10px;">
+      <label>Historikk</label>
+      <ul class="dmg-simple-list">
+        ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
+      </ul>
+    </div>` : ''}
+
+    <div class="panel-actions">
+      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:2">← Tilbake</button>
+      <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:4">Neste →</button>
+    </div>
+  `;
+}
+// Steg 4 — Fullfør saken: resultat/utført dato/sluttkommentar, kostnad+avsetting kun
+// synlig når verksted faktisk er registrert (s.linkedVtId). To handlinger: lagre uten å
+// lukke (status "Utført"), eller lukk saken (krever alle tre feltene, uendret regel).
+function sakWizardSteg4Html(s){
+  const harVerksted = !!s.linkedVtId;
+  return `
+    <h4 style="margin-bottom:10px;">Fullfør saken</h4>
+    <div class="row2">
+      <div class="field"><label>Resultat fra verksted</label>
+        <select id="swz-resultat-${s.id}">
+          <option value="" ${!s.verkstedResultat?'selected':''}>Ikke satt</option>
+          ${SAK_RESULTAT_ORDER.map(r => `<option value="${r}" ${s.verkstedResultat===r?'selected':''}>${SAK_RESULTAT_LABEL[r]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Faktisk utført dato</label><input id="swz-utfort-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.completedAt ? fmt(s.completedAt) : ''}"></div>
+    </div>
+    <div class="field" style="margin-bottom:12px;"><label>Sluttkommentar</label><textarea id="swz-sluttkommentar-${s.id}" placeholder="Beskriv utfallet">${esc(s.resolutionNote||'')}</textarea></div>
+
+    ${harVerksted ? `
+    <div class="field" style="margin:16px 0 10px;">
+      <label>💰 Kostnader og avsetting</label>
+      <div class="row2" style="margin-top:4px;">
+        <div class="field"><label>Estimert kostnad</label><input id="swz-estimert-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 12000" value="${s.estimatedCost !== undefined && s.estimatedCost !== null ? s.estimatedCost : ''}"></div>
+        <div class="field"><label>Faktisk kostnad</label><input id="swz-faktisk-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 13700" value="${s.actualCost !== undefined && s.actualCost !== null ? s.actualCost : ''}"></div>
+      </div>
+      ${s.estimatedCost !== undefined && s.estimatedCost !== null && s.actualCost !== undefined && s.actualCost !== null ? (() => {
+        const avvik = Number(s.actualCost) - Number(s.estimatedCost);
+        return `<div class="ov-grid" style="margin-bottom:10px;">
+          <div class="ov-item"><span class="ov-label">Estimert</span><span class="ov-value">${fmtKr(s.estimatedCost)}</span></div>
+          <div class="ov-item"><span class="ov-label">Faktisk</span><span class="ov-value">${fmtKr(s.actualCost)}</span></div>
+          <div class="ov-item"><span class="ov-label">Avvik</span><span class="ov-value" style="color:${avvik>0?'var(--red)':(avvik<0?'var(--green)':'var(--ink)')};">${avvik>0?'+':''}${fmtKr(avvik)}</span></div>
+        </div>`;
+      })() : ''}
+      <div class="field"><label>Krever avsetting</label>
+        <select id="swz-krever-avsetting-${s.id}">
+          <option value="nei" ${!s.requiresProvision?'selected':''}>Nei</option>
+          <option value="ja" ${s.requiresProvision?'selected':''}>Ja</option>
+        </select>
+      </div>
+      ${s.requiresProvision ? `
+      <div class="row2">
+        <div class="field"><label>Avsettingsmåned</label><input id="swz-avsettingsmaned-${s.id}" type="month" value="${s.provisionMonth||''}"></div>
+        <div class="field"><label>Avsettingsbeløp</label><input id="swz-avsettingsbelop-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 4500" value="${s.provisionAmount !== undefined && s.provisionAmount !== null ? s.provisionAmount : ''}"></div>
+      </div>` : ''}
+    </div>` : ''}
+
+    <div class="form-msg" id="swz-fullfor-msg-${s.id}"></div>
+    <div class="panel-actions" style="flex-wrap:wrap;">
+      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">← Tilbake</button>
+      <button type="button" class="btn secondary small" id="swz-lagre-uten-lukk-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre uten å lukke</button>
+      <button type="button" class="btn small" id="swz-lukk-${s.id}" ${sakWizardSaving?'disabled':''}>🔒 Lukk saken</button>
+    </div>
+  `;
+}
+// Lukket sak: lesemodus, ikke steg 1-4. Kan gjenåpnes ved behov (se reapneSak()).
+function sakWizardLesemodusHtml(s){
+  const v = sakVehicle(s);
+  return `
+    <div class="dmg-editbox">
+      <div class="required-hint" style="margin-bottom:12px;background:var(--green-soft);color:var(--green);padding:10px 12px;border-radius:8px;font-weight:600;">✅ Lukket — lesemodus</div>
+      <div class="ov-grid">
+        <div class="ov-item"><span class="ov-label">Bil</span><span class="ov-value">${v ? esc(v.bilnummer) : 'Ukjent'}</span></div>
+        <div class="ov-item"><span class="ov-label">Resultat</span><span class="ov-value">${s.verkstedResultat ? (SAK_RESULTAT_LABEL[s.verkstedResultat]||s.verkstedResultat) : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Utført dato</span><span class="ov-value">${s.completedAt ? fmt(s.completedAt) : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Lukket dato</span><span class="ov-value">${s.resolvedAt ? fmt(s.resolvedAt.slice(0,10)) : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Lukket av</span><span class="ov-value">${esc(s.resolvedBy||'–')}</span></div>
+      </div>
+      ${s.resolutionNote ? `<div class="field" style="margin:12px 0 8px;"><label>Sluttkommentar</label><div class="required-hint">${esc(s.resolutionNote)}</div></div>` : ''}
+      ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
+      <div class="field" style="margin-bottom:10px;">
+        <label>Historikk</label>
+        <ul class="dmg-simple-list">
+          ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
+        </ul>
+      </div>` : ''}
+      <div class="panel-actions">
+        <button type="button" class="btn secondary small" id="swz-reapne-${s.id}">🔓 Gjenåpne saken</button>
+        <button type="button" class="btn danger-outline small" id="swz-delete-${s.id}">Slett</button>
+      </div>
+    </div>
+  `;
+}
+// Container — velger lesemodus eller ett av de fire stegene.
+function sakWizardHtml(s){
+  if(sakWizardStep === 'lese') return sakWizardLesemodusHtml(s);
+  const step = sakWizardStep || sakWizardStartSteg(s);
+  const stegHtml = step === 1 ? sakWizardSteg1Html(s) : step === 2 ? sakWizardSteg2Html(s) : step === 3 ? sakWizardSteg3Html(s) : sakWizardSteg4Html(s);
+  return `
+    <div class="dmg-editbox">
+      ${sakWizardProgressHtml(s.id, step)}
+      ${stegHtml}
+      <div class="panel-actions" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
+        <button type="button" class="btn danger-outline small" id="swz-delete-${s.id}">Slett saken</button>
+      </div>
+    </div>
+  `;
+}
 function sakCard(s, showVehicle){
   const isEditing = editingSakId === s.id;
   const v = sakVehicle(s);
@@ -5701,112 +6066,7 @@ function sakCard(s, showVehicle){
           ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
         </div>
       </div>
-      ${isEditing ? `
-      <div class="dmg-editbox">
-        <div class="row2">
-          <div class="field"><label>Bil</label><select id="e-sak-vehicle-${s.id}">${vehicleOptions(s.vehicleId)}</select></div>
-          <div class="field"><label>Sakstype</label>
-            <select id="e-sak-type-${s.id}">
-              ${SAK_TYPE_ORDER.map(t => `<option value="${t}" ${s.caseType===t?'selected':''}>${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="field" style="margin-bottom:10px;"><label>Tittel</label><input id="e-sak-tittel-${s.id}" type="text" value="${esc(s.title)}"></div>
-        <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="e-sak-beskrivelse-${s.id}">${esc(s.description||'')}</textarea></div>
-        <div class="row2">
-          <div class="field"><label>Status</label>
-            <select id="e-sak-status-${s.id}">
-              ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${s.status===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field"><label>Prioritet</label>
-            <select id="e-sak-prioritet-${s.id}">
-              ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${s.priority===p?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field"><label>Tildelt</label><input id="e-sak-tildelt-${s.id}" type="text" placeholder="Valgfritt" value="${esc(s.assignedTo||'')}"></div>
-          <div class="field"><label>Oppfølgingsdato</label><input id="e-sak-oppfolgingsdato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.followUpDate ? fmt(s.followUpDate) : ''}"></div>
-        </div>
-        <div class="field" style="margin-bottom:10px;"><label>Neste handling</label><input id="e-sak-neste-handling-${s.id}" type="text" placeholder="Valgfritt" value="${esc(s.nextAction||'')}"></div>
-
-        <div class="field" style="margin:16px 0 10px;">
-          <label>🔧 Verkstedoppfølging</label>
-          ${(() => {
-            const linkedVt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
-            if(!linkedVt){
-              return `<div class="panel-actions" style="margin-top:4px;"><button type="button" class="btn small" data-registrer-vt-fra-sak="${s.id}">🔧 Registrer verkstedtime</button></div>`;
-            }
-            return `
-            <div class="panel" style="margin-top:4px;">
-              <div class="ov-grid">
-                <div class="ov-item"><span class="ov-label">Verksted</span><span class="ov-value">${esc(linkedVt.verksted)}</span></div>
-                <div class="ov-item"><span class="ov-label">Verksteddato</span><span class="ov-value">${fmt(linkedVt.dato)}${linkedVt.tidspunkt ? ' kl. ' + esc(linkedVt.tidspunkt) : ''}</span></div>
-                ${linkedVt.kontaktperson ? `<div class="ov-item"><span class="ov-label">Kontaktperson</span><span class="ov-value">${esc(linkedVt.kontaktperson)}</span></div>` : ''}
-                ${linkedVt.telefon ? `<div class="ov-item"><span class="ov-label">Telefonnummer</span><span class="ov-value">${esc(linkedVt.telefon)}</span></div>` : ''}
-                ${linkedVt.pris !== undefined && linkedVt.pris !== null && linkedVt.pris !== '' ? `<div class="ov-item"><span class="ov-label">Estimert kostnad</span><span class="ov-value">${fmtKr(linkedVt.pris)}</span></div>` : ''}
-                ${linkedVt.notater ? `<div class="ov-item"><span class="ov-label">Kommentar</span><span class="ov-value">${esc(linkedVt.notater)}</span></div>` : ''}
-              </div>
-              <div class="panel-actions" style="margin-top:10px;">
-                <button type="button" class="btn secondary small" data-goto-vt="${linkedVt.id}">Åpne i Verkstedoversikt</button>
-                <button type="button" class="btn secondary small" data-registrer-vt-fra-sak="${s.id}">🔧 Ny verkstedtime</button>
-              </div>
-            </div>`;
-          })()}
-        </div>
-
-        <div class="field" style="margin:16px 0 10px;">
-          <label>💰 Kostnader og avsetting</label>
-          <div class="row2" style="margin-top:4px;">
-            <div class="field"><label>Estimert kostnad</label><input id="e-sak-estimert-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 12000" value="${s.estimatedCost !== undefined && s.estimatedCost !== null ? s.estimatedCost : ''}"></div>
-            <div class="field"><label>Faktisk kostnad</label><input id="e-sak-faktisk-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 13700" value="${s.actualCost !== undefined && s.actualCost !== null ? s.actualCost : ''}"></div>
-          </div>
-          ${s.estimatedCost !== undefined && s.estimatedCost !== null && s.actualCost !== undefined && s.actualCost !== null ? (() => {
-            const avvik = Number(s.actualCost) - Number(s.estimatedCost);
-            return `<div class="ov-grid" style="margin-bottom:10px;">
-              <div class="ov-item"><span class="ov-label">Estimert</span><span class="ov-value">${fmtKr(s.estimatedCost)}</span></div>
-              <div class="ov-item"><span class="ov-label">Faktisk</span><span class="ov-value">${fmtKr(s.actualCost)}</span></div>
-              <div class="ov-item"><span class="ov-label">Avvik</span><span class="ov-value" style="color:${avvik>0?'var(--red)':(avvik<0?'var(--green)':'var(--ink)')};">${avvik>0?'+':''}${fmtKr(avvik)}</span></div>
-            </div>`;
-          })() : ''}
-          <div class="field"><label>Krever avsetting</label>
-            <select id="e-sak-krever-avsetting-${s.id}">
-              <option value="nei" ${!s.requiresProvision?'selected':''}>Nei</option>
-              <option value="ja" ${s.requiresProvision?'selected':''}>Ja</option>
-            </select>
-          </div>
-          ${s.requiresProvision ? `
-          <div class="row2">
-            <div class="field"><label>Avsettingsmåned</label><input id="e-sak-avsettingsmaned-${s.id}" type="month" value="${s.provisionMonth||''}"></div>
-            <div class="field"><label>Avsettingsbeløp</label><input id="e-sak-avsettingsbelop-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 4500" value="${s.provisionAmount !== undefined && s.provisionAmount !== null ? s.provisionAmount : ''}"></div>
-          </div>` : ''}
-        </div>
-
-        <div class="row2">
-          <div class="field"><label>Resultat fra verksted</label>
-            <select id="e-sak-resultat-${s.id}">
-              <option value="" ${!s.verkstedResultat?'selected':''}>Ikke satt</option>
-              ${SAK_RESULTAT_ORDER.map(r => `<option value="${r}" ${s.verkstedResultat===r?'selected':''}>${SAK_RESULTAT_LABEL[r]}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field"><label>Faktisk utført dato</label><input id="e-sak-utfort-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.completedAt ? fmt(s.completedAt) : ''}"></div>
-        </div>
-        <div class="field" style="margin-bottom:10px;"><label>Løsningsnotat / sluttkommentar</label><textarea id="e-sak-losningsnotat-${s.id}" placeholder="Fylles ut når saken lukkes">${esc(s.resolutionNote||'')}</textarea></div>
-        <div class="required-hint" style="margin-bottom:10px;">For å lukke saken: velg status "Lukket" og fyll ut resultat, sluttkommentar og faktisk utført dato.</div>
-        ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
-        <div class="field" style="margin-bottom:10px;">
-          <label>Historikk</label>
-          <ul class="dmg-simple-list">
-            ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — Registrert av ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
-          </ul>
-        </div>` : ''}
-        <div class="panel-actions">
-          <button class="btn small" id="e-sak-save-${s.id}">Lagre endringer</button>
-          <button class="btn secondary small" id="e-sak-cancel-${s.id}">Avbryt</button>
-          <button class="btn danger-outline small" id="e-sak-delete-${s.id}">Slett</button>
-        </div>
-      </div>` : ''}
+      ${isEditing ? sakWizardHtml(s) : ''}
     </div>
   `;
 }
@@ -6004,24 +6264,69 @@ function attachAktiveSakerListeners(){
     render();
   }));
   document.querySelectorAll('[data-toggle-edit-sak]').forEach(el => el.addEventListener('click', () => toggleEditSak(el.dataset.toggleEditSak)));
+
+  // ---- Saksbehandling Wizard ----
+  document.querySelectorAll('[data-goto-wizard-steg]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const [sakId, steg] = el.dataset.gotoWizardSteg.split(':');
+    sakWizardStep = Number(steg);
+    sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+    render();
+  }));
   aktiveSaker.forEach(s => {
-    const saveBtn = document.getElementById('e-sak-save-'+s.id);
-    if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveSakEdit(s.id); });
-    const cancelBtn = document.getElementById('e-sak-cancel-'+s.id);
-    if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingSakId = null; render(); });
-    const delBtn = document.getElementById('e-sak-delete-'+s.id);
+    const delBtn = document.getElementById('swz-delete-'+s.id);
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSak(s.id); });
-    const kreverAvsettingSelect = document.getElementById('e-sak-krever-avsetting-'+s.id);
+    const reapneBtn = document.getElementById('swz-reapne-'+s.id);
+    if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
+
+    // Steg 2 — Vurder sak
+    const vurderingLagreBtn = document.getElementById('swz-vurdering-lagre-'+s.id);
+    if(vurderingLagreBtn) vurderingLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardVurdering(s.id); });
+
+    // Steg 3 — Fortsett saken (tre hurtighandlinger)
+    const vtBtn = document.getElementById('swz-vt-btn-'+s.id);
+    if(vtBtn) vtBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sakWizardVtOpen = !sakWizardVtOpen;
+      sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+      vtPrefillSakId = s.id;
+      render();
+    });
+    const oppfBtn = document.getElementById('swz-oppf-btn-'+s.id);
+    if(oppfBtn) oppfBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sakWizardOppfolgingOpen = !sakWizardOppfolgingOpen;
+      sakWizardVtOpen = false; sakWizardKommentarOpen = false;
+      render();
+    });
+    const oppfLagreBtn = document.getElementById('swz-oppf-lagre-'+s.id);
+    if(oppfLagreBtn) oppfLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardOppfolging(s.id); });
+    const kommentarBtn = document.getElementById('swz-kommentar-btn-'+s.id);
+    if(kommentarBtn) kommentarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sakWizardKommentarOpen = !sakWizardKommentarOpen;
+      sakWizardVtOpen = false; sakWizardOppfolgingOpen = false;
+      render();
+    });
+    const kommentarLagreBtn = document.getElementById('swz-kommentar-lagre-'+s.id);
+    if(kommentarLagreBtn) kommentarLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardKommentar(s.id); });
+
+    // Steg 4 — Fullfør saken
+    const kreverAvsettingSelect = document.getElementById('swz-krever-avsetting-'+s.id);
     if(kreverAvsettingSelect) kreverAvsettingSelect.addEventListener('change', (e) => {
       e.stopPropagation();
       s.requiresProvision = kreverAvsettingSelect.value === 'ja';
       render();
     });
+    const lagreUtenLukkBtn = document.getElementById('swz-lagre-uten-lukk-'+s.id);
+    if(lagreUtenLukkBtn) lagreUtenLukkBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardFullfor(s.id, false); });
+    const lukkBtn = document.getElementById('swz-lukk-'+s.id);
+    if(lukkBtn) lukkBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardFullfor(s.id, true); });
   });
-  document.querySelectorAll('[data-registrer-vt-fra-sak]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    goToRegisterVTFraSak(el.dataset.registrerVtFraSak);
-  }));
+  // Inline verkstedtime-skjemaet i Steg 3 gjenbruker det eksisterende add-vt-form/
+  // submitAddVT() helt uendret (se sakWizardVtFormHtml).
+  const inlineVtForm = document.getElementById('add-vt-form');
+  if(inlineVtForm) inlineVtForm.addEventListener('submit', submitAddVT);
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
