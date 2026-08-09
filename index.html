@@ -189,6 +189,9 @@
   .drawer-item .drawer-icon{font-size:19px;width:24px;text-align:center;flex-shrink:0;}
   .drawer-item.active{background:var(--amber-soft);font-weight:700;}
   .drawer-dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
+  .drawer-toggle-ikon{margin-left:auto;font-size:13px;color:var(--muted);flex-shrink:0;}
+  .drawer-item.sub{padding-left:30px;font-size:14px;min-height:48px;}
+  .drawer-item.sub .drawer-icon{font-size:17px;}
   .drawer-divider{height:1.5px;background:var(--line);margin:10px 14px;flex-shrink:0;}
   .drawer-footer{padding:10px 10px 16px;margin-top:auto;border-top:1.5px solid var(--line);flex-shrink:0;}
   @media (max-width:640px){
@@ -791,6 +794,10 @@ const GRUPPE_IKON = {bil:'🚐', lastebil:'🚚', montering:'🔧', reserve:'�
 let newVerkstedNavn = '';
 let editingVerkstedId = null;
 let headerMenuOpen = false;
+// Optimalisering 6 (Oversiktmeny) — samler alle oversiktssidene i én undermeny i
+// stedet for å liste dem alle flatt i sidemenyen.
+let drawerOversikterOpen = false;
+const OVERSIKT_SCREENS = ['register', 'kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt'];
 
 // Returnerer true dersom brukeren har et skjema åpent som IKKE må forstyrres av en
 // bakgrunnsoppdatering (se subscribeLiveSync i loadAll()) — sjåførkontroll, registrering/
@@ -3390,13 +3397,40 @@ function render(){
 // Drawer-elementet ligger utenfor #app (se index.html), så selve glidningen
 // (CSS-transition på .drawer/.drawer-overlay) ikke avbrytes av at render()
 // bygger om resten av siden hver gang.
-function drawerItemHtml(scr, icon, label){
+function drawerItemHtml(scr, icon, label, sub){
   const active = screen === scr;
   return `
-    <button class="drawer-item ${active ? 'active' : ''}" data-drawer-nav="${scr}">
+    <button class="drawer-item ${sub ? 'sub' : ''} ${active ? 'active' : ''}" data-drawer-nav="${scr}">
       <span class="drawer-icon">${icon}</span><span>${label}</span>
       ${active ? '<span class="drawer-dot" aria-hidden="true"></span>' : ''}
     </button>`;
+}
+// Optimalisering 6: "Oversikter ▼" — samler Biloversikt/Kontrolloversikt/
+// Verkstedoversikt/Skadeoversikt/Varseloversikt/Dekkoversikt/Kostnadsoversikt i én
+// undermeny i stedet for syv separate rader i hovedmenyen. Ren navigasjonsendring —
+// hver side, hver goTo()-rute og hver hurtigknapp inn til dem er helt uendret, kun
+// selve menyoppføringen er flyttet. "Biloversikt" ruter til den eksisterende
+// Bilregister-siden (`register`) — det finnes ingen egen "Biloversikt"-side å peke
+// til uten å bryte "ikke implementer nye sider".
+function drawerOversikterHtml(){
+  const paOversiktsside = OVERSIKT_SCREENS.includes(screen);
+  const apen = drawerOversikterOpen || paOversiktsside;
+  return `
+    <button class="drawer-item" id="drawer-oversikter-toggle" aria-expanded="${apen}">
+      <span class="drawer-icon">📚</span><span>Oversikter</span>
+      <span class="drawer-toggle-ikon" aria-hidden="true">${apen ? '▲' : '▼'}</span>
+    </button>
+    ${apen ? `
+    <div class="drawer-nav" style="padding:0 10px;">
+      ${drawerItemHtml('register', '🚐', 'Biloversikt', true)}
+      ${drawerItemHtml('kontrolloversikt', '📊', 'Kontrolloversikt', true)}
+      ${drawerItemHtml('verksted', '🔧', 'Verkstedoversikt', true)}
+      ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt', true)}
+      ${drawerItemHtml('varsler', '🚨', 'Varseloversikt', true)}
+      ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt', true)}
+      ${drawerItemHtml('kostnadsoversikt', '💰', 'Kostnadsoversikt', true)}
+    </div>` : ''}
+  `;
 }
 function renderDrawer(){
   const drawerEl = document.getElementById('app-drawer');
@@ -3409,20 +3443,14 @@ function renderDrawer(){
     <div class="drawer-user">Innlogget: ${esc(loggedInRole || '')}</div>
     <div class="drawer-nav">
       ${drawerItemHtml('dashboard', '🏠', 'Dashboard')}
-      ${drawerItemHtml('kontrolloversikt', '📊', 'Kontrolloversikt')}
-      ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt')}
-      ${drawerItemHtml('varsler', '🚨', 'Varseloversikt')}
-      ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt')}
-      ${drawerItemHtml('verksted', '🔧', 'Verkstedoversikt')}
-      ${drawerItemHtml('kostnadsoversikt', '💰', 'Kostnadsoversikt')}
       ${drawerItemHtml('aktivesaker', '🗂️', 'Aktive Saker')}
       ${drawerItemHtml('rapporter', '📈', 'Rapporter')}
       ${drawerItemHtml('analyse', '🔍', 'Analyse')}
+      ${drawerOversikterHtml()}
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Administrasjon</div>
     <div class="drawer-nav">
-      ${drawerItemHtml('register', '🚐', 'Bilregister')}
       ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
     </div>
     <div class="drawer-footer">
@@ -3438,6 +3466,11 @@ function renderDrawer(){
     closeDrawer();
     goTo(el.dataset.drawerNav);
   }));
+  const oversikterToggle = document.getElementById('drawer-oversikter-toggle');
+  if(oversikterToggle) oversikterToggle.addEventListener('click', () => {
+    drawerOversikterOpen = !drawerOversikterOpen;
+    renderDrawer();
+  });
   document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
   document.getElementById('drawer-logout-btn').addEventListener('click', () => { closeDrawer(); logout(); });
 }
@@ -4395,6 +4428,7 @@ function renderRegister(){
   });
 
   return `
+    <div class="backrow"><button class="backbtn" id="register-back">← Tilbake</button></div>
     <div class="toolbar">
       <div class="count">${filtered.length} av ${vehicles.length} kjøretøy</div>
       <button class="btn" id="add-vehicle-btn">${showAddVehicleForm ? 'Avbryt' : '+ Ny bil'}</button>
@@ -4471,6 +4505,7 @@ function renderRegister(){
   `;
 }
 function attachRegisterListeners(){
+  document.getElementById('register-back').addEventListener('click', () => goBack('dashboard'));
   document.getElementById('add-vehicle-btn').addEventListener('click', () => { showAddVehicleForm = !showAddVehicleForm; render(); });
   const f = document.getElementById('add-vehicle-form');
   if(f) f.addEventListener('submit', submitAddVehicle);
@@ -8019,6 +8054,7 @@ function renderInnstillinger(){
   })();
 
   return `
+    <div class="backrow"><button class="backbtn" id="innstillinger-back">← Tilbake</button></div>
     <div class="acc-list">
       ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
@@ -8059,6 +8095,7 @@ async function hardRefreshApp(){
 }
 
 function attachInnstillingerListeners(){
+  document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
   const dbCheckBtn = document.getElementById('db-check-btn');
   if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); runDatabaseSync(); });
@@ -8359,12 +8396,27 @@ const drawerOverlayEl = document.getElementById('drawer-overlay');
 if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 
 // ================= Sveipenavigasjon (mobil) =================
-// Sveip høyre på en oversiktsside = samme som ← Tilbake (til Dashboard).
-// Sveip venstre hvor som helst = åpne sidemenyen (samme som ☰ Meny).
+// Optimalisering 7: to uavhengige sveipegester, skilt på HVOR sveipen starter
+// (ikke bare retning), slik at de aldri kommer i konflikt med hverandre:
+//
+// 1) Sveip høyre fra en smal sone helt ute i venstre skjermkant
+//    (SWIPE_EDGE_SONE) = åpne sidemenyen (samme som ☰ Meny/`openDrawer()`).
+//    Fungerer på alle hovedsider (Dashboard, Biloversikt, Kontrolloversikt,
+//    Verkstedoversikt, Aktive Saker, Kjøretøyprofil, Skadeoversikt,
+//    Varseloversikt, Dekkoversikt) siden menyknappen finnes likt på alle
+//    admin-skjermer. Sjåførmodus ("Min Bil") har ingen sidemeny i det hele
+//    tatt (egen, bevisst minimal skjermflyt) og er derfor uendret utelatt.
+// 2) Sveip høyre som IKKE starter i kantsonen beholder den eksisterende
+//    "tilbake"-logikken (samme som ← Tilbake-knappen, via
+//    navigasjonshistorikken) på oversiktssidene — helt uendret oppførsel,
+//    ingen eksisterende navigasjon brytes.
+// Sveip venstre hvor som helst = lukk menyen når den er åpen (samme
+// `toggleHeaderMenu()` som før — åpner den også når den er lukket, uendret).
 // Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
 // textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'bilkort', 'kontroll'];
-let swipeStartX = null, swipeStartY = null, swipeIgnored = false;
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'bilkort', 'kontroll', 'register', 'innstillinger'];
+const SWIPE_EDGE_SONE = 24; // px fra venstre kant — bevisst smal for presisjon, ikke aggressiv deteksjon
+let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;
 document.addEventListener('touchstart', (e) => {
   if(e.touches.length !== 1){ swipeStartX = null; return; }
@@ -8372,6 +8424,7 @@ document.addEventListener('touchstart', (e) => {
   swipeIgnored = !!(target.closest && target.closest('input, select, textarea, button, a, [data-kind], .datepicker-popup, .timepicker-popup'));
   swipeStartX = e.touches[0].clientX;
   swipeStartY = e.touches[0].clientY;
+  swipeFraKant = swipeStartX <= SWIPE_EDGE_SONE;
 }, {passive: true});
 document.addEventListener('touchmove', (e) => {
   if(swipeStartX === null || swipeIgnored) return;
@@ -8385,11 +8438,18 @@ document.addEventListener('touchend', (e) => {
   const touch = e.changedTouches[0];
   const dx = touch.clientX - swipeStartX;
   const dy = touch.clientY - swipeStartY;
+  const fraKant = swipeFraKant;
   swipeStartX = null;
   if(Math.abs(dx) < SWIPE_TERSKEL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   if(dx > 0){
-    // Sveip høyre: samme "tilbake"-logikk som ← Tilbake-knappen (går til reell
-    // forrige skjerm via navigasjonshistorikken). Ingenting på Dashboard selv.
+    if(fraKant){
+      // Sveip høyre fra venstre kant: åpne sidemenyen (kun der menyknappen finnes).
+      if(!driverMode && loggedInRole && !headerMenuOpen) openDrawer();
+      return;
+    }
+    // Sveip høyre (ikke fra kanten): samme "tilbake"-logikk som ← Tilbake-
+    // knappen (går til reell forrige skjerm via navigasjonshistorikken).
+    // Ingenting på Dashboard selv. Uendret fra tidligere.
     if(!driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)){
       if((screen === 'rapporter' && rapportType) || (screen === 'analyse' && analyseType)){
         if(screen === 'rapporter'){ rapportType = ''; showRapportFilterMeny = false; }
@@ -8400,7 +8460,8 @@ document.addEventListener('touchend', (e) => {
       }
     }
   } else {
-    // Sveip venstre: åpne menyen (kun der menyknappen finnes).
+    // Sveip venstre: lukk menyen om den er åpen, ellers uendret oppførsel
+    // (åpner menyen — samme som før).
     if(!driverMode && loggedInRole){
       toggleHeaderMenu();
     }

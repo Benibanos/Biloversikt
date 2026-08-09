@@ -243,14 +243,78 @@ Navigasjon skjer alltid via den sentrale `goTo(screen, vehicleId)`-
 funksjonen, aldri ved å sette `screen`-variabelen direkte. `goTo()` legger
 automatisk gjeldende side på en navigasjonshistorikk (`screenHistory`), og
 "← Tilbake" kaller `goBack()`, som går til stedet brukeren faktisk kom fra —
-ikke en fast side. Sveip høyre gjør det samme. Ved ny funksjonalitet som
-åpner en side fra flere steder i appen (slik Kjøretøyprofil gjør), er dette
-automatisk riktig så lenge navigasjonen går via `goTo()` — ingen
-spesialtilpasning trengs per kallsted.
+ikke en fast side. Sveip høyre (utenfor kantsonen — se "Sveipenavigasjon"
+under) gjør det samme. Ved ny funksjonalitet som åpner en side fra flere
+steder i appen (slik Kjøretøyprofil gjør), er dette automatisk riktig så
+lenge navigasjonen går via `goTo()` — ingen spesialtilpasning trengs per
+kallsted.
 
 Unntak (skal IKKE bruke `goBack()`, men gå til en fast side): etter vellykket
 innlogging, og etter sletting av et kjøretøy (der "tilbake" ville pekt på en
 side for en bil som ikke lenger finnes).
+
+Alle undersider skal ha `← Tilbake` (`.backrow`/`.backbtn`) — dette gjelder
+også Bilregister (`register`) og Innstillinger, som tidligere manglet den
+(Optimalisering 7). Begge kaller `goBack('dashboard')`, samme mønster som
+øvrige skjermer.
+
+---
+
+# Sveipenavigasjon (mobil) — Optimalisering 7
+
+To uavhengige sveipegester, skilt på HVOR sveipen starter (ikke bare
+retning), slik at de aldri overstyrer hverandre:
+
+1. **Sveip høyre fra en smal sone helt ute i venstre skjermkant**
+   (`SWIPE_EDGE_SONE`, 24px) **åpner sidemenyen** — samme `openDrawer()`/meny
+   som ☰-knappen, ingen egen menylogikk. Fungerer på alle admin-hovedsider
+   (Dashboard, Biloversikt, Kontrolloversikt, Verkstedoversikt, Aktive Saker,
+   Kjøretøyprofil, Skadeoversikt, Varseloversikt, Dekkoversikt, Bilregister,
+   Innstillinger) siden menyknappen finnes likt på alle `ADMIN_SCREENS`.
+   Sjåførmodus ("Min Bil") har bevisst ingen sidemeny i det hele tatt (egen,
+   minimal skjermflyt uten `☰ Meny`) og er derfor uendret utelatt — det
+   finnes ingenting for en sveipegest å åpne der.
+2. **Sveip høyre som IKKE starter i kantsonen** beholder den opprinnelige
+   "sveip høyre = tilbake"-oppførselen på oversiktssider
+   (`OVERSIKT_SWIPE_BACK_SCREENS`, nå inkl. `register`/`innstillinger`) —
+   samme logikk som `← Tilbake`-knappen, helt uendret fra før
+   Optimalisering 7.
+3. **Sveip venstre** lukker sidemenyen når den er åpen (og åpner den, som
+   før, når den er lukket) — samme `toggleHeaderMenu()` som tidligere, ingen
+   endring.
+4. **Trykk utenfor menyen** lukker den — fantes allerede via
+   `#drawer-overlay`-klikk, uendret.
+
+Kantsonen er bevisst smal (presisjon fremfor aggressiv deteksjon), og samme
+terskelverdi (`SWIPE_TERSKEL`) og vertikal-bevegelse-ignoreres-logikk som før
+gjelder likt for begge sveipegestene, slik at normal scrolling aldri
+feiltolkes som sveip.
+
+---
+
+# Sidemeny — Oversiktmeny
+
+Sidemenyen (`renderDrawer()`) er gruppert slik (topp til bunn): Dashboard,
+Aktive Saker, Rapporter, Analyse, **Oversikter ▼** (undermeny), deretter
+Innstillinger under en egen "Administrasjon"-overskrift. Ren
+navigasjonsomorganisering — ingen side er fjernet, ingen `screen`-rute er
+endret, kun hvor menyvalget vises.
+
+**Oversikter ▼** (`drawerOversikterHtml()`) samler syv sider som tidligere
+lå flatt i menyen: Biloversikt, Kontrolloversikt, Verkstedoversikt,
+Skadeoversikt, Varseloversikt, Dekkoversikt, Kostnadsoversikt
+(`OVERSIKT_SCREENS`). "Biloversikt" ruter til den eksisterende
+Bilregister-siden (`register`) — appen har ingen egen, separat
+"Biloversikt"-side å peke til. Undermenyen utvides automatisk når man
+allerede står på en av disse sidene (`OVERSIKT_SCREENS.includes(screen)`),
+slik at aktiv side alltid er synlig uten et ekstra trykk; ellers styres den
+av `drawerOversikterOpen` og et enkelt ▼/▲-symbol. `drawerItemHtml()` er
+uendret og gjenbrukt for undermenyvalgene (kun en `sub`-parameter lagt til
+for innrykk) — aktiv-markering (`.active`, prikk) fungerer identisk som før.
+
+Alle `goTo()`-ruter, hurtigknapper, direktelenker og
+`goBack()`/navigasjonshistorikk er upåvirket — kun selve menyens
+presentasjon (`renderDrawer()`) er endret.
 
 ---
 
@@ -497,6 +561,23 @@ databasert startsteg, status/prioritet fortsatt strengt adskilt, lukking
 krever fortsatt resultat+sluttkommentar+utført dato. Gjenbruker eksisterende
 skjemaer/funksjoner (`submitAddVT` uendret) — ingen parallell saksflyt,
 ingen nye Airtable-felt
+
+Optimalisering 6 (implementert)
+Oversiktmeny — se "Sidemeny — Oversiktmeny" over. Biloversikt/
+Kontrolloversikt/Verkstedoversikt/Skadeoversikt/Varseloversikt/
+Dekkoversikt/Kostnadsoversikt samlet i én "Oversikter ▼"-undermeny i
+sidemenyen, kortere hovedmeny (Dashboard/Aktive Saker/Rapporter/Analyse/
+Oversikter/Innstillinger). Ren navigasjonsomorganisering — ingen sider,
+ruter, hurtigknapper eller tilbakenavigasjon endret
+
+Optimalisering 7 (implementert)
+Sveip-navigasjon og mobilflyt — se "Sveipenavigasjon (mobil) —
+Optimalisering 7" over. Sveip høyre fra venstre kantsone åpner sidemenyen,
+sveip venstre lukker den (eksisterende meny/`goTo()`/`goBack()`-logikk
+gjenbrukt uendret) — den opprinnelige "sveip høyre midt på skjermen =
+tilbake" beholdes uendret på oversiktssider. `← Tilbake` lagt til på
+Bilregister og Innstillinger, som tidligere manglet den. Ren navigasjons-
+og mobiloptimalisering — ingen nye sider/moduler/databasefelt
 
 ---
 
