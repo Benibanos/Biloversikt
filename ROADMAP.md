@@ -630,3 +630,81 @@ Innhold:
 - Service lagt til i den samlede Kjøretøyhistorikk-tidslinjen
 - Ett nytt felt på Vehicles (`ServiceIntervallKm`), ingen ny tabell, ingen
   nye rapportmoduler, ingen nye dashboardsider (se AIRTABLE_MIGRATION.md)
+
+────────────────────────────
+
+✅ Prioritet 19
+Kontrollstatus basert på Dager
+
+Mål:
+Gjøre kontrollstatus mer operativ og enklere å prioritere — vise HVOR
+ALVORLIG situasjonen er basert på antall dager siden siste kontroll, ikke
+bare et binært kontrollert/ikke kontrollert.
+
+Innhold:
+- Ny kontrollaldergradering, live-beregnet fra eksisterende
+  kontrollhistorikk — ingen nytt datofelt: grønn (0–2 dager), gul (3–4),
+  rød (5+), og en egen "Aldri kontrollert"-tekst for biler uten
+  kontrollhistorikk i det hele tatt
+- To bevisst adskilte begreper: dagens operative kontrollstatus
+  (`isKontrollertIdag()`, uendret — styrer fortsatt kontrollgrad/
+  "mangler kontroll i dag"-tellingen) og kontrollalder (ny, kun brukt til
+  alvorlighetsgradering/prioritering) — grønt aldernivå gjør ALDRI at en
+  bil telles som kontrollert i dag
+- Kombinert, kompakt visningslinje på Kjøretøyprofil/Biloversikt/
+  Dashboard ("✅ Kontrollert i dag · kl. 06:14" / "🟢 Sist kontrollert i
+  går" / "🟡 Ikke kontrollert i dag · Sist kontrollert for 4 dager siden")
+  — erstatter den gamle enkle ✅/⚪-linjen, ikke supplerer den
+- Dashboardets Operativ Status-kort viser nå en tiered nedbrytning (🟢
+  1–2 dager / 🟡 3–4 / 🔴 5+ eller aldri) i tillegg til det uendrede
+  "mangler kontroll i dag"-tallet
+- Krever handling nå viser kun gul/rød/aldri som et reelt handlingsbehov
+  (1–2 dager er nøytral informasjon), med presis ikon/tekst per
+  alvorlighetsgrad i stedet for én generisk "Kontroll mangler i dag"
+- Morgenvisningens "Mangler kontroll" gruppert etter kontrollaldernivå
+  (🔴 Kritisk kontrollmangel → 🟡 Kontrollmangel → 🟢 Nylig kontrollert,
+  men mangler dagens kontroll), med kanonisk Bilgruppe→Bilnummer-
+  rekkefølge bevart som sekundær sortering innad i hver gruppe
+- Ny, egen kontroll-Bilparkhelse-indikator ("🟢 Kontrollsituasjon god" /
+  "🟡 Flere biler nærmer seg oppfølging" / "🔴 Kritiske manglende
+  kontroller finnes"), plassert i Operativ Status-kortet — bevisst IKKE i
+  det delte toppfeltet, for å unngå regresjon på andre admin-sider. Holdt
+  separat fra `vehicleHovedstatus()`, serviceindikatoren, Aktive Saker og
+  Ute av drift
+- Reservebiler fortsatt fullt unntatt (Prioritet 14) — aldri gul/rød på
+  grunn av kontrollalder, aldri med i "Mangler kontroll"
+- Ny kontroll eller kontrollsletting slår automatisk igjennom ved neste
+  render, ingen manuell oppdatering nødvendig
+- Ingen nye databasefelt, ingen nye databasetabeller, ingen nye
+  rapportmoduler, ingen nye dashboardsider
+
+────────────────────────────
+
+✅ Prioritet 20
+Bilkort og Kjøretøyprofil Cleanup
+
+Mål:
+Mindre støy, mer relevant informasjon, samle informasjon der brukeren
+forventer å finne den, redusere behovet for egne undersider.
+
+Innhold:
+- Fjernet Bilgruppe, Biltype og Neste verkstedtime fra Kjøretøyprofil og
+  Bilkort (Dashboardets akkordion) — informasjonen fantes allerede andre
+  steder og bidro lite til operativ beslutningstaking
+- Lagt til Aktiv sjåfør på Kjøretøyprofil (manglet helt fra før), med
+  navn og tidspunkt for siste kontroll
+- Dekktype utvidet til fire sidestilte valg: Sommer, Vinter pigg, Vinter
+  piggfri, Helår — samme eksisterende felt, ingen ny Airtable-kolonne,
+  vist tydelig øverst i Dekkoversikt
+- Dekkhistorikk migrert inn i Dekkoversikt — ingen egen seksjon lenger,
+  skiftehistorikken vises nå nederst i samme seksjon som resten av
+  dekkinformasjonen
+- "Registrer dekkskifte" gjort til en tydelig primærknapp — ingen ny
+  funksjonalitet, kun mer synlig
+- Servicehistorikk/Servicekort (Prioritet 18) og historikkfiltrering
+  (Kjøretøyhistorikk) var allerede på plass og oppfylte kravene uten
+  endring
+- Skadehistorikk/Kontrollhistorikk beholdt (ikke slettet) — retningen er
+  "Én historikk → Filtrering", ikke flere separate historikker
+- Ingen nye rapportmoduler, ingen nye dashboardsider, ingen nye
+  databasetabeller, ingen duplisering av historikk

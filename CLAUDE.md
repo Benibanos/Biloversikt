@@ -1238,6 +1238,27 @@ Airtable-tabell), live-beregnet servicestatus i fem nivåer
 `vehicleHovedstatus()`, ny "🔧 Kommende service" på Dashboard, nye
 Service-/Servicehistorikk-seksjoner på Kjøretøyprofil
 
+Prioritet 19 (implementert)
+Kontrollstatus basert på dager — se "Kontrollstatus basert på dager
+(Prioritet 19)" under. Ny `vehicleDagerSidenKontroll()`/
+`vehicleKontrollstatusNiva()` (grønn 0–2/gul 3–4/rød 5+/aldri, reservebil
+fortsatt unntatt via `vehicleErReserveUnntatt()`), egen kombinert
+visningslinje som holder "kontrollert i dag" og "kontrollalder" som
+adskilte begreper, tiered "Mangler kontroll"-nedbrytning i Operativ
+Status-kortet og Krever handling nå, kontrollalder-gruppert Morgenvisning
+(rød→gul→grønn, deretter kanonisk bilrekkefølge), egen kontroll-
+Bilparkhelse-indikator holdt utenfor `vehicleHovedstatus()`/
+serviceindikatoren. Ingen nye felt
+
+Prioritet 20 (implementert)
+Bilkort og Kjøretøyprofil Cleanup — se "Bilkort og Kjøretøyprofil Cleanup
+(Prioritet 20)" under. Fjernet Bilgruppe/Biltype/Neste verkstedtime fra
+Kjøretøyprofil og Bilkort (Dashboardets akkordion), lagt til Aktiv sjåfør
+på Kjøretøyprofil, Dekktype utvidet til fire sidestilte valg
+(sommer/vinter pigg/vinter piggfri/helår — samme `v.dekk`-felt, ingen nytt
+felt), Dekkhistorikk migrert inn i Dekkoversikt (ingen egen seksjon
+lenger), "Registrer dekkskifte" gjort til primærknapp. Ingen nye felt
+
 ---
 
 # Serviceintervall basert på kilometer (Prioritet 18)
@@ -1323,6 +1344,166 @@ servicevarsling, parallelt kilometerregister, nye rapportmoduler, nye dashboards
 Bruk i Bilhelserapport/Analyse er en fremtidig utvidelse — datastrukturen
 (`servicehistorikk`, live-beregningsfunksjonene) er bygget for å støtte det senere uten
 endring.
+
+---
+
+# Kontrollstatus basert på dager (Prioritet 19)
+
+Mål: gjøre kontrollstatus mer operativ og enklere å prioritere. Tidligere viste appen kun
+et binært ✅/⚪ (kontrollert i dag / ikke kontrollert i dag), som ikke fortalte noe om HVOR
+LENGE en bil faktisk hadde manglet kontroll. Systemet viser nå alvorlighetsgrad basert på
+antall dager siden siste gyldige kontroll.
+
+**To bevisst adskilte begreper (kjernebeslutningen i denne implementeringen).**
+`isKontrollertIdag()` — dagens operative kontrollstatus — er HELT uendret og fortsatt
+eneste kilde for `manglerKontrollCount`, daglig kontrollgrad, og "kontrollert i dag"-
+tellingen. Den nye kontrollALDEREN (`vehicleDagerSidenKontroll()`/
+`vehicleKontrollstatusNiva()`) er en egen, parallell alvorlighetsgradering brukt KUN til
+prioritering/farge — den kan aldri få en bil til å telle som "kontrollert i dag" bare
+fordi kontrollalderen fortsatt er grønn. En bil med 1–2 dager siden siste kontroll mangler
+fortsatt dagens kontroll, uendret.
+
+**Beregning — ingen nytt datofelt.** `vehicleDagerSidenKontroll(vehicleId)` bruker
+eksisterende `lastKontrollForVehicle()`/`isoDateDiff()` mot `todayISO()` (samme operative
+dagskille kl. 04:00 som resten av appen). Returnerer `null` for en bil uten
+kontrollhistorikk i det hele tatt (skilt fra "0 dager").
+
+**Nivåer** (`vehicleKontrollstatusNiva()`): `reserve` (unntatt, sjekkes FØRST — se under) →
+`gronn` (0–2 dager) → `gul` (3–4) → `rod` (5+) → `aldri` (ingen kontrollhistorikk).
+`aldri` telles sammen med `rod` i alle summeringer/grupperinger (samme alvorlighetsgrad),
+men vises alltid med egen, tydelig tekst ("Aldri kontrollert") i stedet for "Kontroll
+kritisk" — administrator skal umiddelbart forstå at dette er en bil systemet mangler ALL
+historikk for, ikke bare en bil som er 5+ dager forsinket.
+
+**Kombinert visningslinje** (`vehicleKontrollstatusLinjeTekst()`), brukt ETT sted per
+visning (erstatter, ikke supplerer, den gamle enkle linjen — Kjøretøyprofil sine tre
+"Kontrollstatus"-felt, `galleryCard`, `accordionRow`):
+- 0 dager: `✅ Kontrollert i dag` (+ `· kl. HH:MM` når kontrollen har et tidspunkt)
+- 1 dag: `🟢 Sist kontrollert i går`
+- 2 dager: `🟢 Sist kontrollert for 2 dager siden`
+- 3–4/5+ dager: `🟡/🔴 Ikke kontrollert i dag · Sist kontrollert for N dager siden`
+- Aldri: `🔴 Aldri kontrollert`
+- Reservebil unntatt: `🚐 Reservebil — ikke i bruk i dag` (uendret tekst fra før)
+
+Bevisst IKKE "Kontroll OK" for en bil som mangler dagens kontroll, selv ved grønt nivå —
+det ville feilaktig signalisert at ingenting gjenstår.
+
+**Kort chip-tekst** (`vehicleKontrollstatusChipInfo()`) returnerer `null` for
+grønn/reserve/kontrollert-i-dag (vises IKKE som et handlingsbehov — 1–2 dager er nøytral
+informasjon), og en presis tekst for gul/rød/aldri ("Kontroll mangler, 4 dager siden" /
+"Kontroll kritisk, 7 dager siden" / "Aldri kontrollert"). Brukt som ny dash-chip i
+`accordionRow` (Dashboardets Biloversikt-akkordion), ved siden av den eksisterende
+Service-chipen fra Prioritet 18 — begge vises uavhengig av hverandre, aldri blandet.
+
+**Biloversikt/Kjøretøyprofil:** `galleryCard` sin kontroll-`vl-indicator` og alle tre
+"Kontrollstatus"-forekomster i `renderBilkort()` (toppseksjon, operativ status,
+kontrollhistorikk) bruker nå `vehicleKontrollstatusLinjeTekst()` — én kilde til teksten,
+ikke tre separate inline-uttrykk som før.
+
+**Dashboard — Operativ Status-kortet.** `manglerKontrollCount` (den eksisterende, uendrede
+"mangler kontroll i dag"-telleren) beholder sin plass og sitt tall i den kompakte
+2-kolonners oppsummeringen. Rett under legges en tiered nedbrytning til: en egen,
+separat kontroll-Bilparkhelse-linje (se under) og tre tellinger (🟢 1–2 dager / 🟡 3–4 /
+🔴 5+ eller aldri), begge kun synlige når `morgenManglerKontrollBiler.length > 0`.
+
+**Krever handling nå.** Kun gul/rød/aldri havner i arbeidslisten
+(`manglerKontrollHandlingCount`, erstatter `manglerKontrollCount` i
+`dashTotalHandlinger`-summen) — 1–2 dager er ikke lenger et "handlingsbehov" der. Rød/
+aldri prioriteres over gul (`sort:2.5`, mellom "oppfølging i dag" og gul kontrollmangel),
+med presis ikon/tekst fra `vehicleKontrollstatusChipInfo()` i stedet for den gamle,
+generiske "Kontroll mangler i dag" for alle. Oppsummeringslinjene øverst i kortet viser nå
+🟡 gul-tall og 🔴 kritisk/aldri-tall hver for seg, i stedet for ett samlet
+"mangler kontroll"-tall.
+
+**Morgenvisning — kombinert sortering.** "Mangler kontroll"-seksjonens INNHOLD
+(`morgenManglerKontrollBiler`) er uendret som konsept — fortsatt alle biler som mangler
+DAGENS kontroll, reservebil-unntak uendret. Den interne GRUPPERINGEN er endret fra ren
+Bilgruppe→Bilnummer (Optimalisering 15/16) til kontrollalder-nivå først (🔴 Kritisk
+kontrollmangel = rod+aldri, 🟡 Kontrollmangel = gul, 🟢 Nylig kontrollert men mangler
+dagens kontroll = gronn), med kanonisk Bilgruppe→Bilnummer-rekkefølge (`sortedVehicles()`,
+uendret) som sekundær sortering INNENFOR hver av de tre gruppene — kombinerer prioritering
+med gjenkjennelig struktur.
+
+**Egen Bilparkhelse-indikator for kontroll — bevisst plassert i Operativ Status-kortet,
+IKKE i det delte `shell-top`.** For å unngå regresjonsrisiko på tvers av alle admin-sider
+er denne NYE indikatoren (`kontrollBilparkhelseNiva`/`KONTROLL_BILPARKHELSE_TEKST`: "🟢
+Kontrollsituasjon god" / "🟡 Flere biler nærmer seg oppfølging" / "🔴 Kritiske manglende
+kontroller finnes") lagt til inne i Dashboardets Operativ Status-kort, samme trygge,
+isolerte plassering som Service-indikatoren fikk i Prioritet 18 — IKKE i den delte
+"Bilparkhelse Status"-raden i toppfeltet. Holdt fullstendig separat fra
+`vehicleHovedstatus()`, serviceindikatoren (Prioritet 18), Aktive Saker og
+Ute av drift-status — ingen av disse er rørt.
+
+**Aktiv Biløkt / Kontrollsletting.** Ingen egen kode nødvendig — alt beregnes live fra
+`kontroller`-arrayet ved hvert `render()`-kall, akkurat som `isKontrollertIdag()` allerede
+gjør. En ny kontroll eller en sletting (inkl. at en eldre kontroll blir "nyeste" etter
+sletting) slår automatisk igjennom ved neste rendring.
+
+**Reservebil-unntak.** `vehicleErReserveUnntatt()` (Prioritet 14) sjekkes FØRST i
+`vehicleKontrollstatusNiva()` — en reservebil som ikke er tatt i bruk får nøytralt
+`reserve`-nivå, er ALDRI med i "Mangler kontroll"-listen/-telling, og påvirker aldri
+kontroll-Bilparkhelse-indikatoren. Tas bilen i bruk, faller unntaket bort automatisk
+(samme live-beregning som resten av appen).
+
+**Bevisst IKKE implementert:** nytt kontrollskjema, nye databasetabeller/-felt, nye
+rapportmoduler, egne dashboardsider.
+
+---
+
+# Bilkort og Kjøretøyprofil Cleanup (Prioritet 20)
+
+Mål: mindre støy, mer relevant informasjon, samle informasjon der brukeren forventer å
+finne den, redusere behovet for egne undersider. Operativt prinsipp brukt gjennomgående:
+"Hjelper denne informasjonen meg å ta en beslutning om drift/vedlikehold/oppfølging/
+verksted?" — hvis nei, fjernes den, flyttes til historikk, eller flyttes til Mer
+informasjon.
+
+**Fjernet fra Kjøretøyprofil og Bilkort (Dashboardets akkordion):** Bilgruppe, Biltype og
+Neste verkstedtime. Bilgruppe/Biltype-feltene var i tillegg feilmerket i koden (viste
+`v.bilnummer` under label "Bilgruppe" og `v.kategori` under label "Biltype") — begge er nå
+fjernet i sin helhet i stedet for rettet, siden informasjonen uansett var lite operativt
+nyttig og allerede finnes andre steder (Biloversikt, Dashboardets Bilgruppe-hurtigkort).
+Bilnummer og Registreringsnummer var allerede synlig i Kjøretøyprofilens topptekst
+(`bilkort-head`) og trengte ingen erstatning der.
+
+**Lagt til: Aktiv sjåfør på Kjøretøyprofil.** Manglet helt fra før (fantes kun på
+Dashboard/Biloversikt) — gjenbruker uendret `vehicleAktivSjafor()`. Vises i både
+toppseksjonen ("Ola Hansen · Kontrollert: 06:14", med tidspunktet fra siste kontroll) og
+operativ status-boksen ("Ingen aktiv sjåfør" når ingen biløkt er aktiv).
+
+**Dekktype (Del 5) — én samlet liste, bevisst uten pigg/piggfri som underkategori av
+vinter** (eksplisitt presisert i godkjenningen): Sommer / Vinter pigg / Vinter piggfri /
+Helår, som fire sidestilte verdier på samme `v.dekk`-felt som før (`sommer` /
+`vinter-pigg` / `vinter-piggfri` / `helars`) — ingen ny Airtable-kolonne. Ny
+`DEKK_TYPE_LABEL`-konstant og `dekkErVinterVariant()`-hjelpefunksjon (behandler begge
+vinter-variantene, OG det gamle `'vinter'`-verdien for biler som ikke er oppdatert ennå,
+likt der logikken bare trenger å vite SESONG — f.eks. sesongovergangsvarselet i
+Dekkoversikt-siden). Dekktype vises nå tydelig øverst i Kjøretøyprofilens Dekkoversikt-
+seksjon, ikke bare i redigeringsskjemaet. `submitDekkskifte()` sin auto-oppdatering av
+`v.dekk` ved et registrert sommer→vinter-skifte beholder bilens tidligere vinter-variant
+hvis den hadde en (unngår å nullstille et bevisst pigg/piggfri-valg), ellers settes
+`vinter-piggfri` som nøytralt utgangspunkt til administrator eventuelt korrigerer.
+
+**Del 6 — Dekkhistorikk migrert inn i Dekkoversikt.** Den tidligere separate
+"Dekkhistorikk"-akkordion-seksjonen på Kjøretøyprofil finnes ikke lenger — innholdet
+(skiftehistorikk, nyeste først) vises nå nederst i selve "Dekkoversikt"-seksjonen, under
+sommer-/vinterdekkinfo. Ingen endring i selve `dekkhistorikk`-datastrukturen
+(`window.storage`, uendret fra Prioritet-implementeringen) — kun visningen er slått
+sammen. "Registrer dekkskifte" er samtidig gjort til en tydelig primærknapp (fremfor en
+liten sekundærknapp som før) — ingen ny funksjonalitet, kun mer synlig.
+
+**Del 3/4 (Servicehistorikk/Servicekort) og Del 7 (Historikkfiltrering) var allerede på
+plass** fra Prioritet 18 og trengte ingen endring: Service-/Servicehistorikk-seksjonene
+viser allerede dato/km/verksted/type/kommentar sortert nyest først, og
+`vehicleHistorikkTidslinje()` + `bilkortHistorikkFilter` støtter allerede filtrering på
+nøyaktig de kategoriene som er etterspurt (Alle/Kontroller/Skader/Dekk/Service/Verksted/
+Kostnader/Aktive Saker, pluss varsellamper/statusendringer). Skadehistorikk- og
+Kontrollhistorikk-seksjonene er bevisst IKKE fjernet (kun mindre nødvendige etter hvert
+som Kjøretøyhistorikk blir hovedkilden) — retningen er "Én historikk → Filtrering", ikke
+flere separate historikker, men ingen eksisterende side er slettet i denne runden.
+
+**Bevisst IKKE implementert:** nye rapportmoduler, nye dashboardsider, nye
+databasetabeller, duplisering av historikk.
 
 ---
 

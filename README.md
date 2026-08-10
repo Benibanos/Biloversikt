@@ -245,6 +245,34 @@ Det gjetter aldri.
 
 ---
 
+# Kontrollalder
+
+Ikke kontrollert er ikke én tilstand.
+
+En dag siden er noe annet enn en uke siden.
+
+Systemet viser derfor hvor lenge det faktisk er siden siste kontroll —
+grønt, gult eller rødt — slik at driftskoordinator vet hvilke biler som
+haster mest.
+
+Dagens kontroll og kontrollalder er to spørsmål.
+
+Systemet holder dem fra hverandre, selv når de vises på én linje.
+
+---
+
+# Kjøretøyprofil
+
+Ikke alt fortjener plass.
+
+Spør alltid: hjelper dette meg å ta en beslutning?
+
+Hvis ikke, hører det hjemme i historikken. Eller ingen steder.
+
+Bilgruppe og biltype er ikke borte. De er bare ikke her lenger.
+
+---
+
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.
