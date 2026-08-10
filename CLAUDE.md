@@ -102,6 +102,10 @@ Rød
 
 Kritisk sak
 
+Reservebiler som ikke er tatt i bruk ennå i dag er unntatt fra det daglige
+kontrollkravet og vises verken som gul/rød av den grunn — se "Optimalisering
+14 — Reservebil-logikk" for full spesifikasjon.
+
 ---
 
 # Aktive Saker
@@ -331,22 +335,56 @@ alltid smart-slettedialogen (`openKontrollSlettDialog()` /
 
 - **Kun slett kontroll** (`fullCleanup:false`): fjerner kun kontrollposten,
   bildene og logger én historikkhendelse. Aktive saker, varsellamper, skader
-  og all annen historikk står fullstendig urørt — kun en ev. stale
-  `createdByControlId`-referanse på det som beholdes nulles ut.
+  og all annen historikk står fullstendig urørt — kun ev. stale
+  `createdByControlId`-referanser på det som beholdes nulles ut. Utvidet i
+  Optimalisering 13 til å rydde denne referansen på ALLE tre datatyper
+  (saker, skader, varsellamper) — dekket tidligere kun saker.
 - **Full cleanup** (`fullCleanup:true`): fjerner i tillegg skader/varsellamper
   som utelukkende stammer fra kontrollen (samme "uendret siden opprettelse"-
-  sjekk som før), og nå også aktive saker som utelukkende stammer derfra —
-  men KUN dersom saken ikke er "viderebehandlet"
-  (`sakHarBlittViderebehandlet()`: status forbi "ny", rapportert på nytt,
-  fått `nextAction`/`followUpDate`, eller fått bestilt verksted). Er den
-  viderebehandlet, kreves eksplisitt avkrysset bekreftelse før den kan
-  fjernes automatisk.
+  sjekk som før), og aktive saker som utelukkende stammer derfra — men KUN
+  dersom saken ikke er "viderebehandlet" (`sakHarBlittViderebehandlet()`).
+  Er den viderebehandlet, kreves eksplisitt avkrysset bekreftelse før den
+  kan fjernes automatisk. Data som IKKE slettes (fordi den fortsatt er
+  uendret/støttet av gjenværende kontroller, eller allerede kvittert) får nå
+  også sin `createdByControlId`-referanse nullet (Optimalisering 13) — samme
+  "ingen foreldreløse referanser"-prinsipp som saker alltid har hatt.
+
+**`sakHarBlittViderebehandlet()` — utvidet i Optimalisering 13** til å også
+fange opp aktivitet som ikke nødvendigvis flytter noen av sakens egne
+toppnivåfelt: (1) en frittstående kommentar
+(`submitSakWizardKommentar()` — la kun til en historikk-oppføring, rørte
+ingen av de andre feltene sjekken så på), og (2) for flerpunkts saker
+(Prioritet 12) — ett enkelt avvik markert utført (`markerAvvikUtfort()`)
+eller rapportert på nytt, selv om saken som helhet fortsatt står som "Ny".
+Historikk-sjekken sammenligner mot `sakAvvikListe(sak).length` (ikke en
+fast `1`), siden en fersk flerpunkts kontroll-sak alltid starter med
+nøyaktig én historikkoppføring PER avvik den samler — det alene er ikke et
+tegn på viderebehandling. Beskyttelsen er bevisst helt-eller-ingenting per
+sak (ikke per avvik): er ETT avvik i en flerpunkts sak viderebehandlet,
+beskyttes HELE saken — enklere og tryggere enn å forsøke delvis sletting av
+enkeltavvik inni en sak som deles med uberørte avvik.
+
+**Slettedialogen** viser nå en mer detaljert oppsummering
+(Optimalisering 13): varsellamper og kontrollavvik som egne linjer (i
+stedet for kun ett samlet "aktive saker"-tall), pluss skader — varsellamper
+telles fra selve `WarningLights`-tabellen (`paavirkedeVarsler`, den
+faktiske kilden til sannhet for om lampen fortsatt lyser), kontrollavvik
+telles på avvik-nivå på tvers av alle berørte saker
+(`sakAvvikListe(s)`-summen, `avvikKontroll` i `analyserKontrollPavirkning()`
+sitt returobjekt) — fungerer likt for både eldre enkeltavvik-saker og nye
+flerpunkts kontroll-saker.
 
 Kilometerstand rekalkuleres alltid fra gjenværende kontroller uansett modus
 (rent avledet tall, ikke en "sak"). Én historikkhendelse ("Kontroll slettet
 av administrator", med ev. årsak) logges alltid til bilens `statusHistorikk`
 (samme felt som "ute av drift"-logg fra Fase 7) FØR kontrollen fjernes, slik
 at den overlever i Kjøretøyhistorikk selv om kontrollen selv er borte.
+
+Bilstatus/Dashboard/Bilparkhelse/Krever handling nå trenger ingen egen
+oppdateringslogikk ved sletting — alt beregnes fortsatt live fra
+`kontroller`/`aktiveSaker`/`varsellys` ved hvert `render()`-kall (samme
+prinsipp som resten av appen), og `render()` kalles allerede etter
+`performKontrollDeletion()` fullfører.
 
 Ved nye datatyper som kan opprettes fra en sjåførkontroll: gi dem samme
 `createdByControlId`-mønster (sett kun ved førstegangsopprettelse, aldri ved
@@ -802,6 +840,86 @@ direkte, ikke fra `aktiveSaker`, og er upåvirket.
 
 ---
 
+# Optimalisering 14 — Reservebil-logikk
+
+Reservebiler (`v.kategori === 'reserve'`, kategorien fantes fra før —
+ingen ny verdi) skal ikke skape unødvendige varsler eller daglig oppfølging
+mens de bare står parkert. Ren visnings-/beregningslogikk — ingen nye felt,
+ingen ny kjøretøystatus lagret på kjøretøyet, ingen nye registreringsflyter.
+
+**Kjerneprinsipp — helt live-beregnet, akkurat som `isKontrollertIdag()`:**
+`vehicleErReserveUnntatt(vehicleId)` returnerer sann kun når (1) kategorien
+er `reserve`, (2) bilen IKKE er kontrollert i dag, og (3) bilen IKKE har en
+aktiv biløkt akkurat nå. Ingen av disse er et lagret flagg — alt regnes ut
+på nytt ved hvert `render()`-kall mot `todayISO()`/det operative dagskillet
+(04:00), akkurat som `isKontrollertIdag()`/`vehicleAktivSjafor()` selv
+allerede gjør. Det betyr at "dagskille kl. 04:00 → bilen går automatisk
+tilbake til reservestatus" ikke krever NOEN egen kode i det hele tatt: i
+morgen er `isKontrollertIdag`/`vehicleAktivSjafor` tilbake til usann for
+bilen med mindre den faktisk brukes på nytt den dagen, og unntaket gjelder
+dermed automatisk igjen.
+
+**Tas i bruk → vanlige regler resten av dagen:** i det øyeblikket bilen får
+en kontroll (typisk via Aktiv Biløkt sin "Velg bil"-flyt, men gjelder
+uansett kilde) ELLER en biløkt startes, opphører
+`vehicleErReserveUnntatt()` å være sann, og ALT nedenfor faller automatisk
+tilbake til normal oppførsel — ingen overgangs-spesialkode nødvendig, kun
+en konsekvens av at unntaket er en ren beregning basert på disse to
+tilstandene.
+
+**`vehicleHovedstatus()` — ny status `'reserve'`** satt inn RETT FØR
+`'ikke-kontrollert'`-fallbacken (aldri før `kritisk`/`verksted`/
+`oppfolging` — en reservebil med en ekte aktiv sak vises fortsatt normalt
+som sådan, uendret; reservebilen "har fortsatt kunne ha aktive
+saker/verkstedoppfølging" per spesifikasjonen). `HOVEDSTATUS_ORDER`/
+`_IKON`(🚐)/`_LABEL`("Reservebil (ikke i bruk)")/`_BADGE_KLASSE` (nøytral
+grå, samme som "unset" — bevisst IKKE gul, siden det ikke er et problem)
+utvidet tilsvarende. `vehicleDagensStatus()` (Biloversikt-kortenes "Dagens
+status") fikk samme behandling, med en ny nøytral `.dash-chip.reserve`
+CSS-klasse i stedet for den urovekkende amber "mangler kontroll"-fargen.
+
+**Konsekvenser (alt kaskaderer fra `vehicleErReserveUnntatt()`/
+`vehicleHovedstatus()`, ingen dupliserte sjekker):**
+- **Dashboard Hovedstatus:** `manglerKontrollCount` trekker nå også fra
+  antall reservebil-unntak, ikke bare kontrollerte biler.
+- **Krever handling nå:** "Kontroll mangler i dag"-oppføringene hopper
+  over reservebil-unntak.
+- **Morgenvisning:** "Mangler kontroll"-listen samme fix.
+- **Bilparkhelse:** ny egen `reserve`-bøtte i tellingen (kritisk teknisk
+  detalj — `bilparkhelse`-objektet måtte initialiseres med `reserve:0`
+  eksplisitt, ellers ville `vehicleHovedstatus()` sin nye returverdi stille
+  korrumpert tellingen med `NaN`), vist som eget 🚐-tall i panelet og som
+  eget alternativ i Biloversikt-filtreringen (`dashBiloversiktFilter`).
+- **Liten sidegevinst-fiks:** Dashboardets `ikke-kontrollert`-filter brukte
+  tidligere rå `!isKontrollertIdag()` i stedet for den autoritative
+  `vehicleHovedstatus()` — en bil som allerede var flagget
+  verksted/kritisk/oppfølging kunne dermed også dukke opp under
+  "ikke kontrollert"-filteret. Rettet til å bruke
+  `vehicleHovedstatus(v.id) === 'ikke-kontrollert'`, i tråd med "kun én
+  hovedstatus per bil"-prinsippet fra Bilstatus 2.0.
+- **Bilregister sitt manuelle "Ikke kontrollert i dag"-filter** ekskluderer
+  nå også reservebil-unntak, for konsistens med Dashboard-tallet den lenkes
+  fra (`data-stat-nav="mangler-kontroll"`) — bilen er fortsatt fullt
+  søkbar/synlig via fritekstsøk eller det eksisterende
+  kategorifilteret (`Reserve`).
+- **Biloversikt/Kjøretøyprofil (`galleryCard`/`accordionRow`/
+  `renderBilkort`):** viser "🚐 Reservebil — ikke i bruk i dag" i stedet
+  for den vanlige "⚠️ Ikke kontrollert i dag" der bilen faktisk er unntatt,
+  slik at brukeren forstår HVORFOR, i stedet for å lure på om noe er
+  glemt.
+
+**Bevisst UTENFOR omfang:** sjåførens "Velg bil"-skjerm i Aktiv Biløkt
+viser fortsatt ren "✅ Kontrollert"/"⚪ Ikke kontrollert" for alle biler,
+reservebiler inkludert — det er ikke et passivt dashboard-varsel, men
+informasjon en sjåfør som faktisk skal kjøre bilen trenger nøyaktig (og
+kontroll kreves fortsatt idet bilen tas i bruk). Rapporter sin periodebaserte
+"Kontrollgrad"-prosent (`rapportKontrollData()`) er også urørt — det er en
+historisk analyse over en valgt periode, ikke et daglig driftsvarsel, og lå
+uansett utenfor sjekklistens eksplisitt nevnte overflater (Dashboard/
+Morgenvisning/Krever handling nå/Bilparkhelse).
+
+---
+
 # Nåværende utviklingsplan
 
 Fase 1
@@ -975,6 +1093,31 @@ nytt felt: `Avvik` (JSON) på AktiveSaker (se AIRTABLE_MIGRATION.md) —
 ingen ny tabell, full bakoverkompatibilitet med all eksisterende data
 uten migrering. Bilstatus/Dashboard/Bilparkhelse fungerer uendret siden
 de kun leser sakens egne prioritet/status-felt
+
+Optimalisering 13 (implementert)
+Full Cleanup ved Sletting av Kontroll — se "Kontrollsletting — full
+cleanup uten spøkelsesdata" over (oppdatert). Rettet en reell
+korrekthetsbrist etter Prioritet 12: `sakHarBlittViderebehandlet()` så
+ikke aktivitet på enkeltavvik-nivå (markert utført, rapportert på nytt)
+eller frittstående kommentarer — kunne tidligere latt Full Cleanup
+fjerne en sak der reelt arbeid var gjort. Referanseopprydding
+(`createdByControlId`-nulling) utvidet fra kun saker til også skader og
+varsellamper i begge slettemodus. Slettedialogen viser nå varsellamper/
+kontrollavvik/skader som egne linjer i stedet for ett samlet tall. Ingen
+nye felt — ren logikkretting og visningsutvidelse
+
+Optimalisering 14 (implementert)
+Reservebil-logikk — se "Optimalisering 14 — Reservebil-logikk" over.
+Reservebiler (eksisterende `kategori: 'reserve'`) er nå unntatt det
+daglige kontrollkravet — og alt avledet av det (Mangler kontroll,
+Morgenvisning, Krever handling nå, Bilparkhelse) — helt live-beregnet, så
+lenge de faktisk ikke er tatt i bruk (kontrollert eller aktiv biløkt) i
+dag. Ny `vehicleHovedstatus()`-verdi `'reserve'` (🚐), egen bøtte i
+Bilparkhelse. Tas bilen i bruk gjelder vanlige regler automatisk resten
+av dagen; ved neste dagskille (04:00) gjelder unntaket automatisk igjen
+— ingen egen "gå tilbake"-jobb, kun en konsekvens av at alt beregnes live
+mot samme dagskille som `isKontrollertIdag()` allerede bruker. Ingen nye
+felt, ingen ny registreringsflyt
 
 ---
 

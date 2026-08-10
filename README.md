@@ -140,6 +140,22 @@ Systemet skal gi svar på:
 
 ---
 
+# Reservebiler
+
+Reservebiler skal ikke skape unødvendige varsler når de står parkert.
+
+Ingen krav om daglig kontroll så lenge bilen ikke er tatt i bruk.
+
+Tas bilen i bruk:
+
+Vanlige regler gjelder resten av dagen.
+
+Ved dagskille:
+
+Bilen går automatisk tilbake til reservestatus.
+
+---
+
 # Aktiv Biløkt
 
 Kontrollen tilhører bilen.

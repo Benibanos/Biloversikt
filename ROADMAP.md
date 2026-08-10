@@ -424,3 +424,69 @@ Innhold:
 - Ett nytt felt på AktiveSaker: `Avvik` (JSON) — ingen ny tabell, ingen
   parallell saksmodell, full bakoverkompatibilitet med eksisterende data
   uten noen migrering (se AIRTABLE_MIGRATION.md)
+
+────────────────────────────
+
+✅ Optimalisering 13
+Full Cleanup ved Sletting av Kontroll
+
+Mål:
+Når en kontroll slettes med Full Cleanup, skal hele "familien" av
+automatisk genererte data fjernes uten manuell opprydding etterpå —
+samtidig som viderebehandlede/historisk viktige data alltid beskyttes.
+
+Innhold:
+- Rettet en korrekthetsbrist som Prioritet 12 introduserte:
+  `sakHarBlittViderebehandlet()` fanget ikke opp aktivitet på
+  enkeltavvik-nivå (avvik markert utført, eller rapportert på nytt) i
+  flerpunkts saker, og heller ikke frittstående kommentarer — kunne
+  tidligere latt Full Cleanup fjerne en sak der reelt arbeid faktisk var
+  gjort
+- Referanseopprydding (fjerning av peker til den slettede kontrollen på
+  data som bevisst beholdes) utvidet fra kun aktive saker til også
+  skader og varsellamper, i begge slettemodus — ingen foreldreløse
+  referanser blir liggende igjen noe sted
+- Slettedialogen viser nå en mer detaljert oppsummering: varsellamper,
+  kontrollavvik og skader som egne linjer, i stedet for kun ett samlet
+  "aktive saker"-tall
+- Bilstatus/Dashboard/Bilparkhelse/Krever handling nå oppdateres
+  automatisk (ingen manuell handling nødvendig) — alt beregnes fortsatt
+  live ved hvert render, uendret fra før
+- "Kun slett kontroll" beholder fortsatt saker/verkstedhistorikk/
+  oppfølging fullstendig urørt, som før
+- Viderebehandlede saker (verkstedtime, oppfølging, kommentarer,
+  kostnader, avsetting, utført arbeid) slettes ALDRI automatisk — krever
+  fortsatt eksplisitt bekreftet avkrysning
+- Ingen nye Airtable-felt — ren logikkretting og visningsutvidelse på
+  eksisterende struktur
+
+────────────────────────────
+
+✅ Prioritet 14
+Reservebil-logikk
+
+Mål:
+Reservebiler skal ikke skape unødvendige varsler eller daglig oppfølging
+når de står parkert og ikke brukes — systemet skal fokusere på biler som
+faktisk er i drift.
+
+Innhold:
+- Reservebiler (eksisterende kategori "Reserve") er unntatt det daglige
+  kontrollkravet så lenge de faktisk ikke er tatt i bruk — helt
+  live-beregnet, ingen lagret status/flagg
+- Unntatt fra: Mangler kontroll, Morgenvisning, Krever handling nå,
+  Bilparkhelse (negativ påvirkning)
+- Ny, nøytral bilstatus "🚐 Reservebil (ikke i bruk)" i stedet for å
+  falle inn under "Ikke kontrollert" — vist tydelig i Biloversikt og
+  Kjøretøyprofil
+- Reservebiler er fortsatt fullt synlige, søkbare, tilgjengelige for
+  kontroll og Aktiv Biløkt, og kan ha aktive saker/verkstedoppfølging som
+  normalt — ekte problemer (kritisk/verksted/oppfølging) overstyrer
+  alltid reserve-unntaket
+- Tas bilen i bruk (kontroll gjennomført eller biløkt startet): vanlige
+  regler gjelder automatisk resten av den operative dagen
+- Ved dagskille kl. 04:00: går automatisk tilbake til reservestatus uten
+  aktiv biløkt — ingen egen "tilbakestill"-jobb, ren konsekvens av at alt
+  beregnes live mot samme dagskille som resten av appen
+- Ingen nye databasefelt, ingen nye registreringsflyter, ingen egne
+  dashboardsider
