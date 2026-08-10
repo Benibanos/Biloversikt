@@ -1921,7 +1921,7 @@ function nowTimeOslo(){
 function greetingInfo(){
   const hourStr = new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', hourCycle:'h23'}).format(new Date());
   const hour = parseInt(hourStr, 10);
-  const sub = '';
+  const sub = 'Velkommen tilbake til bilparken';
   if(hour >= 5 && hour < 12){
     return {hilsen:'God morgen', ikon:'☀️', sub, klasse:'morgen'};
   } else if(hour >= 12 && hour < 18){
