@@ -490,3 +490,36 @@ Innhold:
   beregnes live mot samme dagskille som resten av appen
 - Ingen nye databasefelt, ingen nye registreringsflyter, ingen egne
   dashboardsider
+
+────────────────────────────
+
+✅ Prioritet 15
+Dashboard Cleanup v2
+
+Mål:
+Redusere støy, scrolling og dobbeltinformasjon på Dashboard. Dashboardet
+skal fungere som et operativt kontrollrom for driftskoordinator, med full
+oversikt på under 10 sekunder.
+
+Innhold:
+- Ny toppfeltstruktur: "Bilparkhelse Status" (🟢 Operative/🟡 Oppfølging/
+  🟠 Verksted/🔴 Kritiske) og "🚚 N biler i drift nå" flyttet opp i det
+  delte toppfeltet, synlig uten scrolling — kun på Dashboard-skjermen
+- Responsiv: chips vises på én rad på desktop, stables naturlig på mobil
+- Bilgrupper-seksjonen fjernet (samme navigasjon finnes allerede via
+  ☰ Meny → Oversikter ▼ → Biloversikt)
+- Hurtighandlinger-seksjonen fjernet (samme funksjoner nås allerede via
+  toppfeltet, Min Bil, og dashboardkortene selv)
+- Manglende kontroll vises ikke lenger som kritisk (rødt) — kun ekte
+  kritiske saker, biler ute av drift, eller alvorlige varsler utløser rødt
+  i "Krever handling nå"; manglende kontroll alene gir amber
+- Morgenvisningens "Mangler kontroll"-liste sortert med samme kanoniske
+  rekkefølge (Bilgruppe → Bilnummer) som resten av systemet
+- "Må gjøres i dag" bygget om fra én lang flat liste til tre uavhengig
+  åpne-/lukkbare kategorier (🔴 Kritiske saker, 🟠 Oppfølging i dag,
+  🟡 Mangler kontroll), kollapset som standard for minst mulig scrolling
+- To nå-redundante lister (separat "Mangler kontroll" og "Kritiske
+  forhold" i Morgenvisning) fjernet — samme informasjon dekkes av de nye
+  kategoriene
+- Ingen nye moduler, ingen nye Airtable-tabeller, ingen nye rapporter
+  eller analyser

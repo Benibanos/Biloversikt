@@ -259,6 +259,14 @@ Dashboardet skal prioritere:
 - Verkstedaktivitet
 - Bilparkhelse
 
+Bilparkhelse og biler i drift nå vises i toppfeltet.
+
+Synlig uten scrolling.
+
+Manglende kontroll er ikke kritisk.
+
+Rødt er forbeholdt kritiske saker, ute av drift, og alvorlige varsler.
+
 ---
 
 # Designprinsipp

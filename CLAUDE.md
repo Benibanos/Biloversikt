@@ -193,50 +193,89 @@ oversikt over bilparken på under 10 sekunder. Hvis informasjon allerede er
 synlig i et hovedkort eller en hovedseksjon, skal den normalt ikke gjentas et
 annet sted. Mål: mer oversikt, mindre støy, minst mulig scrolling.
 
-Gjeldende struktur (topp til bunn):
+**Toppfelt (Optimalisering 15 — Dashboard Cleanup v2):** det delte
+`shell-top` (brand + ☰ Meny, vises på alle sider) utvides med en
+"Bilparkhelse Status"-rad OG "🚚 N biler i drift nå" — men KUN på selve
+Dashboard-skjermen (`screen === 'dashboard'`), ikke globalt på alle sider,
+for å unngå å smøre driftsdata utover sider som Innstillinger/Rapporter der
+det ikke hører hjemme. Beregnes direkte i `render()` med
+`vehicleHovedstatus()`/`vehicleAktivSjafor()` — ingen egen tellelogikk.
+`.shell-top-status`/`.shell-top-drift` bruker `flex-wrap` slik at chipsene
+går naturlig fra én rad (desktop) til stablet (smale skjermer) uten egen
+mobil-markup.
+
+Gjeldende struktur (topp til bunn, kropp):
 
 1. Hilsen/greeting-card
 2. Databasevarsel (kun ved feil/manglende felt)
 3. **Hovedstatus** — én kompakt seksjon: antall biler totalt, kontrollert,
    mangler kontroll, aktive saker, verksted, kritisk. Første statusinformasjon
-   brukeren ser.
+   brukeren ser i selve kroppen (Bilparkhelse Status i toppfeltet over
+   kommer først av alt, men er en annen, enda mer komprimert oppsummering).
 4. **Morgenvisning** — den primære, handlingsorienterte arbeidsseksjonen for
    dagens start. Viser kun det som krever handling i dag eller påvirker
-   dagens drift, aldri historiske data. Fem underseksjoner:
+   dagens drift, aldri historiske data. To underseksjoner:
    - *Dagens situasjon*: nøkkeltall (biler klare, mangler kontroll, verksted
      i dag, oppfølging i dag, kritiske saker)
-   - *Må gjøres i dag*: samme prioriterte utvalg (og rekkefølge) som "Krever
-     handling nå" under, men med handlingsorientert tekst ("Kontakt verksted
-     — Bil 7") — gjenbruker `dashKreverTop5`/feltet `aksjon` på hver
-     oppføring, ikke egen logikk
-   - *Mangler kontroll*: liste over biler uten kontroll i dag, trykk åpner
-     kontrollregistrering direkte for den bilen
-   - *Verksted i dag*: kun verkstedtimer med dato = i dag, skjules helt hvis
-     tom
-   - *Kritiske forhold*: kun åpne saker med kritisk prioritet, skjules helt
-     hvis tom
-5. **Krever handling nå** — fortsatt en egen seksjon (se
-   Dashboard Pro-integrasjon i Morgenvisningen), samlet oppsummering
+   - *Må gjøres i dag* (Optimalisering 15, Del 7-8): IKKE lenger én lang
+     flat liste — tre uavhengig kollapsbare kategorier (🔴 Kritiske saker,
+     🟠 Oppfølging i dag, 🟡 Mangler kontroll; `gjoresIDagGrupper`, delt inn
+     etter samme `sort`-verdi `dashKreverListe` allerede bruker under
+     "Krever handling nå" — ingen egen, parallell logikk). Kollapset som
+     standard (`morgenGjoresIDagApneKategorier`, tom Set), hver kategori
+     åpnes/lukkes uavhengig av de andre. Viser HELE `dashKreverListe` (ikke
+     bare topp 5, siden gruppering+kollaps allerede holder scrollingen nede
+     uten behov for kunstig avkutting). "Mangler kontroll"-gruppen beholder
+     den mer direkte handlingen fra det tidligere, nå fjernede,
+     separate "Mangler kontroll"-listepanelet: trykk går rett til
+     kontrollskjemaet (`data-goto-kontroll`), ikke det generelle sak-/
+     bilkort-målet resten av gruppene bruker.
+   - *Verksted i dag*-listen og den tidligere separate "Kritiske
+     forhold"-listen er fjernet — begge dupliserte nå informasjon som
+     allerede er dekket av kategoriene over (verksted i dag-varsel dekkes
+     av "Kommende verkstedtimer" lenger ned; kritiske forhold dekkes av
+     den nye "🔴 Kritiske saker"-kategorien).
+5. **Krever handling nå** — fortsatt en egen seksjon, samlet oppsummering
    (🔴 kritiske saker, ⛔ biler ute av drift ved behov, 🟠 oppfølginger i
    dag, 🟡 biler mangler kontroll, Totalt) + "Operativ arbeidsliste":
-   utvidbar liste over de 5 viktigste hendelsene, prioritert kritisk →
-   forfalt → oppfølging i dag → manglende kontroll. Bygger på eksisterende
-   `sakKreverHandling()` — ingen egen, parallell forretningslogikk.
+   utvidbar liste over de 5 viktigste hendelsene (`dashKreverTop5`),
+   prioritert kritisk → forfalt → oppfølging i dag → manglende kontroll.
+   Bygger på eksisterende `sakKreverHandling()` — ingen egen, parallell
+   forretningslogikk. **Fargelogikk rettet (Optimalisering 15, Del 5):**
+   panelet (bakgrunn/kant/tall) er nå KUN rødt når det faktisk finnes
+   kritiske saker eller biler ute av drift (`krHarKritisk`) — tidligere ble
+   HELE panelet rødt selv om det eneste som fantes var "mangler kontroll",
+   som ikke er en kritisk tilstand. Finnes det handlinger, men ingen av dem
+   er kritiske (kun oppfølging/manglende kontroll), vises panelet amber i
+   stedet. Hver enkelt linje i oppsummeringen var allerede riktig
+   fargekodet fra før (🟡 for mangler kontroll) — det var kun panelnivået
+   som var for aggressivt.
 6. **Kommende verkstedtimer** — kun neste 3 (ikke lange lister).
-7. **Bilparkhelse** — kompakt: kun tall og statusfarge (🟢🟡🟠🔴⚪), ingen
-   forklarende tekst.
-8. **Hurtighandlinger** — 4 registreringsknapper (kontroll/skade/verksted/ny
-   sak), alltid lett tilgjengelig.
-9. Biloversikt (filtrerbar, uendret) — hvert bilkort viser nå "Dagens
+7. **Biloversikt** (filtrerbar, uendret) — hvert bilkort viser "Dagens
    status" (`vehicleDagensStatus()`: kritisk sak > mangler kontroll >
-   verksted i dag > klar for drift) som hodechip, i stedet for den tidligere
-   rene kontrollert/ikke-kontrollert-chippen som den strengt utvider.
+   verksted i dag > klar for drift) som hodechip.
+
+**Fjernet i Optimalisering 15 (Dashboard Cleanup v2):**
+- **Bilparkhelse-panelet** i kroppen — flyttet opp i toppfeltet (se over).
+  Den gamle `bilparkhelse`-tellevariabelen (og dens `reserve:0`-initiering
+  fra Optimalisering 14) er fjernet fra `renderDashboard()` sammen med
+  panelet; toppfeltets versjon bruker en egen, enklere lokal telling siden
+  den kun trenger de fire hovedkategoriene (ikke reserve/ikke-kontrollert).
+- **"Bilgrupper"-hurtigkort** (`kategoriHurtigkort`, fra Optimalisering 8)
+  — samme navigasjon (Bilregister forhåndsfiltrert på kategori) finnes
+  allerede via ☰ Meny → Oversikter ▼ → Biloversikt; å vise den samme
+  navigasjonsveien to steder på Dashboard var unødvendig.
+- **"Hurtighandlinger"-panelet** (4 registreringsknapper) — samme
+  funksjoner nås allerede via toppfeltets "Kontroller • Registrer •
+  Reager"-undertekst, ⭐ Min bil, og de klikkbare Hovedstatus-/
+  Bilparkhelse-kortene selv.
+- **"Biler i drift nå"-panelet i kroppen er BEHOLDT** (kun antallet er
+  duplisert i toppfeltet nå) — panelet har genuint annen informasjon
+  (hvem kjører hvilken bil, ikke bare et tall), så dette regnes ikke som
+  dobbeltinformasjon i strid med prinsippet over.
 
 Ikke prioritert på Dashboard (finnes andre steder i appen): historikk,
-analyse, kostnader. Fjernet fra Dashboard i denne omgangen: den gamle
-5-korts stat-grid, egen "Kontrollstatus"-fremdriftsbar, "Eldste åpne
-saker"-panelet, kostnadskortene (Forventede kostnader/Avsettinger), og de 7
-gamle navigasjons-hurtiglenkene (fortsatt tilgjengelig via ☰ Meny).
+analyse, kostnader.
 
 ---
 
@@ -1118,6 +1157,21 @@ av dagen; ved neste dagskille (04:00) gjelder unntaket automatisk igjen
 — ingen egen "gå tilbake"-jobb, kun en konsekvens av at alt beregnes live
 mot samme dagskille som `isKontrollertIdag()` allerede bruker. Ingen nye
 felt, ingen ny registreringsflyt
+
+Optimalisering 15 (implementert)
+Dashboard Cleanup v2 — se "Dashboard Pro — struktur og prinsipp om ingen
+dobbeltinformasjon" over (oppdatert). "Bilparkhelse Status" og "Biler i
+drift nå" flyttet opp i det delte toppfeltet (kun på Dashboard-skjermen).
+Bilgrupper- og Hurtighandlinger-panelene fjernet (samme funksjoner nås
+allerede via ☰ Meny/toppfeltet/Min Bil). "Krever handling nå" er ikke
+lenger rødt bare fordi biler mangler kontroll — kun ekte kritiske
+forhold/ute av drift utløser rødt nå, resten gir amber. "Må gjøres i
+dag" bygget om fra én flat liste til tre uavhengig kollapsbare
+kategorier (Kritiske saker/Oppfølging i dag/Mangler kontroll), samtidig
+som to nå-redundante lister (separat "Mangler kontroll" og "Kritiske
+forhold") ble fjernet. "Mangler kontroll"-listen i Morgenvisning sortert
+med samme kanoniske Bilgruppe→Bilnummer-rekkefølge som resten av appen.
+Ingen nye felt, ingen nye moduler
 
 ---
 
