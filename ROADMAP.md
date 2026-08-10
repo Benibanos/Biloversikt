@@ -523,3 +523,39 @@ Innhold:
   kategoriene
 - Ingen nye moduler, ingen nye Airtable-tabeller, ingen nye rapporter
   eller analyser
+
+────────────────────────────
+
+✅ Prioritet 16
+Morgenvisning Compact
+
+Mål:
+Redusere scrolling og gjøre Morgenvisning til den viktigste operative
+seksjonen for dagens drift — driftskoordinator skal kunne åpne
+dashboardet kl. 06:00 og forstå dagens drift på under 10 sekunder.
+
+Innhold:
+- "Dagens situasjon" erstattet av kompakte to-verdiers rader ("✅ 14
+  Klare | ⚪ 2 Mangler", "🔧 1 Verksted | 📋 3 Oppfølging"), pluss en
+  tredje rad ("🚨 N Kritisk") kun når kritiske saker faktisk finnes
+- "Mangler kontroll" egen kollapsbar seksjon, gruppert etter bilgruppe
+  ved åpning (Montering/Budbiler/osv.)
+- "Oppfølging i dag" egen kollapsbar seksjon, én rad per bil med antall
+  aktive oppfølgingspunkter i parentes — ingen nye databasefelt, tallet
+  er utledet fra eksisterende data
+- "Verksted i dag" egen kollapsbar seksjon, sortert kronologisk
+  (tidligste time først)
+- "Kritiske forhold" egen kollapsbar seksjon, skjules helt når ingen
+  kritiske saker finnes
+- Alle fire seksjoner (unntatt Verksted i dag, som er tidssortert med
+  hensikt) bruker samme kanoniske Bilgruppe → Bilnummer-sortering som
+  Biloversikt/Aktive Saker/Dashboard for øvrig
+- Hver seksjon åpnes/lukkes uavhengig, kollapset som standard for minst
+  mulig scrolling
+- Erstatter Optimalisering 15 sin "Må gjøres i dag" (tre generiske
+  kategorier) med fire mer detaljerte, formålsbygde seksjoner
+- Dashboard-rekkefølgen (Header → Bilparkhelse/Hovedstatus →
+  Morgenvisning → Krever handling nå → resten) var allerede riktig fra
+  Optimalisering 15
+- Ingen nye databasetabeller, ingen nye rapporter, ingen nye
+  analysemotorer, ingen historiske visninger

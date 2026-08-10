@@ -121,6 +121,18 @@
   .shell-top-status-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
   .shell-top-status-item{cursor:pointer;white-space:nowrap;}
   .shell-top-drift{font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  /* Prioritet 16 (Morgenvisning Compact, Del 1): to nøkkeltall side ved side per rad i
+     stedet for fem separate bokser i et grid — halverer den vertikale plassen "Dagens
+     situasjon" tok fra før. */
+  .morgen-compact-grid{display:flex;flex-direction:column;gap:8px;}
+  .morgen-compact-row{
+    display:flex;align-items:center;gap:10px;
+    border:1.5px solid var(--line);border-radius:10px;padding:11px 14px;
+    font-weight:700;font-size:14px;
+  }
+  .morgen-compact-item{cursor:pointer;display:inline-flex;align-items:center;gap:5px;flex:1;min-width:0;}
+  .morgen-compact-sep{color:var(--line);font-weight:400;}
+  .morgen-compact-row-alert{border-color:var(--red);background:var(--red-soft);color:var(--red);}
   .datepicker-popup{
     position:absolute;width:min(300px,92vw);background:var(--surface);border:1.5px solid var(--line);
     border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:12px;z-index:300;
@@ -809,10 +821,13 @@ let dashGroupOpen = {bil:false, lastebil:false, montering:false, reserve:false};
 let dashBiloversiktApen = false;
 let dashBiloversiktFilter = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'kritisk' | 'ikke-kontrollert' | 'har-saker' | 'har-forfalt'
 let showDashBiloversiktFilterMeny = false;
-// Optimalisering 15 (Del 7-8): hvilke kategorier i "Må gjøres i dag" (Morgenvisning) som
-// er utvidet — Set av kategori-nøkler ('kritisk'/'oppfolging'/'mangler-kontroll'). Tom som
-// standard (alt kollapset) for minst mulig scrolling ved åpning av Dashboard.
-let morgenGjoresIDagApneKategorier = new Set();
+// Prioritet 16 (Morgenvisning Compact): hvilke av de fire Morgenvisning-seksjonene
+// ('mangler-kontroll'/'oppfolging'/'verksted'/'kritisk') som er utvidet. Tom som standard
+// (alt kollapset) for minst mulig scrolling ved åpning av Dashboard. Erstatter den
+// tidligere morgenGjoresIDagApneKategorier fra Optimalisering 15 sin "Må gjøres i dag" —
+// samme mønster, nye seksjonsnøkler siden "Må gjøres i dag" er erstattet av disse fire
+// mer detaljerte, formålsbygde seksjonene (se renderDashboard).
+let morgenSeksjonerApne = new Set();
 function toggleDashGroup(kat){
   dashGroupOpen[kat] = !dashGroupOpen[kat];
   render();
@@ -4286,21 +4301,33 @@ function renderDashboard(){
   // samme underliggende data som Krever handling nå/Bilparkhelse, kun filtrert til det
   // som er relevant AKKURAT I DAG (ingen historiske tall, se Dashboardregel).
   const morgenKlareBiler = totalVehicles - manglerKontrollCount;
-  // Optimalisering 15 (Del 6): samme kanoniske rekkefølge (Bilgruppe → Bilnummer) som
-  // sortedVehicles() allerede gir resten av appen — ingen tilfeldig/rå array-rekkefølge.
+  // Optimalisering 15 (Del 6) / Prioritet 16 (Del 6): samme kanoniske rekkefølge
+  // (Bilgruppe → Bilnummer) som sortedVehicles() allerede gir resten av appen — ingen
+  // tilfeldig/rå array-rekkefølge, i noen av de fire seksjonene under.
   const morgenManglerKontrollBiler = sortedVehicles(vehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)));
+  // Del 4: verksted i dag sorteres etter TIDSPUNKT (tidligste først) — bevisst forskjellig
+  // fra den generelle bil-sorteringen, siden en tidsplan er mer nyttig kronologisk enn
+  // etter bilnummer. Eksplisitt instruks i sjekklisten, overstyrer Del 6 for denne ene
+  // seksjonen.
   const morgenVerkstedIdagListe = verkstedtimer.filter(t => t.dato === today).sort((a,b) => (a.tidspunkt||'').localeCompare(b.tidspunkt||''));
   const morgenVerkstedIdagBilerCount = new Set(morgenVerkstedIdagListe.map(t => t.vehicleId)).size;
-  const morgenKritiskeForhold = kritiskeSakerAlle;
-  // Optimalisering 15 (Del 7-8): "Må gjøres i dag" gruppert i tre kollapsbare kategorier
-  // i stedet for én lang flat liste — gjenbruker samme dashKreverListe/sort-inndeling som
-  // "Krever handling nå" allerede beregner (sort -1/0 = ute av drift/kritisk, 1/2 =
-  // oppfølging forfalt/i dag, 3 = mangler kontroll), ingen egen, parallell logikk.
-  const gjoresIDagGrupper = [
-    {key:'kritisk', ikon:'🔴', label:'Kritiske saker', items: dashKreverListe.filter(i => i.sort === -1 || i.sort === 0)},
-    {key:'oppfolging', ikon:'🟠', label:'Oppfølging i dag', items: dashKreverListe.filter(i => i.sort === 1 || i.sort === 2)},
-    {key:'mangler-kontroll', ikon:'🟡', label:'Mangler kontroll', items: dashKreverListe.filter(i => i.sort === 3)},
-  ].filter(g => g.items.length > 0);
+  // Del 5: kritiske forhold, sortert i samme kanoniske bilrekkefølge som resten (Del 6) —
+  // fortsatt basert på kritiskeSakerAlle, ingen egen, parallell "kritisk"-beregning.
+  const morgenKritiskeForhold = kritiskeSakerAlle.slice().sort((a,b) => {
+    const va = sakVehicle(a), vb = sakVehicle(b);
+    if(!va || !vb) return 0;
+    const ca = KATEGORI_ORDER.indexOf(va.kategori), cb = KATEGORI_ORDER.indexOf(vb.kategori);
+    return ca !== cb ? ca - cb : ruteNumber(va) - ruteNumber(vb);
+  });
+  // Del 3: "Oppfølging i dag" gruppert PER BIL med antall aktive oppfølgingspunkter i
+  // parentes — gjenbruker eksisterende oppfolgingKreverHandlingSaker (samme datagrunnlag
+  // som "Krever handling nå" allerede bruker), kun omgruppert fra sak-liste til bil-liste
+  // med telling. Ingen nye databasefelt (per eksplisitt instruks) — tallet er utledet.
+  const morgenOppfolgingByVehicle = new Map();
+  oppfolgingKreverHandlingSaker.forEach(s => {
+    morgenOppfolgingByVehicle.set(s.vehicleId, (morgenOppfolgingByVehicle.get(s.vehicleId) || 0) + 1);
+  });
+  const morgenOppfolgingBiler = sortedVehicles(vehicles.filter(v => morgenOppfolgingByVehicle.has(v.id)));
   const nesteVerkstedtimerTop3 = nesteVerkstedtimerTop5.slice(0, 3);
   // Ny funksjon: Aktiv Biløkt — antall biler med en aktiv sjåfør akkurat nå.
   const bilerIDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
@@ -4403,56 +4430,93 @@ function renderDashboard(){
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:8px;">☀️ Morgenvisning</div>
 
-      <div class="ov-label" style="margin-bottom:8px;">Dagens situasjon</div>
-
-      <div class="ov-grid" style="margin-bottom:14px;">
-        <div class="ov-item" style="cursor:pointer;" data-stat-nav="kontrollert-idag"><span class="ov-label">✅ Biler klare</span><span class="ov-value">${morgenKlareBiler}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-stat-nav="mangler-kontroll"><span class="ov-label">⚪ Mangler kontroll</span><span class="ov-value">${morgenManglerKontrollBiler.length}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-quick-page="verksted"><span class="ov-label">🔧 Verksted i dag</span><span class="ov-value">${morgenVerkstedIdagBilerCount}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-quick-page="aktivesaker"><span class="ov-label">📋 Oppfølging i dag</span><span class="ov-value">${oppfolgingKreverHandlingSaker.length}</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-biloversikt-filter="kritisk"><span class="ov-label">🚨 Kritiske saker</span><span class="ov-value">${morgenKritiskeForhold.length}</span></div>
+      <div class="morgen-compact-grid">
+        <div class="morgen-compact-row">
+          <span class="morgen-compact-item" data-stat-nav="kontrollert-idag">✅ <b>${morgenKlareBiler}</b> Klare</span>
+          <span class="morgen-compact-sep">|</span>
+          <span class="morgen-compact-item" data-stat-nav="mangler-kontroll">⚪ <b>${morgenManglerKontrollBiler.length}</b> Mangler</span>
+        </div>
+        <div class="morgen-compact-row">
+          <span class="morgen-compact-item" data-quick-page="verksted">🔧 <b>${morgenVerkstedIdagBilerCount}</b> Verksted</span>
+          <span class="morgen-compact-sep">|</span>
+          <span class="morgen-compact-item" data-quick-page="aktivesaker">📋 <b>${oppfolgingKreverHandlingSaker.length}</b> Oppfølging</span>
+        </div>
+        ${morgenKritiskeForhold.length > 0 ? `
+        <div class="morgen-compact-row morgen-compact-row-alert">
+          <span class="morgen-compact-item" data-goto-biloversikt-filter="kritisk">🚨 <b>${morgenKritiskeForhold.length}</b> Kritisk</span>
+        </div>` : ''}
       </div>
 
-      <div class="ov-label" style="margin-bottom:8px;">📋 Må gjøres i dag</div>
-      ${dashKreverListe.length === 0 ? `<div class="empty-note" style="padding:4px 0;margin-bottom:14px;">✅ Ingenting krever handling akkurat nå.</div>` : `
-      <div class="acc-list" style="margin-bottom:14px;">
-        ${gjoresIDagGrupper.map(g => {
-          const apen = morgenGjoresIDagApneKategorier.has(g.key);
-          return `
-          <div class="acc-row ${apen ? 'expanded' : ''}">
-            <div class="acc-head" data-toggle-gjores-idag="${g.key}">
-              <div class="acc-head-left"><div class="flag-name">${g.ikon} ${g.label} (${g.items.length})</div></div>
-              <div class="acc-head-right"><span class="chevron">⌄</span></div>
-            </div>
-            ${apen ? `
-            <div class="acc-body">
-              <ul class="dmg-simple-list">
-                ${g.items.map(item => {
-                  const v = vehicles.find(x => x.id === item.vehicleId);
-                  // "Mangler kontroll"-gruppen beholder den mer direkte handlingen fra før
-                  // (rett til kontrollskjemaet), i stedet for den generelle sak/bilkort-
-                  // lenken resten av "Krever handling nå" bruker.
-                  const klikkAttr = g.key === 'mangler-kontroll' ? `data-goto-kontroll="${item.vehicleId}"` : (item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`);
-                  return `<li style="cursor:pointer;" ${klikkAttr}>
-                    <span class="dmg-simple-main">${item.ikon} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(item.aksjon)}</span>
-                  </li>`;
-                }).join('')}
-              </ul>
-            </div>` : ''}
-          </div>`;
-        }).join('')}
-      </div>`}
+      <div class="acc-list" style="margin-top:14px;">
+        <div class="acc-row ${morgenSeksjonerApne.has('mangler-kontroll') ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-morgen-seksjon="mangler-kontroll">
+            <div class="acc-head-left"><div class="flag-name">⚪ Mangler kontroll (${morgenManglerKontrollBiler.length})</div></div>
+            <div class="acc-head-right"><span class="chevron">⌄</span></div>
+          </div>
+          ${morgenSeksjonerApne.has('mangler-kontroll') ? `
+          <div class="acc-body">
+            ${morgenManglerKontrollBiler.length === 0 ? `<div class="empty-note">✅ Alle biler er kontrollert i dag.</div>` :
+            KATEGORI_ORDER.filter(k => morgenManglerKontrollBiler.some(v => v.kategori === k)).map(k => `
+            <div class="group-card-title" style="margin:10px 0 6px;font-size:12.5px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+            <ul class="dmg-simple-list" style="margin-bottom:6px;">
+              ${morgenManglerKontrollBiler.filter(v => v.kategori === k).map(v => `<li style="cursor:pointer;" data-goto-kontroll="${v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(v))}</span></li>`).join('')}
+            </ul>`).join('')}
+          </div>` : ''}
+        </div>
 
-      ${morgenVerkstedIdagListe.length > 0 ? `
-      <div class="ov-label" style="margin-bottom:8px;">🔧 Verksted i dag</div>
-      <ul class="dmg-simple-list" style="margin-bottom:14px;">
-        ${morgenVerkstedIdagListe.map(t => {
-          const tv = vtVehicle(t);
-          return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
-            <span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${esc(t.beskrivelse)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</span>
-          </li>`;
-        }).join('')}
-      </ul>` : ''}
+        <div class="acc-row ${morgenSeksjonerApne.has('oppfolging') ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-morgen-seksjon="oppfolging">
+            <div class="acc-head-left"><div class="flag-name">📋 Oppfølging i dag (${oppfolgingKreverHandlingSaker.length})</div></div>
+            <div class="acc-head-right"><span class="chevron">⌄</span></div>
+          </div>
+          ${morgenSeksjonerApne.has('oppfolging') ? `
+          <div class="acc-body">
+            ${morgenOppfolgingBiler.length === 0 ? `<div class="empty-note">✅ Ingen oppfølging krever handling i dag.</div>` : `
+            <ul class="dmg-simple-list">
+              ${morgenOppfolgingBiler.map(v => `<li style="cursor:pointer;" data-goto-bilkort="${v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(v))} (${morgenOppfolgingByVehicle.get(v.id)})</span></li>`).join('')}
+            </ul>`}
+          </div>` : ''}
+        </div>
+
+        <div class="acc-row ${morgenSeksjonerApne.has('verksted') ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-morgen-seksjon="verksted">
+            <div class="acc-head-left"><div class="flag-name">🔧 Verksted i dag (${morgenVerkstedIdagListe.length})</div></div>
+            <div class="acc-head-right"><span class="chevron">⌄</span></div>
+          </div>
+          ${morgenSeksjonerApne.has('verksted') ? `
+          <div class="acc-body">
+            ${morgenVerkstedIdagListe.length === 0 ? `<div class="empty-note">✅ Ingen verkstedtimer i dag.</div>` : `
+            <ul class="dmg-simple-list">
+              ${morgenVerkstedIdagListe.map(t => {
+                const tv = vtVehicle(t);
+                return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
+                  <span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${esc(t.beskrivelse)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</span>
+                </li>`;
+              }).join('')}
+            </ul>`}
+          </div>` : ''}
+        </div>
+
+        ${morgenKritiskeForhold.length > 0 ? `
+        <div class="acc-row ${morgenSeksjonerApne.has('kritisk') ? 'expanded' : ''}">
+          <div class="acc-head" data-toggle-morgen-seksjon="kritisk">
+            <div class="acc-head-left"><div class="flag-name" style="color:var(--red);">🚨 Kritiske forhold (${morgenKritiskeForhold.length})</div></div>
+            <div class="acc-head-right"><span class="chevron">⌄</span></div>
+          </div>
+          ${morgenSeksjonerApne.has('kritisk') ? `
+          <div class="acc-body">
+            <ul class="dmg-simple-list">
+              ${morgenKritiskeForhold.map(s => {
+                const v = sakVehicle(s);
+                return `<li style="cursor:pointer;" data-goto-sak="${s.id}">
+                  <span class="dmg-simple-main">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(sakKortOverskrift(s))}</span>
+                  <span class="badge overdue">Kritisk</span>
+                </li>`;
+              }).join('')}
+            </ul>
+          </div>` : ''}
+        </div>` : ''}
+      </div>
     </div>
 
     <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);background:var(--red-soft);' : (dashTotalHandlinger > 0 ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
@@ -4757,11 +4821,11 @@ function attachDashboardListeners(){
     dashBiloversiktApen = !dashBiloversiktApen;
     render();
   });
-  // Optimalisering 15 (Del 8): åpne/lukk hver kategori i "Må gjøres i dag" uavhengig.
-  document.querySelectorAll('[data-toggle-gjores-idag]').forEach(el => el.addEventListener('click', () => {
-    const key = el.dataset.toggleGjoresIdag;
-    if(morgenGjoresIDagApneKategorier.has(key)) morgenGjoresIDagApneKategorier.delete(key);
-    else morgenGjoresIDagApneKategorier.add(key);
+  // Prioritet 16 (Del 8): åpne/lukk hver av de fire Morgenvisning-seksjonene uavhengig.
+  document.querySelectorAll('[data-toggle-morgen-seksjon]').forEach(el => el.addEventListener('click', () => {
+    const key = el.dataset.toggleMorgenSeksjon;
+    if(morgenSeksjonerApne.has(key)) morgenSeksjonerApne.delete(key);
+    else morgenSeksjonerApne.add(key);
     render();
   }));
   document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {

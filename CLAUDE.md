@@ -214,27 +214,37 @@ Gjeldende struktur (topp til bunn, kropp):
    kommer først av alt, men er en annen, enda mer komprimert oppsummering).
 4. **Morgenvisning** — den primære, handlingsorienterte arbeidsseksjonen for
    dagens start. Viser kun det som krever handling i dag eller påvirker
-   dagens drift, aldri historiske data. To underseksjoner:
-   - *Dagens situasjon*: nøkkeltall (biler klare, mangler kontroll, verksted
-     i dag, oppfølging i dag, kritiske saker)
-   - *Må gjøres i dag* (Optimalisering 15, Del 7-8): IKKE lenger én lang
-     flat liste — tre uavhengig kollapsbare kategorier (🔴 Kritiske saker,
-     🟠 Oppfølging i dag, 🟡 Mangler kontroll; `gjoresIDagGrupper`, delt inn
-     etter samme `sort`-verdi `dashKreverListe` allerede bruker under
-     "Krever handling nå" — ingen egen, parallell logikk). Kollapset som
-     standard (`morgenGjoresIDagApneKategorier`, tom Set), hver kategori
-     åpnes/lukkes uavhengig av de andre. Viser HELE `dashKreverListe` (ikke
-     bare topp 5, siden gruppering+kollaps allerede holder scrollingen nede
-     uten behov for kunstig avkutting). "Mangler kontroll"-gruppen beholder
-     den mer direkte handlingen fra det tidligere, nå fjernede,
-     separate "Mangler kontroll"-listepanelet: trykk går rett til
-     kontrollskjemaet (`data-goto-kontroll`), ikke det generelle sak-/
-     bilkort-målet resten av gruppene bruker.
-   - *Verksted i dag*-listen og den tidligere separate "Kritiske
-     forhold"-listen er fjernet — begge dupliserte nå informasjon som
-     allerede er dekket av kategoriene over (verksted i dag-varsel dekkes
-     av "Kommende verkstedtimer" lenger ned; kritiske forhold dekkes av
-     den nye "🔴 Kritiske saker"-kategorien).
+   dagens drift, aldri historiske data. Omdesignet i Prioritet 16
+   ("Morgenvisning Compact") til to deler:
+   - **Kompakte nøkkeltall** (`.morgen-compact-grid`): to verdier side ved
+     side per rad ("✅ 14 Klare | ⚪ 2 Mangler", "🔧 1 Verksted |
+     📋 3 Oppfølging") i stedet for fem separate bokser i et grid —
+     halverer den vertikale plassen. En tredje rad ("🚨 N Kritisk", rød)
+     vises KUN når det faktisk finnes kritiske saker, ellers usynlig (tar
+     ingen plass).
+   - **Fire uavhengig kollapsbare seksjoner** (`morgenSeksjonerApne`, tom
+     Set = alt kollapset som standard, samme mønster som Optimalisering 15
+     sin nå erstattede "Må gjøres i dag"):
+     - *⚪ Mangler kontroll*: gruppert etter bilgruppe ved åpning (samme
+       `KATEGORI_ORDER`/`KATEGORI_GROUP_LABEL` som resten av appen), trykk
+       på en bil går rett til kontrollskjemaet (`data-goto-kontroll`).
+     - *📋 Oppfølging i dag*: én rad per bil med antall aktive
+       oppfølgingspunkter i parentes — `oppfolgingKreverHandlingSaker`
+       (samme datagrunnlag "Krever handling nå" bruker) telt per
+       `vehicleId` og vist som `Bil X (N)`. Ingen nye databasefelt — tallet
+       er utledet ved rendring.
+     - *🔧 Verksted i dag*: sortert etter TIDSPUNKT (tidligste først, ikke
+       bil-rekkefølge — eneste bevisste unntak fra Del 6, siden en
+       tidsplan er mer nyttig kronologisk).
+     - *🚨 Kritiske forhold*: vises kun når kritiske saker faktisk finnes,
+       ellers skjules HELE seksjonen (ikke bare tømmes).
+   - Alle biler i alle fire seksjonene sorteres med samme kanoniske
+     rekkefølge (Bilgruppe → Bilnummer) som `sortedVehicles()` gir resten
+     av appen, unntatt Verksted i dag (se over).
+   - **Erstatter** Optimalisering 15 sin "Må gjøres i dag" (tre generiske
+     kategorier basert på `dashKreverListe`/`aksjon`-feltet) — de fire nye
+     seksjonene er mer detaljerte og formålsbygde per innholdstype, og
+     ville dublisert hverandre om begge fantes samtidig.
 5. **Krever handling nå** — fortsatt en egen seksjon, samlet oppsummering
    (🔴 kritiske saker, ⛔ biler ute av drift ved behov, 🟠 oppfølginger i
    dag, 🟡 biler mangler kontroll, Totalt) + "Operativ arbeidsliste":
@@ -1172,6 +1182,21 @@ som to nå-redundante lister (separat "Mangler kontroll" og "Kritiske
 forhold") ble fjernet. "Mangler kontroll"-listen i Morgenvisning sortert
 med samme kanoniske Bilgruppe→Bilnummer-rekkefølge som resten av appen.
 Ingen nye felt, ingen nye moduler
+
+Prioritet 16 (implementert)
+Morgenvisning Compact — se "Morgenvisning" (punkt 4 i Dashboard Pro-
+strukturen) over. "Dagens situasjon" (fem separate bokser) erstattet av
+kompakte to-verdiers rader ("✅ 14 Klare | ⚪ 2 Mangler"), som halverer
+den vertikale plassen. "Må gjøres i dag" (Optimalisering 15) erstattet
+av fire uavhengig kollapsbare, formålsbygde seksjoner: Mangler kontroll
+(gruppert etter bilgruppe), Oppfølging i dag (antall oppfølgingspunkter
+per bil i parentes, utledet — ingen nye felt), Verksted i dag (sortert
+kronologisk, eneste bevisste unntak fra bil-sorteringsregelen), og
+Kritiske forhold (skjules helt når tom). Alt kollapset som standard for
+minst mulig scrolling. Dashboard-rekkefølgen (Header → Hovedstatus →
+Morgenvisning → Krever handling nå) var allerede riktig fra
+Optimalisering 15 og krevde ingen endring. Ingen nye felt, ingen nye
+moduler
 
 ---
 
