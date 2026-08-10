@@ -559,3 +559,74 @@ Innhold:
   Optimalisering 15
 - Ingen nye databasetabeller, ingen nye rapporter, ingen nye
   analysemotorer, ingen historiske visninger
+
+────────────────────────────
+
+✅ Prioritet 17
+Operativ Dashboard Compact
+
+Mål:
+Redusere scrolling, fjerne dobbeltinformasjon og gjøre dashboardet
+raskere å lese — driftskoordinator skal forstå hele dagens operasjon på
+under 5 sekunder.
+
+Innhold:
+- Hovedstatus- og Morgenvisning-kortene slått sammen til ett kort,
+  "🚦 Operativ Status" — begge viste tidligere store deler av den samme
+  informasjonen (mangler kontroll, oppfølging, kritisk, verksted)
+- Ny 2-kolonners oppsummering: Biler klare | Oppfølging i dag, Mangler
+  kontroll | Verksted i dag, og Kritisk sak (kun vist når det faktisk
+  finnes kritiske saker)
+- "Må gjøres i dag" (fra forrige runde) sine gjenværende detaljlister
+  (Oppfølging i dag, Kritiske forhold) fjernet — disse var i praksis bare
+  Aktive Saker vist på nytt. Erstattet av direkte navigasjon til Aktive
+  Saker med korrekt filter forhåndssatt
+- Ny "📋 Aktive saker: N →"-lenke som åpner Aktive Saker direkte
+- Verksted i dag flyttet til å stå foran Mangler kontroll i seksjonslisten
+- "Biler i drift nå" flyttet til samme rad som Bilparkhelse Status i
+  toppfeltet (samme høydenivå), i stedet for en egen linje ved siden av
+  menyknappen
+- Bilparkhelse Status sentrert i toppfeltet på desktop; forblir en
+  naturlig stablet vertikal liste på mobil
+- Menyknappen sitter fast på samme sted på alle skjermer i appen (ikke
+  flyttet ned under Bilparkhelse), for pålitelig gjenfinnbarhet uansett
+  hvilken side brukeren er på
+- Ingen nye databaserelasjoner, ingen nye rapporter, ingen nye analyser,
+  ingen nye dashboardsider
+
+────────────────────────────
+
+✅ Prioritet 18
+Serviceintervall basert på Kilometer
+
+Mål:
+Gjøre serviceoppfølging proaktiv i stedet for reaktiv — de fleste servicer
+utføres hos oss grunnet kilometerstand, ikke dato.
+
+Innhold:
+- Nytt felt `ServiceIntervallKm` (km) per bil, redigerbart av
+  administrator — bevisst ingen automatisk standardverdi, siden bilmerke
+  alene ikke er nok til å fastsette korrekt intervall
+- Servicehistorikk (dato, km, servicetype, verksted, kommentar) lagret via
+  samme `window.storage`/Settings-mønster som dekkhistorikk — ingen ny
+  Airtable-tabell
+- Neste service beregnes automatisk (siste service-km + intervall), men
+  KUN når begge finnes — mangler grunnlaget, vises eksplisitt "Serviceintervall
+  mangler" / "Siste service mangler" i stedet for en feilaktig beregning fra
+  0 km
+- Fem varslingsnivåer, live-beregnet: mangler grunnlag, grønn (>3000 km
+  igjen), gul (1001–3000), oransje (0–1000), rød (intervallet passert)
+- Ny "🔧 Kommende service" på Dashboard (kun gul/oransje/rød, sortert
+  rød→oransje→gul→minst km igjen), med separat lavmælt hint ved manglende
+  servicegrunnlag
+- Nye "Service"- og "Servicehistorikk"-seksjoner på Kjøretøyprofil,
+  inkludert registrering, redigering og sletting av serviceoppføringer
+  med kilometervalidering og dobbeltlagringsvern
+- Egen serviceindikator på Bilkort/Biloversikt/Dashboard — bevisst holdt
+  UTENFOR den eksisterende `vehicleHovedstatus()`-motoren for å unngå
+  regresjon i Bilstatus 2.0, Bilparkhelse, Krever handling nå og Aktive
+  Saker. Rød indikator betyr "Serviceintervall passert", ikke automatisk
+  kritisk/ute av drift
+- Service lagt til i den samlede Kjøretøyhistorikk-tidslinjen
+- Ett nytt felt på Vehicles (`ServiceIntervallKm`), ingen ny tabell, ingen
+  nye rapportmoduler, ingen nye dashboardsider (se AIRTABLE_MIGRATION.md)

@@ -85,6 +85,18 @@ startet, brukt til å avgjøre om biløkten hører til dagens operative dag, se
 `vehicleAktivSjafor()`). Samme forbehold om `storage.airtable.js` gjelder
 disse to feltene som feltene over.
 
+Lagt til i "Prioritet 18 — Serviceintervall basert på kilometer":
+`ServiceIntervallKm` (number — serviceintervall i kilometer, per bil,
+redigerbart av administrator i Kjøretøyprofil sin Service-seksjon. Bevisst
+**ingen automatisk standardverdi** — feltet står tomt til en administrator
+faktisk bekrefter riktig intervall for den konkrete bilen, siden bilmerke
+alene ikke er nok til å fastsette korrekt intervall). Kilometerstanden som
+brukes i alle serviceberegninger er fortsatt kun det eksisterende `KM`-
+feltet over — det er IKKE opprettet noe parallelt kilometerfelt for
+service. Samme forbehold om `storage.airtable.js` gjelder dette feltet som
+feltene over: legg til `ServiceIntervallKm` i Vehicles-delen av
+`LIST_TABLES`, samt selve kolonnen i Airtable-basen.
+
 Kontrollstatus (`isKontrollertIdag`) er UENDRET som konsept — ingen nye felt
 for dette — men selve "i dag"-grensen er flyttet fra midnatt til kl. 04:00
 (se `isoDateForOperationalDay()`/`todayISO()` i `index.html`), siden
@@ -209,6 +221,25 @@ store bilder i full oppløsning kan i sjeldne tilfeller sprenge denne. Appen
 komprimerer bilder før lagring, men vurder om bilder heller bør lagres et
 annet sted (f.eks. Airtable-vedleggsfelt eller ekstern bildehosting) om dere
 opplever feil ved lagring av bilder.
+
+**Servicehistorikk (Prioritet 18) lagres også gjennom Settings sin Key/
+Value-mekanisme**, under nøkkelen `servicehistorikk` — nøyaktig samme
+mønster som `dekkhistorikk` (dekkskiftelogg) allerede bruker, og altså
+**ikke** en egen Airtable-tabell. `Value` inneholder én JSON-array med ett
+element per serviceregistrering:
+`{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy,
+updatedAt}`. `vehicleId` er den primære koblingen til kjøretøyet (samme
+interne `AppId`-verdi som andre tabeller bruker for `VehicleId`) —
+registreringsnummer vises kun i brukergrensesnittet, aldri som eneste
+relasjon. Lastes/lagres via `window.storage.get/set('servicehistorikk',
+true)` i `index.html` (`loadAll()`/`saveServicehistorikk()`), på nøyaktig
+samme måte som de øvrige generiske listene i denne tabellen — **ingen
+endring i `storage.airtable.js` er nødvendig** for selve historikklisten,
+siden Settings-mekanismen allerede er generisk for enhver nøkkel. (Det nye
+`ServiceIntervallKm`-feltet på selve Vehicles-tabellen er et unntak fra
+dette — se Vehicles-avsnittet over, det krever den vanlige manuelle
+`LIST_TABLES`-oppdateringen siden det er et strukturert kolonnefelt, ikke
+en generisk nøkkel/verdi-post.)
 
 Feltnavnene med tekst-typer kan gjerne settes opp som Airtables "Single
 select" i stedet for ren tekst der det gir mening (f.eks. `Status`,

@@ -230,6 +230,21 @@ Lukket
 
 ---
 
+# Service
+
+De fleste servicer utføres grunnet kilometerstand.
+
+Ikke dato.
+
+Systemet varsler derfor før bilen passerer serviceintervallet, basert på
+kilometer — ikke etterpå.
+
+Mangler intervall eller siste service, sier systemet det tydelig.
+
+Det gjetter aldri.
+
+---
+
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.
