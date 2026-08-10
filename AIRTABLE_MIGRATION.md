@@ -168,14 +168,36 @@ format ÅÅÅÅ-MM, kun relevant når `RequiresProvision` er sann). Lagt til i
 "Optimalisering 3 — Kontrollsletting med full cleanup": `CreatedByControlId`
 (text — samme mønster som på Damages/WarningLights: peker på kontrollen som
 først opprettet saken, kun satt ved førstegangsopprettelse, brukt til å
-avgjøre hva "full cleanup" av en slettet kontroll skal fjerne)
+avgjøre hva "full cleanup" av en slettet kontroll skal fjerne). Lagt til i
+"Prioritet 12 — Sammenslåtte Kontrollavvik": `Avvik` (long text/JSON — liste
+over hvert enkelt avvik saken samler, kun brukt av saker opprettet fra en
+sjåførkontroll med 2+ nye varsellamper/kontrollavvik samtidig; se eget
+avsnitt under). `Status` sitt verdisett er utvidet med én ny verdi:
+`delvis-utfort` ("Delvis utført") — selve feltet er uendret (fortsatt ren
+tekst), kun hvilke ord appen kan skrive dit.
+
+**Nytt felt: `Avvik`** (JSON-array, ett element per avvik saken samler):
+`{id, caseType, sourceId, label, status, prioritet, createdAt, resolvedAt,
+linkedVtId, reportCount, lastReportedAt}` — `caseType` er `varsellampe`
+eller `kontrollavvik`, `status` er `aktiv` eller `utfort`, `linkedVtId`
+peker på hvilken verkstedtime (om noen) som skal/har behandlet akkurat
+dette avviket (uavhengig av sakens egen `LinkedVtId`, som fortsatt peker på
+den mest nylige/relevante verkstedtimen for saken som helhet). Feltet er
+KUN satt på saker opprettet fra en sjåførkontroll som rapporterte 2 eller
+flere nye varsellamper/kontrollavvik samtidig — alle andre saker (skade,
+manuelt opprettede, Aktiv Biløkt/Min Bil-hurtigregistreringer, og alle
+saker fra før denne endringen) har det tomt/udefinert, og appen leser dem
+identisk som før via `sakAvvikListe()` i `index.html`, som syntetiserer ett
+element fra sakens egne toppnivåfelt når `Avvik` mangler. **Ingen
+bulk-migrering av eksisterende data er nødvendig eller gjort** — gammel og
+ny datamodell lever side om side permanent.
 
 **⚠️ Manuelt steg gjenstår:** som ved tidligere feltendringer i denne
 sesjonen var ikke `storage.airtable.js` tilgjengelig, så feltmappingen der må
-oppdateres manuelt: legg til `CreatedByControlId` i AktiveSaker-delen av
-`LIST_TABLES` (samme mønster som feltet allerede har for Damages/
-WarningLights), samt selve kolonnen i Airtable-basen. Uten dette lagres
-feltet kun lokalt i appens minne inntil siden lastes på nytt.
+oppdateres manuelt: legg til `CreatedByControlId` OG `Avvik` i
+AktiveSaker-delen av `LIST_TABLES` (samme mønster som feltet allerede har
+for Damages/WarningLights), samt selve kolonnene i Airtable-basen. Uten
+dette lagres feltene kun lokalt i appens minne inntil siden lastes på nytt.
 
 **Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
 `Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)

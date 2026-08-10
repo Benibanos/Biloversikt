@@ -384,3 +384,43 @@ Innhold:
   problem, status, prioritet og registreringsdato synlig uten å åpne saken
 - Ren visnings-/layoutomlegging — ingen nye felt, ingen endringer i
   sakslogikk
+
+────────────────────────────
+
+✅ Prioritet 12
+Sammenslåtte Kontrollavvik
+
+Mål:
+Én kontroll skal som standard opprette én samlet aktiv sak per bil, i
+stedet for flere nesten identiske aktive saker. Redusere doble saker,
+støy, scrolling og manuell oppfølging.
+
+Avgrensning (bekreftet):
+Kun varsellamper og kontrollavvik FRA SAMME sjåførkontroll slås sammen.
+Dette gjelder ALDRI skader, manuelt opprettede saker, historiske saker,
+eller hendelser registrert fra Aktiv Biløkt/Min Bil — disse behandles
+fortsatt som egne saker, uendret.
+
+Innhold:
+- Én sjåførkontroll med flere nye varsellamper/kontrollavvik oppretter nå
+  ÉN aktiv sak for bilen, med hvert avvik som et eget sporet element
+  (`Avvik`-feltet)
+- Saksskort/gruppelister/Dashboard viser eksakt hvilke avvik som er aktive
+  ("Motorlampe + ABS" ved 2, "N avvik registrert" ved 3+)
+- Saksbehandling Wizard Steg 1 viser en avvik-sjekkliste (aktive/utførte)
+  i stedet for én problemlinje, med direkte "Marker utført" per avvik
+- Steg 3 (verkstedbestilling): administrator velger hvilke avvik som tas
+  med til verksted via avkrysningsbokser
+- Steg 4 (fullføring): kun de valgte/tilknyttede avvikene lukkes — resten
+  forblir aktive. Ny status "Delvis utført" — saken hopper ALDRI tilbake
+  til "Vurderes" bare fordi noen avvik er utført mens andre gjenstår
+- Saken kan først lukkes når alle avvik er utført eller markert utført
+- Bilstatus fungerer uendret: sakens prioritet er alltid det alvorligste
+  AKTIVE avviket ("verste vinner"), automatisk oppdatert — ikke
+  automatisk nedjustert når det alvorligste avviket løses (unngår å
+  overstyre en administrators manuelle prioritetsvurdering)
+- Historikken er uendret — hvert avvik logges fortsatt separat, kun selve
+  oppfølgingen (sak-objektet) er samlet
+- Ett nytt felt på AktiveSaker: `Avvik` (JSON) — ingen ny tabell, ingen
+  parallell saksmodell, full bakoverkompatibilitet med eksisterende data
+  uten noen migrering (se AIRTABLE_MIGRATION.md)

@@ -120,6 +120,9 @@ Tiltak planlagt
 ↓
 Verksted bestilt
 ↓
+Delvis utført (kun flerpunkts saker med gjenstående avvik — se
+"Prioritet 12 — Sammenslåtte Kontrollavvik")
+↓
 Utført
 ↓
 Lukket
@@ -685,6 +688,120 @@ linjene ("N aktive saker totalt" og "N saker vist").
 
 ---
 
+# Prioritet 12 — Sammenslåtte Kontrollavvik
+
+Én sjåførkontroll som rapporterer flere varsellamper/kontrollavvik samtidig
+gir nå ÉN aktiv sak for bilen (med alle avvikene som egne elementer i den),
+i stedet for én sak per avvik. Bygget videre på eksisterende `AktiveSaker`
+— ett nytt felt (`Avvik`, se AIRTABLE_MIGRATION.md), ingen ny tabell, ingen
+parallell saksmodell.
+
+**Avgrensning (bekreftet eksplisitt):** kun varsellampe + kontrollavvik
+FRA SAMME kontrollinnsending slås sammen. Dette gjelder ALDRI: skader
+(egen struktur/flyt, uendret), manuelt opprettede saker
+(`+ Ny sak`, uendret), historiske saker (leses via bakoverkompatibel
+fallback, aldri migrert), eller hendelser fra Aktiv Biløkt/Min Bil (bruker
+fortsatt `registrerAvvikSomSak()` ett avvik om gangen, uendret — se under).
+En SENERE, separat kontroll starter alltid sin egen nye sak for genuint nye
+avvik; den henter ALDRI inn i en allerede eksisterende sak fra en tidligere
+kontroll. Kun et EKSAKT duplikat av et allerede aktivt avvik (uansett hvor
+det bor — flerpunkts sak eller eldre enkeltavvik-sak) bumper det
+eksisterende i stedet for å opprette noe nytt (`finnAktivSakMedAvvik()`,
+brukt av begge opprettelsesveiene).
+
+**Datamodell:** `sak.avvik` (kun satt på nye, flerpunkts kontroll-saker) er
+en liste av `{id, caseType, sourceId, label, status: 'aktiv'|'utfort',
+prioritet, createdAt, resolvedAt, linkedVtId, reportCount,
+lastReportedAt}`. All visningskode leser ALLTID via `sakAvvikListe(s)`, som
+returnerer `sak.avvik` når det finnes, og ellers syntetiserer ETT element
+fra sakens egne toppnivåfelt (`caseType`/`sourceId`/`status`/`priority`
+osv.) — dette er hvordan skade/manuelle/Min Bil-saker OG all eldre data fra
+før denne endringen fortsetter å fungere helt uendret, uten noen
+bulk-migrering. `sakAvvikAktive()`/`sakAvvikUtforte()` filtrerer denne
+listen; `sakAlleAvvikFerdig()` = ingen aktive igjen.
+
+**Opprettelse** (`registrerKontrollAvvikSomSak()`, kalt ÉN gang fra
+`submitKontroll()` med alle nye varsellamper+kontrollavvik fra
+innsendingen som ett batch-kall): finner et avvik ingen match blant åpne
+saker på bilen → legges til i ÉN sak som opprettes for DENNE
+kontrollen (kun første nye avvik oppretter saken, resten legges inn i
+`avvik[]`). Finnes avviket allerede aktivt et sted → bumper `reportCount`/
+historikk der, oppretter ingenting nytt. Sakens `Priority` settes til
+`max(gjeldende, ny-avvik-type sin standardprioritet)`
+(`SAK_PRIORITET_RANK`) — ALDRI automatisk nedjustert, verken ved
+opprettelse eller senere når avvik løses, slik at en administrator sin
+manuelle prioritetsjustering (Steg 2) aldri overstyres stille. Skade bruker
+fortsatt den uendrede `registrerAvvikSomSak()` (nå med bredere
+duplikatsøk via `finnAktivSakMedAvvik()`, som også finner avvik inni en
+flerpunkts sak — ikke bare i en sak sine egne toppnivåfelt — slik at Min
+Bil/skade-hendelser aldri dupliserer noe en kontroll-sak allerede sporer).
+
+**Visning:** `sakKortOverskrift(s)` (sakskort/gruppelister/Dashboard/
+Kjøretøyprofil) generalisert til å bruke `sakAvvikAktive(s)`: ett aktivt
+avvik → vis det alene, nøyaktig 2 → "A + B", 3 eller flere → "N avvik
+registrert" — fungerer nå likt på tvers av varsellampe+kontrollavvik
+blandet, ikke bare varsellamper som før (Optimalisering 11). Steg 1 i
+wizarden viser en avvik-sjekkliste (🟠 aktiv / ✅ utført, delt i "Aktive
+avvik"/"Utførte avvik" når begge finnes) i stedet for én problemlinje, med
+en direkte "Marker utført"-handling per aktivt avvik
+(`markerAvvikUtfort()`) — dekker "eksplisitt lukket eller avvist" uten å
+kreve verksted for hvert lite avvik. Enkeltavvik-saker (skade, manuell,
+Min Bil, eldre data) er visningsmessig HELT uendret.
+
+**Selektiv verkstedkobling (Steg 3):** har saken 2+ aktive avvik, viser
+`sakWizardVtFormHtml()` en avkrysningsboks per avvik ("Avvik som tas med
+til verksted", alle haket av som standard). `submitAddVT()` setter
+`avvikItem.linkedVtId` KUN på de valgte avvikene — resten forblir aktive
+og upåvirket. Sakens egen `LinkedVtId` (toppnivå) settes fortsatt alltid,
+uendret — den representerer "mest nylige/relevante verkstedtime for
+saken", mens `avvik[].linkedVtId` representerer "hvilken verkstedrunde
+løser akkurat DETTE avviket". Skjemaet på Verkstedoversikt (uten
+sakstilknytning) er helt uendret — ingen avkrysningsbokser der.
+
+**Selektiv fullføring (Steg 4) — kjerneregelen:** når resultat/utført
+dato/sluttkommentar lagres, fullføres KUN avvikene som er koblet til
+sakens gjeldende `LinkedVtId` (`submitSakWizardFullfor()`). Står ett eller
+flere avvik fortsatt aktive: saken hopper ALDRI tilbake til "Vurderes" —
+den er jo allerede vurdert og under behandling. I stedet settes den til
+den nye statusen **"Delvis utført"** (`delvis-utfort`, lagt til i
+`SAK_STATUS_ORDER`/`SAK_STATUS_LABEL`, mellom "Utført - venter
+bekreftelse" og "Utført"). "Lukk saken" er blokkert med en tydelig
+feilmelding (som lister hvilke avvik som gjenstår) helt til
+`sakAlleAvvikFerdig()` er sann — saken kan først lukkes når ALLE avvik er
+utført (via verksted ELLER "Marker utført" i Steg 1).
+`sakOppdaterStatusEtterAvvik()` er den delte rekalkuleringslogikken
+(brukt av både Steg 4 og `markerAvvikUtfort()`): alle avvik utført → status
+"Utført" (samme sti som en enkeltavvik-sak alltid har hatt); noen gjenstår
+→ "Delvis utført", MEN kun dersom saken allerede har kommet forbi de tidlige
+stegene (verksted bestilt eller senere) — en sak fortsatt i "Ny"/"Vurderes"/
+"Tiltak planlagt" med ett gjenstående avvik endrer ikke status ved dette,
+siden "delvis utført" ikke gir mening før noe faktisk har blitt utført.
+
+**Bevisst IKKE nedjustert:** `Priority` rekalkuleres aldri nedover når det
+alvorligste avviket i en sak blir løst (f.eks. Motorlampe (Høy) utført,
+kun Slitte dekk (Normal) gjenstår — saken beholder Høy). Dette unngår å
+stille overstyre en administrators manuelle prioritetsvurdering; ønsket
+nedjustering gjøres fortsatt manuelt via Steg 2, akkurat som før.
+
+**Bilstatus/Dashboard/Bilparkhelse/Krever handling nå/Morgenvisning/Må
+gjøres i dag — INGEN endringer nødvendig.** `vehicleHovedstatus()`/
+`vehicleSakStatus()`/`sakKreverHandling()` leser allerede utelukkende
+sakens EGNE `priority`/`status`-felt (aldri enkeltavvik direkte), og disse
+holdes riktige automatisk av opprettelses-/fullføringslogikken over — "det
+alvorligste avviket vinner" virker dermed helt av seg selv, uten
+spesialtilfelle i noen av statusfunksjonene. `sakKreverHandling()` fikk
+kun `delvis-utfort` lagt til i listen over statuser som alltid krever
+handling (samme mønster som `ny`/`vurderes`/
+`utfort-venter-bekreftelse` fra før).
+
+**Historikk uendret.** `sak.historikk` (observasjonslogg) fortsetter å
+logge hvert avvik separat akkurat som før — kun selve OPPFØLGINGEN
+(sak-objektet de tilhører) er samlet. Kjøretøyhistorikk-tidslinjen på
+Kjøretøyprofil bygger fra kontroller/skader/varsellamper/verkstedtimer
+direkte, ikke fra `aktiveSaker`, og er upåvirket.
+
+---
+
 # Nåværende utviklingsplan
 
 Fase 1
@@ -843,6 +960,21 @@ midt i kortet. "+ Ny sak" flyttet opp til samme rad som "← Tilbake".
 Tellingene ("N aktive saker totalt" / "N saker vist") slått sammen til
 én linje ("N / M aktive saker"). Ren visnings-/layoutomlegging — ingen
 nye felt, ingen endringer i sakslogikk
+
+Prioritet 12 (implementert)
+Sammenslåtte Kontrollavvik — se "Prioritet 12 — Sammenslåtte
+Kontrollavvik" over. Én sjåførkontroll med flere varsellamper/
+kontrollavvik samtidig gir nå ÉN aktiv sak med alle avvikene som egne
+elementer, i stedet for én sak per avvik. Avgrensning: kun avvik fra
+SAMME kontroll slås sammen — skade, manuelle saker, historiske saker og
+Aktiv Biløkt/Min Bil-hendelser er uendret. Ny status "Delvis utført" —
+saken hopper aldri tilbake til "Vurderes" når noen avvik er utført mens
+andre gjenstår. Selektiv verkstedkobling (Steg 3) og selektiv
+fullføring (Steg 4), direkte "Marker utført" per avvik i Steg 1. Ett
+nytt felt: `Avvik` (JSON) på AktiveSaker (se AIRTABLE_MIGRATION.md) —
+ingen ny tabell, full bakoverkompatibilitet med all eksisterende data
+uten migrering. Bilstatus/Dashboard/Bilparkhelse fungerer uendret siden
+de kun leser sakens egne prioritet/status-felt
 
 ---
 

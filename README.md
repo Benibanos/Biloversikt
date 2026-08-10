@@ -192,6 +192,10 @@ Klokken 04:00:
 
 Ingen registrerte feil skal kunne bli glemt.
 
+Én kontroll med flere avvik gir én samlet sak per bil.
+
+Ikke én sak per avvik.
+
 Sakslivssyklus:
 
 Registrert
@@ -201,6 +205,8 @@ Vurderes
 Tiltak planlagt
 ↓
 Verksted bestilt
+↓
+Delvis utført (flere avvik, ikke alle ferdig ennå)
 ↓
 Utført
 ↓

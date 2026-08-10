@@ -935,13 +935,18 @@ let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut var
 const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
-const SAK_STATUS_ORDER = ['ny', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'utfort', 'lukket'];
-const SAK_STATUS_LABEL = {'ny':'Ny', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'utfort':'Utført', 'lukket':'Lukket'};
+const SAK_STATUS_ORDER = ['ny', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'delvis-utfort', 'utfort', 'lukket'];
+const SAK_STATUS_LABEL = {'ny':'Ny', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'lukket':'Lukket'};
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
 const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
 const SAK_PRIORITET_ORDER = ['kritisk', 'hoy', 'normal', 'lav'];
 const SAK_PRIORITET_LABEL = {kritisk:'Kritisk', hoy:'Høy', normal:'Normal', lav:'Lav'};
 const SAK_PRIORITET_IKON = {kritisk:'🔴', hoy:'🟠', normal:'🟡', lav:'🟢'};
+// Prioritet 12 (Sammenslåtte Kontrollavvik): numerisk rangering brukt til å beregne en
+// samlet saks prioritet som ALLTID = det alvorligste AKTIVE avviket i den ("verste vinner"),
+// uten å noensinne nedjustere en prioritet en administrator har satt manuelt (se
+// registrerKontrollAvvikSomSak/markerAvvikUtfort).
+const SAK_PRIORITET_RANK = {lav:0, normal:1, hoy:2, kritisk:3};
 function sakErApen(s){ return s.status !== 'lukket'; }
 // Fase 5 — Oppfølgingsmotor: automatisk oppfølgingsstatus ut fra oppfølgingsdato.
 // 'forfalt' = passert, 'idag' = forfaller i dag, 'snart' = innen 3 dager,
@@ -964,7 +969,7 @@ const SAK_OPPFOLGING_BADGE = {forfalt:'overdue', idag:'oppf-idag', snart:'soon',
 // bekreftelse — se Fase 5-spesifikasjonen ("ingen aktive saker skal kunne bli glemt").
 function sakKreverHandling(s){
   if(!sakErApen(s)) return false;
-  if(s.status === 'ny' || s.status === 'vurderes' || s.status === 'utfort-venter-bekreftelse') return true;
+  if(s.status === 'ny' || s.status === 'vurderes' || s.status === 'utfort-venter-bekreftelse' || s.status === 'delvis-utfort') return true;
   if(!s.nextAction || !s.followUpDate) return true;
   const op = sakOppfolgingStatus(s);
   return op === 'forfalt' || op === 'idag';
@@ -1091,45 +1096,198 @@ function nesteSakId(){
   return 'SAK-' + String(maks + 1).padStart(4, '0');
 }
 // ---- Fase 2: automatisk opprettelse av Aktive Saker med duplikatkontroll ----
-// Kalles fra sjåførkontroll (varsellamper, kontrollavvik) og skaderegistrering.
-// Synkron og lagrer IKKE selv — kalleren samler flere kall og kjører
-// saveAktiveSaker() én gang til slutt, slik at flere avvik i samme
-// innsending ikke gir unødvendig mange separate skrivinger.
-// Duplikatkontroll: matcher på vehicleId + caseType + sourceId blant ÅPNE
-// saker. Finnes en match fra før økes reportCount og observasjonen legges i
-// historikken i stedet for å opprette en ny sak (se "Bil 7 mandag/tirsdag/
-// onsdag"-eksempelet). For skader er sourceId alltid unik (damage-id), så
-// hver skade får naturlig sin egen sak uten spesialtilfelle.
+// Kalles fra skaderegistrering og Aktiv Biløkt/Min Bil sine hurtigregistreringer (ett
+// avvik/hendelse om gangen — se avgrensningen i "Prioritet 12" under: disse skal ALDRI
+// slås sammen til en flerpunkts sak, i motsetning til registrerKontrollAvvikSomSak).
+// Synkron og lagrer IKKE selv — kalleren kjører saveAktiveSaker() selv.
+// Duplikatkontroll: matcher på vehicleId + caseType + sourceId blant ÅPNE saker — nå via
+// finnAktivSakMedAvvik(), som også finner avviket dersom det ligger som ett element inne
+// i en flerpunkts kontroll-sak (Prioritet 12), ikke bare i sakens egne toppnivåfelt. Finnes
+// en match fra før økes rapporttelleren og observasjonen legges i historikken i stedet for
+// å opprette en ny sak (se "Bil 7 mandag/tirsdag/onsdag"-eksempelet). For skader er sourceId
+// alltid unik (damage-id), så hver skade får naturlig sin egen sak uten spesialtilfelle.
 function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, prioritet, reportedBy, reportedAt, kommentar, controlId}){
   const now = new Date().toISOString();
-  let sak = aktiveSaker.find(s => s.vehicleId === vehicleId && s.caseType === caseType && s.sourceId === sourceId && sakErApen(s));
   const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: kommentar || ''};
-  if(sak){
-    sak.reportCount = (sak.reportCount || 1) + 1;
-    sak.lastReportedAt = now;
+  const eksisterende = finnAktivSakMedAvvik(vehicleId, caseType, sourceId);
+  if(eksisterende){
+    const {sak, avvikItem} = eksisterende;
+    if(avvikItem){
+      avvikItem.reportCount = (avvikItem.reportCount || 1) + 1;
+      avvikItem.lastReportedAt = now;
+    } else {
+      sak.reportCount = (sak.reportCount || 1) + 1;
+      sak.lastReportedAt = now;
+    }
     sak.updatedAt = now;
     if(!Array.isArray(sak.historikk)) sak.historikk = [];
     sak.historikk.push(historikkOppforsel);
-  } else {
-    const v = vehicles.find(x => x.id === vehicleId);
-    sak = {
-      id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
-      caseType, title: tittel, description: beskrivelse, status: 'ny', priority: prioritet,
-      sourceType: 'auto', sourceId,
-      reportedBy: reportedBy || 'Ukjent', reportedAt,
-      assignedTo: '', nextAction: '', followUpDate: null,
-      resolvedAt: null, resolvedBy: null, resolutionNote: '',
-      reportCount: 1, lastReportedAt: now,
-      historikk: [historikkOppforsel],
-      // Optimalisering 3 — Kontrollsletting: peker på kontrollen som først opprettet
-      // saken (kun satt ved førstegangsopprettelse, akkurat som på damages/varsellys),
-      // brukes til å avgjøre hva "full cleanup" av en slettet kontroll skal fjerne.
-      createdByControlId: controlId || null,
-      createdAt: now, updatedAt: now
-    };
-    aktiveSaker.push(sak);
+    return sak;
   }
+  const v = vehicles.find(x => x.id === vehicleId);
+  const sak = {
+    id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
+    caseType, title: tittel, description: beskrivelse, status: 'ny', priority: prioritet,
+    sourceType: 'auto', sourceId,
+    reportedBy: reportedBy || 'Ukjent', reportedAt,
+    assignedTo: '', nextAction: '', followUpDate: null,
+    resolvedAt: null, resolvedBy: null, resolutionNote: '',
+    reportCount: 1, lastReportedAt: now,
+    historikk: [historikkOppforsel],
+    // Optimalisering 3 — Kontrollsletting: peker på kontrollen som først opprettet
+    // saken (kun satt ved førstegangsopprettelse, akkurat som på damages/varsellys),
+    // brukes til å avgjøre hva "full cleanup" av en slettet kontroll skal fjerne.
+    createdByControlId: controlId || null,
+    createdAt: now, updatedAt: now
+  };
+  aktiveSaker.push(sak);
   return sak;
+}
+// ==================== Prioritet 12 — Sammenslåtte Kontrollavvik ====================
+// Én sjåførkontroll som rapporterer flere varsellamper/kontrollavvik samtidig skal gi ÉN
+// aktiv sak for bilen, med hvert avvik som et eget element i sak.avvik — ikke én sak per
+// avvik. Avgrensning (bekreftet eksplisitt): kun varsellampe+kontrollavvik FRA SAMME
+// kontrollinnsending slås sammen. Skader, manuelle saker, historiske saker, og hendelser
+// fra Aktiv Biløkt/Min Bil (som fortsatt bruker registrerAvvikSomSak ett avvik om gangen,
+// se over) skal ALDRI slås sammen — dette er sikret ved at kun submitKontroll sitt EGET,
+// ene kall til registrerKontrollAvvikSomSak() nedenfor kan opprette en flerpunkts sak; alle
+// andre innganger (skade, Min Bil) fortsetter uendret på registrerAvvikSomSak().
+
+// Menneskelesbar etikett for én avvik-type, uavhengig av om den ligger i en flerpunkts
+// sak sitt avvik[]-element eller må utledes fra en gammel enkeltavvik-sak sine toppnivåfelt
+// (se sakAvvikListe). Samme oppslag som sakProblemLabel() alltid har brukt.
+function avvikTypeLabel(caseType, sourceId, annetTekst){
+  if(caseType === 'varsellampe'){
+    if(sourceId === 'annet') return (annetTekst || '').trim() || VARSELLAMPE_LABEL.annet;
+    return VARSELLAMPE_LABEL[sourceId] || 'Varsellampe';
+  }
+  if(caseType === 'kontrollavvik') return KONTROLLAVVIK_LABEL[sourceId] || 'Kontrollavvik';
+  return null;
+}
+// Full avvik-liste for en sak, uansett om den er en NY flerpunkts kontroll-sak (har
+// sak.avvik) eller en ELDRE/enkeltavvik-sak (skade, manuell, Min Bil, eller data fra før
+// Prioritet 12) — disse har ikke feltet, så ETT element syntetiseres fra sakens egne
+// toppnivåfelt ved lesing. All visningskode (Steg 1, sakskort, gruppeoverskrifter) skal
+// alltid gå via denne funksjonen i stedet for å lese sak.avvik direkte, slik at gammel og
+// ny datamodell fungerer identisk uten noen bulk-migrering av eksisterende Airtable-data.
+function sakAvvikListe(s){
+  if(Array.isArray(s.avvik) && s.avvik.length > 0) return s.avvik;
+  return [{
+    id: s.id, caseType: s.caseType, sourceId: s.sourceId, label: sakProblemLabel(s),
+    status: (s.status === 'lukket' || s.status === 'utfort') ? 'utfort' : 'aktiv',
+    prioritet: s.priority, createdAt: s.createdAt, resolvedAt: s.resolvedAt,
+    linkedVtId: s.linkedVtId || null, reportCount: s.reportCount, lastReportedAt: s.lastReportedAt
+  }];
+}
+function sakAvvikAktive(s){ return sakAvvikListe(s).filter(a => a.status === 'aktiv'); }
+function sakAvvikUtforte(s){ return sakAvvikListe(s).filter(a => a.status !== 'aktiv'); }
+// Finner en ÅPEN sak på bilen som allerede har dette spesifikke avviket AKTIVT — enten
+// som ett element i en flerpunkts sak sitt avvik[], eller (eldre data/skade/manuell) i
+// sakens egne toppnivåfelt. Brukt av BÅDE registrerAvvikSomSak (Min Bil/skade) OG
+// registrerKontrollAvvikSomSak (kontrollskjema) for å unngå duplikatsporing av det samme
+// avviket to steder, uansett hvilken vei det kommer inn.
+function finnAktivSakMedAvvik(vehicleId, caseType, sourceId){
+  const sak = aktiveSaker.find(s => s.vehicleId === vehicleId && sakErApen(s) &&
+    sakAvvikListe(s).some(a => a.caseType === caseType && a.sourceId === sourceId && a.status === 'aktiv'));
+  if(!sak) return null;
+  const avvikItem = Array.isArray(sak.avvik) && sak.avvik.length > 0
+    ? sak.avvik.find(a => a.caseType === caseType && a.sourceId === sourceId && a.status === 'aktiv')
+    : null; // null = eldre enkeltavvik-sak, bump skjer på toppnivåfeltene i stedet
+  return {sak, avvikItem};
+}
+// Batch-opprettelse fra ÉN sjåførkontroll: avvikListe er alle NYE varsellamper/
+// kontrollavvik fra DENNE innsendingen (ikke skade). Avvik som allerede er aktive et
+// annet sted (uansett kilde) bumpes der de bor i stedet for å dupliseres. Genuint nye
+// avvik fra DENNE kontrollen samles i ÉN sak — kun én ny sak opprettes per kontroll,
+// uansett hvor mange nye avvik som rapporteres samtidig. En SENERE, separat kontroll
+// (eller Min Bil) starter alltid sin egen nye sak for nye avvik — den henter ALDRI inn i
+// en allerede eksisterende sak fra en tidligere kontroll (kun eksakte duplikater av et
+// allerede aktivt avvik bumpes, se over).
+function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
+  const {reportedBy, reportedAt, controlId, kommentar} = opts;
+  const now = new Date().toISOString();
+  let nySak = null;
+  avvikListe.forEach(({caseType, sourceId, label, prioritet}) => {
+    // Historikk-kommentaren inneholder alltid selve avvik-etiketten (f.eks. "Motorlampe")
+    // først, slik at hver observasjonslinje er identifiserbar selv når saken har flere
+    // avvik — samme mønster som før Prioritet 12, kun bygget fra avvik-elementets egen
+    // label i stedet for en hardkodet per-kall streng.
+    const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: label + (kommentar ? ' · ' + kommentar : '')};
+    const eksisterende = finnAktivSakMedAvvik(vehicleId, caseType, sourceId);
+    if(eksisterende){
+      const {sak, avvikItem} = eksisterende;
+      if(avvikItem){ avvikItem.reportCount = (avvikItem.reportCount||1)+1; avvikItem.lastReportedAt = now; }
+      else { sak.reportCount = (sak.reportCount||1)+1; sak.lastReportedAt = now; }
+      sak.updatedAt = now;
+      if(!Array.isArray(sak.historikk)) sak.historikk = [];
+      sak.historikk.push(historikkOppforsel);
+      return;
+    }
+    if(!nySak){
+      const v = vehicles.find(x => x.id === vehicleId);
+      nySak = {
+        id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
+        caseType, title: label, description: 'Automatisk generert fra kontrollregistrering.',
+        status: 'ny', priority: prioritet, sourceType: 'auto', sourceId,
+        reportedBy: reportedBy || 'Ukjent', reportedAt,
+        assignedTo: '', nextAction: '', followUpDate: null,
+        resolvedAt: null, resolvedBy: null, resolutionNote: '',
+        reportCount: 1, lastReportedAt: now,
+        historikk: [historikkOppforsel],
+        avvik: [{id: uid(), caseType, sourceId, label, status: 'aktiv', prioritet, createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now}],
+        createdByControlId: controlId || null,
+        createdAt: now, updatedAt: now
+      };
+      aktiveSaker.push(nySak);
+    } else {
+      nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', prioritet, createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now});
+      if(SAK_PRIORITET_RANK[prioritet] > SAK_PRIORITET_RANK[nySak.priority]) nySak.priority = prioritet;
+      nySak.updatedAt = now;
+      if(!Array.isArray(nySak.historikk)) nySak.historikk = [];
+      nySak.historikk.push(historikkOppforsel);
+    }
+  });
+  return nySak;
+}
+// Merker ett enkelt avvik i en sak som utført UTEN verksted (f.eks. "ikke reelt"/løst på
+// annen måte) — dekker sjekklistens "eksplisitt lukket eller avvist". Flerpunkts saker:
+// oppdaterer avvik-elementet og rekalkulerer sakens status (se sakOppdaterStatusEtterAvvik).
+// Eldre enkeltavvik-saker: ingen avvik[] å endre på — bruk den vanlige wizard-lukkingen
+// (Steg 4) for disse i stedet, som før.
+function markerAvvikUtfort(sakId, avvikId){
+  const sak = aktiveSaker.find(s => s.id === sakId);
+  if(!sak || !Array.isArray(sak.avvik)) return;
+  const item = sak.avvik.find(a => a.id === avvikId);
+  if(!item || item.status !== 'aktiv') return;
+  item.status = 'utfort';
+  item.resolvedAt = todayISO();
+  sak.updatedAt = new Date().toISOString();
+  sakOppdaterStatusEtterAvvik(sak);
+}
+// Rekalkulerer en flerpunkts sak sin overordnede status etter at ett eller flere avvik er
+// merket utført (fra verksted-fullføring ELLER markerAvvikUtfort direkte). Kjerneregelen
+// fra "Prioritet 12": saken skal ALDRI hoppe tilbake til "Vurderes" bare fordi noen avvik
+// er ferdige — den er jo allerede vurdert og under behandling. I stedet: står ett eller
+// flere avvik fortsatt aktive → status blir "Delvis utført" (med mindre saken er tidligere
+// i sin egen livssyklus enn det — se under). Står ALLE avvik som utført → status kan gå
+// videre til "Utført" (samme sti som den vanlige wizard-lukkingen alltid har brukt).
+// Berører kun saker med sak.avvik (flerpunkts) — enkeltavvik-saker er uendret, styres
+// fortsatt utelukkende av submitSakWizardFullfor som før.
+function sakOppdaterStatusEtterAvvik(sak){
+  if(!Array.isArray(sak.avvik) || sak.avvik.length === 0) return;
+  const aktive = sak.avvik.filter(a => a.status === 'aktiv');
+  if(aktive.length === 0){
+    if(sak.status !== 'lukket') sak.status = 'utfort';
+  } else if(sak.status === 'verksted-bestilt' || sak.status === 'utfort-venter-bekreftelse' || sak.status === 'utfort' || sak.status === 'delvis-utfort'){
+    sak.status = 'delvis-utfort';
+  }
+  // 'ny'/'vurderes'/'tiltak-planlagt' med gjenværende aktive avvik: ingen endring — saken
+  // er ikke kommet så langt i behandlingen ennå at "delvis utført" gir mening der.
+}
+// Kan saken lukkes? Kun når ALLE avvik er utført (eller den er en eldre enkeltavvik-sak,
+// hvor "alle avvik utført" alltid betyr ja siden det bare er ett).
+function sakAlleAvvikFerdig(sak){
+  return sakAvvikAktive(sak).length === 0;
 }
 // En sak regnes som "viderebehandlet" når den har beveget seg forbi utgangspunktet
 // den ble opprettet i — status endret, rapportert på nytt, fått oppfølging satt av
@@ -2705,6 +2863,25 @@ async function submitSakWizardFullfor(id, lukkSaken){
     estimertRaw = (document.getElementById('swz-estimert-'+id)||{}).value?.trim() || '';
     faktiskRaw = (document.getElementById('swz-faktisk-'+id)||{}).value?.trim() || '';
   }
+
+  // Prioritet 12: er dette en flerpunkts sak, fullfør (kun) de avvikene som faktisk hører
+  // til DENNE verkstedrunden (samme linkedVtId som sakens gjeldende s.linkedVtId) — resten
+  // av avvikene i saken forblir aktive, upåvirket av denne innsendingen.
+  const erFlerpunkts = Array.isArray(s.avvik) && s.avvik.length > 0;
+  if(erFlerpunkts && s.linkedVtId){
+    s.avvik.forEach(a => {
+      if(a.status === 'aktiv' && a.linkedVtId === s.linkedVtId){
+        a.status = 'utfort';
+        a.resolvedAt = completedAt || todayISO();
+      }
+    });
+  }
+  if(erFlerpunkts && lukkSaken && !sakAlleAvvikFerdig(s)){
+    const gjenstaende = sakAvvikAktive(s);
+    if(msgEl) msgEl.textContent = `${gjenstaende.length} avvik står fortsatt som aktive (${gjenstaende.map(a=>a.label).join(', ')}) — saken kan ikke lukkes før alle avvik er utført eller markert utført. Bruk "Lagre uten å lukke" i stedet.`;
+    return;
+  }
+
   sakWizardSaving = true; render();
   s.resolutionNote = resolutionNote;
   s.verkstedResultat = verkstedResultat || null;
@@ -2718,8 +2895,15 @@ async function submitSakWizardFullfor(id, lukkSaken){
   }
   const varGammelStatusLukket = s.status === 'lukket';
   if(lukkSaken){
+    // Nådd hit betyr alle avvik er ferdige (validert over for flerpunkts saker; ett
+    // enkeltavvik som når hit er per definisjon ferdig siden det er saken selv som lukkes).
     s.status = 'lukket';
     if(!varGammelStatusLukket){ s.resolvedAt = todayISO(); s.resolvedBy = loggedInRole || 'Ukjent'; }
+  } else if(erFlerpunkts){
+    // Prioritet 12 — kjerneregelen: hopper ALDRI tilbake til "Vurderes" bare fordi noen
+    // avvik er ferdige. Gjenstår aktive avvik → "Delvis utført". Er alt ferdig → "Utført",
+    // akkurat som en enkeltavvik-sak alltid har gjort.
+    sakOppdaterStatusEtterAvvik(s);
   } else if(verkstedResultat || resolutionNote || completedAt){
     s.status = 'utfort';
   }
@@ -2854,6 +3038,16 @@ async function submitAddVT(ev){
     sak.status = 'verksted-bestilt';
     sak.linkedVtId = nyVtId;
     if(pris !== null && pris !== undefined) sak.estimatedCost = pris;
+    // Prioritet 12: skjemaet viser avkrysningsbokser for HVILKE avvik som tas med kun når
+    // saken er flerpunkts (se sakWizardVtFormHtml) — finnes de, merk KUN de valgte
+    // avvikene med denne verkstedtimen. Resten av avvikene i saken forblir aktive og
+    // upåvirket. Enkeltavvik-saker/skjemaet på Verkstedoversikt (ingen avkrysningsbokser
+    // i DOM) er helt uendret fra før.
+    const avvikCheckboxes = document.querySelectorAll('.vt-avvik-checkbox');
+    if(avvikCheckboxes.length > 0 && Array.isArray(sak.avvik)){
+      const valgteIder = new Set(Array.from(avvikCheckboxes).filter(c => c.checked).map(c => c.value));
+      sak.avvik.forEach(a => { if(valgteIder.has(a.id)) a.linkedVtId = nyVtId; });
+    }
     sak.updatedAt = new Date().toISOString();
     await saveAktiveSaker();
   }
@@ -3019,28 +3213,30 @@ async function submitKontroll(ev){
     });
     if(nyeVarselsaker) await saveVarsellys();
 
-    // ---- Fase 2: automatisk opprettelse/oppdatering av Aktive Saker ----
+    // ---- Fase 2 / Prioritet 12: automatisk opprettelse/oppdatering av Aktive Saker ----
     // Kjøres synkront (ingen egne await/save per kall) — samlet lagring til slutt.
+    // Varsellamper + kontrollavvik fra DENNE kontrollen samles i ÉN sak (Prioritet 12 —
+    // Sammenslåtte Kontrollavvik) via registrerKontrollAvvikSomSak, i stedet for én sak
+    // per avvik. Skade holdes utenfor sammenslåingen (egen struktur/flyt) og bruker
+    // fortsatt den uendrede, enkeltavvik-baserte registrerAvvikSomSak under.
     let sakerEndret = false;
+    const kontrollAvvikBatch = [];
     varsellamper.forEach(key => {
-      registrerAvvikSomSak({
-        vehicleId, caseType: 'varsellampe', sourceId: key,
-        tittel: 'Varsellampe registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
-        prioritet: 'hoy', reportedBy: sjafor, reportedAt: dato,
-        kommentar: (key === 'annet' ? annetTekst : VARSELLAMPE_LABEL[key]) + (kommentar ? ' · ' + kommentar : ''),
-        controlId: id
+      kontrollAvvikBatch.push({
+        caseType: 'varsellampe', sourceId: key,
+        label: avvikTypeLabel('varsellampe', key, annetTekst), prioritet: 'hoy'
       });
-      sakerEndret = true;
     });
     avvik.forEach(key => {
-      registrerAvvikSomSak({
-        vehicleId, caseType: 'kontrollavvik', sourceId: key,
-        tittel: KONTROLLAVVIK_LABEL[key] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra kontrollregistrering.',
-        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
-        controlId: id
+      kontrollAvvikBatch.push({
+        caseType: 'kontrollavvik', sourceId: key,
+        label: avvikTypeLabel('kontrollavvik', key, ''), prioritet: 'normal'
       });
-      sakerEndret = true;
     });
+    if(kontrollAvvikBatch.length > 0){
+      registrerKontrollAvvikSomSak(vehicleId, kontrollAvvikBatch, {reportedBy: sjafor, reportedAt: dato, controlId: id, kommentar});
+      sakerEndret = true;
+    }
     if(harNyeSkader && linkedDamageId){
       registrerAvvikSomSak({
         vehicleId, caseType: 'skade', sourceId: linkedDamageId,
@@ -3938,13 +4134,13 @@ function renderDashboard(){
   uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
   kritiskeSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
-    dashKreverListe.push({sort:0, ikon:'🔴', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
+    dashKreverListe.push({sort:0, ikon:'🔴', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
   oppfolgingKreverHandlingSaker.forEach(s => {
     const op = sakOppfolgingStatus(s);
     const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
     const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
-    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', vehicleId:s.vehicleId, sakId:s.id, linje1:s.title, linje2, aksjon});
+    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2, aksjon});
   });
   vehicles.filter(v => !isKontrollertIdag(v.id)).forEach(v => {
     dashKreverListe.push({sort:3, ikon:'🟡', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:'', aksjon:'Registrer kontroll'});
@@ -5423,7 +5619,7 @@ function renderBilkort(){
         <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
           <div class="dmg-top">
             <div class="dmg-text">
-              <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(s.title)}</div>
+              <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(sakKortOverskrift(s))}</div>
               <div class="desc">${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · ${SAK_STATUS_LABEL[s.status] || s.status}</div>
               <div class="dmg-meta">Åpen i ${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}${s.nextAction ? ' · ➡️ ' + esc(s.nextAction) : ' · ⚠️ Neste handling mangler'}${s.followUpDate ? ' · 📅 ' + fmt(s.followUpDate) : ''}</div>
             </div>
@@ -5977,10 +6173,10 @@ function sakKortBeskrivelse(s){
   }
   return s.description || '';
 }
-// Optimalisering 9: andre aktive varsellamper på SAMME bil (ikke bare denne saken) —
-// gjenbruker eksisterende activeVarsellysForVehicle(), ingen ny datakilde/relasjon.
-// Brukes kun for varsellampe-saker, og kun når bilen faktisk har 2+ aktive lamper, slik
-// at driftskoordinator ser hele bildet uten å måtte åpne flere saker/kort separat.
+// Optimalisering 9 (bevart for eldre, ikke-sammenslåtte varsellampe-saker fra før
+// Prioritet 12): andre aktive varsellamper på SAMME bil, funnet via den separate
+// varsellys-tabellen i stedet for sak.avvik — brukes nå kun som fallback i
+// sakKortOverskrift() for eldre data uten avvik[] (se der).
 function sakAndreAktiveVarsler(s){
   if(s.caseType !== 'varsellampe') return [];
   const v = sakVehicle(s);
@@ -5990,19 +6186,29 @@ function sakAndreAktiveVarsler(s){
 function varsellysKortLabel(w){
   return w.type === 'annet' ? (w.annetTekst || 'Annet') : (VARSELLAMPE_LABEL[w.type] || w.type);
 }
-// Aktive Saker UX Cleanup: overskrift for det KOLLAPSEDE sakskortet (ikke Steg 1, som
-// har sin egen — se sakProblemLabel/sakWizardSteg1Html). For varsellampe-saker gjenbruker
-// den samme sakAndreAktiveVarsler()-listen som Steg 1 allerede viser, slik at ÉN hvilken
-// som helst av bilens varsellampe-kort i listen gir hele bildet uten å måtte åpne noen av
-// dem: kun denne lampen ("Motorlampe") ved kun 1 aktiv, "Motorlampe + ABS" ved nøyaktig 2,
-// "3 varsellamper registrert" ved 3 eller flere. Andre sakstyper er uendret
-// (sakProblemLabel — allerede spesifikk, brukerskrevet fritekst for skade/manuelt osv.).
+// Aktive Saker UX Cleanup / Prioritet 12: overskrift for det KOLLAPSEDE sakskortet (ikke
+// Steg 1, som har sin egen — se sakWizardSteg1Html). Generalisert til å bruke
+// sakAvvikListe() slik at den fungerer likt for BÅDE nye flerpunkts kontroll-saker
+// (varsellampe+kontrollavvik blandet) OG eldre enkeltavvik-saker: kun ett aktivt avvik →
+// vis det alene, nøyaktig 2 → "A + B", 3 eller flere → "N avvik registrert". Utførte avvik
+// telles ikke med — en sak der alt gjenstående er utført viser det som står igjen.
 function sakKortOverskrift(s){
-  if(s.caseType !== 'varsellampe') return sakProblemLabel(s);
-  const andre = sakAndreAktiveVarsler(s);
-  if(andre.length <= 1) return sakProblemLabel(s);
-  if(andre.length === 2) return andre.map(varsellysKortLabel).join(' + ');
-  return `${andre.length} varsellamper registrert`;
+  const aktive = sakAvvikAktive(s);
+  if(aktive.length >= 2){
+    if(aktive.length === 2) return aktive.map(a => a.label).join(' + ');
+    return `${aktive.length} avvik registrert`;
+  }
+  // 0 eller 1 aktivt avvik i DENNE saken — for eldre varsellampe-saker (før Prioritet 12,
+  // ingen avvik[]) der søsken-saker for samme kontroll-hendelse fortsatt kan ligge som
+  // egne saker, bevares den tidligere kryss-sak-visningen (Optimalisering 11).
+  if(s.caseType === 'varsellampe' && (!Array.isArray(s.avvik) || s.avvik.length === 0)){
+    const andre = sakAndreAktiveVarsler(s);
+    if(andre.length === 2) return andre.map(varsellysKortLabel).join(' + ');
+    if(andre.length >= 3) return `${andre.length} varsellamper registrert`;
+  }
+  if(aktive.length === 1) return aktive[0].label;
+  const alle = sakAvvikListe(s);
+  return alle.length > 0 ? alle[0].label : sakProblemLabel(s);
 }
 const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
 // Wizard UX Cleanup (punkt 5-7): fremdriftsindikatoren er nå en ren, ikke-klikkbar
@@ -6015,16 +6221,18 @@ function sakWizardProgressHtml(sakId, step){
   const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join(' ');
   return `<div style="text-align:center;font-size:15px;letter-spacing:3px;color:var(--muted);margin-top:12px;" aria-label="Steg ${step} av 4 — ${SAK_WIZARD_STEG_TITTEL[step]}">${dots}</div>`;
 }
-// Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her.
+// Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her (unntak: "Marker utført"
+// på et enkeltavvik, se avvikRadHtml under — det er en direkte handling, ikke et skjema).
 // Wizard UX Cleanup: mest mulig beslutningsinformasjon, minst mulig administrativ
 // informasjon, uten scrolling på mobil. Rekkefølge: bil (tydelig, øverst) → komprimert,
 // PROBLEM-spesifikk overskrift (ikke generisk "Varsellampe registrert") → status/
-// prioritet → kort, spesifikk beskrivelse → ev. andre aktive varsellamper på samme bil →
-// metadata (saksnummer/registrert av/dato/kilde/alder/sist oppdatert/historikk) skjult
-// bak "▼ Mer informasjon" → handling.
+// prioritet → kort, spesifikk beskrivelse ELLER (Prioritet 12) avvik-sjekkliste for
+// flerpunkts saker → metadata (saksnummer/registrert av/dato/kilde/alder/sist oppdatert/
+// historikk) skjult bak "▼ Mer informasjon" → handling.
 function sakWizardSteg1Html(s){
   const v = sakVehicle(s);
-  const problemLabel = sakProblemLabel(s);
+  const avvikListe = sakAvvikListe(s);
+  const erFlerpunkts = avvikListe.length > 1; // Prioritet 12 — sammenslått kontroll-sak
   const kortform = sakProblemLabelErKortform(s);
   const kortBeskrivelse = sakKortBeskrivelse(s);
   const andreVarsler = sakAndreAktiveVarsler(s);
@@ -6033,17 +6241,32 @@ function sakWizardSteg1Html(s){
   // prioriteten ennå (det skjer først i Steg 2 — "Vurder sak") — selv om systemet har satt
   // en foreløpig startprioritet (f.eks. "Høy" på varsellamper), er den ikke bekreftet.
   const prioritetVurdert = s.status !== 'ny';
+  const aktiveAvvik = avvikListe.filter(a => a.status === 'aktiv');
+  const utforteAvvik = avvikListe.filter(a => a.status !== 'aktiv');
   return `
     <div style="font-weight:700;font-size:14px;letter-spacing:.01em;margin-bottom:4px;color:var(--muted);text-transform:uppercase;">
       ${v ? esc(v.bilnummer) + ' – ' + esc(v.regnr) : 'Ukjent kjøretøy'}
     </div>
     <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;line-height:1.25;margin-bottom:10px;">
-      ${SAK_TYPE_IKON[s.caseType] || '📁'} ${kortform ? esc(problemLabel).toUpperCase() : esc(problemLabel)}
+      ${SAK_TYPE_IKON[s.caseType] || '📁'} ${erFlerpunkts ? esc(sakKortOverskrift(s)) : (kortform ? esc(sakProblemLabel(s)).toUpperCase() : esc(sakProblemLabel(s)))}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:10px;">
       <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${SAK_STATUS_LABEL[s.status] || s.status}</span></div>
       <div class="ov-item"><span class="ov-label">Prioritet</span><span class="ov-value">${prioritetVurdert ? (SAK_PRIORITET_IKON[s.priority]||'🟡') + ' ' + (SAK_PRIORITET_LABEL[s.priority]||'Normal') : '⚪ Ikke vurdert'}</span></div>
     </div>
+    ${erFlerpunkts ? `
+    <div style="margin-bottom:12px;">
+      ${utforteAvvik.length === 0 ? `
+      <div class="required-hint" style="margin-bottom:6px;">Avvik registrert:</div>
+      ${aktiveAvvik.map(a => avvikRadHtml(s, a)).join('')}
+      ` : `
+      <div class="required-hint" style="margin-bottom:6px;">Aktive avvik</div>
+      ${aktiveAvvik.length > 0 ? aktiveAvvik.map(a => avvikRadHtml(s, a)).join('') : '<div class="required-hint" style="margin-bottom:8px;">Ingen — alle avvik er utført.</div>'}
+      <div class="required-hint" style="margin:10px 0 6px;">Utførte avvik</div>
+      ${utforteAvvik.map(a => avvikRadHtml(s, a)).join('')}
+      `}
+    </div>
+    ` : `
     ${kortBeskrivelse ? `<div class="required-hint" style="margin-bottom:10px;">${esc(kortBeskrivelse)}</div>` : ''}
     ${andreVarsler.length > 1 ? `
     <div style="margin-bottom:10px;">
@@ -6052,6 +6275,7 @@ function sakWizardSteg1Html(s){
       </div>
       <div class="required-hint">${andreVarsler.length} varsler registrert</div>
     </div>` : ''}
+    `}
 
     <button type="button" class="btn secondary small" id="swz-mer-toggle-${s.id}" style="justify-content:flex-start;margin-bottom:${sakWizardSteg1MerOpen ? '8px' : '12px'};">${sakWizardSteg1MerOpen ? '▲' : '▼'} Mer informasjon</button>
     ${sakWizardSteg1MerOpen ? `
@@ -6076,6 +6300,21 @@ function sakWizardSteg1Html(s){
     <div class="panel-actions">
       <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:2">Vurder sak</button>
       <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">Fortsett saken</button>
+    </div>
+  `;
+}
+// Prioritet 12: én rad i avvik-sjekklisten på Steg 1. Aktive avvik får en direkte "Marker
+// utført"-handling (dekker sjekklistens "eksplisitt lukket eller avvist" uten å kreve en
+// verkstedtime for hvert lille avvik) — utførte avvik vises grønne og overstrøket, uten
+// handling. Gjenbruker .chip-komponentens visuelle stiler (checked=gul ramme,
+// chip-active-lamp=grønn ramme), kun uten det opprinnelige avkrysningsfeltet.
+function avvikRadHtml(s, a){
+  const erAktiv = a.status === 'aktiv';
+  return `
+    <div class="chip ${erAktiv ? 'checked' : 'chip-active-lamp'}" style="cursor:default;">
+      <span class="chip-icon">${erAktiv ? '🟠' : '✅'}</span>
+      <span class="chip-text"${erAktiv ? '' : ' style="text-decoration:line-through;"'}>${esc(a.label)}</span>
+      ${erAktiv ? `<button type="button" class="btn secondary small" data-marker-avvik-utfort="${s.id}:${a.id}" style="margin-left:auto;flex-shrink:0;min-height:36px;">Marker utført</button>` : ''}
     </div>
   `;
 }
@@ -6107,11 +6346,26 @@ function sakWizardSteg2Html(s){
 // frittstående verkstedskjemaet på Verkstedoversikt, slik at den eksisterende
 // submitAddVT() kan gjenbrukes helt uendret (se strategisk foranalyse punkt 6.3).
 function sakWizardVtFormHtml(s){
+  const aktiveAvvik = sakAvvikAktive(s);
+  const erFlerpunkts = aktiveAvvik.length > 1;
   return `
     <form class="panel" id="add-vt-form">
-      <div class="required-hint" style="margin-bottom:12px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">🗂️ ${esc(s.caseId||'')} — ${esc(s.title)}</div>
+      <div class="required-hint" style="margin-bottom:12px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">🗂️ ${esc(s.caseId||'')} — ${esc(sakKortOverskrift(s))}</div>
       <input type="hidden" id="vt-vehicle" value="${s.vehicleId}">
-      <input type="hidden" id="vt-beskrivelse" value="${esc(s.title)}">
+      <input type="hidden" id="vt-beskrivelse" value="${esc(sakKortOverskrift(s))}">
+      ${erFlerpunkts ? `
+      <div class="field" style="margin-bottom:12px;">
+        <label>Avvik som tas med til verksted</label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${aktiveAvvik.map(a => `
+          <label class="chip checked" style="cursor:pointer;">
+            <input type="checkbox" class="vt-avvik-checkbox" value="${a.id}" checked>
+            <span class="chip-text">${esc(a.label)}</span>
+          </label>`).join('')}
+        </div>
+        <div class="required-hint" style="margin-top:6px;">Fjern haken på avvik som ikke tas med nå — de blir stående som aktive i saken.</div>
+      </div>
+      ` : ''}
       <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
         <select id="vt-verksted" required>
           <option value="">Velg verksted...</option>
@@ -6289,7 +6543,7 @@ function sakCard(s, showVehicle){
   const isEditing = editingSakId === s.id;
   const v = sakVehicle(s);
   const apen = sakErApen(s);
-  const statusBadgeKlasse = {'ny':'registrert','vurderes':'oppfolging','tiltak-planlagt':'oppfolging','verksted-bestilt':'verksted','utfort':'ok','lukket':'unset'}[s.status] || 'unset';
+  const statusBadgeKlasse = {'ny':'registrert','vurderes':'oppfolging','tiltak-planlagt':'oppfolging','verksted-bestilt':'verksted','delvis-utfort':'oppfolging','utfort':'ok','lukket':'unset'}[s.status] || 'unset';
   const opStatus = sakOppfolgingStatus(s); // Fase 5 — null hvis saken er lukket
   // Wizard UX Cleanup: når saken er åpen (wizard vises under), er dmg-top redusert til
   // en slank, klikkbar "brødsmule"-linje (ikon + evt. bil + eksakt problem via
@@ -6352,11 +6606,19 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
         ${gruppeKjoretoy.map(v => {
           const sList = byVehicle.get(v.id).sort((a,b) => (b.reportedAt||'').localeCompare(a.reportedAt||''));
           const open = openSet.has(v.id);
+          // Prioritet 12: avvik-telling ved siden av sakstallet, men KUN når det faktisk
+          // finnes flere avvik enn saker på bilen (ellers er det bare en ren duplisering
+          // av samme tall — f.eks. tre helt separate enkeltavvik-saker).
+          const avvikTotalt = sList.reduce((sum, s) => sum + sakAvvikListe(s).length, 0);
+          const avvikAktive = sList.reduce((sum, s) => sum + sakAvvikAktive(s).length, 0);
+          const avvikTekst = avvikTotalt > sList.length
+            ? ` · ${avvikAktive < avvikTotalt ? avvikAktive + ' aktive avvik' : avvikTotalt + ' avvik'}`
+            : '';
           return `
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
               <div class="acc-head-left"><div class="flag-name">${SAK_BILSTATUS_IKON[vehicleSakStatus(v.id)]} 📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-              <div class="acc-head-right"><span class="group-count">${sList.length} sak${sList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+              <div class="acc-head-right"><span class="group-count">${sList.length} sak${sList.length===1?'':'er'}${avvikTekst}</span><span class="chevron">⌄</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="dmg-list">${sList.map(s => sakCard(s, false)).join('')}</div></div>` : ''}
           </div>`;
@@ -6531,6 +6793,16 @@ function attachAktiveSakerListeners(){
     const [sakId, steg] = el.dataset.gotoWizardSteg.split(':');
     sakWizardStep = Number(steg);
     sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+    render();
+  }));
+  // Prioritet 12 — Steg 1: "Marker utført" på ett enkelt avvik i en flerpunkts sak, uten
+  // å måtte gå via verksted. Generisk querySelectorAll (ikke per-sak-loopen under) siden
+  // det kan finnes flere slike knapper — én per aktivt avvik — i samme sak samtidig.
+  document.querySelectorAll('[data-marker-avvik-utfort]').forEach(el => el.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const [sakId, avvikId] = el.dataset.markerAvvikUtfort.split(':');
+    markerAvvikUtfort(sakId, avvikId);
+    await saveAktiveSaker();
     render();
   }));
   aktiveSaker.forEach(s => {
