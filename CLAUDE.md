@@ -186,120 +186,124 @@ Administrator skal kunne forstå status på hele bilparken på under 10 sekunder
 
 ---
 
-# Dashboard Pro — struktur og prinsipp om ingen dobbeltinformasjon
+# Dashboard — struktur (Prioritet 26.2 — Dashboard Nullstilling)
 
-Dashboard er appens mest brukte side og skal gi driftskoordinator full
-oversikt over bilparken på under 10 sekunder. Hvis informasjon allerede er
-synlig i et hovedkort eller en hovedseksjon, skal den normalt ikke gjentas et
-annet sted. Mål: mer oversikt, mindre støy, minst mulig scrolling.
+Dashboard er appens mest brukte side. Prioritet 26.2 er en fullstendig
+redesign, ikke en optimalisering: Dashboard skal KUN svare på tre spørsmål —
+(1) Hva må jeg gjøre nå? (2) Hva kommer snart? (3) Hvilken bil starter jeg
+med? — og skal kunne leses på under 5 sekunder. Alt annet (historikk,
+servicehistorikk, dekkhistorikk, skader, lange tabeller, metadata,
+forklaringer, generell biloversikt) hører hjemme andre steder i appen
+(Biloversikt/Historikk/Kjøretøyprofil/Aktive Saker), ikke på Dashboard.
 
-**Toppfelt:** det delte `shell-top` (brand + ☰ Meny, vises på alle sider)
-utvides med en "Bilparkhelse Status"-rad — men KUN på selve Dashboard-
-skjermen (`screen === 'dashboard'`), ikke globalt på alle sider, for å
-unngå å smøre driftsdata utover sider som Innstillinger/Rapporter der det
-ikke hører hjemme. Beregnes direkte i `render()` med `vehicleHovedstatus()`/
-`vehicleAktivSjafor()` — ingen egen tellelogikk. `.shell-top-status` bruker
-`flex-wrap` slik at innholdet går naturlig fra én rad (desktop, sentrert —
-se Prioritet 17 Del 5) til stablet (smale skjermer, venstrejustert) uten
-egen mobil-markup. **"🚚 N biler i drift nå" er DEL AV samme rad** som
-Bilparkhelse-chipsene (Prioritet 17 Del 4 — "samme høydenivå"), ikke en
-egen linje i topp-raden ved siden av ☰ Meny som tidligere. ☰ Meny-knappen
-selv er bevisst IKKE flyttet ned under Bilparkhelse-raden — den er delt på
-tvers av ALLE skjermer i appen og må sitte på nøyaktig samme sted uansett
-hvilken side brukeren er på, for pålitelig gjenfinnbarhet (se
-`render()`-kommentaren for full begrunnelse).
+**Viktig arkitekturmerknad:** dette kapittelet erstatter de tidligere
+"Dashboard Pro" og "Operativ Dashboard Compact (Prioritet 17)"-kapitlene i
+sin helhet. Ved eventuelt avvik mellom denne dokumentasjonen og koden er det
+alltid koden (`renderDashboard()` i `index.html`) som er sannheten — dette
+gjaldt allerede da Prioritet 26.2 ble spesifisert (spesifikasjonen forutsatte
+feilaktig at Prioritet 18–24, service-/kontrollprognoser og en
+"Operativ Belastning"-indikator allerede fantes; ingen av delene fantes i
+koden, og er derfor bevisst IKKE bygget som del av denne oppgaven).
 
-Gjeldende struktur (topp til bunn, kropp):
+**Toppfelt (uendret fra Prioritet 17):** det delte `shell-top` (brand + ☰
+Meny, vises på alle sider) utvides med en "Bilparkhelse Status"-rad — men
+KUN på selve Dashboard-skjermen (`screen === 'dashboard'`). Beregnes direkte
+i `render()` med `vehicleHovedstatus()`/`vehicleAktivSjafor()` — ingen egen
+tellelogikk. Viser 🟢🟡🟠🔴-chips (Bilparkhelse) + "🚚 N biler i drift nå" på
+samme rad. Ren statusvisning ("Kun status" — Prioritet 26.2 Fase 3): ingen
+detaljliste vises lenger på selve Dashboardet ved klikk på en chip — siden
+Dashboardets tidligere inline Biloversikt-akkordion er fjernet (se under),
+ruter chipsene nå til den faktiske Bilregister-siden i stedet
+(`goToRegisterHovedstatus()`, nytt `filterHovedstatus`-filter på
+Bilregister — se "Bilregister — hovedstatusfilter" under). ☰ Meny-knappen
+er fortsatt bevisst IKKE flyttet.
 
-1. Hilsen/greeting-card
-2. Databasevarsel (kun ved feil/manglende felt)
-3. **🚦 Operativ Status** (Prioritet 17 Del 1 — slått sammen fra de
-   tidligere separate "Hovedstatus"- og "Morgenvisning"-kortene, som
-   dekket mye av den samme informasjonen — se "Operativ Dashboard
-   Compact" under for full historikk/begrunnelse).
-4. **⭐ Min bil** (uendret posisjon, kun flyttet til rett under Operativ
-   Status siden det ikke lenger er to kort å stå mellom).
-5. **Krever handling nå** — fortsatt en egen seksjon, samlet oppsummering
-   (🔴 kritiske saker, ⛔ biler ute av drift ved behov, 🟠 oppfølginger i
-   dag, 🟡 biler mangler kontroll, Totalt) + "Operativ arbeidsliste":
-   utvidbar liste over de 5 viktigste hendelsene (`dashKreverTop5`),
-   prioritert kritisk → forfalt → oppfølging i dag → manglende kontroll.
-   Bygger på eksisterende `sakKreverHandling()` — ingen egen, parallell
-   forretningslogikk. Panelet (bakgrunn/kant/tall) er KUN rødt når det
-   faktisk finnes kritiske saker eller biler ute av drift (`krHarKritisk`),
-   amber ellers (Optimalisering 15, Del 5).
-6. **Kommende verkstedtimer** — kun neste 3 (ikke lange lister).
-7. **Biloversikt** (filtrerbar, uendret) — hvert bilkort viser "Dagens
-   status" (`vehicleDagensStatus()`: kritisk sak > mangler kontroll >
-   verksted i dag > klar for drift) som hodechip.
+**Gjeldende struktur (topp til bunn, kropp) — maks tre operative
+seksjoner:**
 
-**Fjernet:**
-- **Bilparkhelse-panelet** i kroppen — flyttet opp i toppfeltet
-  (Optimalisering 15).
-- **"Bilgrupper"-** og **"Hurtighandlinger"-panelene** — samme funksjoner
-  nås allerede via ☰ Meny/toppfeltet/Min bil (Optimalisering 15).
-- **Det gamle "Hovedstatus"-kortet** (`dash-hovedstatus-card`, 5-felts
-  `.ov-grid`) — slått sammen inn i Operativ Status (Prioritet 17 Del 1).
-- **"Oppfølging i dag"- og "Kritiske forhold"-listene** i Morgenvisning
-  (Prioritet 16) — begge var i praksis bare en annen visning av Aktive
-  Saker; erstattet av direkte navigasjon dit med relevant filter
-  forhåndssatt (`goToAktiveSakerFiltered()`) i stedet for en tredje,
-  duplisert visning av de samme sakene (Prioritet 17 Del 2).
-- **"Biler i drift nå"-panelet i kroppen er BEHOLDT** (kun antallet er
-  duplisert i toppfeltet) — panelet har genuint annen informasjon (hvem
-  kjører hvilken bil, ikke bare et tall), så dette regnes ikke som
-  dobbeltinformasjon i strid med prinsippet over.
+1. Hilsen/greeting-card (uendret, inkl. hurtigknapper for
+   kontroll/verkstedtime-registrering og "⭐ Neste verkstedtime").
+2. Databasevarsel (kun ved feil/manglende felt).
+3. **🚨 Krever handling nå** — hovedkortet. Samlet oppsummering av kritiske
+   saker, biler ute av drift, oppfølginger i dag og manglende kontroll,
+   bygget på eksisterende `sakKreverHandling()` (ingen egen, parallell
+   forretningslogikk). Hver rad i den utvidbare listen (`dashKreverTop5`,
+   maks 5) viser nå eksplisitt Bil, Problem, **Prioritet** (Kritisk/Høy/
+   Normal — nytt felt) og **Neste handling** (`item.aksjon`, fantes i data
+   fra før men ble ikke vist — nå gjort synlig). Egen "Se alle"-knapp
+   (`data-goto-aktivesaker-filter="alle"`) i stedet for tidligere
+   "+N til"-tekst. Panelet er KUN rødt når det faktisk finnes kritiske
+   saker eller biler ute av drift (`krHarKritisk`), amber ellers
+   (uendret prinsipp fra Optimalisering 15).
+4. **📅 Kommer snart** — kommende verkstedtimer (inntil 7 dager, gjenbruker
+   `vtWithinWeek()`) og saker med oppfølgingsdato innen 3 dager
+   (`sakOppfolgingStatus(s) === 'snart'`, eksisterende terskel). Maks 5,
+   sortert kronologisk. Det som allerede vises i "Krever handling nå"
+   (dagens/forfalte oppfølginger, kritiske saker, mangler kontroll) er
+   bevisst utelatt for å unngå dobbeltinformasjon. Service-/
+   kontrollprognoser (dager-basert gul/rød-status, km-baserte
+   serviceintervaller) finnes ikke i kodebasen og er bevisst IKKE bygget nå
+   — se arkitekturmerknaden over.
+5. **🎯 Prioriterte biler** — samme `dashKreverListe` som Kort 3, men
+   gruppert PER BIL (ikke per sak): én rad per bil med dens mest alvorlige
+   årsak (Map som beholder første/høyest-prioriterte treff per
+   `vehicleId`, siden `dashKreverListe` allerede er sortert
+   kritisk→forfalt→oppfølging→mangler kontroll). Maks 5 biler. Ingen ny
+   forretningslogikk eller datakilde.
+
+**Fjernet fra Dashboard i Prioritet 26.2 (flyttet eller vurdert overflødig):**
+- **🚦 Operativ Status-kortet** (Prioritet 17 Del 1) — innholdet er enten
+  allerede dekket av "Krever handling nå" (oppfølging i dag, kritisk sak,
+  mangler kontroll) eller flyttet inn i "Kommer snart" (verksted i dag/
+  kommende). "Biler klare"-tallet og den generelle "📋 Aktive saker: N →"-
+  lenken er droppet helt — svarer ikke på "hva må jeg gjøre nå" eller "hva
+  kommer snart" (Fase 8-sjekken), og var uansett dekket av Bilparkhelse i
+  toppfeltet / "Se alle"-knappen på Kort 1.
+- **⭐ Min bil-kortet** (Optimalisering 8) — fjernet som egen seksjon per
+  eksplisitt instruks i Prioritet 26.2 ("Det er alt" — kun de tre kortene
+  over skal vises). **Avvik å være oppmerksom på:** dette er reell
+  funksjonalitet som gikk tapt (hurtigtilgang til egen bil når
+  driftskoordinator selv er aktiv sjåfør) — ingen erstatning er bygget inn
+  i de tre gjenværende kortene. Diskuter med driftskoordinator om dette bør
+  gjeninnføres (f.eks. som en fremhevet rad i "Prioriterte biler") dersom
+  det viser seg å være et reelt behov i praksis.
+- **📅 Kommende verkstedtimer-panelet** (egen seksjon) — slått sammen inn i
+  "Kommer snart" sammen med kommende oppfølginger.
+- **🚗 Biler i drift nå-kortet** (liste over bil+sjåfør) — fjernet som egen
+  seksjon; kun tallet (`bilerIDriftCount`) gjenstår, i toppfeltet. Detaljer
+  (hvem kjører hvilken bil) må nå slås opp i Biloversikt
+  (☰ Meny → Oversikter → Biloversikt, eller via toppfeltets "🚚 N biler i
+  drift nå" → `goToRegisterHovedstatus('har-aktiv-sjafor')`).
+- **🚐 Biloversikt-akkordionen** (filtrerbar, gruppert biloversikt inline på
+  Dashboard) — fjernet i sin helhet. Dashboard skal ikke inneholde
+  navigasjon eller store oversikter (Prioritet 26.2 Svar 3). Samme filtrere
+  finnes nå på selve Bilregister-siden (se under).
 
 Ikke prioritert på Dashboard (finnes andre steder i appen): historikk,
-analyse, kostnader.
+analyse, kostnader, full biloversikt.
 
 ---
 
-# Operativ Dashboard Compact (Prioritet 17)
+# Bilregister — hovedstatusfilter (nytt i Prioritet 26.2)
 
-Bygger videre på Optimalisering 15 (Dashboard Cleanup v2) og Prioritet 16
-(Morgenvisning Compact). Mål: fjerne den gjenværende dobbeltinformasjonen
-mellom Hovedstatus og Morgenvisning, og redusere scrolling ytterligere.
-Ren visnings-/navigasjonsomlegging — ingen nye databaserelasjoner, ingen
-nye rapporter/analyser, ingen nye dashboardsider.
-
-**Del 1 — Hovedstatus + Morgenvisning slått sammen til ett kort,
-"🚦 Operativ Status".** Begge viste tidligere store deler av den samme
-informasjonen (mangler kontroll, oppfølging, kritisk, verksted) i to
-separate kort rett etter hverandre. Nytt, samlet 2-kolonners
-`.morgen-compact-grid` (samme komponent Prioritet 16 innførte, gjenbrukt
-uendret) med fem nøkkeltall: Biler klare | Oppfølging i dag (rad 1),
-Mangler kontroll | Verksted i dag (rad 2), og Kritisk sak (rad 3, KUN vist
-når kritiske saker faktisk finnes). "Biler totalt"-overskriften fra det
-gamle Hovedstatus-kortet er fjernet — implisitt lesbar som
-klare+mangler=totalt, og allerede dekket av Bilparkhelse-raden i
-toppfeltet.
-
-**Del 2 — "Må gjøres i dag" (Prioritet 16) sine to gjenværende
-detaljlister fjernet, erstattet av direkte Aktive Saker-navigasjon.**
-"Oppfølging i dag" og "Kritisk sak" i Operativ Status-kortet, samt en ny
-"📋 Aktive saker: N →"-lenke, åpner nå Aktive Saker direkte med et
-relevant filter forhåndssatt (`goToAktiveSakerFiltered()`, gjenbruker
-eksisterende `sakFilterPrioritet`/`sakFilterOppfolging`/
-`sakFilterKreverHandling`/`sakFilterKunApne` — samme mønster som
-`goToRegisterFiltered()`, ingen ny filtreringslogikk) i stedet for å vise
-en tredje, duplisert liste av de samme sakene på selve Dashboardet.
-**Bevisst IKKE implementert:** en bokstavelig ombygging av Aktive Saker
-sin egen interne sortering til en flat "kritisk → oppfølging → eldste
-sak"-rekkefølge — siden Aktive Saker er strukturert som en
-bilgruppe-akkordion (`sakGroupedSection`), ikke en flat liste, ville dette
-vært en betydelig arkitekturendring av en side som er bygget opp gjennom
-mange tidligere økter, og lå utenfor det som var nødvendig for å løse
-dobbeltinformasjons-problemet denne oppgaven faktisk handlet om. De
-forhåndssatte filtrene gir i praksis samme nytte (rett fokusert
-delmengde) uten denne risikoen.
-
-**Del 3 — Verksted i dag flyttet foran Mangler kontroll** i
-seksjonslisten (kun rekkefølge, ingen innholdsendring).
-
-**Del 4-5 — Header:** se toppfelt-beskrivelsen over.
+Da Dashboardets inline Biloversikt-akkordion ble fjernet (se over), mistet
+toppfeltets Bilparkhelse-chips sin destinasjon. I stedet for å bygge en
+erstatning på Dashboard (som ville brutt "Dashboard skal kun vise handling"),
+er filtreringen flyttet til den faktiske Bilregister-siden: nytt
+`filterHovedstatus`-felt (`'' | 'operativ' | 'oppfolging' | 'verksted' |
+'kritisk' | 'har-aktiv-sjafor'`), samme mønster som eksisterende
+`filterKontrollStatus`/`filterKategori`/`filterLoyve`. Egen dropdown i
+`renderRegister()` sitt filter-rad, og en ny navigasjonsfunksjon
+`goToRegisterHovedstatus(status)` (samme mønster som `goToRegisterKategori()`
+/`goToRegisterFiltered()`). Gjenbruker `vehicleHovedstatus()`/
+`vehicleAktivSjafor()` uendret — ingen ny tellelogikk. Kun de fem verdiene
+toppfeltet faktisk trenger er inkludert (ikke hele det tidligere,
+bredere settet fra Dashboardets gamle akkordion-filter, f.eks. "reserve"/
+"ute-av-drift"/"har-forfalt" — disse kan legges til på samme måte om behovet
+oppstår).
 
 ---
+
 
 # Navigasjon — universell tilbakeknapp
 
@@ -1228,707 +1232,29 @@ til en flat kritisk→oppfølging→alder-rekkefølge, siden siden er bygget
 som en bilgruppe-akkordion — forhåndssatte filtre gir samme praktiske
 nytte uten den arkitekturrisikoen. Ingen nye felt, ingen nye moduler
 
-Prioritet 18 (implementert)
-Serviceintervall basert på kilometer — se "Serviceintervall basert på
-kilometer (Prioritet 18)" under. Nytt felt `ServiceIntervallKm` på
-Vehicles (ingen ubekreftet standardverdi), servicehistorikk via
-`window.storage`/Settings (samme mønster som dekkhistorikk, ingen ny
-Airtable-tabell), live-beregnet servicestatus i fem nivåer
-(mangler_grunnlag/grønn/gul/oransje/rød), egen indikator bevisst utenfor
-`vehicleHovedstatus()`, ny "🔧 Kommende service" på Dashboard, nye
-Service-/Servicehistorikk-seksjoner på Kjøretøyprofil
-
-Prioritet 19 (implementert)
-Kontrollstatus basert på dager — se "Kontrollstatus basert på dager
-(Prioritet 19)" under. Ny `vehicleDagerSidenKontroll()`/
-`vehicleKontrollstatusNiva()` (grønn 0–2/gul 3–4/rød 5+/aldri, reservebil
-fortsatt unntatt via `vehicleErReserveUnntatt()`), egen kombinert
-visningslinje som holder "kontrollert i dag" og "kontrollalder" som
-adskilte begreper, tiered "Mangler kontroll"-nedbrytning i Operativ
-Status-kortet og Krever handling nå, kontrollalder-gruppert Morgenvisning
-(rød→gul→grønn, deretter kanonisk bilrekkefølge), egen kontroll-
-Bilparkhelse-indikator holdt utenfor `vehicleHovedstatus()`/
-serviceindikatoren. Ingen nye felt
-
-Prioritet 20 (implementert)
-Bilkort og Kjøretøyprofil Cleanup — se "Bilkort og Kjøretøyprofil Cleanup
-(Prioritet 20)" under. Fjernet Bilgruppe/Biltype/Neste verkstedtime fra
-Kjøretøyprofil og Bilkort (Dashboardets akkordion), lagt til Aktiv sjåfør
-på Kjøretøyprofil, Dekktype utvidet til fire sidestilte valg
-(sommer/vinter pigg/vinter piggfri/helår — samme `v.dekk`-felt, ingen nytt
-felt), Dekkhistorikk migrert inn i Dekkoversikt (ingen egen seksjon
-lenger), "Registrer dekkskifte" gjort til primærknapp. Ingen nye felt
-
-Prioritet 21 (implementert)
-Historikkforenkling — se "Historikkforenkling (Prioritet 21)" under.
-`vehicleHistorikkTidslinje()` bekreftet som eneste, autoritative
-historikkmotor (ingen ny lagring). Verksted-hendelser skiller nå
-"bestilt"/"utført" ut fra dato. Kjøretøyhistorikk fikk egen, mobiltilpasset
-listestil (`historikk-list`) med dato på egen linje. Kontroll-/Skade-
-historikk beholdt uendret ved siden av. Ingen nye felt, ingen nye tabeller
-
-Prioritet 22 (implementert)
-Gruppert Bilvalg for Sjåfører — se "Gruppert Bilvalg for Sjåfører
-(Prioritet 22)" under. Sjåførens "Velg bil"-skjerm (`renderDriverVelgBil()`)
-er nå gruppert etter de eksisterende bilgruppene (`KATEGORI_ORDER`), lukket
-som standard, med kontrollstatus/aktiv sjåfør per bil, egen "🚐 Reserve"-
-merking, og en "⭐ Min Bil"-snarvei øverst når sjåføren allerede har en
-aktiv biløkt. Ingen nye grupper, ingen nye felt
-
-Prioritet 23 (implementert)
-Felles Dekkskifte, Serviceintelligens og Operativ Sjåførflyt — se "Felles
-Dekkskifte, Serviceintelligens og Operativ Sjåførflyt (Prioritet 23)"
-under. Ny masseregistrering av dekkskifte på Dekkoversikt (flere biler
-samtidig), ny serviceintervall-forslag ved oppretting av ny bil basert på
-merke/modell (samme `ServiceIntervallKm`-felt, alltid overstyrbart).
-Resten av prioriteringen (servicevarsler sortert på km, kontrollstatus,
-Kjøretøyprofil-cleanup, historikkonsolidering, gruppert bilvalg, Min Bil
-først) var allerede dekket av Prioritet 18–22 og krevde ingen endring.
-Ingen nye Airtable-tabeller/-felt
-
-Prioritet 24 (implementert)
-Smart Operativ Planlegging — se "Smart Operativ Planlegging (Prioritet
-24)" under. Ny "📅 Kommende belastning"-seksjon på Dashboard (service/
-kontrollprognose/oppfølging/verksted, neste 7 dager, ingen historikk), ny
-"📅 Neste hendelser" på Kjøretøyprofil, ny samlet "Operativ belastning"-
-indikator (fire nivåer, poengbasert med tak per bil for å unngå
-dobbelttelling) i den EKSISTERENDE `.shell-top-status`-raden ved siden av
-Bilparkhelse Status — ☰ Meny beholder sin faste plassering uendret. Alt
-beregnes live fra eksisterende data. Ingen nye Airtable-felt/-tabeller
-
-Prioritet 25 (implementert)
-Operativ Beslutningsstøtte — se "Operativ Beslutningsstøtte (Prioritet
-25)" under. Ny "🎯 Prioriterte biler i dag" på Dashboard (slår sammen det
-som opprinnelig var to separate delkrav — prioritert liste OG anbefalte
-handlinger — til ÉN liste, se "Less is More"-begrunnelsen). Ny
-`vehicleOperativScore()` (ren visning av Prioritet 24 sitt
-belastningspoeng, 100−poeng×25, INGEN ny beregning). Ny
-"📅 Vedlikeholdsplan" (30 dager, egen seksjon adskilt fra Kommende
-Belastnings 7 dager). Nytt smart verkstedforslag (rent forslag, aldri
-automatikk). Ny "📍 Neste anbefalte handling" på Kjøretøyprofil (kun ÉN
-anbefaling per bil). Dekksesong-varsling var allerede implementert
-(Prioritet 20/23) og fikk kun sin eksisterende logikk trukket ut til en
-delt funksjon for gjenbruk i Vedlikeholdsplanen. Ingen nye Airtable-felt/
--tabeller, ingen ny statusmotor
-
-Prioritet 26 — Less is More-audit (kun analyse, ingen kode endret)
-Se PRIORITET_26_AUDIT.md (levert som eget dokument, ikke en del av
-prosjektfilene). Kartla systemet for dobbeltinformasjon og foreslo en
-minimalistisk sidestruktur. Konklusjon: mye av det som ble etterspurt var
-allerede løst av Prioritet 18–25, men tre konkrete, verifiserte
-duplikater ble identifisert og senere rettet i Prioritet 26.1
-
-Prioritet 26.1 (implementert)
-Verifiserte Duplikater — se "Verifiserte Duplikater — Less is More
-(Prioritet 26.1)" under. Gjennomførte de duplikatene som ble
-dokumentert og verifisert i Prioritet 26-audliten: fjernet det
-frittstående "Kommende verkstedtimer"-panelet (var duplisert 3 steder),
-slo sammen Kjøretøyprofil + Operativ status til ett panel "🚐
-Kjøretøystatus", fjernet duplisert "Oppfølging i dag" fra Operativ
-Status-kortet, slo sammen Neste anbefalte handling + Neste hendelser til
-én seksjon, komprimerte Servicehistorikk (3 nyeste + "Vis full
-historikk") og Dekkoversikt-detaljer (DOT/alder bak "▼ Flere detaljer").
-100 % funksjonalitet bevart — kun visningsstøy redusert. Ingen nye felt,
-ingen ny statusmotor
-
-
----
-
-# Serviceintervall basert på kilometer (Prioritet 18)
-
-Mål: gjøre serviceoppfølging proaktiv i stedet for reaktiv. De fleste servicer hos oss
-utføres grunnet kilometerstand, ikke dato — systemet varsler derfor når en bil nærmer
-seg service basert på kilometer, ikke tid.
-
-**Autoritativ kilometerkilde er uendret: `v.km`.** Ingen parallelt kilometerfelt er
-opprettet — serviceberegningene leser samme `v.km` som resten av appen allerede bruker
-(oppdateres av `submitKontroll()`, rekalkuleres ved kontrollsletting).
-
-**Ett nytt felt på Vehicles: `ServiceIntervallKm`** (number, per bil, redigerbart av
-administrator i Kjøretøyprofil sin Service-seksjon). Bevisst **ingen automatisk
-standardverdi** (f.eks. 60 000 km) — bilmerke alene er ikke nok til å fastsette korrekt
-intervall (modell/motor/årsmodell/serviceprogram/driftsforhold varierer), så et tomt felt
-vises eksplisitt som "Serviceintervall mangler" i stedet for å anta en verdi.
-
-**Servicehistorikk (`servicehistorikk`) lagres via samme `window.storage`/Settings-
-mønster som `dekkhistorikk`** — IKKE en ny Airtable-tabell. Hvert element:
-`{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy, updatedAt}`.
-`vehicleId` er primær kobling (ikke regnr). Se AIRTABLE_MIGRATION.md for detaljer om
-hvordan dette går via Settings-tabellens Key/Value-mekanisme.
-
-**Live-beregning, ingen lagrede statusflagg** (samme prinsipp som `vehicleHovedstatus()`/
-`isKontrollertIdag()`):
-- `vehicleSisteService(vehicleId)` — nyeste servicehistorikk-oppføring MED gyldig km.
-- `vehicleNesteServiceKm(vehicleId)` — `sisteService.km + v.ServiceIntervallKm`, men
-  **kun** når begge finnes. Mangler ett av dem, returneres `null` — ALDRI beregnet fra 0
-  km, siden det ville gitt feil neste servicepunkt for eksisterende biler uten historikk.
-- `vehicleServiceGjenstaaende(vehicleId)` — `nesteServiceKm - v.km`, kun når neste
-  service finnes.
-- `vehicleServiceVarselNiva(vehicleId)` → `mangler_grunnlag` (intervall ELLER siste
-  service-km mangler) | `gronn` (>3000 km igjen) | `gul` (1001–3000) | `oransje`
-  (0–1000) | `rod` (intervallet passert, negativt tall) — terskler uten overlapp.
-- `vehicleServiceManglerHva(vehicleId)` — forteller EKSAKT hva som mangler
-  ("Serviceintervall mangler" / "Siste service mangler" / "Kilometerstand ved siste
-  service mangler"), brukt i Kjøretøyprofil i stedet for en generisk melding.
-
-**Egen indikator, bevisst UTENFOR `vehicleHovedstatus()`.** Service er ikke lagt inn i
-den eksisterende 6-nivå statusmotoren (Ute av drift → Kritisk → Verksted bestilt → Under
-oppfølging → Ikke kontrollert → Operativ) — dette var en eksplisitt presisering for å
-unngå regresjon i Bilstatus 2.0/Bilparkhelse/Krever handling nå/Morgenvisning/Aktive
-Saker. En rød serviceindikator betyr "Serviceintervall passert" — IKKE automatisk
-kritisk/ute av drift/teknisk underkjent. Indikatoren (`SERVICE_VARSEL_IKON`/
-`SERVICE_VARSEL_LABEL`/`SERVICE_VARSEL_BADGE_KLASSE`) vises som en helt separat chip/
-badge ved siden av `HOVEDSTATUS`-badgen på Bilkort, Biloversikt (`galleryCard`) og
-Dashboardets Biloversikt-akkordion — men **kun** for `gul`/`oransje`/`rod` (bevisst
-skjult for `gronn`/`mangler_grunnlag`, i tråd med "ingen dobbeltinformasjon/støy"-
-prinsippet — å vise "servicegrunnlag mangler" på samtlige 16 biler samtidig hadde vært
-akkurat den støyen resten av appen er ryddet for).
-
-**Dashboard — ny "🔧 Kommende service"-seksjon**, plassert rett etter "Kommende
-verkstedtimer": viser kun biler med `gul`/`oransje`/`rod` (topp 5 + "+N til"), sortert
-rød → oransje → gul → minst antall km igjen innad i samme nivå. Biler med
-`mangler_grunnlag` vises IKKE i denne listen (unngår å fremstille manglende
-registrering som et teknisk servicevarsel) — kun som ett lavmælt administrativt hint
-("⚪ Serviceinformasjon mangler på N biler") under listen.
-
-**Kjøretøyprofil — to nye seksjoner** (`bilkortAccordionRow`, samme mønster som
-Dekkoversikt/Dekkhistorikk): "🛠️ Service" (indikator, siste service med
-type/dato/km/verksted, serviceintervall + redigering, neste service ved km, km igjen —
-med eksplisitte manglende-felt-meldinger fra `vehicleServiceManglerHva()` i stedet for
-beregnede nullverdier) og "Servicehistorikk" (registrer/rediger/slett, samme
-"Registrer …"-knapp-mønster som Dekkskifte). Redigering/sletting er kun tilgjengelig
-via Kjøretøyprofil, som allerede er en ren administrator-/driftskoordinator-side (samme
-tilgangsmodell som resten av bilkortet — ingen ny gating nødvendig).
-
-**Validering ved registrering/redigering** (`serviceValiderKm()`, delt mellom ny og
-redigering): km må være et gyldig, ikke-negativt tall. Er km høyere enn `v.km`, eller
-lavere enn forrige registrerte service-km på bilen, kreves eksplisitt bekreftelse via
-`confirm()` (samme mønster som `submitKontroll()` sin km-lavere-enn-registrert-sjekk) —
-historiske registreringer blokkeres ALDRI, kun flagget. `serviceFormSaving`-flagget
-hindrer dobbeltlagring ved raske trykk (samme prinsipp som `sakWizardSaving`).
-
-**Kjøretøyhistorikk (`vehicleHistorikkTidslinje()`)** fikk en ny hendelsestype
-`'service'` (🛠️, `HISTORIKK_TYPE_ORDER`/`_LABEL`/`_IKON` utvidet) — service dukker nå
-opp i den samlede tidslinjen på lik linje med kontroll/skade/verksted/dekk, uten noen
-egen visningslogikk.
-
-**Bevisst IKKE implementert i denne runden** (per eksplisitt avgrensning): datobasert
-servicevarsling, parallelt kilometerregister, nye rapportmoduler, nye dashboardsider.
-Bruk i Bilhelserapport/Analyse er en fremtidig utvidelse — datastrukturen
-(`servicehistorikk`, live-beregningsfunksjonene) er bygget for å støtte det senere uten
-endring.
-
----
-
-# Kontrollstatus basert på dager (Prioritet 19)
-
-Mål: gjøre kontrollstatus mer operativ og enklere å prioritere. Tidligere viste appen kun
-et binært ✅/⚪ (kontrollert i dag / ikke kontrollert i dag), som ikke fortalte noe om HVOR
-LENGE en bil faktisk hadde manglet kontroll. Systemet viser nå alvorlighetsgrad basert på
-antall dager siden siste gyldige kontroll.
-
-**To bevisst adskilte begreper (kjernebeslutningen i denne implementeringen).**
-`isKontrollertIdag()` — dagens operative kontrollstatus — er HELT uendret og fortsatt
-eneste kilde for `manglerKontrollCount`, daglig kontrollgrad, og "kontrollert i dag"-
-tellingen. Den nye kontrollALDEREN (`vehicleDagerSidenKontroll()`/
-`vehicleKontrollstatusNiva()`) er en egen, parallell alvorlighetsgradering brukt KUN til
-prioritering/farge — den kan aldri få en bil til å telle som "kontrollert i dag" bare
-fordi kontrollalderen fortsatt er grønn. En bil med 1–2 dager siden siste kontroll mangler
-fortsatt dagens kontroll, uendret.
-
-**Beregning — ingen nytt datofelt.** `vehicleDagerSidenKontroll(vehicleId)` bruker
-eksisterende `lastKontrollForVehicle()`/`isoDateDiff()` mot `todayISO()` (samme operative
-dagskille kl. 04:00 som resten av appen). Returnerer `null` for en bil uten
-kontrollhistorikk i det hele tatt (skilt fra "0 dager").
-
-**Nivåer** (`vehicleKontrollstatusNiva()`): `reserve` (unntatt, sjekkes FØRST — se under) →
-`gronn` (0–2 dager) → `gul` (3–4) → `rod` (5+) → `aldri` (ingen kontrollhistorikk).
-`aldri` telles sammen med `rod` i alle summeringer/grupperinger (samme alvorlighetsgrad),
-men vises alltid med egen, tydelig tekst ("Aldri kontrollert") i stedet for "Kontroll
-kritisk" — administrator skal umiddelbart forstå at dette er en bil systemet mangler ALL
-historikk for, ikke bare en bil som er 5+ dager forsinket.
-
-**Kombinert visningslinje** (`vehicleKontrollstatusLinjeTekst()`), brukt ETT sted per
-visning (erstatter, ikke supplerer, den gamle enkle linjen — Kjøretøyprofil sine tre
-"Kontrollstatus"-felt, `galleryCard`, `accordionRow`):
-- 0 dager: `✅ Kontrollert i dag` (+ `· kl. HH:MM` når kontrollen har et tidspunkt)
-- 1 dag: `🟢 Sist kontrollert i går`
-- 2 dager: `🟢 Sist kontrollert for 2 dager siden`
-- 3–4/5+ dager: `🟡/🔴 Ikke kontrollert i dag · Sist kontrollert for N dager siden`
-- Aldri: `🔴 Aldri kontrollert`
-- Reservebil unntatt: `🚐 Reservebil — ikke i bruk i dag` (uendret tekst fra før)
-
-Bevisst IKKE "Kontroll OK" for en bil som mangler dagens kontroll, selv ved grønt nivå —
-det ville feilaktig signalisert at ingenting gjenstår.
-
-**Kort chip-tekst** (`vehicleKontrollstatusChipInfo()`) returnerer `null` for
-grønn/reserve/kontrollert-i-dag (vises IKKE som et handlingsbehov — 1–2 dager er nøytral
-informasjon), og en presis tekst for gul/rød/aldri ("Kontroll mangler, 4 dager siden" /
-"Kontroll kritisk, 7 dager siden" / "Aldri kontrollert"). Brukt som ny dash-chip i
-`accordionRow` (Dashboardets Biloversikt-akkordion), ved siden av den eksisterende
-Service-chipen fra Prioritet 18 — begge vises uavhengig av hverandre, aldri blandet.
-
-**Biloversikt/Kjøretøyprofil:** `galleryCard` sin kontroll-`vl-indicator` og alle tre
-"Kontrollstatus"-forekomster i `renderBilkort()` (toppseksjon, operativ status,
-kontrollhistorikk) bruker nå `vehicleKontrollstatusLinjeTekst()` — én kilde til teksten,
-ikke tre separate inline-uttrykk som før.
-
-**Dashboard — Operativ Status-kortet.** `manglerKontrollCount` (den eksisterende, uendrede
-"mangler kontroll i dag"-telleren) beholder sin plass og sitt tall i den kompakte
-2-kolonners oppsummeringen. Rett under legges en tiered nedbrytning til: en egen,
-separat kontroll-Bilparkhelse-linje (se under) og tre tellinger (🟢 1–2 dager / 🟡 3–4 /
-🔴 5+ eller aldri), begge kun synlige når `morgenManglerKontrollBiler.length > 0`.
-
-**Krever handling nå.** Kun gul/rød/aldri havner i arbeidslisten
-(`manglerKontrollHandlingCount`, erstatter `manglerKontrollCount` i
-`dashTotalHandlinger`-summen) — 1–2 dager er ikke lenger et "handlingsbehov" der. Rød/
-aldri prioriteres over gul (`sort:2.5`, mellom "oppfølging i dag" og gul kontrollmangel),
-med presis ikon/tekst fra `vehicleKontrollstatusChipInfo()` i stedet for den gamle,
-generiske "Kontroll mangler i dag" for alle. Oppsummeringslinjene øverst i kortet viser nå
-🟡 gul-tall og 🔴 kritisk/aldri-tall hver for seg, i stedet for ett samlet
-"mangler kontroll"-tall.
-
-**Morgenvisning — kombinert sortering.** "Mangler kontroll"-seksjonens INNHOLD
-(`morgenManglerKontrollBiler`) er uendret som konsept — fortsatt alle biler som mangler
-DAGENS kontroll, reservebil-unntak uendret. Den interne GRUPPERINGEN er endret fra ren
-Bilgruppe→Bilnummer (Optimalisering 15/16) til kontrollalder-nivå først (🔴 Kritisk
-kontrollmangel = rod+aldri, 🟡 Kontrollmangel = gul, 🟢 Nylig kontrollert men mangler
-dagens kontroll = gronn), med kanonisk Bilgruppe→Bilnummer-rekkefølge (`sortedVehicles()`,
-uendret) som sekundær sortering INNENFOR hver av de tre gruppene — kombinerer prioritering
-med gjenkjennelig struktur.
-
-**Egen Bilparkhelse-indikator for kontroll — bevisst plassert i Operativ Status-kortet,
-IKKE i det delte `shell-top`.** For å unngå regresjonsrisiko på tvers av alle admin-sider
-er denne NYE indikatoren (`kontrollBilparkhelseNiva`/`KONTROLL_BILPARKHELSE_TEKST`: "🟢
-Kontrollsituasjon god" / "🟡 Flere biler nærmer seg oppfølging" / "🔴 Kritiske manglende
-kontroller finnes") lagt til inne i Dashboardets Operativ Status-kort, samme trygge,
-isolerte plassering som Service-indikatoren fikk i Prioritet 18 — IKKE i den delte
-"Bilparkhelse Status"-raden i toppfeltet. Holdt fullstendig separat fra
-`vehicleHovedstatus()`, serviceindikatoren (Prioritet 18), Aktive Saker og
-Ute av drift-status — ingen av disse er rørt.
-
-**Aktiv Biløkt / Kontrollsletting.** Ingen egen kode nødvendig — alt beregnes live fra
-`kontroller`-arrayet ved hvert `render()`-kall, akkurat som `isKontrollertIdag()` allerede
-gjør. En ny kontroll eller en sletting (inkl. at en eldre kontroll blir "nyeste" etter
-sletting) slår automatisk igjennom ved neste rendring.
-
-**Reservebil-unntak.** `vehicleErReserveUnntatt()` (Prioritet 14) sjekkes FØRST i
-`vehicleKontrollstatusNiva()` — en reservebil som ikke er tatt i bruk får nøytralt
-`reserve`-nivå, er ALDRI med i "Mangler kontroll"-listen/-telling, og påvirker aldri
-kontroll-Bilparkhelse-indikatoren. Tas bilen i bruk, faller unntaket bort automatisk
-(samme live-beregning som resten av appen).
-
-**Bevisst IKKE implementert:** nytt kontrollskjema, nye databasetabeller/-felt, nye
-rapportmoduler, egne dashboardsider.
-
----
-
-# Bilkort og Kjøretøyprofil Cleanup (Prioritet 20)
-
-Mål: mindre støy, mer relevant informasjon, samle informasjon der brukeren forventer å
-finne den, redusere behovet for egne undersider. Operativt prinsipp brukt gjennomgående:
-"Hjelper denne informasjonen meg å ta en beslutning om drift/vedlikehold/oppfølging/
-verksted?" — hvis nei, fjernes den, flyttes til historikk, eller flyttes til Mer
-informasjon.
-
-**Fjernet fra Kjøretøyprofil og Bilkort (Dashboardets akkordion):** Bilgruppe, Biltype og
-Neste verkstedtime. Bilgruppe/Biltype-feltene var i tillegg feilmerket i koden (viste
-`v.bilnummer` under label "Bilgruppe" og `v.kategori` under label "Biltype") — begge er nå
-fjernet i sin helhet i stedet for rettet, siden informasjonen uansett var lite operativt
-nyttig og allerede finnes andre steder (Biloversikt, Dashboardets Bilgruppe-hurtigkort).
-Bilnummer og Registreringsnummer var allerede synlig i Kjøretøyprofilens topptekst
-(`bilkort-head`) og trengte ingen erstatning der.
-
-**Lagt til: Aktiv sjåfør på Kjøretøyprofil.** Manglet helt fra før (fantes kun på
-Dashboard/Biloversikt) — gjenbruker uendret `vehicleAktivSjafor()`. Vises i både
-toppseksjonen ("Ola Hansen · Kontrollert: 06:14", med tidspunktet fra siste kontroll) og
-operativ status-boksen ("Ingen aktiv sjåfør" når ingen biløkt er aktiv).
-
-**Dekktype (Del 5) — én samlet liste, bevisst uten pigg/piggfri som underkategori av
-vinter** (eksplisitt presisert i godkjenningen): Sommer / Vinter pigg / Vinter piggfri /
-Helår, som fire sidestilte verdier på samme `v.dekk`-felt som før (`sommer` /
-`vinter-pigg` / `vinter-piggfri` / `helars`) — ingen ny Airtable-kolonne. Ny
-`DEKK_TYPE_LABEL`-konstant og `dekkErVinterVariant()`-hjelpefunksjon (behandler begge
-vinter-variantene, OG det gamle `'vinter'`-verdien for biler som ikke er oppdatert ennå,
-likt der logikken bare trenger å vite SESONG — f.eks. sesongovergangsvarselet i
-Dekkoversikt-siden). Dekktype vises nå tydelig øverst i Kjøretøyprofilens Dekkoversikt-
-seksjon, ikke bare i redigeringsskjemaet. `submitDekkskifte()` sin auto-oppdatering av
-`v.dekk` ved et registrert sommer→vinter-skifte beholder bilens tidligere vinter-variant
-hvis den hadde en (unngår å nullstille et bevisst pigg/piggfri-valg), ellers settes
-`vinter-piggfri` som nøytralt utgangspunkt til administrator eventuelt korrigerer.
-
-**Del 6 — Dekkhistorikk migrert inn i Dekkoversikt.** Den tidligere separate
-"Dekkhistorikk"-akkordion-seksjonen på Kjøretøyprofil finnes ikke lenger — innholdet
-(skiftehistorikk, nyeste først) vises nå nederst i selve "Dekkoversikt"-seksjonen, under
-sommer-/vinterdekkinfo. Ingen endring i selve `dekkhistorikk`-datastrukturen
-(`window.storage`, uendret fra Prioritet-implementeringen) — kun visningen er slått
-sammen. "Registrer dekkskifte" er samtidig gjort til en tydelig primærknapp (fremfor en
-liten sekundærknapp som før) — ingen ny funksjonalitet, kun mer synlig.
-
-**Del 3/4 (Servicehistorikk/Servicekort) og Del 7 (Historikkfiltrering) var allerede på
-plass** fra Prioritet 18 og trengte ingen endring: Service-/Servicehistorikk-seksjonene
-viser allerede dato/km/verksted/type/kommentar sortert nyest først, og
-`vehicleHistorikkTidslinje()` + `bilkortHistorikkFilter` støtter allerede filtrering på
-nøyaktig de kategoriene som er etterspurt (Alle/Kontroller/Skader/Dekk/Service/Verksted/
-Kostnader/Aktive Saker, pluss varsellamper/statusendringer). Skadehistorikk- og
-Kontrollhistorikk-seksjonene er bevisst IKKE fjernet (kun mindre nødvendige etter hvert
-som Kjøretøyhistorikk blir hovedkilden) — retningen er "Én historikk → Filtrering", ikke
-flere separate historikker, men ingen eksisterende side er slettet i denne runden.
-
-**Bevisst IKKE implementert:** nye rapportmoduler, nye dashboardsider, nye
-databasetabeller, duplisering av historikk.
-
----
-
-# Historikkforenkling (Prioritet 21)
-
-Mål: én historikkmotor, mindre duplisering, ett sted å lete, færre undersider, bedre
-filtrering. Ny filosofi bekreftet i kode: historikk lagres ETT sted (de eksisterende
-datakildene — `kontroller`, `damages`, `varsellys`, `aktiveSaker`, `verkstedtimer`,
-`servicehistorikk`, `dekkhistorikk`, `dekkkostnader`, `v.statusHistorikk`) og FILTRERES,
-aldri lagret flere steder eller åpnet fra ulike sider.
-
-**Analysen viste at det meste allerede var på plass** fra Prioritet 18–20:
-`vehicleHistorikkTidslinje()` var allerede den autoritative, samlede tidslinjen bygget fra
-ALLE datakilder uten egen duplisert lagring, og `HISTORIKK_TYPE_ORDER` dekket allerede
-nøyaktig de ti kategoriene som er etterspurt (Alle/Kontroller/Skader/Dekk/Service/Verksted/
-Kostnader/Aktive Saker/Varsellamper/Statusendringer). Dekkhistorikk var allerede migrert inn
-i Dekkoversikt OG Kjøretøyhistorikk (Prioritet 20/18). Servicehistorikk var allerede
-automatisk med i Kjøretøyhistorikk (Prioritet 18).
-
-**Faktisk nytt arbeid i denne runden:**
-
-- **Verkstedhendelser skiller nå "bestilt" fra "utført"** i Kjøretøyhistorikk-visningen —
-  tidligere viste alle verkstedtimer samme nøytrale "Verkstedtime: ..."-tekst uansett om
-  timen lå i fortid eller fremtid. Nå: "Verksted bestilt: ..." for timer i dag/fremtiden,
-  "Verksted utført: ..." for timer i fortiden. Appen har ingen eget "utført"-flagg på
-  verkstedtimer (og det er bevisst IKKE lagt til et nytt felt for dette, jf.
-  "ingen nye databasetabeller/-felt") — datoen brukes som samme pragmatiske indikator som
-  allerede brukes andre steder i appen (f.eks. `vtCard()` sin `upcoming`-sjekk). Sak-koblede
-  verkstedtimer fortsetter i tillegg å få sine egne, rikere "Verksted bestilt"/
-  "Verksted fullført"-hendelser under `sak`-typen (uendret fra før — dette er en bevisst
-  separat, mer detaljert hendelse tilknyttet selve saksforløpet).
-- **Mobiloptimalisert visning (Del 13):** Kjøretøyhistorikkens liste har nå en egen,
-  scoped stil (`.historikk-list`, kun for denne listen — påvirker ingen andre lister som
-  deler `dmg-simple-list`-klassen) med større trykkflate (min-høyde 44px) og dato på egen,
-  fet linje øverst i hver rad, ikonet tydelig foran selve hendelsesteksten under. Filteret
-  ligger øverst i seksjonen, ingen scrolling nødvendig for å nå det.
-
-**Bevisst IKKE implementert:** en "Prioritet endret"-hendelse for Aktive Saker (Del 8) er
-IKKE lagt til — appen har i dag ingen historisk logg over tidligere prioritetsverdier
-(`s.priority` overskrives uten spor av forrige verdi eller tidspunkt), og å legge til en slik
-logg ville vært nøyaktig det "nye historikksystemet" oppgaven eksplisitt ber om å unngå.
-"Sak opprettet", "Verksted bestilt", "Verksted fullført" og "Sak lukket" var allerede
-dekket fra før og er uendret. Ingen ny søkemotor (Del 11) — ingen eksisterende søk å
-gjenbruke for historikk spesifikt, og oppgaven ber eksplisitt om å ikke bygge en ny.
-
-**Kontrollhistorikk og Skadehistorikk beholdt uendret** ved siden av Kjøretøyhistorikk
-(Del 4/5/12) — begge viser fortsatt de samme underliggende hendelsene som nå også er
-filtrerbare fra Kjøretøyhistorikk. Retningen er fortsatt "Én historikk → Flere filtre",
-ingen sider er slettet.
-
----
-
-# Gruppert Bilvalg for Sjåfører (Prioritet 22)
-
-Mål: mindre scrolling, raskere valg av riktig bil, bedre mobilopplevelse, gjenbruk av
-eksisterende bilgrupper. Løser et konkret problem: med 16+ biler i én lang flat liste
-måtte f.eks. Monteringsbiler eller Lastebiler scrolles langt ned, og Reserve lå alltid
-nederst.
-
-**Gjenbruker eksisterende bilgrupper — ingen nye.** `renderDriverVelgBil()` grupperer nå
-kjøretøyene etter `KATEGORI_ORDER`/`KATEGORI_GROUP_LABEL` (samme konstanter som
-Morgenvisning/Dashboard allerede bruker), ikke en ny gruppestruktur. Rekkefølgen følger
-den eksisterende konstanten (`bil → lastebil → montering → reserve`) fremfor
-oppgavetekstens litt annerledes skrevne eksempel-rekkefølge, siden oppgaven selv ber om å
-følge gruppene "slik de allerede brukes i systemet".
-
-**Lukket som standard** (`driverVelgBilGruppeApen`, en `Set` med gruppenøkler) — kun
-gruppenavn og antall biler vises til sjåføren trykker på en gruppe, gjenbruker samme
-`.acc-row`/`.acc-head`-mønster (og dermed samme touch-vennlige 14px-padding) som brukes
-på Kjøretøyprofil og Dashboard.
-
-**Per bil vises:** bilnummer + regnr (+ "🚐 Reserve"-merke for reservebiler),
-kontrollstatus ("✅ Kontrollert i dag" / "⚪ Ikke kontrollert i dag" — samme
-`isKontrollertIdag()`), og enten "🔒 Aktiv sjåfør: [navn]" eller "✅ Tilgjengelig" (samme
-`vehicleAktivSjafor()` som resten av appen).
-
-**"⭐ Min Bil"-snarvei øverst, over alle grupper.** Vises kun når sjåføren allerede har en
-aktiv biløkt på denne enheten (`driverActiveVehicleId` + `vehicleAktivSjafor()` fortsatt
-gyldig) — samme sjekk appen allerede bruker ved oppstart for å rute rett til Min Bil.
-Dette dekker tilfellet der sjåføren trykker "← Velg en annen bil" ved en feiltakelse:
-biløkten er fortsatt aktiv, og snarveien lar dem komme tilbake uten å lete gjennom
-gruppene på nytt. Ingen ny datakobling — kun gjenbruk av eksisterende tilstand.
-
-**Aktiv Biløkt-integrasjonen er uendret.** Velger sjåføren en allerede kontrollert bil,
-går flyten fortsatt til `'allerede-kontrollert'`-skjermen ("Ingen ny kontroll nødvendig" →
-"Gå til Min Bil"); er bilen ikke kontrollert, går flyten fortsatt til det ordinære
-kontrollskjemaet. Denne logikken lå allerede i `attachDriverVelgBilListeners()` og er
-videreført identisk, kun listen bilene velges FRA er endret.
-
-**Bevisst IKKE implementert:** nye bilgrupper, nye databaserelasjoner, nye kontrollskjema,
-nye dashboardmoduler.
-
----
-
-# Felles Dekkskifte, Serviceintelligens og Operativ Sjåførflyt (Prioritet 23)
-
-Mål: redusere administrasjonstid, redusere scrolling, gjøre vedlikehold mer proaktivt, gjøre
-sjåførflyten raskere. Analysen viste at 8 av 10 delpunkter allerede var dekket av
-Prioritet 18–22 (servicevarsler sortert på km, kontrollstatus på dager, Kjøretøyprofil-
-cleanup, historikkonsolidering, gruppert bilvalg, Min Bil-snarvei) — kun to genuint nye
-funksjoner ble bygget denne runden.
-
-**Del 1 — Masseregistrering av dekkskifte (ny).** Dekkoversikt (hele-flåten-siden) har fått
-en ny "🛞 Registrer dekkskifte flere biler"-knapp ved siden av den eksisterende "Registrer
-nye dekk". Åpner et skjema med avkrysningsbokser for alle biler (gruppert som resten av
-siden, samme `KATEGORI_ORDER`) og fire radioknapper for ny dekktype (samme
-`DEKK_TYPE_LABEL` som Prioritet 20 innførte). `submitBulkDekkskifte()` kjører nøyaktig
-samme oppdatering som enkelt-registreringen (`submitDekkskifte()`) i en løkke over valgte
-biler: oppretter én `dekkhistorikk`-oppføring per bil og setter `v.dekk` direkte til valgt
-type. `bulkDekkskifteSaving` hindrer dobbeltlagring ved raske trykk.
-
-Ny `nyDekktype`-egenskap lagt til på dekkhistorikk-oppføringer (både enkelt- og
-masseregistrering) — et rent tillegg til den eksisterende JSON-formen, ikke et nytt
-Airtable-felt. Ny delt `dekkskifteTekst()`-funksjon viser nøyaktig dekktype
-("Dekkskifte → Vinterdekk (piggfri)") når den finnes, med bakoverkompatibel fallback til
-den eldre retning-baserte teksten for oppføringer registrert før denne prioriteringen.
-Brukes nå ETT sted i koden for alle tre visningene (Kjøretøyprofil, Dekkoversikt,
-Kjøretøyhistorikk) i stedet for tre separate tekstuttrykk som før.
-
-**Del 2 — Serviceintervall-forslag ved ny bil (ny), bygger på Prioritet 18.** Ny
-`SERVICEINTERVALL_FORSLAG`-liste (ren JS-konstant, ingen ny tabell) med kjente
-merke/modell → km-verdier (f.eks. Mercedes Sprinter 60 000 km, Ford Transit 50 000 km,
-MAN 80 000 km). `foreslaServiceIntervallKm()` slås opp i `submitAddVehicle()` og
-forhåndsutfyller `v.serviceIntervallKm` — SAMME felt som Prioritet 18 innførte, ingen ny
-kolonne. Finnes ingen treff, forblir feltet tomt akkurat som før, og den eksisterende
-"Serviceintervall mangler"-visningen (`vehicleServiceManglerHva()`) gjelder uendret — ingen
-servicevarsling beregnes før intervallet er bekreftet. Forslaget er alltid overstyrbart av
-administrator i Kjøretøyprofil sin Service-seksjon, på nøyaktig samme måte som et manuelt
-registrert intervall.
-
-**Del 3 (servicevarsler sortert på km) var allerede korrekt** — den eksisterende
-tier-sorteringen (rød→oransje→gul, deretter minst km igjen) er matematisk ekvivalent med
-en ren "minst km igjen først"-sortering, siden terskelverdiene (rød <0, oransje 0–1000,
-gul 1001–3000) allerede er ordnet i stigende km-rekkefølge. Ingen endring nødvendig.
-
-**Del 8 — liten justering:** "⭐ Min Bil"-snarveien (Prioritet 22) viser nå også
-kontrollstatus for dagen (✅/⚪) i selve snarveikortet, i tillegg til bilnummer/regnr, slik
-den konkrete eksempelteksten i denne prioriteringen ba om.
-
-**Del 4/5/6/7/9/10 var allerede fullt dekket** av hhv. Prioritet 19 (kontrollstatus),
-Prioritet 20 (Kjøretøyprofil-cleanup), Prioritet 21 (historikkonsolidering) og Prioritet 22
-(gruppert bilvalg, kontrollstatus i bilvalg) — ingen endring var nødvendig.
-
-**Bevisst IKKE implementert:** nye dashboardsider, parallelle historikksystemer, nye
-Airtable-tabeller, duplisering av eksisterende funksjoner.
-
----
-
-# Smart Operativ Planlegging (Prioritet 24)
-
-Mål: gå fra "Hva skjer nå?" til "Hva kommer til å kreve handling snart?" — varsle om
-fremtidige problemer FØR de blir operative problemer. Dette er den mest arkitektonisk
-omfattende prioriteringen så langt: en ny aggregert indikator og en delt topprad-endring,
-begge foranalysert og godkjent med presiseringer før implementering.
-
-**Ingen nye statusmotorer (punkt 9/13).** All prognoselogikk er ren, live filtrering av
-data appen allerede har — `vehicleDagerSidenKontroll()`/`vehicleKontrollstatusNiva()`
-(Prioritet 19), `vehicleServiceVarselNiva()`/`vehicleServiceGjenstaaende()` (Prioritet 18),
-`aktiveSaker`/`sakOppfolgingStatus()` (Fase 5-oppfølgingsmotoren), `verkstedtimer`
-(Verkstedoversikt). Ingen nye Airtable-felt eller -tabeller.
-
-**Prognosefunksjoner (nye):**
-- `vehicleKontrollPrognose(vehicleId)` — kun grønne (0–2 dager) og gule (3–4 dager) biler
-  får en prognose ("blir gul om N dager" / "blir rød om N dager"). Rød, aldri kontrollert
-  og reservebil-unntatt gir `null` — det er et NÅVÆRENDE forhold, ikke en kommende
-  hendelse (se dobbeltvisnings-regelen under).
-- `vehicleServicePrognose(vehicleId)` — ren viderebygging av Prioritet 18, viser kun gyldig
-  beregnet gul/oransje/rød. `mangler_grunnlag` vises ALDRI som en kommende teknisk
-  hendelse her (kun som det eksisterende administrative hintet fra Prioritet 18).
-- `oppfolgingsprognoseSaker()` — åpne saker med `followUpDate` 1–7 dager frem. Dag 0 (i dag)
-  og negative (forfalt) er bevisst EKSKLUDERT — de hører hjemme i Krever handling nå
-  (`sakerOppfolgingIdag()`/`sakerForfalt()`, uendret), ikke her.
-- `verkstedprognoseTimer()` — kommende verkstedtimer 0–7 dager frem, sortert
-  dato→tidspunkt→bilnummer. Verkstedtimer er allerede én rad per rad i `verkstedtimer`
-  uansett hvor mange avvik en sammenslått sak samler, så ingen egen deduplisering trengs.
-
-**"Ingen dobbeltvisning" (punkt 7) — presedens for hvordan et forhold kan vises to steder
-med ulik vinkling.** En bil som er NÅVÆRENDE gul (vises i Krever handling nå som "Kontroll
-mangler, X dager siden") kan SAMTIDIG dukke opp i Kommende belastning som "Blir rød om Y
-dager" — dette er eksplisitt godkjent (punkt 8) som et unntak fra hovedregelen, fordi det
-er to ulike opplysninger (nåværende status vs. fremtidig utvikling), ikke samme fakta
-gjentatt. Oppfølging/service/verksted følger derimot den strenge regelen fullt ut: et
-forhold ligger i ÉN operativ kategori om gangen.
-
-**Dashboard — "📅 Kommende belastning" (Del 1/6).** Erstatter/utvider den tidligere
-frittstående "Kommende service"-seksjonen (Prioritet 18) — nå én samlet panel med opptil
-fire underseksjoner (service, kontrollstatus, oppfølging, verksted), hver med egen
-overskrift, kun vist når det finnes noe å vise. Ingen historikk, ingen fullførte/lukkede
-saker, ingen fullførte servicer — bevisst fremtidsrettet (punkt 6/10).
-
-**Kjøretøyprofil — "📅 Neste hendelser" (Del 12).** Ny, kompakt seksjon rett under
-"Kjøretøyprofil"-panelet: neste verkstedtime, neste oppfølgingsdato, kontrollprognose,
-serviceindikator+km igjen — kun de som faktisk finnes, ellers "Ingen planlagte hendelser"
-(aldri tomme kort/nullverdier). Merk: "Neste verkstedtime" ble bevisst FJERNET som eget
-overordnet felt i Prioritet 20 (redundant enkeltinfo) — det gjeninnføres IKKE der, men
-vises nå som ett element i denne nye, samlede fremtidsseksjonen, som er en annen, mer
-formålstjenlig plassering.
-
-**"Operativ belastning" — navn bevisst endret fra "Bilparkrisiko" i foranalysen** (indikatoren
-viser registrerte forhold og kommende oppfølging, ikke en teknisk risikovurdering av selve
-kjøretøyet). Fire nivåer: 🟢 Lav / 🟡 Moderat / 🟠 Høy / 🔴 Kritisk belastning.
-
-**Poengberegning (`vehicleOperativBelastning()`/`beregnOperativBelastning()`) — bevisst
-konstruert for å UNNGÅ dobbel vekting av samme bil (punkt 3):** per bil beregnes ett sett
-forhold (kritisk sak 3p, ute av drift 3p, rød kontroll/aldri kontrollert 2p, service forfalt
-2p, service oransje 1p, forfalt oppfølging 1p) — men bilens SLUTTPOENG er høyeste
-enkeltforhold + maks ÉTT tilleggspoeng ved flere separate forhold, med et TAK på 4 poeng
-totalt per bil, uansett hvor mange kriterier den oppfyller samtidig. Terskler for
-totalsummen: 0→grønn, 1–3→gul, 4–7→oransje, 8+→rød. **Tvungen minimumsregel (punkt 5):**
-1+ bil med kritisk sak/ute av drift tvinger minst "Høy", 2+ slike biler samtidig tvinger
-"Kritisk" — uansett hva totalsummen ellers tilsier, slik at en alvorlig situasjon aldri
-kan skjules bak en lav samlet poengsum.
-
-**Grunnlaget vises alltid** (punkt 4 — "ikke vis bare et nivå uten forklaring"): et lite
-▾/▴-ikon ved siden av nivåteksten åpner en linje med aggregerte tellinger
-("1 kritisk bil med kritisk sak · 2 forfalte oppfølginger · 1 service forfalt").
-Ren UI-tilstand (`operativBelastningApen`), ingen lagret risikostatus.
-
-**Plassering — ☰ Meny-knappens faste posisjon er UENDRET (punkt 1).** Operativ belastning
-er lagt inn i den SAMME eksisterende `.shell-top-status`-raden som Bilparkhelse Status
-(Prioritet 17), ikke en ny, parallell topprad. Innholdet er delt i en sentrert
-`.shell-top-status-center`-gruppe (Bilparkhelse Status + Operativ belastning) og
-`.shell-top-drift` ("Biler i drift nå") skjøvet mot høyre på desktop
-(`justify-content:space-between` på `.shell-top-status`, `flex:1;justify-content:center`
-på senter-gruppen, aktivert fra 641px). På mobil beholder raden sin naturlige
-flex-wrap-stabling, uendret fra før — rekkefølgen "Kontroller • Registrer • Reager → ☰
-Meny → Bilparkhelse/Operativ belastning/Biler i drift nå" er dermed bevart nøyaktig som
-den var, kun med ett nytt element lagt til i den siste raden.
-
-**Bevisst IKKE implementert:** nye dashboardsider, nye historikkmotorer, nye rapportsider,
-nye analysemoduler.
-
----
-
-# Operativ Beslutningsstøtte (Prioritet 25)
-
-Mål: gå fra å vise informasjon til å foreslå handlinger — IKKE kunstig intelligens, IKKE
-automatiske beslutninger, kun intelligente forslag basert på eksisterende data. Dette
-bygger direkte videre på Prioritet 24, og det bærende prinsippet gjennom hele
-implementeringen var eksplisitt "Less is More": maks gjenbruk, ingen nye statusmotorer,
-ingen duplisering — én sannhet, flere visninger av samme sannhet.
-
-**Operativ Score (Del 6) — REN visning, ikke en ny beregning.** `vehicleOperativScore()`
-gjør ingenting annet enn å lese `vehicleOperativBelastning(vehicleId).poeng` (Prioritet 24,
-0–4 skala) og regne `100 − (poeng × 25)`: 0 poeng→100 (Normal), 1→75 (Bør følges opp),
-2→50 (Krever planlegging), 3→25 (Kritisk), 4→0 (Akutt). Samme grunnlag, samme logikk —
-akkurat som eksplisitt bedt om. Vises på Kjøretøyprofil.
-
-**Bevisst skille: rangering (visning) vs. poengsum (Prioritet 24, uendret).** "Verksted
-innen 7 dager" påvirker REKKEFØLGEN i "Prioriterte biler i dag" (`vehiclePrioritetIDag()`
-sitt `rank`-felt), men er bevisst IKKE lagt til i `vehicleOperativBelastning()` sin
-poengformel — den godkjente Belastning-formelen fra Prioritet 24 er urørt. Operativ Score
-er dermed også upåvirket av verkstedtidspunkt, kun av de samme fem forholdene som
-Belastning allerede bruker.
-
-**"Prioriterte biler i dag" og "Anbefalte handlinger" — bevisst SLÅTT SAMMEN til én liste**
-(Dashboard, Del 1+2). Dette var en eksplisitt "Less is More"-vurdering underveis: de to
-delkravene ville vist nøyaktig de samme bilene, kun med problemtekst vs. handlingstekst.
-Én liste viser nå begge deler per rad ("🔴 Bil 7 — Kritisk motorlampe → **Bestill
-verksted**"), maks 5 biler med en "Se alle"-utvidelse (ren UI-tilstand,
-`prioriterteBilerApen`). `vehiclePrioritetIDag(vehicleId)` er den ENE, delte
-prioriterings-/anbefalingsmotoren — samme funksjon brukes UENDRET på Kjøretøyprofil for
-"Neste anbefalte handling" (Del 7), slik at det aldri finnes to ulike svar på "hva bør
-gjøres med denne bilen" ett sted vs. et annet.
-
-Rangeringsrekkefølge (`rank`, kun sortering — se skillet over): 1) kritisk aktiv sak,
-2) ute av drift, 3) kontrollstatus rød/aldri, 4) service forfalt, 5) verksted innen
-7 dager, 6) forfalt oppfølging, 7) service oransje/gul. Ingen treff → `null` på Dashboard
-(bilen vises ikke i listen), men `vehicleNesteAnbefalteHandling()` returnerer "Ingen
-handling nødvendig" på Kjøretøyprofil (aldri et tomt kort — bevisst wrapper-lag rundt
-samme funksjon).
-
-**Smart verkstedforslag (Del 3) — rent forslag, aldri automatikk.**
-`vehicleSmartVerkstedforslag()` returnerer en tekst KUN når service er gul/oransje/rød OG
-bilen samtidig har en åpen sak ELLER en aktiv varsellampe — ellers `null`. Vises som en
-sekundær hint-linje ("💡 Forslag: ...") i "Neste anbefalte handling"-panelet på
-Kjøretøyprofil, aldri en knapp eller handling som utløser noe automatisk.
-
-**Vedlikeholdsplan (Del 4) — 30 dager, tydelig adskilt fra Kommende Belastning (7
-dager).** Egen Dashboard-seksjon med samme fire kategorier (service/dekk/oppfølging/
-verksted), men lengre horisont. `oppfolgingsprognoseSaker()`/`verkstedprognoseTimer()`
-(Prioritet 24) fikk begge en valgfri `dagerGrense`-parameter (standard 7, brukt uendret av
-Kommende Belastning) slik at Vedlikeholdsplanen kan kalle dem med 30 uten å duplisere
-filtreringslogikken — samme funksjon, to bruksområder.
-
-**Dekksesong-varsling (Del 5) — allerede implementert, ingen ny funksjonalitet bygget.**
-Den eksisterende logikken i `renderDekkoversikt()` (fra Prioritet 20/23) er trukket ut til
-en delt funksjon `dekkskifteAnbefalesInfo()`, slik at Vedlikeholdsplanen kan gjenbruke
-nøyaktig samme beregning (filtrert til ≤30 dager) i stedet for å duplisere den inline
-filtreringen som lå i Dekkoversikt fra før. Dekkoversikt selv er funksjonelt uendret.
-
-**Del 8 (Operativ Belastning-integrasjon)** var i praksis allerede oppfylt av Prioritet 24
-sin formel (som allerede bruker aktive saker, service, kontrollstatus og oppfølging) —
-ingen kodeendring var nødvendig i selve Belastning-beregningen for å oppfylle dette
-punktet, kun bekreftet i denne runden.
-
-**Bevisst IKKE implementert:** nye Airtable-tabeller, nye historikksystemer, automatisk
-bestilling av verksted, automatisk endring av status, parallelle statussystemer.
-
----
-
-# Verifiserte Duplikater — Less is More (Prioritet 26.1)
-
-Mål: samme funksjonalitet, færre paneler, mindre scrolling, én sannhet. Denne runden
-implementerte KUN det som var konkret dokumentert og linjeverifisert i
-PRIORITET_26_AUDIT.md — ingen nye antakelser, ingen nye funn, ingen ekstra opprydding
-utover det som var eksplisitt bedt om.
-
-**Del 1 — "📅 Kommende verkstedtimer" fjernet.** Det frittstående topp-3-panelet på
-Dashboard (fra før Prioritet 24) er fjernet i sin helhet, sammen med
-`nesteVerkstedtimerTop3`/`Top5`-beregningen som kun matet dette panelet. Verifisert
-triplikat: samme verkstedtimer vises fortsatt i "Kommende Belastning" (7 dager) og
-"Vedlikeholdsplan" (30 dager) — begge bygget på `verkstedprognoseTimer(dagerGrense)`,
-uendret. Verkstedoversikt (fleet-wide siden) er upåvirket.
-
-**Del 2 — "🚐 Kjøretøyprofil" + "🩺 Operativ status" slått sammen til "🚐 Kjøretøystatus".**
-Ny, delt `kjoretoystatusBody` erstatter de to gamle `toppseksjonBody`/`operativStatusBody`.
-Hovedstatus, Kontrollstatus, Aktiv sjåfør og Aktive saker vises nå ÉN gang (var vist to
-ganger rett etter hverandre). Alle unike felt fra begge de gamle panelene er bevart:
-Kritiske saker, Forfalte oppfølginger, Neste handling, Neste oppfølgingsdato, Ute av
-drift-status (inkl. de opprinnelige handlingsknappene for å markere/tilbakestille ute av
-drift, `uteAvDriftBody` — uendret, kun flyttet inn i det sammenslåtte panelet),
-Kilometerstand, Registreringsnummer og Sist oppdatert. **Operativ Score** (Prioritet 25)
-er lagt inn her per den godkjente nye strukturen, og er derfor fjernet fra "Neste
-anbefalte handling" (se Del 4) for å ikke innføre en ny duplisering i samme slengen.
-
-**Del 3 — Duplisert "Oppfølging i dag" fjernet fra Operativ Status-kortet.**
-`oppfolgingKreverHandlingSaker` (master-kilden) er UENDRET og brukes fortsatt fullt ut i
-"Krever handling nå" — kun den ekstra tellingen/lenken i Operativ Status-kortet er fjernet.
-Operativ Status viser nå kun: Biler klare, Mangler kontroll, Verksted i dag, Kritiske
-forhold — nøyaktig firelisten fra oppgaven.
-
-**Del 4 — "📍 Neste anbefalte handling" + "📅 Neste hendelser" slått sammen.** Én seksjon:
-anbefalingen (fra `vehicleNesteAnbefalteHandling()`, uendret) øverst, smart-verkstedforslag
-som sekundær hint-linje, og "Kommende hendelser" (samme `nesteHendelserListe` som før) som
-støttedetalj under — kun synlig når den faktisk har innhold. Ingen data tapt, kun én
-seksjon i stedet for to.
-
-**Del 5 — Servicehistorikk komprimert.** Viser 3 nyeste registreringer som standard
-(`servicehistorikkFullApen`, ren UI-tilstand). "Vis full historikk (N)"-knapp vises kun når
-det faktisk finnes mer enn 3 — ingen data fjernet, kun default-visningen endret.
-
-**Del 6 — Dekkoversikt-detaljer komprimert.** `dekkSetBody()` returnerer nå
-`{kompakt, detaljer}` i stedet for én sammenhengende streng — kompakt viser kun
-alder-status per sesong, detaljer (DOT-kode, produksjonsdato, redigeringsfelt) ligger bak
-en ny "▼ Flere detaljer"-toggle (`dekkFlereDetaljerApen`). Samme felt-ID-er
-(`f-sommerdekkDot` osv.) er bevart uendret, så `saveDekkInfo()` fungerer identisk uansett
-om detaljene er utvidet eller ikke.
-
-**Ingenting annet er endret.** Ingen nye databasefelt, ingen nye statusmotorer, ingen nye
-Dashboard-kort — kun de seks konkrete endringene over, alle sporbare til
-PRIORITET_26_AUDIT.md.
+Prioritet 26.2 (implementert) — Dashboard Nullstilling
+Full redesign, ikke optimalisering — se "Dashboard — struktur (Prioritet
+26.2)" og "Bilregister — hovedstatusfilter" over, som erstatter de
+tidligere "Dashboard Pro"/"Operativ Dashboard Compact"-kapitlene i sin
+helhet. Dashboard redusert fra 7 seksjoner (Operativ Status, Min bil,
+Krever handling nå, Kommende verkstedtimer, Biler i drift nå, Biloversikt-
+akkordion) til 3: 🚨 Krever handling nå (nå med Prioritet + Neste handling
+per rad, egen "Se alle"-knapp), 📅 Kommer snart (kommende verkstedtimer +
+oppfølging innen 3 dager, slått sammen), 🎯 Prioriterte biler (ny — samme
+`dashKreverListe` gruppert per bil). Toppfeltet uendret i utseende, men
+Bilparkhelse-chipsene ruter nå til Bilregister (nytt `filterHovedstatus`-
+filter + `goToRegisterHovedstatus()`) i stedet for en inline
+Dashboard-akkordion, siden akkordionen er fjernet. Viktig avvik oppdaget
+og dokumentert underveis: spesifikasjonen forutsatte at Prioritet 18–24
+(serviceintervall, tiered kontrollstatus, "Operativ Belastning") allerede
+fantes i koden — det gjorde de ikke, verken i denne filen eller i
+index.html, og er derfor bevisst IKKE bygget som del av denne oppgaven.
+**⭐ Min bil-kortet er fjernet uten erstatning** (reell funksjonalitet
+tapt, per eksplisitt "Det er alt"-instruks) — vurder gjeninnføring som
+fremhevet rad i Prioriterte biler om behovet viser seg i praksis. Ingen
+nye Airtable-felt, ingen ny forretningslogikk — kun gjenbruk/omgruppering
+av `dashKreverListe`, `sakOppfolgingStatus()`, `vtWithinWeek()`,
+`vehicleHovedstatus()`
 
 ---
 

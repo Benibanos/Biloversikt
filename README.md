@@ -181,7 +181,7 @@ Derfra kan sjåføren:
 Driftskoordinator skal på Dashboard raskt se:
 
 - Hvilke biler som er i drift akkurat nå, og hvem som kjører dem
-- Sin egen bil, dersom hun eller han selv er aktiv sjåfør på en bil
+  (via Biloversikt — tallet vises i toppfeltet på Dashboard)
 
 ---
 
@@ -230,96 +230,6 @@ Lukket
 
 ---
 
-# Service
-
-De fleste servicer utføres grunnet kilometerstand.
-
-Ikke dato.
-
-Systemet varsler derfor før bilen passerer serviceintervallet, basert på
-kilometer — ikke etterpå.
-
-Mangler intervall eller siste service, sier systemet det tydelig.
-
-Det gjetter aldri.
-
----
-
-# Kontrollalder
-
-Ikke kontrollert er ikke én tilstand.
-
-En dag siden er noe annet enn en uke siden.
-
-Systemet viser derfor hvor lenge det faktisk er siden siste kontroll —
-grønt, gult eller rødt — slik at driftskoordinator vet hvilke biler som
-haster mest.
-
-Dagens kontroll og kontrollalder er to spørsmål.
-
-Systemet holder dem fra hverandre, selv når de vises på én linje.
-
----
-
-# Kjøretøyprofil
-
-Ikke alt fortjener plass.
-
-Spør alltid: hjelper dette meg å ta en beslutning?
-
-Hvis ikke, hører det hjemme i historikken. Eller ingen steder.
-
-Bilgruppe og biltype er ikke borte. De er bare ikke her lenger.
-
----
-
-# Historikk
-
-Ett sted. Ikke fem.
-
-Alt som har skjedd med en bil samles på ett sted, og filtreres derfra.
-
-Ikke lagres på nytt hver gang noen bygger en ny side.
-
-Én historikk. Flere filtre.
-
----
-
-# Velg bil
-
-Seksten biler i én liste er seksten biler for mye å lete gjennom.
-
-Sjåføren kjenner gruppen sin. Bil, lastebil, montering, reserve.
-
-Vis gruppen. Ikke alt på én gang.
-
-Og har du allerede en bil i dag, skal du aldri måtte lete etter den igjen.
-
----
-
-# Sesongskifte
-
-Seksten biler trenger ikke seksten registreringer.
-
-Velg bilene. Velg dekktypen. Lagre én gang.
-
-Historikken følger med, for hver eneste bil, uten at noen måtte gjøre det
-manuelt seksten ganger.
-
----
-
-# Fremtiden
-
-Et problem sett tidsnok er ikke et problem. Det er en oppgave.
-
-Systemet spør ikke bare hva som skjer nå.
-
-Det spør hva som kommer.
-
-Så driftskoordinator kan planlegge, ikke bare reagere.
-
----
-
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.
@@ -339,15 +249,17 @@ Prioritet:
 
 Dashboardet er systemets kontrollrom.
 
-Brukeren skal forstå bilparken på under 10 sekunder.
+Brukeren skal forstå bilparken på under 5 sekunder (Prioritet 26.2 —
+Dashboard Nullstilling).
 
-Dashboardet skal prioritere:
+Dashboardet skal kun svare på:
 
-- Krever handling nå
-- Manglende kontroller
-- Kritiske biler
-- Verkstedaktivitet
-- Bilparkhelse
+- Hva må jeg gjøre nå?
+- Hva kommer snart?
+- Hvilken bil skal jeg starte med?
+
+Alt annet (historikk, detaljer, lange oversikter) hører hjemme andre
+steder i appen — ikke på Dashboard.
 
 Bilparkhelse og biler i drift nå vises i toppfeltet.
 
