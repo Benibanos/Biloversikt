@@ -772,3 +772,34 @@ Innhold:
   som resten av appen, ingen horisontal scrolling, store trykkflater
 - Ingen nye databaserelasjoner, ingen nye kontrollskjema, ingen nye
   dashboardmoduler
+
+────────────────────────────
+
+✅ Prioritet 23
+Felles Dekkskifte, Serviceintelligens og Operativ Sjåførflyt
+
+Mål:
+Redusere administrasjonstid, redusere scrolling, gjøre vedlikehold mer
+proaktivt, gjøre sjåførflyten raskere.
+
+Innhold:
+- Ny masseregistrering av dekkskifte på Dekkoversikt — velg flere biler
+  og én ny dekktype samtidig, i stedet for bil for bil. Oppretter
+  dekkhistorikk og oppdaterer Kjøretøyhistorikk/Dekkoversikt for alle
+  valgte biler
+- Ny `nyDekktype`-egenskap på dekkhistorikk-oppføringer (rent JSON-
+  tillegg, ikke nytt Airtable-felt) — historikkvisningen viser nå
+  nøyaktig dekktype ("Dekkskifte → Vinterdekk (piggfri)") i stedet for
+  kun retning, med bakoverkompatibel fallback for eldre oppføringer
+- Nytt serviceintervall-forslag ved oppretting av ny bil, basert på
+  merke/modell (f.eks. Mercedes Sprinter, Ford Transit, MAN) — samme
+  `ServiceIntervallKm`-felt som Prioritet 18, alltid overstyrbart,
+  ingen ny kolonne
+- Analysen viste at 8 av 10 delpunkter allerede var dekket av
+  Prioritet 18–22 (servicevarsler sortert på km, kontrollstatus,
+  Kjøretøyprofil-cleanup, historikkonsolidering, gruppert bilvalg, Min
+  Bil-snarvei) — ingen endring var nødvendig der
+- Liten justering: Min Bil-snarveien viser nå også dagens
+  kontrollstatus i selve snarveikortet
+- Ingen nye dashboardsider, ingen parallelle historikksystemer, ingen
+  nye Airtable-tabeller, ingen duplisering av eksisterende funksjoner

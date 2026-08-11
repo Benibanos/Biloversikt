@@ -241,6 +241,20 @@ dette — se Vehicles-avsnittet over, det krever den vanlige manuelle
 `LIST_TABLES`-oppdateringen siden det er et strukturert kolonnefelt, ikke
 en generisk nøkkel/verdi-post.)
 
+**Prioritet 23 — ingen ny Airtable-endring, kun en utvidet JSON-form.**
+`dekkhistorikk`-elementer (samme Settings-nøkkel som over) kan nå i
+tillegg inneholde `nyDekktype` (streng — én av `sommer`/`vinter-pigg`/
+`vinter-piggfri`/`helars`), satt av både enkelt- og masseregistrering av
+dekkskifte. Dette er et rent tillegg til den eksisterende JSON-formen
+(`{id, vehicleId, dato, retning, kommentar}`), ikke et nytt Airtable-felt
+— eldre oppføringer uten `nyDekktype` fungerer fortsatt uendret
+(`dekkskifteTekst()` faller tilbake til den opprinnelige
+retning-baserte teksten når `nyDekktype` mangler). `ServiceIntervallKm`
+(Prioritet 18) kan nå også bli forhåndsutfylt automatisk ved oppretting
+av ny bil, basert på merke/modell (`foreslaServiceIntervallKm()`) — samme
+felt som før, ingen skjemaendring, og alltid overstyrbart av administrator
+etterpå.
+
 Feltnavnene med tekst-typer kan gjerne settes opp som Airtables "Single
 select" i stedet for ren tekst der det gir mening (f.eks. `Status`,
 `Kategori`, `Type`) — appen leser/skriver dem uansett som ren tekst, så

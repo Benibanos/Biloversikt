@@ -814,6 +814,11 @@ let kostFilterKunAvsettinger = false;
 let showKostFilterMeny = false;
 let kostOversiktOpenVehicles = new Set();
 let showAddDekkkostnad = false;
+// Prioritet 23 (Del 1): masseregistrering av dekkskifte på Dekkoversikt — kun ett nytt
+// felt trengs (bulkDekkskifteSaving, dobbeltlagringsvern), resten leses direkte fra
+// skjemaets DOM ved innsending (se submitBulkDekkskifte()).
+let showBulkDekkskifte = false;
+let bulkDekkskifteSaving = false;
 
 let dashExpandedId = null;
 // Sammenleggbare bilgrupper på Dashboard. Standard: Bil 1–11 åpen, resten lukket.
@@ -2491,6 +2496,36 @@ function goToRegisterKontroll(vehicleId){
 }
 
 // ================= Kjøretøy-mutasjoner =================
+// Prioritet 23 (Del 2): foreslår serviceintervall basert på merke/modell ved oppretting av
+// ny bil — bygger videre på Prioritet 18 uten å endre autoritetsmodellen der: forslaget er
+// KUN et startpunkt satt på v.serviceIntervallKm (samme felt som før, ingen nytt felt),
+// og administrator kan når som helst overstyre det i Kjøretøyprofil sin Service-seksjon,
+// akkurat som et manuelt registrert intervall. Finnes ingen treff, forblir feltet tomt og
+// eksisterende "Serviceintervall mangler"-visning (vehicleServiceManglerHva()) gjelder
+// uendret — ingen servicevarsling beregnes før intervallet er bekreftet, som før.
+// Listen er et startpunkt basert på vanlige verdier for disse modellene — juster/utvid
+// gjerne selve listen, eller overstyr enkeltbiler i Kjøretøyprofil.
+const SERVICEINTERVALL_FORSLAG = [
+  {merke:'mercedes', modell:'sprinter', km:60000},
+  {merke:'mercedes-benz', modell:'sprinter', km:60000},
+  {merke:'ford', modell:'transit', km:50000},
+  {merke:'volkswagen', modell:'crafter', km:50000},
+  {merke:'vw', modell:'crafter', km:50000},
+  {merke:'iveco', modell:'daily', km:50000},
+  {merke:'man', modell:'', km:80000},
+  {merke:'scania', modell:'', km:90000},
+  {merke:'volvo', modell:'', km:90000},
+];
+function foreslaServiceIntervallKm(merke, modell){
+  const m = (merke || '').trim().toLowerCase();
+  const mo = (modell || '').trim().toLowerCase();
+  if(!m) return null;
+  // Mest spesifikk treff først (merke OG modell), deretter kun merke (f.eks. MAN/Scania/
+  // Volvo, der intervallet i praksis er likt uansett modell for disse lastebilmerkene).
+  let treff = SERVICEINTERVALL_FORSLAG.find(r => r.merke === m && r.modell && mo.includes(r.modell));
+  if(!treff) treff = SERVICEINTERVALL_FORSLAG.find(r => r.merke === m && !r.modell);
+  return treff ? treff.km : null;
+}
 async function submitAddVehicle(ev){
   ev.preventDefault();
   const bilnummer = document.getElementById('new-bilnummer').value.trim();
@@ -2511,6 +2546,10 @@ async function submitAddVehicle(ev){
     id: uid(), bilnummer, regnr, merke, modell, arsmodell, kategori,
     status: 'ok', dekk, km, loyvenummer, hasPhoto: false
   };
+  // Prioritet 23 (Del 2): foreslår serviceintervall ut fra merke/modell — kun et
+  // startpunkt, alltid overstyrbart etterpå i Kjøretøyprofil.
+  const foreslattIntervall = foreslaServiceIntervallKm(merke, modell);
+  if(foreslattIntervall) v.serviceIntervallKm = foreslattIntervall;
   vehicles.push(v);
   await saveVehicles();
   showAddVehicleForm = false;
@@ -3103,7 +3142,11 @@ async function submitDekkskifte(ev){
   }
   const v = vehicles.find(x => x.id === currentVehicleId);
   if(!v) return;
-  dekkhistorikk.push({id: uid(), vehicleId: currentVehicleId, dato, retning, kommentar});
+  // Prioritet 23: nyDekktype lagres i tillegg til retning (bakoverkompatibelt — eldre
+  // oppføringer har kun retning), slik at historikkvisningen (her og i
+  // Kjøretøyhistorikk/Dekkoversikt) kan vise nøyaktig dekktype fremfor kun retning.
+  const nyDekktype = retning === 'sommer-vinter' ? (dekkErVinterVariant(v.dekk) ? v.dekk : 'vinter-piggfri') : 'sommer';
+  dekkhistorikk.push({id: uid(), vehicleId: currentVehicleId, dato, retning, kommentar, nyDekktype});
   await saveDekkhistorikk();
   // Oppdaterer også hvilke dekk som er montert på bilen akkurat nå, slik at
   // Dekkoversikt/Dashboard-statusen stemmer med det siste registrerte skiftet.
@@ -3112,14 +3155,41 @@ async function submitDekkskifte(ev){
   // hadde en fra før (unngår å nullstille et bevisst pigg/piggfri-valg), ellers brukes
   // piggfri som nøytralt utgangspunkt inntil administrator eventuelt korrigerer via
   // Dekktype-feltet i Dekkoversikt.
-  if(retning === 'sommer-vinter'){
-    v.dekk = dekkErVinterVariant(v.dekk) ? v.dekk : 'vinter-piggfri';
-  } else {
-    v.dekk = 'sommer';
-  }
+  v.dekk = nyDekktype;
   await saveVehicles();
   await reloadOne('vehicles');
   showAddDekkskifte = false;
+  render();
+}
+
+// Prioritet 23 (Del 1): registrerer samme dekkskifte på flere biler samtidig — reduserer
+// administrasjonstid ved sesongbytte, der samme dekktype ellers måtte registreres bil for
+// bil. Gjenbruker samme dekkhistorikk-struktur og samme v.dekk-oppdatering som
+// enkelt-registreringen over, kun kjørt i en løkke over valgte biler.
+async function submitBulkDekkskifte(ev){
+  ev.preventDefault();
+  if(bulkDekkskifteSaving) return; // dobbeltlagringsvern
+  const msgEl = document.getElementById('bulk-dekk-msg');
+  const valgteIds = Array.from(document.querySelectorAll('[data-bulk-dekk-bil]:checked')).map(el => el.dataset.bulkDekkBil);
+  const nyType = (document.querySelector('input[name="bulk-dekk-type"]:checked') || {}).value;
+  if(valgteIds.length === 0){ msgEl.textContent = 'Velg minst én bil.'; return; }
+  if(!nyType){ msgEl.textContent = 'Velg ny dekktype.'; return; }
+  bulkDekkskifteSaving = true; render();
+  const dato = todayISO();
+  const erVinter = dekkErVinterVariant(nyType);
+  const retning = erVinter ? 'sommer-vinter' : 'vinter-sommer';
+  const nowIso = new Date().toISOString();
+  valgteIds.forEach(vid => {
+    const v = vehicles.find(x => x.id === vid);
+    if(!v) return;
+    dekkhistorikk.push({id: uid(), vehicleId: vid, dato, retning, kommentar: 'Masseregistrert dekkskifte', nyDekktype: nyType, createdAt: nowIso});
+    v.dekk = nyType;
+  });
+  await saveDekkhistorikk();
+  await saveVehicles();
+  await reloadOne('vehicles');
+  bulkDekkskifteSaving = false;
+  showBulkDekkskifte = false;
   render();
 }
 
@@ -4315,6 +4385,7 @@ function renderDriverVelgBil(){
         <div>
           <div class="required-hint" style="font-weight:700;margin-bottom:2px;">⭐ Min Bil</div>
           <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(minBilVehicle.bilnummer)}${minBilVehicle.regnr ? ' - ' + esc(minBilVehicle.regnr) : ''}</div>
+          <div class="required-hint" style="margin-top:4px;">${isKontrollertIdag(minBilVehicle.id) ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag'}</div>
         </div>
         <button class="btn small" id="db-min-bil-btn" style="min-height:44px;">Åpne</button>
       </div>
@@ -5674,8 +5745,36 @@ function renderDekkoversikt(){
 
     <div class="toolbar">
       <div class="count">${dekkkostnader.length} dekkregistrering${dekkkostnader.length===1?'':'er'} totalt</div>
-      <button class="btn" id="add-dekkkostnad-btn">${showAddDekkkostnad ? 'Avbryt' : '🛞 Registrer nye dekk'}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn secondary" id="bulk-dekkskifte-btn">${showBulkDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte flere biler'}</button>
+        <button class="btn" id="add-dekkkostnad-btn">${showAddDekkkostnad ? 'Avbryt' : '🛞 Registrer nye dekk'}</button>
+      </div>
     </div>
+    ${showBulkDekkskifte ? `
+    <form class="panel" id="bulk-dekk-form" style="margin-bottom:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">Velg biler</div>
+      ${KATEGORI_ORDER.filter(k => sortert.some(v => v.kategori === k)).map(k => `
+      <div style="margin-bottom:14px;">
+        <div class="group-card-title" style="margin-bottom:6px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${sortert.filter(v => v.kategori === k).map(v => `
+          <label style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--line);border-radius:9px;min-height:44px;cursor:pointer;">
+            <input type="checkbox" data-bulk-dekk-bil="${v.id}" style="width:20px;height:20px;flex-shrink:0;">
+            <span>${esc(v.bilnummer || '')} – ${esc(v.regnr)}</span>
+          </label>`).join('')}
+        </div>
+      </div>`).join('')}
+      <div style="font-weight:700;margin:6px 0 10px;">Velg ny dekktype</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+        ${['sommer','vinter-pigg','vinter-piggfri','helars'].map(t => `
+        <label style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--line);border-radius:9px;min-height:44px;cursor:pointer;">
+          <input type="radio" name="bulk-dekk-type" value="${t}" style="width:20px;height:20px;flex-shrink:0;">
+          <span>${DEKK_TYPE_LABEL[t]}</span>
+        </label>`).join('')}
+      </div>
+      <div class="form-msg" id="bulk-dekk-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit" ${bulkDekkskifteSaving ? 'disabled' : ''}>${bulkDekkskifteSaving ? 'Lagrer …' : 'Lagre dekkskifte for valgte biler'}</button></div>
+    </form>` : ''}
     ${showAddDekkkostnad ? `
     <form class="panel" id="add-dekkkostnad-form" style="margin-bottom:16px;">
       <div class="row2">
@@ -5730,7 +5829,7 @@ function renderDekkoversikt(){
                 <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Siste dekkskifter</h4>
                 ${vHist.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert.</div>` : `
                 <ul class="dmg-simple-list">
-                  ${vHist.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${d.retning === 'sommer-vinter' ? 'Sommer → Vinter' : 'Vinter → Sommer'}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
+                  ${vHist.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${dekkskifteTekst(d)}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
                 </ul>`}
                 <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 8px;">💰 Dekkkostnader</h4>
                 ${vKostnader.length === 0 ? `<div class="empty-note">Ingen dekkkostnader registrert.</div>` : `
@@ -5755,6 +5854,11 @@ function attachDekkoversiktListeners(){
   const dkkForm = document.getElementById('add-dekkkostnad-form');
   if(dkkForm) dkkForm.addEventListener('submit', submitAddDekkkostnad);
   document.querySelectorAll('[data-delete-dekkkostnad]').forEach(el => el.addEventListener('click', () => deleteDekkkostnad(el.dataset.deleteDekkkostnad)));
+  // Prioritet 23 (Del 1): masseregistrering av dekkskifte
+  const bulkBtn = document.getElementById('bulk-dekkskifte-btn');
+  if(bulkBtn) bulkBtn.addEventListener('click', () => { showBulkDekkskifte = !showBulkDekkskifte; render(); });
+  const bulkForm = document.getElementById('bulk-dekk-form');
+  if(bulkForm) bulkForm.addEventListener('submit', submitBulkDekkskifte);
   document.querySelectorAll('[data-toggle-dekk-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleDekkVehicle;
     if(dekkOversiktOpenVehicles.has(id)) dekkOversiktOpenVehicles.delete(id); else dekkOversiktOpenVehicles.add(id);
@@ -6020,6 +6124,13 @@ function dekkErVinterVariant(dekkVerdi){
   return dekkVerdi === 'vinter' || dekkVerdi === 'vinter-pigg' || dekkVerdi === 'vinter-piggfri';
 }
 const DEKK_RETNING_LABEL = {'sommer-vinter':'Sommer → Vinter', 'vinter-sommer':'Vinter → Sommer'};
+// Prioritet 23: viser nøyaktig dekktype når den finnes (nyDekktype, lagt til fra og med
+// denne prioriteringen), ellers faller tilbake til den eldre, mer generelle
+// retning-teksten (bakoverkompatibelt med dekkskifter registrert før Prioritet 23).
+function dekkskifteTekst(d){
+  if(d.nyDekktype && DEKK_TYPE_LABEL[d.nyDekktype]) return 'Dekkskifte → ' + DEKK_TYPE_LABEL[d.nyDekktype];
+  return 'Dekkskifte: ' + (DEKK_RETNING_LABEL[d.retning] || d.retning);
+}
 const HISTORIKK_TYPE_ORDER = ['kontroll', 'skade', 'varsellampe', 'sak', 'verksted', 'service', 'dekk', 'kostnad', 'statusendring'];
 const HISTORIKK_TYPE_LABEL = {kontroll:'Kontroller', skade:'Skader', varsellampe:'Varsellamper', sak:'Aktive saker', verksted:'Verksted', service:'Service', dekk:'Dekk', kostnad:'Kostnader', statusendring:'Statusendringer'};
 const HISTORIKK_TYPE_IKON = {kontroll:'✅', skade:'⚠️', varsellampe:'🚨', sak:'🗂️', verksted:'🔧', service:'🛠️', dekk:'🛞', kostnad:'💰', statusendring:'⛔'};
@@ -6063,7 +6174,7 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
     hendelser.push({dato: s.dato, tid: '', type: 'service', tekst: 'Service utført' + (s.type ? ': ' + s.type : '') + (s.km !== undefined && s.km !== null && s.km !== '' ? ' · ' + Number(s.km).toLocaleString('nb-NO') + ' km' : '') + (s.verksted ? ' hos ' + s.verksted : ''), av: s.createdBy || ''});
   });
   dekkhistorikk.filter(d => d.vehicleId === vehicleId).forEach(d => {
-    hendelser.push({dato: d.dato, tid: '', type: 'dekk', tekst: 'Dekkskifte: ' + (DEKK_RETNING_LABEL[d.retning] || d.retning), av: ''});
+    hendelser.push({dato: d.dato, tid: '', type: 'dekk', tekst: dekkskifteTekst(d), av: ''});
   });
   dekkkostnader.filter(dk => dk.vehicleId === vehicleId).forEach(dk => {
     hendelser.push({dato: dk.dato, tid: '', type: 'dekk', tekst: 'Nye dekk registrert' + (dk.kommentar ? ': ' + dk.kommentar : ''), av: ''});
@@ -6413,7 +6524,7 @@ function renderBilkort(){
     </form>` : ''}
     ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
     <ul class="dmg-simple-list">
-      ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
+      ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${dekkskifteTekst(d)}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
     </ul>`}
   `;
 

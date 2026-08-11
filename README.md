@@ -297,6 +297,17 @@ Og har du allerede en bil i dag, skal du aldri måtte lete etter den igjen.
 
 ---
 
+# Sesongskifte
+
+Seksten biler trenger ikke seksten registreringer.
+
+Velg bilene. Velg dekktypen. Lagre én gang.
+
+Historikken følger med, for hver eneste bil, uten at noen måtte gjøre det
+manuelt seksten ganger.
+
+---
+
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.

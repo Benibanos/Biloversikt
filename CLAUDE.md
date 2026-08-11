@@ -1275,6 +1275,17 @@ som standard, med kontrollstatus/aktiv sjåfør per bil, egen "🚐 Reserve"-
 merking, og en "⭐ Min Bil"-snarvei øverst når sjåføren allerede har en
 aktiv biløkt. Ingen nye grupper, ingen nye felt
 
+Prioritet 23 (implementert)
+Felles Dekkskifte, Serviceintelligens og Operativ Sjåførflyt — se "Felles
+Dekkskifte, Serviceintelligens og Operativ Sjåførflyt (Prioritet 23)"
+under. Ny masseregistrering av dekkskifte på Dekkoversikt (flere biler
+samtidig), ny serviceintervall-forslag ved oppretting av ny bil basert på
+merke/modell (samme `ServiceIntervallKm`-felt, alltid overstyrbart).
+Resten av prioriteringen (servicevarsler sortert på km, kontrollstatus,
+Kjøretøyprofil-cleanup, historikkonsolidering, gruppert bilvalg, Min Bil
+først) var allerede dekket av Prioritet 18–22 og krevde ingen endring.
+Ingen nye Airtable-tabeller/-felt
+
 ---
 
 # Serviceintervall basert på kilometer (Prioritet 18)
@@ -1611,6 +1622,60 @@ videreført identisk, kun listen bilene velges FRA er endret.
 
 **Bevisst IKKE implementert:** nye bilgrupper, nye databaserelasjoner, nye kontrollskjema,
 nye dashboardmoduler.
+
+---
+
+# Felles Dekkskifte, Serviceintelligens og Operativ Sjåførflyt (Prioritet 23)
+
+Mål: redusere administrasjonstid, redusere scrolling, gjøre vedlikehold mer proaktivt, gjøre
+sjåførflyten raskere. Analysen viste at 8 av 10 delpunkter allerede var dekket av
+Prioritet 18–22 (servicevarsler sortert på km, kontrollstatus på dager, Kjøretøyprofil-
+cleanup, historikkonsolidering, gruppert bilvalg, Min Bil-snarvei) — kun to genuint nye
+funksjoner ble bygget denne runden.
+
+**Del 1 — Masseregistrering av dekkskifte (ny).** Dekkoversikt (hele-flåten-siden) har fått
+en ny "🛞 Registrer dekkskifte flere biler"-knapp ved siden av den eksisterende "Registrer
+nye dekk". Åpner et skjema med avkrysningsbokser for alle biler (gruppert som resten av
+siden, samme `KATEGORI_ORDER`) og fire radioknapper for ny dekktype (samme
+`DEKK_TYPE_LABEL` som Prioritet 20 innførte). `submitBulkDekkskifte()` kjører nøyaktig
+samme oppdatering som enkelt-registreringen (`submitDekkskifte()`) i en løkke over valgte
+biler: oppretter én `dekkhistorikk`-oppføring per bil og setter `v.dekk` direkte til valgt
+type. `bulkDekkskifteSaving` hindrer dobbeltlagring ved raske trykk.
+
+Ny `nyDekktype`-egenskap lagt til på dekkhistorikk-oppføringer (både enkelt- og
+masseregistrering) — et rent tillegg til den eksisterende JSON-formen, ikke et nytt
+Airtable-felt. Ny delt `dekkskifteTekst()`-funksjon viser nøyaktig dekktype
+("Dekkskifte → Vinterdekk (piggfri)") når den finnes, med bakoverkompatibel fallback til
+den eldre retning-baserte teksten for oppføringer registrert før denne prioriteringen.
+Brukes nå ETT sted i koden for alle tre visningene (Kjøretøyprofil, Dekkoversikt,
+Kjøretøyhistorikk) i stedet for tre separate tekstuttrykk som før.
+
+**Del 2 — Serviceintervall-forslag ved ny bil (ny), bygger på Prioritet 18.** Ny
+`SERVICEINTERVALL_FORSLAG`-liste (ren JS-konstant, ingen ny tabell) med kjente
+merke/modell → km-verdier (f.eks. Mercedes Sprinter 60 000 km, Ford Transit 50 000 km,
+MAN 80 000 km). `foreslaServiceIntervallKm()` slås opp i `submitAddVehicle()` og
+forhåndsutfyller `v.serviceIntervallKm` — SAMME felt som Prioritet 18 innførte, ingen ny
+kolonne. Finnes ingen treff, forblir feltet tomt akkurat som før, og den eksisterende
+"Serviceintervall mangler"-visningen (`vehicleServiceManglerHva()`) gjelder uendret — ingen
+servicevarsling beregnes før intervallet er bekreftet. Forslaget er alltid overstyrbart av
+administrator i Kjøretøyprofil sin Service-seksjon, på nøyaktig samme måte som et manuelt
+registrert intervall.
+
+**Del 3 (servicevarsler sortert på km) var allerede korrekt** — den eksisterende
+tier-sorteringen (rød→oransje→gul, deretter minst km igjen) er matematisk ekvivalent med
+en ren "minst km igjen først"-sortering, siden terskelverdiene (rød <0, oransje 0–1000,
+gul 1001–3000) allerede er ordnet i stigende km-rekkefølge. Ingen endring nødvendig.
+
+**Del 8 — liten justering:** "⭐ Min Bil"-snarveien (Prioritet 22) viser nå også
+kontrollstatus for dagen (✅/⚪) i selve snarveikortet, i tillegg til bilnummer/regnr, slik
+den konkrete eksempelteksten i denne prioriteringen ba om.
+
+**Del 4/5/6/7/9/10 var allerede fullt dekket** av hhv. Prioritet 19 (kontrollstatus),
+Prioritet 20 (Kjøretøyprofil-cleanup), Prioritet 21 (historikkonsolidering) og Prioritet 22
+(gruppert bilvalg, kontrollstatus i bilvalg) — ingen endring var nødvendig.
+
+**Bevisst IKKE implementert:** nye dashboardsider, parallelle historikksystemer, nye
+Airtable-tabeller, duplisering av eksisterende funksjoner.
 
 ---
 
