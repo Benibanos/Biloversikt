@@ -803,3 +803,38 @@ Innhold:
   kontrollstatus i selve snarveikortet
 - Ingen nye dashboardsider, ingen parallelle historikksystemer, ingen
   nye Airtable-tabeller, ingen duplisering av eksisterende funksjoner
+
+────────────────────────────
+
+✅ Prioritet 24
+Smart Operativ Planlegging
+
+Mål:
+Gå fra "Hva skjer nå?" til "Hva kommer til å kreve handling snart?" —
+varsle om fremtidige problemer før de blir operative problemer.
+
+Innhold:
+- Ny "📅 Kommende belastning"-seksjon på Dashboard (neste 7 dager):
+  kommende service, kontrollstatus som nærmer seg gul/rød, kommende
+  oppfølginger og kommende verkstedtimer — kun fremtidsrettet, ingen
+  historikk/fullførte saker/fullførte servicer
+- Ny kontrollprognose (`vehicleKontrollPrognose()`) — viser når en grønn
+  eller gul bil blir gul/rød, basert på eksisterende
+  `vehicleDagerSidenKontroll()`. Rød/aldri kontrollert/reservebil vises
+  ikke som prognose, kun som nåværende forhold
+- Ny oppfølgingsprognose og verkstedprognose — åpne saker/verkstedtimer
+  innen 7 dager, forfalte/dagens forhold ekskludert (de ligger fortsatt
+  i Krever handling nå, ingen dobbeltvisning)
+- Ny "📅 Neste hendelser" på Kjøretøyprofil — kompakt, kun fremtidige
+  forhold for valgt bil, "Ingen planlagte hendelser" når tomt
+- Ny "Operativ belastning"-indikator (fire nivåer: lav/moderat/høy/
+  kritisk), poengbasert med tak per bil for å unngå dobbel vekting av
+  samme bil, og en tvungen minimumsregel som sikrer at kritiske/ute av
+  drift-biler aldri skjules bak en lav totalsum. Grunnlaget bak nivået
+  vises alltid ved utvidelse
+- Operativ belastning lagt inn i DEN SAME eksisterende
+  Bilparkhelse-statusraden i toppfeltet — ☰ Meny beholder sin faste
+  plassering på alle sider, uendret fra Prioritet 17. Ingen ny,
+  parallell topprad
+- Alt beregnes live fra eksisterende data — ingen nye Airtable-felt,
+  ingen nye statusmotorer, ingen nye rapportsider eller analysemoduler

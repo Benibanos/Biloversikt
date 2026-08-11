@@ -1286,6 +1286,16 @@ Kjøretøyprofil-cleanup, historikkonsolidering, gruppert bilvalg, Min Bil
 først) var allerede dekket av Prioritet 18–22 og krevde ingen endring.
 Ingen nye Airtable-tabeller/-felt
 
+Prioritet 24 (implementert)
+Smart Operativ Planlegging — se "Smart Operativ Planlegging (Prioritet
+24)" under. Ny "📅 Kommende belastning"-seksjon på Dashboard (service/
+kontrollprognose/oppfølging/verksted, neste 7 dager, ingen historikk), ny
+"📅 Neste hendelser" på Kjøretøyprofil, ny samlet "Operativ belastning"-
+indikator (fire nivåer, poengbasert med tak per bil for å unngå
+dobbelttelling) i den EKSISTERENDE `.shell-top-status`-raden ved siden av
+Bilparkhelse Status — ☰ Meny beholder sin faste plassering uendret. Alt
+beregnes live fra eksisterende data. Ingen nye Airtable-felt/-tabeller
+
 ---
 
 # Serviceintervall basert på kilometer (Prioritet 18)
@@ -1676,6 +1686,92 @@ Prioritet 20 (Kjøretøyprofil-cleanup), Prioritet 21 (historikkonsolidering) og
 
 **Bevisst IKKE implementert:** nye dashboardsider, parallelle historikksystemer, nye
 Airtable-tabeller, duplisering av eksisterende funksjoner.
+
+---
+
+# Smart Operativ Planlegging (Prioritet 24)
+
+Mål: gå fra "Hva skjer nå?" til "Hva kommer til å kreve handling snart?" — varsle om
+fremtidige problemer FØR de blir operative problemer. Dette er den mest arkitektonisk
+omfattende prioriteringen så langt: en ny aggregert indikator og en delt topprad-endring,
+begge foranalysert og godkjent med presiseringer før implementering.
+
+**Ingen nye statusmotorer (punkt 9/13).** All prognoselogikk er ren, live filtrering av
+data appen allerede har — `vehicleDagerSidenKontroll()`/`vehicleKontrollstatusNiva()`
+(Prioritet 19), `vehicleServiceVarselNiva()`/`vehicleServiceGjenstaaende()` (Prioritet 18),
+`aktiveSaker`/`sakOppfolgingStatus()` (Fase 5-oppfølgingsmotoren), `verkstedtimer`
+(Verkstedoversikt). Ingen nye Airtable-felt eller -tabeller.
+
+**Prognosefunksjoner (nye):**
+- `vehicleKontrollPrognose(vehicleId)` — kun grønne (0–2 dager) og gule (3–4 dager) biler
+  får en prognose ("blir gul om N dager" / "blir rød om N dager"). Rød, aldri kontrollert
+  og reservebil-unntatt gir `null` — det er et NÅVÆRENDE forhold, ikke en kommende
+  hendelse (se dobbeltvisnings-regelen under).
+- `vehicleServicePrognose(vehicleId)` — ren viderebygging av Prioritet 18, viser kun gyldig
+  beregnet gul/oransje/rød. `mangler_grunnlag` vises ALDRI som en kommende teknisk
+  hendelse her (kun som det eksisterende administrative hintet fra Prioritet 18).
+- `oppfolgingsprognoseSaker()` — åpne saker med `followUpDate` 1–7 dager frem. Dag 0 (i dag)
+  og negative (forfalt) er bevisst EKSKLUDERT — de hører hjemme i Krever handling nå
+  (`sakerOppfolgingIdag()`/`sakerForfalt()`, uendret), ikke her.
+- `verkstedprognoseTimer()` — kommende verkstedtimer 0–7 dager frem, sortert
+  dato→tidspunkt→bilnummer. Verkstedtimer er allerede én rad per rad i `verkstedtimer`
+  uansett hvor mange avvik en sammenslått sak samler, så ingen egen deduplisering trengs.
+
+**"Ingen dobbeltvisning" (punkt 7) — presedens for hvordan et forhold kan vises to steder
+med ulik vinkling.** En bil som er NÅVÆRENDE gul (vises i Krever handling nå som "Kontroll
+mangler, X dager siden") kan SAMTIDIG dukke opp i Kommende belastning som "Blir rød om Y
+dager" — dette er eksplisitt godkjent (punkt 8) som et unntak fra hovedregelen, fordi det
+er to ulike opplysninger (nåværende status vs. fremtidig utvikling), ikke samme fakta
+gjentatt. Oppfølging/service/verksted følger derimot den strenge regelen fullt ut: et
+forhold ligger i ÉN operativ kategori om gangen.
+
+**Dashboard — "📅 Kommende belastning" (Del 1/6).** Erstatter/utvider den tidligere
+frittstående "Kommende service"-seksjonen (Prioritet 18) — nå én samlet panel med opptil
+fire underseksjoner (service, kontrollstatus, oppfølging, verksted), hver med egen
+overskrift, kun vist når det finnes noe å vise. Ingen historikk, ingen fullførte/lukkede
+saker, ingen fullførte servicer — bevisst fremtidsrettet (punkt 6/10).
+
+**Kjøretøyprofil — "📅 Neste hendelser" (Del 12).** Ny, kompakt seksjon rett under
+"Kjøretøyprofil"-panelet: neste verkstedtime, neste oppfølgingsdato, kontrollprognose,
+serviceindikator+km igjen — kun de som faktisk finnes, ellers "Ingen planlagte hendelser"
+(aldri tomme kort/nullverdier). Merk: "Neste verkstedtime" ble bevisst FJERNET som eget
+overordnet felt i Prioritet 20 (redundant enkeltinfo) — det gjeninnføres IKKE der, men
+vises nå som ett element i denne nye, samlede fremtidsseksjonen, som er en annen, mer
+formålstjenlig plassering.
+
+**"Operativ belastning" — navn bevisst endret fra "Bilparkrisiko" i foranalysen** (indikatoren
+viser registrerte forhold og kommende oppfølging, ikke en teknisk risikovurdering av selve
+kjøretøyet). Fire nivåer: 🟢 Lav / 🟡 Moderat / 🟠 Høy / 🔴 Kritisk belastning.
+
+**Poengberegning (`vehicleOperativBelastning()`/`beregnOperativBelastning()`) — bevisst
+konstruert for å UNNGÅ dobbel vekting av samme bil (punkt 3):** per bil beregnes ett sett
+forhold (kritisk sak 3p, ute av drift 3p, rød kontroll/aldri kontrollert 2p, service forfalt
+2p, service oransje 1p, forfalt oppfølging 1p) — men bilens SLUTTPOENG er høyeste
+enkeltforhold + maks ÉTT tilleggspoeng ved flere separate forhold, med et TAK på 4 poeng
+totalt per bil, uansett hvor mange kriterier den oppfyller samtidig. Terskler for
+totalsummen: 0→grønn, 1–3→gul, 4–7→oransje, 8+→rød. **Tvungen minimumsregel (punkt 5):**
+1+ bil med kritisk sak/ute av drift tvinger minst "Høy", 2+ slike biler samtidig tvinger
+"Kritisk" — uansett hva totalsummen ellers tilsier, slik at en alvorlig situasjon aldri
+kan skjules bak en lav samlet poengsum.
+
+**Grunnlaget vises alltid** (punkt 4 — "ikke vis bare et nivå uten forklaring"): et lite
+▾/▴-ikon ved siden av nivåteksten åpner en linje med aggregerte tellinger
+("1 kritisk bil med kritisk sak · 2 forfalte oppfølginger · 1 service forfalt").
+Ren UI-tilstand (`operativBelastningApen`), ingen lagret risikostatus.
+
+**Plassering — ☰ Meny-knappens faste posisjon er UENDRET (punkt 1).** Operativ belastning
+er lagt inn i den SAMME eksisterende `.shell-top-status`-raden som Bilparkhelse Status
+(Prioritet 17), ikke en ny, parallell topprad. Innholdet er delt i en sentrert
+`.shell-top-status-center`-gruppe (Bilparkhelse Status + Operativ belastning) og
+`.shell-top-drift` ("Biler i drift nå") skjøvet mot høyre på desktop
+(`justify-content:space-between` på `.shell-top-status`, `flex:1;justify-content:center`
+på senter-gruppen, aktivert fra 641px). På mobil beholder raden sin naturlige
+flex-wrap-stabling, uendret fra før — rekkefølgen "Kontroller • Registrer • Reager → ☰
+Meny → Bilparkhelse/Operativ belastning/Biler i drift nå" er dermed bevart nøyaktig som
+den var, kun med ett nytt element lagt til i den siste raden.
+
+**Bevisst IKKE implementert:** nye dashboardsider, nye historikkmotorer, nye rapportsider,
+nye analysemoduler.
 
 ---
 

@@ -308,6 +308,18 @@ manuelt seksten ganger.
 
 ---
 
+# Fremtiden
+
+Et problem sett tidsnok er ikke et problem. Det er en oppgave.
+
+Systemet spør ikke bare hva som skjer nå.
+
+Det spør hva som kommer.
+
+Så driftskoordinator kan planlegge, ikke bare reagere.
+
+---
+
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.
