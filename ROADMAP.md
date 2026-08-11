@@ -838,3 +838,87 @@ Innhold:
   parallell topprad
 - Alt beregnes live fra eksisterende data — ingen nye Airtable-felt,
   ingen nye statusmotorer, ingen nye rapportsider eller analysemoduler
+
+────────────────────────────
+
+✅ Prioritet 25
+Operativ Beslutningsstøtte
+
+Mål:
+Gå fra å vise informasjon til å foreslå handlinger — ikke kunstig
+intelligens, ikke automatiske beslutninger, kun intelligente forslag
+basert på eksisterende data.
+
+Innhold:
+- Ny "🎯 Prioriterte biler i dag" på Dashboard — maks 5 biler med
+  "Se alle"-utvidelse, sortert kritisk sak → ute av drift → kontroll rød
+  → service forfalt → verksted innen 7 dager → forfalt oppfølging
+- "Prioriterte biler" og "Anbefalte handlinger" bevisst SLÅTT SAMMEN til
+  én liste (Less is More — de to ville vist nøyaktig samme biler)
+- Ny Operativ Score (0–100) — en REN visning av Prioritet 24 sitt
+  belastningspoeng (100 − poeng×25), ingen ny beregning, vist på
+  Kjøretøyprofil
+- Bevisst skille: verkstedtidspunkt påvirker kun rangeringsrekkefølgen på
+  Dashboard, ikke selve belastningspoenget eller Operativ Score — den
+  godkjente Prioritet 24-formelen er urørt
+- Nytt smart verkstedforslag — foreslår å samle service og verkstedarbeid
+  når begge er aktuelle samtidig, rent forslag, ingen automatikk
+- Ny "📅 Vedlikeholdsplan" (30 dager) som egen seksjon adskilt fra
+  Kommende Belastning (7 dager) — samme prognosefunksjoner, nå med en
+  valgfri dagersgrense-parameter i stedet for duplisert logikk
+- Ny "📍 Neste anbefalte handling" på Kjøretøyprofil — kun ÉN anbefaling
+  per bil, samme motor som Dashboard-listen
+- Dekksesong-varsling fantes allerede (Prioritet 20/23) — kun trukket ut
+  til en delt funksjon for gjenbruk, ingen ny funksjonalitet bygget
+- Ingen nye Airtable-tabeller, ingen nye historikksystemer, ingen
+  automatisk bestilling av verksted, ingen automatisk statusendring
+
+────────────────────────────
+
+✅ Prioritet 26
+Less Is More — Systemaudit (analyse, ingen kode endret)
+
+Mål:
+Kartlegge hele systemet for dobbeltinformasjon, overlappende
+statusfelt, dupliserte historikker og komponenter som kan slås sammen —
+uten å endre kode i denne runden.
+
+Resultat:
+Levert som eget dokument, PRIORITET_26_AUDIT.md. Konklusjon: mye av det
+som ble etterspurt var allerede løst av Prioritet 18–25 (Aktive
+Saker-kortene var allerede ryddet, statusberegningene var allerede
+arkitektonisk riktige med én master og flere avledede visninger). Tre
+konkrete, verifiserte duplikater ble identifisert og dannet grunnlaget
+for Prioritet 26.1.
+
+────────────────────────────
+
+✅ Prioritet 26.1
+Verifiserte Duplikater — Less Is More
+
+Mål:
+Gjennomføre kun de endringene som var dokumentert og verifisert i
+Prioritet 26-audliten. Ingen nye funksjoner, ingen nye databaser, ingen
+nye statussystemer — kun reduksjon av visningsstøy.
+
+Innhold:
+- Fjernet det frittstående "📅 Kommende verkstedtimer"-panelet på
+  Dashboard — var duplisert tre steder (samme info i Kommende
+  Belastning og Vedlikeholdsplan)
+- Slått sammen "🚐 Kjøretøyprofil" og "🩺 Operativ status" til ett panel,
+  "🚐 Kjøretøystatus" — Hovedstatus/Kontrollstatus/Aktiv sjåfør/Aktive
+  saker vises nå kun én gang i stedet for to. Operativ Score lagt inn
+  her per ny struktur
+- Fjernet duplisert "Oppfølging i dag"-telling fra Operativ
+  Status-kortet — "Krever handling nå" er nå eneste sted dette vises
+- Slått sammen "📍 Neste anbefalte handling" og "📅 Neste hendelser" til
+  én seksjon — anbefaling øverst, hendelser som støttedetalj under
+- Komprimert Servicehistorikk til 3 nyeste som standard, med
+  "Vis full historikk"-knapp
+- Komprimert Dekkoversikt-seksjonen på Kjøretøyprofil — DOT-kode,
+  produksjonsdato og redigeringsfelt ligger nå bak en
+  "▼ Flere detaljer"-utvidelse, kun alder-status vises som standard
+- 100 % funksjonalitet bevart — ingen data, felt eller handlinger er
+  fjernet, kun visningsstøy redusert
+- Ingen nye databasefelt, ingen nye statusmotorer, ingen nye
+  Dashboard-kort
