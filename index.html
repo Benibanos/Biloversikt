@@ -373,6 +373,9 @@
 
   .dmg-simple-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
   .dmg-simple-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:9px 12px;}
+  /* Prioritet 21 (Del 13): Kjøretøyhistorikk får litt større trykkflate og luft enn
+     standard dmg-simple-list, siden dette er den sentrale historikkvisningen på mobil. */
+  .historikk-list li{padding:12px 14px;min-height:44px;align-items:flex-start;}
   .dmg-simple-main{font-size:13px;}
   .dmg-simple-list li[data-goto-vt]{cursor:pointer;}
   .dmg-simple-list li[data-goto-vt]:hover{border-color:var(--ink);}
@@ -1417,6 +1420,11 @@ function driverLink(){
 let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil'
 let driverActiveVehicleId = '';
 let driverVelgBilId = '';
+// Prioritet 22: hvilke bilgrupper som er åpne på Velg bil-skjermen. Tom som standard —
+// kun gruppenavn vises til sjåføren trykker på en gruppe (se "Kun gruppenavn vises som
+// standard" i oppgaven). Nullstilles hver gang skjermen åpnes på nytt, se goTo()/
+// avsluttBilokt() og "Bytt bil"-knappen.
+let driverVelgBilGruppeApen = new Set();
 let driverNavn = '';
 // Min Bil — hvilken av de tre hurtigregistreringene som er åpen (kun én av gangen)
 let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt'
@@ -4259,7 +4267,39 @@ function renderDriverShell(){
 // ---- Ny funksjon: Aktiv Biløkt / Min Bil — sjåførskjermer ----
 // Steg 1: Velg bil. Kontrollen tilhører bilen — appen sjekker selv om dagens kontroll
 // allerede er utført, og sender sjåføren rett videre uten å be om unødvendig dobbeltarbeid.
+// Prioritet 22: Gruppert bilvalg for sjåfører — gjenbruker de eksisterende bilgruppene
+// (KATEGORI_ORDER/KATEGORI_GROUP_LABEL, samme som Morgenvisning/Dashboard bruker), ingen
+// nye grupper. Målet er mindre scrolling og raskere valg på mobil: kun gruppenavn vises
+// som standard, sjåføren åpner kun den gruppen bilen sin står i.
 function renderDriverVelgBil(){
+  // Har sjåføren allerede en aktiv biløkt på DENNE enheten (f.eks. trykket "Bytt bil" ved
+  // en feil), vises den øverst som en tydelig snarvei — ingen ny datakobling, gjenbruker
+  // samme driverActiveVehicleId/vehicleAktivSjafor() som avgjør oppstartsskjermen.
+  const minBilVehicle = (driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId))
+    ? vehicles.find(x => x.id === driverActiveVehicleId) : null;
+
+  const grupper = KATEGORI_ORDER.map(k => ({
+    key: k,
+    tittel: KATEGORI_GROUP_LABEL[k],
+    biler: sortedVehicles(vehicles.filter(v => v.kategori === k))
+  })).filter(g => g.biler.length > 0);
+
+  const bilRadHtml = (v) => {
+    const kontrollert = isKontrollertIdag(v.id);
+    const aktivSjafor = vehicleAktivSjafor(v.id);
+    return `
+    <div class="panel" style="cursor:pointer;margin-bottom:10px;padding:16px;min-height:44px;" data-velg-bil="${v.id}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)}${v.regnr ? ' - ' + esc(v.regnr) : ''}${v.kategori === 'reserve' ? ' <span class="badge unset">🚐 Reserve</span>' : ''}</div>
+          <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}</div>
+          <div class="required-hint" style="margin-top:4px;font-weight:600;">${aktivSjafor ? '🔒 Aktiv sjåfør: ' + esc(aktivSjafor) : '✅ Tilgjengelig'}</div>
+        </div>
+        <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag'}</span>
+      </div>
+    </div>`;
+  };
+
   return `
     <h2 style="font-size:19px;margin-bottom:6px;">Velg bil</h2>
     <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag.</div>
@@ -4268,25 +4308,42 @@ function renderDriverVelgBil(){
       <input id="db-navn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(driverNavn)}" required>
     </div>
     <div id="db-navn-msg" class="form-msg"></div>
+
+    ${minBilVehicle ? `
+    <div class="panel" style="margin-bottom:18px;padding:16px;border-left:5px solid var(--amber);cursor:pointer;min-height:44px;" id="db-min-bil-snarvei">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div>
+          <div class="required-hint" style="font-weight:700;margin-bottom:2px;">⭐ Min Bil</div>
+          <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(minBilVehicle.bilnummer)}${minBilVehicle.regnr ? ' - ' + esc(minBilVehicle.regnr) : ''}</div>
+        </div>
+        <button class="btn small" id="db-min-bil-btn" style="min-height:44px;">Åpne</button>
+      </div>
+    </div>` : ''}
+
     <div class="acc-list">
-      ${sortedVehicles(vehicles).map(v => {
-        const kontrollert = isKontrollertIdag(v.id);
-        const aktivSjafor = vehicleAktivSjafor(v.id);
-        return `
-        <div class="panel" style="cursor:pointer;margin-bottom:10px;padding:16px;" data-velg-bil="${v.id}">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <div>
-              <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
-              <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
-            </div>
-            <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
-          </div>
-        </div>`;
-      }).join('')}
+      ${grupper.map(g => `
+      <div class="acc-row ${driverVelgBilGruppeApen.has(g.key) ? 'expanded' : ''}">
+        <div class="acc-head" data-toggle-velg-bil-gruppe="${g.key}" style="min-height:44px;">
+          <div class="acc-head-left"><div class="flag-name">${esc(g.tittel)}</div></div>
+          <div class="acc-head-right"><span class="group-count">${g.biler.length}</span><span class="chevron">⌄</span></div>
+        </div>
+        ${driverVelgBilGruppeApen.has(g.key) ? `<div class="acc-body">${g.biler.map(v => bilRadHtml(v)).join('')}</div>` : ''}
+      </div>`).join('')}
     </div>
   `;
 }
 function attachDriverVelgBilListeners(){
+  const minBilCard = document.getElementById('db-min-bil-snarvei');
+  if(minBilCard) minBilCard.addEventListener('click', () => {
+    driverScreen = 'min-bil';
+    render();
+  });
+  document.querySelectorAll('[data-toggle-velg-bil-gruppe]').forEach(el => el.addEventListener('click', () => {
+    const key = el.dataset.toggleVelgBilGruppe;
+    if(driverVelgBilGruppeApen.has(key)) driverVelgBilGruppeApen.delete(key);
+    else driverVelgBilGruppeApen.add(key);
+    render();
+  }));
   document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
     const navnInput = document.getElementById('db-navn');
     const navn = ((navnInput ? navnInput.value : driverNavn) || '').trim();
@@ -5993,8 +6050,13 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
     if(s.completedAt && s.verkstedResultat) hendelser.push({dato: s.completedAt, tid: '', type: 'sak', tekst: 'Verksted fullført: ' + (SAK_RESULTAT_LABEL[s.verkstedResultat] || s.verkstedResultat) + ' — ' + s.title, av: s.resolvedBy || '', caseId: s.caseId});
     if(s.resolvedAt) hendelser.push({dato: (s.resolvedAt || '').slice(0, 10), tid: '', type: 'sak', tekst: 'Sak lukket: ' + s.title, av: s.resolvedBy || '', caseId: s.caseId});
   });
+  // Prioritet 21 (Del 7): skiller "bestilt" fra "utført" ut fra om timen er i fortid eller
+  // fremtid/i dag — appen har ikke noe eget "utført"-flagg på verkstedtimer (og vi legger
+  // ikke til et nytt felt for dette), så datoen brukes som samme pragmatiske indikator som
+  // allerede brukes andre steder i appen (f.eks. vtCard sin "upcoming"-sjekk).
   verkstedtimer.filter(t => t.vehicleId === vehicleId).forEach(t => {
-    hendelser.push({dato: t.dato, tid: t.tidspunkt || '', type: 'verksted', tekst: 'Verkstedtime: ' + (t.beskrivelse || '') + (t.verksted ? ' hos ' + t.verksted : ''), av: '', caseId: t.caseId});
+    const erUtfort = t.dato < todayISO();
+    hendelser.push({dato: t.dato, tid: t.tidspunkt || '', type: 'verksted', tekst: (erUtfort ? 'Verksted utført: ' : 'Verksted bestilt: ') + (t.beskrivelse || '') + (t.verksted ? ' hos ' + t.verksted : ''), av: '', caseId: t.caseId});
     if(t.pris) hendelser.push({dato: t.dato, tid: '', type: 'kostnad', tekst: 'Verkstedkostnad registrert: ' + fmtKr(t.pris), av: ''});
   });
   servicehistorikk.filter(s => s.vehicleId === vehicleId).forEach(s => {
@@ -6037,11 +6099,17 @@ function bilkortAccordionRow(key, title, count, bodyHtml){
 }
 // Fase 7: én tidslinjehendelse. Peker til tilhørende sak via caseId der det finnes
 // ("hendelseskobling") slik at forløpet varsellampe → sak → verksted → lukket kan følges.
+// Prioritet 21 (Del 13, mobiloptimalisering): dato på egen, fet linje for rask skanning,
+// ikonet tydelig foran selve hendelsesteksten, og litt større trykkflate enn standard
+// dmg-simple-list (kun for denne listen — se .historikk-list i CSS).
 function bilkortHistorikkItem(h){
   const relatertSak = h.caseId ? aktiveSaker.find(s => s.caseId === h.caseId) : null;
   return `
     <li ${relatertSak ? `data-goto-sak="${relatertSak.id}" style="cursor:pointer;"` : ''}>
-      <span class="dmg-simple-main">${HISTORIKK_TYPE_IKON[h.type] || '•'} ${fmt(h.dato)}${h.tid ? ' kl. ' + esc(h.tid) : ''} — ${esc(h.tekst)}${h.av ? ' · ' + esc(h.av) : ''}</span>
+      <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;">${fmt(h.dato)}${h.tid ? ' · kl. ' + esc(h.tid) : ''}</div>
+        <span class="dmg-simple-main">${HISTORIKK_TYPE_IKON[h.type] || '•'} ${esc(h.tekst)}${h.av ? ' · ' + esc(h.av) : ''}</span>
+      </div>
       ${h.caseId ? `<span class="badge unset">${esc(h.caseId)}</span>` : ''}
     </li>
   `;
@@ -6068,7 +6136,7 @@ function renderBilkort(){
       </select>
     </div>
     ${vHistorikkTidslinje.length === 0 ? `<div class="empty-note">Ingen hendelser${bilkortHistorikkFilter ? ' med gjeldende filter' : ' registrert ennå'}.</div>` : `
-    <ul class="dmg-simple-list">
+    <ul class="dmg-simple-list historikk-list">
       ${vHistorikkTidslinje.map(h => bilkortHistorikkItem(h)).join('')}
     </ul>`}
   `;

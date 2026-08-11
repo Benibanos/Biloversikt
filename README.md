@@ -273,6 +273,30 @@ Bilgruppe og biltype er ikke borte. De er bare ikke her lenger.
 
 ---
 
+# Historikk
+
+Ett sted. Ikke fem.
+
+Alt som har skjedd med en bil samles på ett sted, og filtreres derfra.
+
+Ikke lagres på nytt hver gang noen bygger en ny side.
+
+Én historikk. Flere filtre.
+
+---
+
+# Velg bil
+
+Seksten biler i én liste er seksten biler for mye å lete gjennom.
+
+Sjåføren kjenner gruppen sin. Bil, lastebil, montering, reserve.
+
+Vis gruppen. Ikke alt på én gang.
+
+Og har du allerede en bil i dag, skal du aldri måtte lete etter den igjen.
+
+---
+
 # Bilstatus
 
 Hver bil skal til enhver tid ha én tydelig status.

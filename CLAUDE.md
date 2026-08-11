@@ -1259,6 +1259,22 @@ på Kjøretøyprofil, Dekktype utvidet til fire sidestilte valg
 felt), Dekkhistorikk migrert inn i Dekkoversikt (ingen egen seksjon
 lenger), "Registrer dekkskifte" gjort til primærknapp. Ingen nye felt
 
+Prioritet 21 (implementert)
+Historikkforenkling — se "Historikkforenkling (Prioritet 21)" under.
+`vehicleHistorikkTidslinje()` bekreftet som eneste, autoritative
+historikkmotor (ingen ny lagring). Verksted-hendelser skiller nå
+"bestilt"/"utført" ut fra dato. Kjøretøyhistorikk fikk egen, mobiltilpasset
+listestil (`historikk-list`) med dato på egen linje. Kontroll-/Skade-
+historikk beholdt uendret ved siden av. Ingen nye felt, ingen nye tabeller
+
+Prioritet 22 (implementert)
+Gruppert Bilvalg for Sjåfører — se "Gruppert Bilvalg for Sjåfører
+(Prioritet 22)" under. Sjåførens "Velg bil"-skjerm (`renderDriverVelgBil()`)
+er nå gruppert etter de eksisterende bilgruppene (`KATEGORI_ORDER`), lukket
+som standard, med kontrollstatus/aktiv sjåfør per bil, egen "🚐 Reserve"-
+merking, og en "⭐ Min Bil"-snarvei øverst når sjåføren allerede har en
+aktiv biløkt. Ingen nye grupper, ingen nye felt
+
 ---
 
 # Serviceintervall basert på kilometer (Prioritet 18)
@@ -1504,6 +1520,97 @@ flere separate historikker, men ingen eksisterende side er slettet i denne runde
 
 **Bevisst IKKE implementert:** nye rapportmoduler, nye dashboardsider, nye
 databasetabeller, duplisering av historikk.
+
+---
+
+# Historikkforenkling (Prioritet 21)
+
+Mål: én historikkmotor, mindre duplisering, ett sted å lete, færre undersider, bedre
+filtrering. Ny filosofi bekreftet i kode: historikk lagres ETT sted (de eksisterende
+datakildene — `kontroller`, `damages`, `varsellys`, `aktiveSaker`, `verkstedtimer`,
+`servicehistorikk`, `dekkhistorikk`, `dekkkostnader`, `v.statusHistorikk`) og FILTRERES,
+aldri lagret flere steder eller åpnet fra ulike sider.
+
+**Analysen viste at det meste allerede var på plass** fra Prioritet 18–20:
+`vehicleHistorikkTidslinje()` var allerede den autoritative, samlede tidslinjen bygget fra
+ALLE datakilder uten egen duplisert lagring, og `HISTORIKK_TYPE_ORDER` dekket allerede
+nøyaktig de ti kategoriene som er etterspurt (Alle/Kontroller/Skader/Dekk/Service/Verksted/
+Kostnader/Aktive Saker/Varsellamper/Statusendringer). Dekkhistorikk var allerede migrert inn
+i Dekkoversikt OG Kjøretøyhistorikk (Prioritet 20/18). Servicehistorikk var allerede
+automatisk med i Kjøretøyhistorikk (Prioritet 18).
+
+**Faktisk nytt arbeid i denne runden:**
+
+- **Verkstedhendelser skiller nå "bestilt" fra "utført"** i Kjøretøyhistorikk-visningen —
+  tidligere viste alle verkstedtimer samme nøytrale "Verkstedtime: ..."-tekst uansett om
+  timen lå i fortid eller fremtid. Nå: "Verksted bestilt: ..." for timer i dag/fremtiden,
+  "Verksted utført: ..." for timer i fortiden. Appen har ingen eget "utført"-flagg på
+  verkstedtimer (og det er bevisst IKKE lagt til et nytt felt for dette, jf.
+  "ingen nye databasetabeller/-felt") — datoen brukes som samme pragmatiske indikator som
+  allerede brukes andre steder i appen (f.eks. `vtCard()` sin `upcoming`-sjekk). Sak-koblede
+  verkstedtimer fortsetter i tillegg å få sine egne, rikere "Verksted bestilt"/
+  "Verksted fullført"-hendelser under `sak`-typen (uendret fra før — dette er en bevisst
+  separat, mer detaljert hendelse tilknyttet selve saksforløpet).
+- **Mobiloptimalisert visning (Del 13):** Kjøretøyhistorikkens liste har nå en egen,
+  scoped stil (`.historikk-list`, kun for denne listen — påvirker ingen andre lister som
+  deler `dmg-simple-list`-klassen) med større trykkflate (min-høyde 44px) og dato på egen,
+  fet linje øverst i hver rad, ikonet tydelig foran selve hendelsesteksten under. Filteret
+  ligger øverst i seksjonen, ingen scrolling nødvendig for å nå det.
+
+**Bevisst IKKE implementert:** en "Prioritet endret"-hendelse for Aktive Saker (Del 8) er
+IKKE lagt til — appen har i dag ingen historisk logg over tidligere prioritetsverdier
+(`s.priority` overskrives uten spor av forrige verdi eller tidspunkt), og å legge til en slik
+logg ville vært nøyaktig det "nye historikksystemet" oppgaven eksplisitt ber om å unngå.
+"Sak opprettet", "Verksted bestilt", "Verksted fullført" og "Sak lukket" var allerede
+dekket fra før og er uendret. Ingen ny søkemotor (Del 11) — ingen eksisterende søk å
+gjenbruke for historikk spesifikt, og oppgaven ber eksplisitt om å ikke bygge en ny.
+
+**Kontrollhistorikk og Skadehistorikk beholdt uendret** ved siden av Kjøretøyhistorikk
+(Del 4/5/12) — begge viser fortsatt de samme underliggende hendelsene som nå også er
+filtrerbare fra Kjøretøyhistorikk. Retningen er fortsatt "Én historikk → Flere filtre",
+ingen sider er slettet.
+
+---
+
+# Gruppert Bilvalg for Sjåfører (Prioritet 22)
+
+Mål: mindre scrolling, raskere valg av riktig bil, bedre mobilopplevelse, gjenbruk av
+eksisterende bilgrupper. Løser et konkret problem: med 16+ biler i én lang flat liste
+måtte f.eks. Monteringsbiler eller Lastebiler scrolles langt ned, og Reserve lå alltid
+nederst.
+
+**Gjenbruker eksisterende bilgrupper — ingen nye.** `renderDriverVelgBil()` grupperer nå
+kjøretøyene etter `KATEGORI_ORDER`/`KATEGORI_GROUP_LABEL` (samme konstanter som
+Morgenvisning/Dashboard allerede bruker), ikke en ny gruppestruktur. Rekkefølgen følger
+den eksisterende konstanten (`bil → lastebil → montering → reserve`) fremfor
+oppgavetekstens litt annerledes skrevne eksempel-rekkefølge, siden oppgaven selv ber om å
+følge gruppene "slik de allerede brukes i systemet".
+
+**Lukket som standard** (`driverVelgBilGruppeApen`, en `Set` med gruppenøkler) — kun
+gruppenavn og antall biler vises til sjåføren trykker på en gruppe, gjenbruker samme
+`.acc-row`/`.acc-head`-mønster (og dermed samme touch-vennlige 14px-padding) som brukes
+på Kjøretøyprofil og Dashboard.
+
+**Per bil vises:** bilnummer + regnr (+ "🚐 Reserve"-merke for reservebiler),
+kontrollstatus ("✅ Kontrollert i dag" / "⚪ Ikke kontrollert i dag" — samme
+`isKontrollertIdag()`), og enten "🔒 Aktiv sjåfør: [navn]" eller "✅ Tilgjengelig" (samme
+`vehicleAktivSjafor()` som resten av appen).
+
+**"⭐ Min Bil"-snarvei øverst, over alle grupper.** Vises kun når sjåføren allerede har en
+aktiv biløkt på denne enheten (`driverActiveVehicleId` + `vehicleAktivSjafor()` fortsatt
+gyldig) — samme sjekk appen allerede bruker ved oppstart for å rute rett til Min Bil.
+Dette dekker tilfellet der sjåføren trykker "← Velg en annen bil" ved en feiltakelse:
+biløkten er fortsatt aktiv, og snarveien lar dem komme tilbake uten å lete gjennom
+gruppene på nytt. Ingen ny datakobling — kun gjenbruk av eksisterende tilstand.
+
+**Aktiv Biløkt-integrasjonen er uendret.** Velger sjåføren en allerede kontrollert bil,
+går flyten fortsatt til `'allerede-kontrollert'`-skjermen ("Ingen ny kontroll nødvendig" →
+"Gå til Min Bil"); er bilen ikke kontrollert, går flyten fortsatt til det ordinære
+kontrollskjemaet. Denne logikken lå allerede i `attachDriverVelgBilListeners()` og er
+videreført identisk, kun listen bilene velges FRA er endret.
+
+**Bevisst IKKE implementert:** nye bilgrupper, nye databaserelasjoner, nye kontrollskjema,
+nye dashboardmoduler.
 
 ---
 

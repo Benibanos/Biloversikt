@@ -708,3 +708,67 @@ Innhold:
   "Én historikk → Filtrering", ikke flere separate historikker
 - Ingen nye rapportmoduler, ingen nye dashboardsider, ingen nye
   databasetabeller, ingen duplisering av historikk
+
+────────────────────────────
+
+✅ Prioritet 21
+Historikkforenkling
+
+Mål:
+Én historikkmotor, mindre duplisering, ett sted å lete, færre undersider,
+bedre filtrering.
+
+Innhold:
+- Bekreftet `vehicleHistorikkTidslinje()` som eneste autoritative
+  historikkmotor — bygget fra eksisterende datakilder, ingen egen
+  duplisert lagring
+- Analysen viste at det meste allerede var på plass fra Prioritet
+  18–20: alle ti etterspurte filterkategorier (Alle/Kontroller/Skader/
+  Dekk/Service/Verksted/Kostnader/Aktive Saker/Varsellamper/
+  Statusendringer), Dekkhistorikk allerede migrert, Servicehistorikk
+  allerede inkludert
+- Nytt: Verkstedhendelser skiller nå "Verksted bestilt" fra
+  "Verksted utført" basert på dato, i stedet for én nøytral tekst for
+  alle timer uansett tidspunkt
+- Nytt: Kjøretøyhistorikken fikk en mobiltilpasset listestil — dato på
+  egen fet linje, tydeligere ikon, større trykkflate (44px), filter
+  øverst uten scrolling
+- Kontrollhistorikk og Skadehistorikk beholdt uendret ved siden av,
+  som bevisst besluttet — ingen sider slettet
+- Bevisst IKKE lagt til en "Prioritet endret"-hendelse for Aktive Saker,
+  siden appen ikke har noen historisk logg over tidligere
+  prioritetsverdier, og å bygge en slik logg ville vært nøyaktig det nye
+  historikksystemet oppgaven ber om å unngå
+- Ingen ny søkemotor, ingen nye databasetabeller/-felt, ingen nye
+  rapportsider, ingen sletting av eksisterende historikksider
+
+────────────────────────────
+
+✅ Prioritet 22
+Gruppert Bilvalg for Sjåfører
+
+Mål:
+Mindre scrolling, raskere valg av riktig bil, bedre mobilopplevelse,
+gjenbruk av eksisterende bilgrupper.
+
+Innhold:
+- Sjåførens "Velg bil"-skjerm er nå gruppert etter de fire eksisterende
+  bilgruppene (Bil 1–11, Lastebiler, Monteringsbiler, Reserve) i stedet
+  for én lang flat liste — ingen nye grupper, samme `KATEGORI_ORDER` som
+  resten av appen allerede bruker
+- Gruppene er lukket som standard — kun gruppenavn og antall biler vises
+  til sjåføren åpner den aktuelle gruppen
+- Hver bil viser kontrollstatus (✅ Kontrollert i dag / ⚪ Ikke
+  kontrollert i dag) og enten 🔒 Aktiv sjåfør eller ✅ Tilgjengelig
+- Reservebiler tydelig merket med 🚐 Reserve
+- Ny "⭐ Min Bil"-snarvei øverst, over alle grupper — vises kun når
+  sjåføren allerede har en aktiv biløkt på enheten (f.eks. etter å ha
+  trykket "Bytt bil" ved en feiltakelse), gjenbruker eksisterende
+  `driverActiveVehicleId`/`vehicleAktivSjafor()`, ingen ny datakobling
+- Aktiv Biløkt-integrasjonen (allerede kontrollert → gå til Min Bil /
+  ikke kontrollert → vanlig kontrollflyt) er uendret, kun selve
+  bilvalglisten er omstrukturert
+- Mobiloptimalisert: samme touch-vennlige `.acc-row`/`.acc-head`-mønster
+  som resten av appen, ingen horisontal scrolling, store trykkflater
+- Ingen nye databaserelasjoner, ingen nye kontrollskjema, ingen nye
+  dashboardmoduler
