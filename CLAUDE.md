@@ -304,8 +304,106 @@ oppstår).
 
 ---
 
+# Kjøretøyprofil — Service (km-basert serviceintervall, ny funksjonalitet)
 
-# Navigasjon — universell tilbakeknapp
+**Viktig bakgrunn:** dette fantes IKKE i `index.html` før denne oppgaven,
+selv om `AIRTABLE_MIGRATION.md` allerede beskrev en plan for det under
+"Prioritet 18 — Serviceintervall basert på kilometer" (databaseskjemaet var
+altså tenkt gjennom tidligere, men aldri faktisk bygget i appen). Bygget nå
+i tråd med den eksisterende planen, med eksplisitt bekreftet retning fra
+driftskoordinator: km-basert intervall, egen alltid synlig seksjon (ikke
+gjemt i en accordion).
+
+**Datamodell** (ingen ny Airtable-tabell — se AIRTABLE_MIGRATION.md):
+- `v.serviceIntervallKm` — nytt felt på selve kjøretøyet (`ServiceIntervallKm`
+  i Airtable), km mellom hver service. Ingen automatisk standardverdi.
+- `servicehistorikk` — ny global liste, samme lagringsmønster som
+  `dekkhistorikk` (`window.storage.get/set('servicehistorikk', true)`, delt,
+  JSON). Ett element per utført service:
+  `{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}`.
+  `type` er fritekst (ikke fast liste). `verksted` gjenbruker samme
+  verkstedregister/dropdown (`verkstedSelectOptions()`) som verkstedtimer.
+
+**Beregning — LIVE, ingen lagret status** (`vehicleServiceStatus()`,
+plassert rett ved siden av `dekkAlderStatus()` i `index.html`, samme
+prinsipp): "neste service" = km ved siste registrerte service +
+`serviceIntervallKm` (0 km som utgangspunkt dersom ingen service er
+registrert ennå). Status mot bilens nåværende `v.km`: 🟢 grønn ved god
+margin, 🟡 gul innen `SERVICE_VARSEL_KM` (1000 km, fast terskel — bevisst
+ikke konfigurerbar, samme filosofi som `dekkAlderStatus()` sine faste
+årsgrenser), 🔴 rød ved forfalt (bilen har passert beregnet service-km).
+
+**Plassering:** egen panel i Kjøretøyprofil, "🔧 Service" — plassert som
+**primær, alltid synlig seksjon** (ikke i `acc-list`-accordionen), rett
+etter "🩺 Operativ status" og før "🗂️ Aktive saker". Panelet fargelegges
+rødt/amber ved forfalt/snart-status, samme mønster som "Krever handling
+nå" på Dashboard. Inneholder: statusgrid (intervall/siste service/neste
+service/status), skjema for å sette/endre intervall, registreringsskjema
+for utført service, og full historikkliste.
+
+**Bevisst IKKE gjort:** ingen `updatedAt`/redigering av allerede
+registrerte servicer (kun opprette nye — samme begrensning som
+dekkskiftehistorikk har fra før). Ingen integrasjon mot Dashboard
+("Kommer snart"/"Krever handling nå") ennå — dette var eksplisitt utelatt
+fra Prioritet 26.2 og er ikke en del av denne oppgaven; kan vurderes senere
+nå som selve datagrunnlaget finnes.
+
+---
+
+# Kjøretøyprofil — Dekk slått sammen (Dekkoversikt + Dekkhistorikk)
+
+De to tidligere separate accordion-radene "Dekkoversikt" (DOT-koder,
+produksjonsdato, alder per sesong) og "Dekkhistorikk" (logg over
+dekkskifter) er slått sammen til én rad, "🛞 Dekk" — begge handlet om
+samme bils dekk, og fantes som to adskilte rader uten noen reell grunn til
+separasjon. All funksjonalitet er beholdt uendret (DOT-registrering,
+lagreknapp, dekkskifte-registrering, historikkliste) — kun presentasjonen
+er samlet i én body (`dekkSamletBody` i `index.html`), med en enkel
+overskrift ("Dekkskiftehistorikk") som skiller de to delene visuelt.
+Reduserer Kjøretøyprofil sin accordion-liste fra 7 til 6 rader.
+
+---
+
+# Kjøretøyprofil — restrukturert til 6 seksjoner (Prioritet 26.3)
+
+Godkjent løsning for duplikatstatus og seksjonsantall:
+
+**Duplikatstatus løst — begge panelene beholdt, felt fjernet fra ett.**
+"🚐 Kjøretøyprofil" (toppseksjonen, identitet + rask statusoversikt) beholdt
+uendret som den ENESTE kilden til Hovedstatus/Kontrollstatus/Aktive saker/
+Neste verkstedtime på siden. "🩺 Operativ status" viser nå kun feltene som
+er unike for den seksjonen: Kritiske saker, Forfalte oppfølginger, Neste
+handling, Neste oppfølgingsdato, samt Ute av drift-kontrollen. Ingen
+informasjon er fjernet fra appen — kun fra ett av to steder den sto
+duplisert.
+
+**Fire historikk-relaterte accordion-rader slått sammen til én.**
+"🕐 Kjøretøyhistorikk", "📈 Historiske nøkkeltall", "Kontrollhistorikk" og
+"Skadehistorikk" var fire separate rader med overlappende formål —
+`vehicleHistorikkTidslinje()` dekker allerede kontroll/skade/varsellampe/
+sak/verksted/dekk/kostnad/statusendring i én filtrerbar tidslinje. Slått
+sammen til én "🕐 Historikk"-rad med fire nøstede underseksjoner (samme
+sub-accordion-mønster som Skadehistorikk sin aktive/fikset-splitt fra før:
+`bilkortHistorikkSubOpen`, `toggleBilkortHistorikkSub()` — direkte
+videreføring av `bilkortSkadeSubOpen`-mønsteret): 🕐 Tidslinje,
+📈 Nøkkeltall, Kontroller, Skader. **Ingen av de fire underliggende
+visningene (`historikkTidslinjeBody`/`historiskeNokkeltallBody`/
+`kontrollBody`/`skadeBody`) er endret eller forenklet** — samme detaljnivå,
+samme kort, samme filter, kun samlet ett nivå dypere under én rad i stedet
+for fire rader ved siden av hverandre.
+
+**Endelig struktur (6 seksjoner, ekskl. identitetsheader og Faresone som
+ikke telles som operativt innhold):**
+1. 🩺 Operativ status (deduplisert)
+2. 🔧 Service
+3. 🗂️ Aktive saker
+4. 🕐 Historikk (Tidslinje/Nøkkeltall/Kontroller/Skader samlet)
+5. Bilinformasjon
+6. 🛞 Dekk (allerede samlet fra tidligere)
+
+---
+
+
 
 Alle undersider (åpnet fra en annen side) skal ha en tilbakeknapp øverst til
 venstre, med fast tekst "← Tilbake" (ikon + tekst, aldri kun ikon), samme

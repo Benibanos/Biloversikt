@@ -635,3 +635,38 @@ Innhold:
   omgruppering av eksisterende `dashKreverListe`, `sakOppfolgingStatus()`,
   `vtWithinWeek()`, `vehicleHovedstatus()`
 
+────────────────────────────
+
+✅ Prioritet 26.3 (fullført)
+Kjøretøyprofil-opprydding: forarbeid før neste redesign
+
+Mål:
+Bruker stanset videre Dashboard-opprydding midlertidig og ba om at Less
+Is More-prinsippet aldri skal fjerne operativ funksjonalitet, kun
+redusere visningsstøy. Fire forberedende punkter før neste redesign av
+Kjøretøyprofil.
+
+Innhold:
+- Ny Service-seksjon bygget fra bunnen (km-basert serviceintervall) —
+  fantes ikke i index.html fra før, selv om AIRTABLE_MIGRATION.md allerede
+  beskrev planen under "Prioritet 18". Se CLAUDE.md "Kjøretøyprofil —
+  Service" for full beskrivelse av datamodell og beregning
+- Dekkoversikt og Dekkhistorikk slått sammen til én "🛞 Dekk"-seksjon
+- Verifisert på nytt at Prioritet 26.2 (Dashboard) ikke fjernet
+  kjernefunksjonalitet utover det allerede kjente avviket (⭐ Min bil-
+  kortet, se Prioritet 26.2-punktet over)
+- Duplikatstatus mellom "Kjøretøyprofil"- og "Operativ status"-panelene
+  løst — begge panelene beholdt, duplikatfeltene fjernet fra Operativ
+  status (Kjøretøyprofil forblir eneste kilde til Hovedstatus/
+  Kontrollstatus/Aktive saker/Neste verkstedtime)
+- Fire historikk-relaterte accordion-rader (Kjøretøyhistorikk/Historiske
+  nøkkeltall/Kontrollhistorikk/Skadehistorikk) slått sammen til én
+  "🕐 Historikk"-rad med fire nøstede underseksjoner — ingen detalj eller
+  funksjonalitet fjernet, kun samlet ett nivå dypere
+- Kjøretøyprofil redusert fra 12 til 6 operative seksjoner (Operativ
+  status, Service, Aktive saker, Historikk, Bilinformasjon, Dekk), i
+  tillegg til identitetsheader og Faresone som ikke telles som
+  operativt innhold
+
+
+
