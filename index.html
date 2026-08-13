@@ -883,12 +883,6 @@ let analyseFilterType = ''; // sakstype
 let analyseFilterStatus = ''; // '' | 'apen' | 'lukket'
 let showSakFilterMeny = false;
 let showAddSak = false;
-// Prioritet 27 (Design 2.0) — mobilens Service/Dekk-ikoner: "Trykk → Velg bil → Åpne
-// seksjon". Register-siden (Biloversikt) går uansett til Kjøretøyprofil ved biltrykk
-// (data-open, uendret) — dette flagget gjør KUN at riktig seksjon i tillegg blir
-// forhåndsåpnet/scrollet til når man kommer fra nettopp disse to ikonene, i stedet for å
-// bygge en helt egen "velg bil"-skjerm.
-let mobilBilvalgMaal = ''; // '' | 'service' | 'dekk'
 let sakPrefillVehicleId = '';
 let editingSakId = null;
 // ---- Saksbehandling Wizard ----
@@ -1083,6 +1077,13 @@ let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
+// Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
+// (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
+// Kontroll (kontrollFormVehicleId) og Registrer avvik (sakPrefillVehicleId) — inline
+// bilvalg direkte på selve arbeidsflaten, gruppert (vehicleOptions()), i stedet for å gå
+// via Bilregister/Kjøretøyprofil først.
+let serviceValgtVehicleId = '';
+let dekkValgtVehicleId = '';
 let dbStatusReport = null; // resultat fra siste window.checkAirtableSchema()-kall
 let dbStatusSyncing = false;
 let dbStatusSyncLog = null; // resultat fra siste window.autoFixAirtableSchema()-kall
@@ -1691,7 +1692,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','planlegging'];
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','planlegging','service','dekk'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -2572,6 +2573,8 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormSjaforNavn = '';
   }
+  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; serviceSaveConfirmedId = null; }
+  if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; }
   render();
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
@@ -3290,9 +3293,9 @@ async function submitDekkskifte(ev){
     msgEl.textContent = 'Velg retning og fyll ut dato (DD/MM/ÅÅÅÅ).';
     return;
   }
-  const v = vehicles.find(x => x.id === currentVehicleId);
+  const v = vehicles.find(x => x.id === dekkValgtVehicleId);
   if(!v) return;
-  dekkhistorikk.push({id: uid(), vehicleId: currentVehicleId, dato, retning, kommentar});
+  dekkhistorikk.push({id: uid(), vehicleId: dekkValgtVehicleId, dato, retning, kommentar});
   await saveDekkhistorikk();
   // Oppdaterer også hvilke dekk som er montert på bilen akkurat nå, slik at
   // Dekkoversikt/Dashboard-statusen stemmer med det siste registrerte skiftet.
@@ -3332,10 +3335,10 @@ async function submitService(ev){
     msgEl.textContent = 'Fyll ut dato (DD/MM/ÅÅÅÅ), kilometerstand og type service.';
     return;
   }
-  const v = vehicles.find(x => x.id === currentVehicleId);
+  const v = vehicles.find(x => x.id === serviceValgtVehicleId);
   if(!v) return;
   const now = new Date().toISOString();
-  servicehistorikk.push({id: uid(), vehicleId: currentVehicleId, dato, km, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
+  servicehistorikk.push({id: uid(), vehicleId: serviceValgtVehicleId, dato, km, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
   await saveServicehistorikk();
   if(!v.km || km > Number(v.km)) v.km = km;
   await saveVehicles();
@@ -4007,6 +4010,8 @@ function render(){
   else if(screen === 'analyse') body = renderAnalyse();
   else if(screen === 'historikk') body = renderHistorikk();
   else if(screen === 'planlegging') body = renderPlanlegging();
+  else if(screen === 'service') body = renderServiceSkjerm();
+  else if(screen === 'dekk') body = renderDekkSkjerm();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
   // Optimalisering 15/Prioritet 17 (Del 4-5): Bilparkhelse Status og "Biler i drift nå"
@@ -4091,6 +4096,8 @@ function render(){
   else if(screen === 'analyse') attachAnalyseListeners();
   else if(screen === 'historikk') attachHistorikkListeners();
   else if(screen === 'planlegging') attachPlanleggingListeners();
+  else if(screen === 'service') attachServiceSkjermListeners();
+  else if(screen === 'dekk') attachDekkSkjermListeners();
 }
 
 // ================= Mobilmeny (drawer) =================
@@ -4613,8 +4620,8 @@ function attachMobilHjemListeners(){
     else if(key === 'kontroll') goToRegisterKontroll('');
     else if(key === 'avvik') goToRegisterSak('');
     else if(key === 'aktivesaker') goTo('aktivesaker');
-    else if(key === 'service'){ mobilBilvalgMaal = 'service'; goTo('register'); }
-    else if(key === 'dekk'){ mobilBilvalgMaal = 'dekk'; goTo('register'); }
+    else if(key === 'service') goTo('service');
+    else if(key === 'dekk') goTo('dekk');
     else if(key === 'biloversikt') goTo('register');
     else if(key === 'planlegging') goTo('planlegging');
   }));
@@ -4976,10 +4983,9 @@ function renderRegister(){
       <div class="dash-group-grid" style="grid-template-columns:1fr;">
         ${KATEGORI_ORDER.filter(k => filtered.some(v => v.kategori === k)).map(k => {
           const gruppeBiler = sortedVehicles(filtered.filter(v => v.kategori === k));
-          // Er kun ÉN kategori synlig pga. filter, eller man kommer fra mobilens
-          // Service/Dekk-dyplenke (rett i gang med å velge bil), åpnes gruppen automatisk
-          // i tillegg til manuelt åpnede grupper.
-          const open = registerGrupperApne.has(k) || filterKategori === k || !!mobilBilvalgMaal;
+          // Er kun ÉN kategori synlig pga. filter, åpnes gruppen automatisk i tillegg
+          // til manuelt åpnede grupper.
+          const open = registerGrupperApne.has(k) || filterKategori === k;
           return `
           <div class="panel dash-group-card">
             <div class="group-card-head" data-toggle-register-gruppe="${k}">
@@ -5016,19 +5022,7 @@ function attachRegisterListeners(){
   document.getElementById('f-hovedstatus').addEventListener('change', e => { filterHovedstatus = e.target.value; render(); });
   document.getElementById('f-loyve').addEventListener('change', e => { filterLoyve = e.target.value; render(); });
   document.querySelectorAll('[data-toggle-register-gruppe]').forEach(el => el.addEventListener('click', () => toggleRegisterGruppe(el.dataset.toggleRegisterGruppe)));
-  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => {
-    const vid = el.dataset.open;
-    const maal = mobilBilvalgMaal;
-    mobilBilvalgMaal = '';
-    goTo('bilkort', vid);
-    // goTo('bilkort', ...) nullstiller bilkortOpenSections til en ny, tom Set — derfor må
-    // 'dekk' legges til ETTER goTo(), ikke før, ellers overskrives den umiddelbart.
-    if(maal === 'dekk'){ bilkortOpenSections.add('dekk'); render(); }
-    if(maal){
-      // Vent til bilkort er rendret før vi scroller til riktig seksjon.
-      setTimeout(() => { const el2 = document.getElementById('bilkort-seksjon-' + maal); if(el2) el2.scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
-    }
-  }));
+  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
 }
 function galleryCard(v){
   const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
@@ -5804,8 +5798,8 @@ function renderBilkort(){
   const vNesteVT = vVT.filter(t => t.dato >= todayISO()).sort((a,b) => a.dato.localeCompare(b.dato))[0] || null;
   // Service — km-basert serviceintervall (ny funksjonalitet, se hjelpefunksjonene over
   // dekkAlderStatus()). LIVE-beregnet ved hvert render() som resten av statusfeltene i
-  // appen — ingen lagret/cachet status.
-  const vServiceHistorikk = vehicleServiceHistorikk(v.id);
+  // appen — ingen lagret/cachet status. Kun status (ikke full historikk) trengs her —
+  // full historikk vises på den dedikerte Service-arbeidsflaten (se renderServiceSkjerm()).
   const vSisteService = vehicleSisteService(v.id);
   const vServiceStatus = vehicleServiceStatus(v);
   const KATEGORI_BILTYPE_LABEL = {bil:'Bil', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
@@ -5868,50 +5862,11 @@ function renderBilkort(){
     </div>` : ''}
   `;
 
-  // Service — km-basert serviceintervall (ny funksjonalitet). Statusgrid + skjema for å
-  // sette/endre intervall + registreringsskjema for utført service + historikk, samlet i
-  // én egen, alltid synlig panel (ikke gjemt i accordion) — "primær seksjon" per instruks.
+  // Service — km-basert serviceintervall. Selve arbeidsflaten (status, registrering,
+  // historikk) er flyttet til en egen, dedikert skjerm (screen='service',
+  // renderServiceSkjerm()) — Kjøretøyprofil viser kun en kort statuslenke i Operativ
+  // status (funksjonsbasert navigasjon, "ren kjøretøyinformasjon").
   const serviceStatusFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
-  const serviceBody = `
-    <div class="ov-grid" style="margin-bottom:12px;">
-      <div class="ov-item"><span class="ov-label">Serviceintervall</span><span class="ov-value">${v.serviceIntervallKm ? Number(v.serviceIntervallKm).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
-      <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Ingen registrert'}</span></div>
-      <div class="ov-item"><span class="ov-label">Neste service (km)</span><span class="ov-value">${vehicleNesteServiceKm(v.id, v) !== null ? Number(vehicleNesteServiceKm(v.id, v)).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
-      <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value" style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${vServiceStatus.tekst}</span></div>
-    </div>
-
-    <div class="row2" style="margin-bottom:10px;">
-      <div class="field"><label>Serviceintervall (km)</label><input id="f-service-intervall" type="number" inputmode="numeric" min="0" step="500" placeholder="F.eks. 15000" value="${esc(String(v.serviceIntervallKm || ''))}"></div>
-    </div>
-    <div class="panel-actions" style="margin-bottom:16px;"><button class="btn secondary" id="save-service-intervall-btn">Lagre intervall</button></div>
-    ${serviceSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-bottom:16px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
-
-    <div class="toolbar" style="margin-bottom:14px;">
-      <div class="count">${vServiceHistorikk.length} service${vServiceHistorikk.length===1?'':'r'} registrert</div>
-      <button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>
-    </div>
-    ${showAddService ? `
-    <form class="panel" id="add-service-form">
-      <div class="row2">
-        <div class="field"><label>Dato</label><input id="sv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-        <div class="field"><label>Kilometerstand</label><input id="sv-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
-      </div>
-      <div class="field" style="margin-bottom:10px;"><label>Type service</label><input id="sv-type" type="text" placeholder="F.eks. Ordinær service" required></div>
-      <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
-        <select id="sv-verksted">
-          <option value="">Ikke satt / internt</option>
-          ${verkstedSelectOptions('')}
-        </select>
-      </div>
-      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="sv-kommentar" type="text" placeholder="Valgfritt"></div>
-      <div class="form-msg" id="sv-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">Lagre service</button></div>
-    </form>` : ''}
-    ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vServiceHistorikk.map(s => `<li><span class="dmg-simple-main">${fmt(s.dato)} — ${Number(s.km).toLocaleString('nb-NO')} km · ${esc(s.type)}${s.verksted ? ' · ' + esc(s.verksted) : ''}${s.kommentar ? ' · ' + esc(s.kommentar) : ''}</span></li>`).join('')}
-    </ul>`}
-  `;
 
   const aktiveSakerBody = vAktiveSakerListe.length === 0 ? `<div class="empty-note">Ingen registrerte aktive saker.</div>` : `
     <div class="dmg-list">
@@ -6093,72 +6048,6 @@ function renderBilkort(){
     </div>
   `;
 
-  const dekkSetBody = (sesong) => {
-    const dotField = sesong === 'sommer' ? 'sommerdekkDot' : 'vinterdekkDot';
-    const kommField = sesong === 'sommer' ? 'sommerdekkKommentar' : 'vinterdekkKommentar';
-    const dot = v[dotField] || '';
-    const kommentar = v[kommField] || '';
-    const produksjon = formatProduksjonsdato(dot);
-    const alder = dekkAlderStatus(dot);
-    return `
-      <div class="ov-grid" style="margin-bottom:10px;">
-        <div class="ov-item"><span class="ov-label">DOT-kode</span><span class="ov-value">${dot ? esc(dot) : 'Ikke registrert'}</span></div>
-        <div class="ov-item"><span class="ov-label">Produksjonsdato</span><span class="ov-value">${produksjon ? esc(produksjon) : '—'}</span></div>
-        <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${alder ? alder.ikon + ' ' + alder.tekst : '—'}</span></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>DOT-kode (4 siffer, UUÅÅ)</label><input type="text" inputmode="numeric" maxlength="4" id="f-${dotField}" placeholder="F.eks. 2224" value="${esc(dot)}"></div>
-        <div class="field"><label>Kommentarer</label><input type="text" id="f-${kommField}" placeholder="Valgfritt" value="${esc(kommentar)}"></div>
-      </div>
-    `;
-  };
-  const dekkOversiktBody = `
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">☀️ Sommerdekk</h4>
-    ${dekkSetBody('sommer')}
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">❄️ Vinterdekk</h4>
-    ${dekkSetBody('vinter')}
-    <div class="panel-actions" style="margin-top:16px;"><button class="btn" id="save-dekk-btn">Lagre dekkinfo</button></div>
-    ${dekkSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
-  `;
-
-  const vDekkHistorikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
-  const naaverendeDekkLabel = {sommer:'☀️ Sommerdekk montert', vinter:'❄️ Vinterdekk montert', helars:'🔄 Helårsdekk montert'}[v.dekk] || 'Ikke satt';
-  const dekkHistorikkBody = `
-    <div class="toolbar" style="margin-bottom:14px;">
-      <div class="count">${naaverendeDekkLabel}</div>
-      <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
-    </div>
-    ${showAddDekkskifte ? `
-    <form class="panel" id="add-dekkskifte-form">
-      <div class="row2">
-        <div class="field"><label>Retning</label>
-          <select id="dk-retning" required>
-            <option value="sommer-vinter">Sommer → Vinter</option>
-            <option value="vinter-sommer">Vinter → Sommer</option>
-          </select>
-        </div>
-        <div class="field"><label>Dato</label><input id="dk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-      </div>
-      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
-      <div class="form-msg" id="dk-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
-    </form>` : ''}
-    ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
-    </ul>`}
-  `;
-  // Prioritet 26.3 (Kjøretøyprofil-opprydding — forberedelse): Dekkoversikt og
-  // Dekkhistorikk var tidligere to separate accordion-rader med overlappende formål
-  // (begge handler om samme bils dekk). Slått sammen til én "🛞 Dekk"-seksjon —
-  // all funksjonalitet beholdt uendret (DOT-registrering, lagreknapp,
-  // dekkskifte-registrering, historikkliste), kun presentasjonen er samlet.
-  const dekkSamletBody = `
-    ${dekkOversiktBody}
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:24px 0 10px;border-top:1px solid var(--line);padding-top:16px;">Dekkskiftehistorikk</h4>
-    ${dekkHistorikkBody}
-  `;
-
 
   return `
     <div class="backrow"><button class="backbtn" id="back-to-register">← Tilbake</button></div>
@@ -6187,14 +6076,13 @@ function renderBilkort(){
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:8px;">🩺 Operativ status</div>
       ${operativStatusBody}
+      <div class="ov-grid" style="margin-top:12px;">
+        <div class="ov-item" style="cursor:pointer;" data-goto-service="${v.id}"><span class="ov-label">🔧 Service</span><span class="ov-value" style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${vServiceStatus.tekst} →</span></div>
+        <div class="ov-item" style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="ov-label">🛞 Dekk</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'} →</span></div>
+      </div>
       <div style="margin-top:12px;">
         ${uteAvDriftBody}
       </div>
-    </div>
-
-    <div class="panel" id="bilkort-seksjon-service" style="margin-bottom:16px;${vServiceStatus.status === 'forfalt' ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
-      <div class="ov-label" style="margin-bottom:8px;">🔧 Service</div>
-      ${serviceBody}
     </div>
 
     <div class="panel" style="margin-bottom:16px;">
@@ -6205,7 +6093,6 @@ function renderBilkort(){
     <div class="acc-list">
       ${bilkortAccordionRow('historikk', '🕐 Historikk', vehicleHistorikkTidslinje(v.id).length, historikkSamletBody)}
       ${bilkortAccordionRow('info', 'Bilinformasjon', null, infoBody)}
-      ${bilkortAccordionRow('dekk', '🛞 Dekk', vDekkHistorikk.length, dekkSamletBody)}
     </div>
 
     <div class="danger-zone">
@@ -6283,18 +6170,192 @@ function attachBilkortListeners(){
 
   attachDamageCardListeners(vehicleDamages(currentVehicleId));
 
-  const saveDekkBtn = document.getElementById('save-dekk-btn');
-  if(saveDekkBtn) saveDekkBtn.addEventListener('click', () => saveDekkInfo(currentVehicleId));
-  const dekkskifteBtn = document.getElementById('ny-dekkskifte-btn');
-  if(dekkskifteBtn) dekkskifteBtn.addEventListener('click', () => { showAddDekkskifte = !showAddDekkskifte; render(); });
-  const dekkskifteForm = document.getElementById('add-dekkskifte-form');
-  if(dekkskifteForm) dekkskifteForm.addEventListener('submit', submitDekkskifte);
+  // Funksjonsbasert navigasjon: Service/Dekk-statuslenkene i Operativ status åpner nå de
+  // dedikerte arbeidsflatene direkte, med bilen forhåndsvalgt.
+  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+}
+
+// ================= scrService (funksjonsbasert navigasjon) =================
+// Egen, dedikert arbeidsflate — IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
+// Kontroll (kt-vehicle/kontrollFormVehicleId): inline, gruppert bilvalg (vehicleOptions())
+// direkte på selve arbeidsflaten. Målet er at brukeren går rett til oppgaven, ikke via
+// Kjøretøyprofil først.
+function renderServiceSkjerm(){
+  const v = vehicles.find(x => x.id === serviceValgtVehicleId) || null;
+  let vehicleCardHtml = '', contentHtml = '';
+  if(v){
+    const vServiceHistorikk = vehicleServiceHistorikk(v.id);
+    const vSisteService = vehicleSisteService(v.id);
+    const vServiceStatus = vehicleServiceStatus(v);
+    const serviceStatusFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
+    vehicleCardHtml = `
+      <div class="kt-vehicle-card" style="margin-bottom:16px;">
+        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div><div class="model">${esc(v.bilnummer)}</div><div class="model-sub">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</div></div>
+      </div>`;
+    contentHtml = `
+      <div class="panel" style="margin-bottom:16px;${vServiceStatus.status === 'forfalt' ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+        <div class="ov-grid" style="margin-bottom:12px;">
+          <div class="ov-item"><span class="ov-label">Serviceintervall</span><span class="ov-value">${v.serviceIntervallKm ? Number(v.serviceIntervallKm).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Ingen registrert'}</span></div>
+          <div class="ov-item"><span class="ov-label">Neste service (km)</span><span class="ov-value">${vehicleNesteServiceKm(v.id, v) !== null ? Number(vehicleNesteServiceKm(v.id, v)).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
+          <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value" style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${vServiceStatus.tekst}</span></div>
+        </div>
+        <div class="row2" style="margin-bottom:10px;">
+          <div class="field"><label>Serviceintervall (km)</label><input id="f-service-intervall" type="number" inputmode="numeric" min="0" step="500" placeholder="F.eks. 15000" value="${esc(String(v.serviceIntervallKm || ''))}"></div>
+        </div>
+        <div class="panel-actions" style="margin-bottom:16px;"><button class="btn secondary" id="save-service-intervall-btn">Lagre intervall</button></div>
+        ${serviceSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-bottom:16px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
+
+        <div class="toolbar" style="margin-bottom:14px;">
+          <div class="count">${vServiceHistorikk.length} service${vServiceHistorikk.length===1?'':'r'} registrert</div>
+          <button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>
+        </div>
+        ${showAddService ? `
+        <form class="panel" id="add-service-form">
+          <div class="row2">
+            <div class="field"><label>Dato</label><input id="sv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+            <div class="field"><label>Kilometerstand</label><input id="sv-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;"><label>Type service</label><input id="sv-type" type="text" placeholder="F.eks. Ordinær service" required></div>
+          <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+            <select id="sv-verksted">
+              <option value="">Ikke satt / internt</option>
+              ${verkstedSelectOptions('')}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="sv-kommentar" type="text" placeholder="Valgfritt"></div>
+          <div class="form-msg" id="sv-msg"></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre service</button></div>
+        </form>` : ''}
+        ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
+        <ul class="dmg-simple-list">
+          ${vServiceHistorikk.map(s => `<li><span class="dmg-simple-main">${fmt(s.dato)} — ${Number(s.km).toLocaleString('nb-NO')} km · ${esc(s.type)}${s.verksted ? ' · ' + esc(s.verksted) : ''}${s.kommentar ? ' · ' + esc(s.kommentar) : ''}</span></li>`).join('')}
+        </ul>`}
+      </div>`;
+  }
+  return `
+    <div class="backrow"><button class="backbtn" id="service-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">🔧 Service</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Km-basert serviceintervall — status, registrering og historikk.</div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Kjøretøy</label>
+        <select id="service-vehicle" required>
+          <option value="">Velg bil...</option>
+          ${vehicleOptions(serviceValgtVehicleId)}
+        </select>
+      </div>
+    </div>
+    ${vehicleCardHtml}
+    ${contentHtml}
+  `;
+}
+function attachServiceSkjermListeners(){
+  document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; serviceSaveConfirmedId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
-  if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(currentVehicleId));
+  if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
   const serviceBtn = document.getElementById('ny-service-btn');
   if(serviceBtn) serviceBtn.addEventListener('click', () => { showAddService = !showAddService; render(); });
   const serviceForm = document.getElementById('add-service-form');
   if(serviceForm) serviceForm.addEventListener('submit', submitService);
+}
+
+// ================= scrDekk (funksjonsbasert navigasjon) =================
+function renderDekkSkjerm(){
+  const v = vehicles.find(x => x.id === dekkValgtVehicleId) || null;
+  let vehicleCardHtml = '', contentHtml = '';
+  if(v){
+    const dekkSetBody = (sesong) => {
+      const dotField = sesong === 'sommer' ? 'sommerdekkDot' : 'vinterdekkDot';
+      const kommField = sesong === 'sommer' ? 'sommerdekkKommentar' : 'vinterdekkKommentar';
+      const dot = v[dotField] || '';
+      const kommentar = v[kommField] || '';
+      const produksjon = formatProduksjonsdato(dot);
+      const alder = dekkAlderStatus(dot);
+      return `
+        <div class="ov-grid" style="margin-bottom:10px;">
+          <div class="ov-item"><span class="ov-label">DOT-kode</span><span class="ov-value">${dot ? esc(dot) : 'Ikke registrert'}</span></div>
+          <div class="ov-item"><span class="ov-label">Produksjonsdato</span><span class="ov-value">${produksjon ? esc(produksjon) : '—'}</span></div>
+          <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${alder ? alder.ikon + ' ' + alder.tekst : '—'}</span></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>DOT-kode (4 siffer, UUÅÅ)</label><input type="text" inputmode="numeric" maxlength="4" id="f-${dotField}" placeholder="F.eks. 2224" value="${esc(dot)}"></div>
+          <div class="field"><label>Kommentarer</label><input type="text" id="f-${kommField}" placeholder="Valgfritt" value="${esc(kommentar)}"></div>
+        </div>
+      `;
+    };
+    const vDekkHistorikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
+    const naaverendeDekkLabel = {sommer:'☀️ Sommerdekk montert', vinter:'❄️ Vinterdekk montert', helars:'🔄 Helårsdekk montert'}[v.dekk] || 'Ikke satt';
+    vehicleCardHtml = `
+      <div class="kt-vehicle-card" style="margin-bottom:16px;">
+        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div><div class="model">${esc(v.bilnummer)}</div><div class="model-sub">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</div></div>
+      </div>`;
+    contentHtml = `
+      <div class="panel" style="margin-bottom:16px;">
+        <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">☀️ Sommerdekk</h4>
+        ${dekkSetBody('sommer')}
+        <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">❄️ Vinterdekk</h4>
+        ${dekkSetBody('vinter')}
+        <div class="panel-actions" style="margin-top:16px;"><button class="btn" id="save-dekk-btn">Lagre dekkinfo</button></div>
+        ${dekkSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
+      </div>
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="ov-label" style="margin-bottom:10px;">Dekkskiftehistorikk</div>
+        <div class="toolbar" style="margin-bottom:14px;">
+          <div class="count">${naaverendeDekkLabel}</div>
+          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
+        </div>
+        ${showAddDekkskifte ? `
+        <form class="panel" id="add-dekkskifte-form">
+          <div class="row2">
+            <div class="field"><label>Retning</label>
+              <select id="dk-retning" required>
+                <option value="sommer-vinter">Sommer → Vinter</option>
+                <option value="vinter-sommer">Vinter → Sommer</option>
+              </select>
+            </div>
+            <div class="field"><label>Dato</label><input id="dk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+          </div>
+          <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
+          <div class="form-msg" id="dk-msg"></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
+        </form>` : ''}
+        ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
+        <ul class="dmg-simple-list">
+          ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
+        </ul>`}
+      </div>`;
+  }
+  return `
+    <div class="backrow"><button class="backbtn" id="dekk-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">🛞 Dekk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Dekkoversikt (DOT/alder) og dekkskiftehistorikk.</div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Kjøretøy</label>
+        <select id="dekk-vehicle" required>
+          <option value="">Velg bil...</option>
+          ${vehicleOptions(dekkValgtVehicleId)}
+        </select>
+      </div>
+    </div>
+    ${vehicleCardHtml}
+    ${contentHtml}
+  `;
+}
+function attachDekkSkjermListeners(){
+  document.getElementById('dekk-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('dekk-vehicle').addEventListener('change', e => { dekkValgtVehicleId = e.target.value; showAddDekkskifte = false; dekkSaveConfirmedId = null; render(); });
+  const saveDekkBtn = document.getElementById('save-dekk-btn');
+  if(saveDekkBtn) saveDekkBtn.addEventListener('click', () => saveDekkInfo(dekkValgtVehicleId));
+  const dekkskifteBtn = document.getElementById('ny-dekkskifte-btn');
+  if(dekkskifteBtn) dekkskifteBtn.addEventListener('click', () => { showAddDekkskifte = !showAddDekkskifte; render(); });
+  const dekkskifteForm = document.getElementById('add-dekkskifte-form');
+  if(dekkskifteForm) dekkskifteForm.addEventListener('submit', submitDekkskifte);
 }
 
 // ================= scrSkader =================
@@ -7084,8 +7145,8 @@ function renderPlanlegging(){
     </div>
 
     <div class="planlegging-grid">
-      ${kolonneHtml('Service', '🔧', data.service, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
-      ${kolonneHtml('Dekk', '🛞', data.dekk, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${kolonneHtml('Service', '🔧', data.service, x => `<li style="cursor:pointer;" data-goto-service="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${kolonneHtml('Dekk', '🛞', data.dekk, x => `<li style="cursor:pointer;" data-goto-dekk="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
       ${kolonneHtml('Verksted', '🔧', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
       ${kolonneHtml('Oppfølging', '📋', data.oppfolging, s => { const sv = sakVehicle(s); return `<li style="cursor:pointer;" data-goto-sak="${s.id}"><span class="dmg-simple-main">${sv ? esc(vehicleLabel(sv)) : 'Slettet kjøretøy'} · ${esc(sakKortOverskrift(s))} · ${fmt(s.followUpDate)}</span></li>`; })}
       ${kolonneHtml('EU-kontroll', '🚦', data.euKontroll, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
@@ -7096,6 +7157,8 @@ function attachPlanleggingListeners(){
   document.getElementById('plan-back').addEventListener('click', () => goBack('dashboard'));
   document.getElementById('plan-periode').addEventListener('change', e => { planleggingPeriodeDager = Number(e.target.value); render(); });
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
+  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
@@ -9393,7 +9456,7 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // `toggleHeaderMenu()` som før — åpner den også når den er lukket, uendret).
 // Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
 // textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'planlegging', 'bilkort', 'kontroll', 'register', 'innstillinger'];
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'planlegging', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger'];
 const SWIPE_EDGE_SONE = 24; // px fra venstre kant — bevisst smal for presisjon, ikke aggressiv deteksjon
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;

@@ -430,8 +430,8 @@ desktopens Dashboard, se `render()`).
 | ✅ Kontroll | `goToRegisterKontroll('')` — samme funksjon som greeting-cardens hurtigknapp allerede brukte |
 | 🚨 Registrer avvik | `goToRegisterSak('')` — samme "+ Ny sak"-skjema som Aktive Saker-siden allerede har, forhåndsåpnet |
 | 📋 Aktive saker | `goTo('aktivesaker')` |
-| 🔧 Service | Bilvalg → Kjøretøyprofil, Service-panelet (alltid synlig, ingen accordion å åpne) |
-| 🛞 Dekk | Bilvalg → Kjøretøyprofil, "🛞 Dekk"-accordionen forhåndsåpnet + scroll-til |
+| 🔧 Service | `goTo('service')` — egen dedikert arbeidsflate, inline gruppert bilvalg (se "Funksjonsbasert navigasjon" under) |
+| 🛞 Dekk | `goTo('dekk')` — egen dedikert arbeidsflate, inline gruppert bilvalg (se "Funksjonsbasert navigasjon" under) |
 | 🚐 Biloversikt | `goTo('register')` |
 | 📅 Planlegging | `goTo('planlegging')` |
 
@@ -441,12 +441,12 @@ saker og 📅 Planlegging (sistnevnte via `flatePlanleggingData(30)` sin
 totale lengde) — eneste "informasjon" på hjemskjermen, som små røde
 tallmerker på ikonene, ikke egne seksjoner.
 
-**Service/Dekk-dyplenke** (`mobilBilvalgMaal`, `'' | 'service' | 'dekk'`):
-Bilregister sin eksisterende biltrykk-håndtering (`data-open`) sjekker
-flagget og forhåndsåpner/scroller til riktig seksjon i Kjøretøyprofil
-**etter** `goTo('bilkort', ...)` (viktig rekkefølge — `goTo()` nullstiller
-`bilkortOpenSections` til en ny, tom Set ved hvert bilkort-besøk, så
-`.add('dekk')` må skje etter, ikke før, ellers overskrives den umiddelbart).
+**Service/Dekk** rutet i en tidligere runde av Prioritet 27 via Bilregister
+med forhåndsåpning av seksjon i Kjøretøyprofil (`mobilBilvalgMaal`). Dette
+er **erstattet** — se "Funksjonsbasert navigasjon — Service/Dekk egne
+arbeidsflater" lenger ned i dette dokumentet for gjeldende løsning
+(`screen='service'`/`'dekk'`, ikke lenger via Kjøretøyprofil i det hele
+tatt).
 
 ## Historikk-hub (Regel 5)
 
@@ -499,6 +499,50 @@ duplikater FRA Operativ status; nå går all operativ info DIT, ut av
 toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett
 sted.
 
+## Funksjonsbasert navigasjon — Service/Dekk egne arbeidsflater (Prioritet 27, oppfølging 2)
+
+Mobil skal ikke bruke Kjøretøyprofil som inngang til alle funksjoner —
+hver funksjon får sin egen, dedikerte arbeidsflate, nådd direkte
+("Trykk funksjon → Velg bil → Utfør"), ikke via Kjøretøyprofil.
+
+✅ Kontroll (`screen='kontroll'`) og 🚨 Registrer avvik
+(`screen='aktivesaker'`, "Ny sak"-skjema forhåndsåpnet) var **allerede**
+bygget slik — begge har inline, gruppert bilvalg
+(`<select>`/`vehicleOptions()`) direkte på selve arbeidsflaten. Ingen
+endring var nødvendig for disse to.
+
+🔧 Service og 🛞 Dekk manglet dette — de gikk tidligere via Bilregister →
+Kjøretøyprofil (med seksjonen forhåndsåpnet/scrollet til, se forrige
+Prioritet 27-runde). Bygget om til samme mønster som Kontroll: nye,
+selvstendige skjermer `screen='service'`/`screen='dekk'`
+(`renderServiceSkjerm()`/`renderDekkSkjerm()`), hver med egen inline,
+gruppert bilvalg-dropdown øverst (`serviceValgtVehicleId`/
+`dekkValgtVehicleId`, samme `vehicleOptions()`). `submitService()`/
+`submitDekkskifte()` bruker nå disse i stedet for `currentVehicleId`
+(som hørte til Kjøretøyprofil-konteksten).
+
+**Kjøretøyprofil er nå ren kjøretøyinformasjon.** Service-panelet og
+Dekk-accordionraden er fjernet fra `renderBilkort()` i sin helhet — all
+driftsinformasjon (inkl. Service- og Dekk-status) samles i "🩺 Operativ
+status", som nå har to statuslenker (🔧 Service, 🛞 Dekk) som åpner de
+dedikerte arbeidsflatene direkte med bilen forhåndsvalgt
+(`data-goto-service`/`data-goto-dekk`). Samme lenkemønster brukt fra
+Planlegging sine Service/Dekk-kolonner (oppdatert til å peke dit i
+stedet for til Kjøretøyprofil).
+
+Mobilens 🔧/🛞-ikoner går nå rett til de nye skjermene
+(`goTo('service')`/`goTo('dekk')`) — den midlertidige
+`mobilBilvalgMaal`-mekanismen fra forrige runde (som rutet via
+Bilregister) er fjernet, siden den ikke lenger trengs.
+
+**Bevisst IKKE gjort:** ingen tredje kopi av bilvalg-UI-et — alle tre
+funksjonsflater (Kontroll, Service, Dekk) bruker nøyaktig samme
+`vehicleOptions()`-genererte, grupperte `<select>` som allerede fantes.
+Historikk-hubens lenker (`data-goto-bilkort`) er bevisst UENDRET — der er
+formålet å bla gjennom hendelser på tvers av flåten, ikke å utføre en
+handling, så Kjøretøyprofil (nå ren info + lenker videre) er fortsatt
+riktig mål.
+
 ## Biloversikt — gruppert dropdown-visning (Prioritet 27, oppfølging)
 
 Bilregister-siden (`renderRegister()`) viser ikke lenger et flatt galleri
@@ -512,11 +556,11 @@ i appen (Rapporter/Analyse) — ingen ny CSS/komponent, ren gjenbruk. Mål:
 mindre scrolling, raskere bilvalg, konsistent gruppering på tvers av
 appen.
 
-To unntak der en gruppe åpnes automatisk (i tillegg til manuelt åpnede):
-er kun én kategori synlig pga. `filterKategori`, eller man kommer fra
-mobilens Service/Dekk-dyplenke (`mobilBilvalgMaal` satt — da er målet
-nettopp å velge bil raskt, og et ekstra klikk for å åpne gruppen ville
-motvirket "raskere bilvalg").
+Ett unntak der en gruppe åpnes automatisk (i tillegg til manuelt åpnede):
+er kun én kategori synlig pga. `filterKategori`. (Et tidligere unntak for
+mobilens Service/Dekk-dyplenke er fjernet sammen med selve mekanismen —
+Service/Dekk går ikke lenger via Biloversikt i det hele tatt, se
+"Funksjonsbasert navigasjon" over.)
 
 ---
 

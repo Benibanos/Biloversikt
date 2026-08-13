@@ -703,4 +703,24 @@ Innhold:
   eksisterende renderX()-funksjoner, og fleet-wide generaliseringer av
   allerede eksisterende per-bil-funksjoner
 
+────────────────────────────
+
+✅ Prioritet 27 (oppfølging 1) — Biloversikt gruppert dropdown-visning
+Bilregister vist gruppert etter KATEGORI_ORDER (▼ Bil 1–11/Lastebil/
+Montering/Reserve), lukket som standard — samme dropdown-mønster som
+resten av appen (`.dash-group-card`/`.group-card-head`). Mindre
+scrolling, raskere bilvalg.
+
+────────────────────────────
+
+✅ Prioritet 27 (oppfølging 2) — Funksjonsbasert navigasjon
+Service og Dekk fikk hver sin egen, dedikerte arbeidsflate
+(`screen='service'`/`'dekk'`), nådd direkte ("Trykk funksjon → Velg bil →
+Utfør") — ikke lenger via Kjøretøyprofil (som Kontroll/Registrer avvik
+allerede var bygget). Kjøretøyprofil er nå ren kjøretøyinformasjon;
+Service-panelet og Dekk-accordionraden er fjernet derfra. All
+driftsinformasjon (inkl. Service-/Dekk-status) samlet i Operativ status,
+med statuslenker inn til de nye arbeidsflatene. Planleggings Service/
+Dekk-kolonner oppdatert til å peke dit i stedet for Kjøretøyprofil. Den
+midlertidige `mobilBilvalgMaal`-mekanismen fra forrige runde er fjernet.
 
