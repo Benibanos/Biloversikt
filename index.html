@@ -829,6 +829,16 @@ let filterLoyve = ''; // '' | 'har' | 'mangler'
 // Bilregister-siden, filtrert på samme vehicleHovedstatus()-verdi som før (uendret
 // funksjon, kun ny destinasjon — se goToRegisterHovedstatus()).
 let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'kritisk' | 'har-aktiv-sjafor' | 'tilgjengelig'
+// Biloversikt gruppert etter KATEGORI_ORDER (▼ Bil 1–11 / Lastebil / Montering /
+// Reserve), lukket som standard — samme dropdown-mønster (group-card-head/chevron/
+// vehicle-group-body) som allerede brukes andre grupperte steder i appen (Rapporter/
+// Analyse). Biler vises kun når gruppen er åpnet — mindre scrolling, raskere bilvalg.
+let registerGrupperApne = new Set(); // delmengde av KATEGORI_ORDER-verdier
+function toggleRegisterGruppe(kat){
+  if(registerGrupperApne.has(kat)) registerGrupperApne.delete(kat);
+  else registerGrupperApne.add(kat);
+  render();
+}
 let showAddVehicleForm = false;
 
 let skadeFilterBil = '';
@@ -4963,8 +4973,31 @@ function renderRegister(){
         <div>${vehicles.length === 0 ? 'Trykk «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.'}</div>
       </div>
     ` : `
-      <div class="gallery">
-        ${filtered.map(v => galleryCard(v)).join('')}
+      <div class="dash-group-grid" style="grid-template-columns:1fr;">
+        ${KATEGORI_ORDER.filter(k => filtered.some(v => v.kategori === k)).map(k => {
+          const gruppeBiler = sortedVehicles(filtered.filter(v => v.kategori === k));
+          // Er kun ÉN kategori synlig pga. filter, eller man kommer fra mobilens
+          // Service/Dekk-dyplenke (rett i gang med å velge bil), åpnes gruppen automatisk
+          // i tillegg til manuelt åpnede grupper.
+          const open = registerGrupperApne.has(k) || filterKategori === k || !!mobilBilvalgMaal;
+          return `
+          <div class="panel dash-group-card">
+            <div class="group-card-head" data-toggle-register-gruppe="${k}">
+              <div>
+                <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+                <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
+              </div>
+              <span class="chevron ${open?'open':''}">⌄</span>
+            </div>
+            <div class="vehicle-group-body ${open?'open':''}">
+              <div>
+                <div class="gallery" style="margin-top:12px;">
+                  ${gruppeBiler.map(v => galleryCard(v)).join('')}
+                </div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     `}
   `;
@@ -4982,6 +5015,7 @@ function attachRegisterListeners(){
   document.getElementById('f-kontrollstatus').addEventListener('change', e => { filterKontrollStatus = e.target.value; render(); });
   document.getElementById('f-hovedstatus').addEventListener('change', e => { filterHovedstatus = e.target.value; render(); });
   document.getElementById('f-loyve').addEventListener('change', e => { filterLoyve = e.target.value; render(); });
+  document.querySelectorAll('[data-toggle-register-gruppe]').forEach(el => el.addEventListener('click', () => toggleRegisterGruppe(el.dataset.toggleRegisterGruppe)));
   document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => {
     const vid = el.dataset.open;
     const maal = mobilBilvalgMaal;

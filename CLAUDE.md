@@ -499,6 +499,25 @@ duplikater FRA Operativ status; nå går all operativ info DIT, ut av
 toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett
 sted.
 
+## Biloversikt — gruppert dropdown-visning (Prioritet 27, oppfølging)
+
+Bilregister-siden (`renderRegister()`) viser ikke lenger et flatt galleri
+av alle (filtrerte) biler samtidig — biler er nå gruppert etter
+`KATEGORI_ORDER` (▼ Bil 1–11 / Lastebil / Montering / Reserve), **lukket
+som standard**. Biler i en gruppe vises kun når gruppen åpnes
+(`registerGrupperApne`, `toggleRegisterGruppe()`) — samme
+dropdown-mønster (`.dash-group-card`/`.group-card-head`/
+`.vehicle-group-body`/chevron) som allerede brukes andre grupperte steder
+i appen (Rapporter/Analyse) — ingen ny CSS/komponent, ren gjenbruk. Mål:
+mindre scrolling, raskere bilvalg, konsistent gruppering på tvers av
+appen.
+
+To unntak der en gruppe åpnes automatisk (i tillegg til manuelt åpnede):
+er kun én kategori synlig pga. `filterKategori`, eller man kommer fra
+mobilens Service/Dekk-dyplenke (`mobilBilvalgMaal` satt — da er målet
+nettopp å velge bil raskt, og et ekstra klikk for å åpne gruppen ville
+motvirket "raskere bilvalg").
+
 ---
 
 # Kjøretøyprofil — restrukturert til 6 seksjoner (Prioritet 26.3)
