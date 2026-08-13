@@ -88,7 +88,22 @@
       arsmodell: ['Årsmodell'], kategori: ['Kategori'], status: ['Status'], dekk: ['Dekk'],
       km: ['KM', 'num'], loyvenummer: ['Løyvenummer'], hasPhoto: ['HasPhoto', 'bool'],
       sommerdekkDot: ['SommerdekkDot'], sommerdekkKommentar: ['SommerdekkKommentar'],
-      vinterdekkDot: ['VinterdekkDot'], vinterdekkKommentar: ['VinterdekkKommentar']
+      vinterdekkDot: ['VinterdekkDot'], vinterdekkKommentar: ['VinterdekkKommentar'],
+      // Lagt til — disse feltene fantes på kjøretøy-objektet i index.html, men var ALDRI
+      // registrert her, og ble derfor stille forkastet ved hver lagring/henting (se
+      // toAirtableFields()/fromAirtableFields(), som kun håndterer felt listet i denne
+      // konfigurasjonen). Årsaken til at Serviceintervall/EU-kontroll ikke persisterte —
+      // og samme rotårsak rammet trolig også Ute av drift og Aktiv sjåfør uten at det var
+      // oppdaget ennå.
+      serviceIntervallKm: ['ServiceIntervallKm', 'num'],
+      euGodkjentTil: ['EuGodkjentTil'],
+      aktivSjafor: ['AktivSjafor'],
+      aktivSjaforSiden: ['AktivSjaforSiden'],
+      uteAvDrift: ['UteAvDrift', 'bool'],
+      uteAvDriftArsak: ['UteAvDriftArsak'],
+      uteAvDriftDato: ['UteAvDriftDato'],
+      uteAvDriftKommentar: ['UteAvDriftKommentar'],
+      statusHistorikk: ['StatusHistorikk', 'json']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
