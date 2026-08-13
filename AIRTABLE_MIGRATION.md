@@ -85,17 +85,30 @@ startet, brukt til å avgjøre om biløkten hører til dagens operative dag, se
 `vehicleAktivSjafor()`). Samme forbehold om `storage.airtable.js` gjelder
 disse to feltene som feltene over.
 
-Lagt til i "Prioritet 18 — Serviceintervall basert på kilometer":
-`ServiceIntervallKm` (number — serviceintervall i kilometer, per bil,
-redigerbart av administrator i Kjøretøyprofil sin Service-seksjon. Bevisst
-**ingen automatisk standardverdi** — feltet står tomt til en administrator
-faktisk bekrefter riktig intervall for den konkrete bilen, siden bilmerke
-alene ikke er nok til å fastsette korrekt intervall). Kilometerstanden som
-brukes i alle serviceberegninger er fortsatt kun det eksisterende `KM`-
-feltet over — det er IKKE opprettet noe parallelt kilometerfelt for
-service. Samme forbehold om `storage.airtable.js` gjelder dette feltet som
-feltene over: legg til `ServiceIntervallKm` i Vehicles-delen av
-`LIST_TABLES`, samt selve kolonnen i Airtable-basen.
+Lagt til i "Prioritet 18 — Serviceintervall basert på kilometer"
+**(implementert)**: `ServiceIntervallKm` (number — serviceintervall i
+kilometer, per bil, redigerbart av administrator i Kjøretøyprofil sin
+Service-seksjon. Bevisst **ingen automatisk standardverdi** — feltet står
+tomt til en administrator faktisk bekrefter riktig intervall for den
+konkrete bilen, siden bilmerke alene ikke er nok til å fastsette korrekt
+intervall). Kilometerstanden som brukes i alle serviceberegninger er
+fortsatt kun det eksisterende `KM`-feltet over — det er IKKE opprettet noe
+parallelt kilometerfelt for service. Samme forbehold om
+`storage.airtable.js` gjelder dette feltet som feltene over: legg til
+`ServiceIntervallKm` i Vehicles-delen av `LIST_TABLES`, samt selve kolonnen
+i Airtable-basen.
+
+Lagt til i Prioritet 27 (Design 2.0 — Adaptiv Layout), samme mønster som
+`ServiceIntervallKm` over: `EuGodkjentTil` (dato — frist for periodisk
+kjøretøykontroll (EU-kontroll), per bil, redigerbart av administrator i
+Kjøretøyprofil sin Bilinformasjon-seksjon). Ny funksjonalitet — fantes
+ikke i appen fra før i noen form (verken felt, historikk eller sporing).
+Statusberegning er LIVE (`vehicleEuKontrollStatus()` i `index.html`, 60
+dagers varselgrense), ingen egen historikk-liste lagres — kun selve
+fristdatoen er relevant å spore, i motsetning til Service der hver utført
+service faktisk logges. Samme forbehold om `storage.airtable.js` gjelder:
+legg til `EuGodkjentTil` i Vehicles-delen av `LIST_TABLES`, samt selve
+kolonnen i Airtable-basen.
 
 Kontrollstatus (`isKontrollertIdag`) er UENDRET som konsept — ingen nye felt
 for dette — men selve "i dag"-grensen er flyttet fra midnatt til kl. 04:00
@@ -222,38 +235,37 @@ komprimerer bilder før lagring, men vurder om bilder heller bør lagres et
 annet sted (f.eks. Airtable-vedleggsfelt eller ekstern bildehosting) om dere
 opplever feil ved lagring av bilder.
 
-**Servicehistorikk (Prioritet 18) lagres også gjennom Settings sin Key/
-Value-mekanisme**, under nøkkelen `servicehistorikk` — nøyaktig samme
-mønster som `dekkhistorikk` (dekkskiftelogg) allerede bruker, og altså
+**Servicehistorikk (Prioritet 18) — implementert.** Lagres gjennom
+Settings sin Key/Value-mekanisme, under nøkkelen `servicehistorikk` —
+nøyaktig samme mønster som `dekkhistorikk` (dekkskiftelogg), og altså
 **ikke** en egen Airtable-tabell. `Value` inneholder én JSON-array med ett
 element per serviceregistrering:
-`{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy,
-updatedAt}`. `vehicleId` er den primære koblingen til kjøretøyet (samme
-interne `AppId`-verdi som andre tabeller bruker for `VehicleId`) —
-registreringsnummer vises kun i brukergrensesnittet, aldri som eneste
-relasjon. Lastes/lagres via `window.storage.get/set('servicehistorikk',
-true)` i `index.html` (`loadAll()`/`saveServicehistorikk()`), på nøyaktig
-samme måte som de øvrige generiske listene i denne tabellen — **ingen
-endring i `storage.airtable.js` er nødvendig** for selve historikklisten,
-siden Settings-mekanismen allerede er generisk for enhver nøkkel. (Det nye
+`{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}`.
+`type` er fritekst (f.eks. "Ordinær service", "Stor service", "EU-kontroll")
+— ingen fast liste, samme filosofi som `beskrivelse`-feltet på
+verkstedtimer. `verksted` er valgfritt og hentes fra samme
+verkstedregister (`verkstedSelectOptions()`) som verkstedtimer allerede
+bruker — tom verdi betyr internt utført service. `vehicleId` er den
+primære koblingen til kjøretøyet (samme interne `AppId`-verdi som andre
+tabeller bruker for `VehicleId`) — registreringsnummer vises kun i
+brukergrensesnittet, aldri som eneste relasjon. Lastes/lagres via
+`window.storage.get/set('servicehistorikk', true)` i `index.html`
+(`loadAll()`/`saveServicehistorikk()`), på nøyaktig samme måte som de
+øvrige generiske listene i denne tabellen — **ingen endring i
+`storage.airtable.js` er nødvendig** for selve historikklisten, siden
+Settings-mekanismen allerede er generisk for enhver nøkkel. (Det nye
 `ServiceIntervallKm`-feltet på selve Vehicles-tabellen er et unntak fra
 dette — se Vehicles-avsnittet over, det krever den vanlige manuelle
 `LIST_TABLES`-oppdateringen siden det er et strukturert kolonnefelt, ikke
 en generisk nøkkel/verdi-post.)
 
-**Prioritet 23 — ingen ny Airtable-endring, kun en utvidet JSON-form.**
-`dekkhistorikk`-elementer (samme Settings-nøkkel som over) kan nå i
-tillegg inneholde `nyDekktype` (streng — én av `sommer`/`vinter-pigg`/
-`vinter-piggfri`/`helars`), satt av både enkelt- og masseregistrering av
-dekkskifte. Dette er et rent tillegg til den eksisterende JSON-formen
-(`{id, vehicleId, dato, retning, kommentar}`), ikke et nytt Airtable-felt
-— eldre oppføringer uten `nyDekktype` fungerer fortsatt uendret
-(`dekkskifteTekst()` faller tilbake til den opprinnelige
-retning-baserte teksten når `nyDekktype` mangler). `ServiceIntervallKm`
-(Prioritet 18) kan nå også bli forhåndsutfylt automatisk ved oppretting
-av ny bil, basert på merke/modell (`foreslaServiceIntervallKm()`) — samme
-felt som før, ingen skjemaendring, og alltid overstyrbart av administrator
-etterpå.
+**Statusberegning (kun i appen, ingen lagret status):** "neste service" =
+km ved siste registrerte service + `ServiceIntervallKm`. Er ingen service
+registrert ennå, brukes 0 km som utgangspunkt. Status beregnes LIVE ved
+hvert `render()`-kall ut fra bilens nåværende `KM` (samme
+live-beregningsprinsipp som resten av appens statusfelt — se
+`vehicleServiceStatus()` i `index.html`): grønn ved god margin, gul innen
+1000 km (`SERVICE_VARSEL_KM`), rød ved forfalt.
 
 Feltnavnene med tekst-typer kan gjerne settes opp som Airtables "Single
 select" i stedet for ren tekst der det gir mening (f.eks. `Status`,

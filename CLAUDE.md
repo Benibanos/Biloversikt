@@ -364,6 +364,143 @@ Reduserer Kjøretøyprofil sin accordion-liste fra 7 til 6 rader.
 
 ---
 
+# Prioritet 27 — Design 2.0: Adaptiv Layout (Mobil + Desktop)
+
+**Kjerneprinsipp (Regel 1/8):** Mobil og Desktop er IKKE samme system i ulik
+størrelse — de er to forskjellige brukeropplevelser med samme data.
+Desktop = Kontrollsenter (oversikt/planlegging/oppfølging/analyse). Mobil =
+Operativ app (handling). Ved konflikt mellom "mer informasjon" og "Less is
+More": Less is More vinner alltid (Regel 8).
+
+**Arkitektur:** Ett datalag, ett sett `renderX()`-skjermfunksjoner
+(`screen`-state, `goTo()`/`goBack()`/`screenHistory` uendret og felles).
+KUN navigasjonsrammen (shell) rundt skjermene er ulik — samme mønster som
+`renderDriverShell()`/`renderLoginShell()` allerede brukte for sine egne
+kontekster. Ingen forretningslogikk er duplisert.
+
+**Enhetsdeteksjon** (`detectDeviceType()`/`currentUiExperience()` i
+`index.html`): bredde-basert (`window.innerWidth`), tre klasser oppdages
+(mobil <768px, nettbrett 768–1199px, desktop ≥1200px), men kun to
+UI-opplevelser vises — nettbrett bruker Desktop-opplevelsen (med smalere,
+ikon-only sidebar, se CSS `@media (max-width:1199px)`), siden oppgaven kun
+definerer to opplevelser. Grensene justeres ett sted (`DEVICE_BREAKPOINTS`)
+om erfaring tilsier noe annet. Reagerer på faktisk vindusendring (debounced
+`resize`-lytter), ikke bare sideinnlasting.
+
+**Manuell overstyring** (`deviceOverride`, kun i minnet — ikke lagret per
+bruker/enhet): "Bytt til Mobil-visning" nederst i desktop-sidebaren, "Bytt
+til Desktop-visning" i mobilens ☰ Meny-footer (`attachMobilOverrideListener()`).
+
+## Desktop = Kontrollsenter
+
+Permanent sidebar (`renderDesktopSidebarHtml()`/`attachDesktopSidebarListeners()`),
+erstatter ☰ Meny som primærnavigasjon (drawer/hamburger er uendret i koden
+og fortsatt fullt funksjonell, kun visuelt skjult via CSS på desktop — se
+`.app-shell-desktop .shell-top-right{display:none}` — minimerte risiko ved
+IKKE å røre drawer-logikken i det hele tatt).
+
+Fem primære punkter (Regel 4): 🏠 Dashboard, 🗂️ Aktive saker, 🕐 Historikk,
+📅 Planlegging, 🚐 Biloversikt. Sekundært, nederst i sidebaren: 📊 Analyse
+(dekker både Rapporter og Analyse-skjermene), ⚙️ Innstillinger, manuell
+overstyring.
+
+**Desktop Dashboard (Regel 4 — "Kun"):** Ingen endring av selve
+`renderDashboard()` sitt desktop-innhold — det bygget fra Prioritet 26.2 av
+består allerede UTELUKKENDE av 🟢 Bilparkhelse + 🚚 Biler i drift
+(toppfeltet) + 🚨 Krever handling nå + 📅 Kommer snart + 🎯 Prioriterte
+biler, nøyaktig Regel 4 sin liste. En tidligere skissert "Analyse-fane" på
+Dashboard (fra wireframe-runden) ble IKKE bygget — Regel 4/8 avgjorde at
+Analyse/Rapporter i stedet ligger som eget, sekundært sidebar-punkt.
+
+## Mobil = Operativ app
+
+**Regel 3 — mobilens forside er IKKE Dashboard i mobilformat.**
+`renderDashboard()` forgrener tidlig: `if(currentUiExperience() ===
+'mobil') return renderMobilHjem();` — ingen av desktopens kort/data bygges
+i det hele tatt for mobil. `renderMobilHjem()` er et rent ikonrutenett (2
+kolonner, store trykkflater ≥112px høyde, minimal tekst — Regel 2), ingen
+kort, ingen accordioner, ingen Bilparkhelse-statusrad (den vises kun på
+desktopens Dashboard, se `render()`).
+
+Åtte ikoner (`MOBIL_HJEM_IKONER`), nøyaktig Regel 3 sin liste:
+
+| Ikon | Handling |
+|---|---|
+| 🚚 Min bil | `goToMinBil()` — gjeninnfører det tidligere ⭐ Min bil-dashboardkortet (fjernet i 26.2, flagget som tapt funksjonalitet siden): hopper til egen aktive bil om driftskoordinator selv kjører (samme case-insensitive `vehicleAktivSjafor()`-sammenligning som `startBilokt()` bruker), ellers Biloversikt filtrert på `tilgjengelig` (ny filterverdi). **Rører IKKE** den separate sjåfør-URL-modusen (`?sjafor=1`/`kontroll.html`) — bevisst adskilt og låst inngang for dedikerte sjåfør-enheter |
+| ✅ Kontroll | `goToRegisterKontroll('')` — samme funksjon som greeting-cardens hurtigknapp allerede brukte |
+| 🚨 Registrer avvik | `goToRegisterSak('')` — samme "+ Ny sak"-skjema som Aktive Saker-siden allerede har, forhåndsåpnet |
+| 📋 Aktive saker | `goTo('aktivesaker')` |
+| 🔧 Service | Bilvalg → Kjøretøyprofil, Service-panelet (alltid synlig, ingen accordion å åpne) |
+| 🛞 Dekk | Bilvalg → Kjøretøyprofil, "🛞 Dekk"-accordionen forhåndsåpnet + scroll-til |
+| 🚐 Biloversikt | `goTo('register')` |
+| 📅 Planlegging | `goTo('planlegging')` |
+
+**Badge-tall** (`totaltKreverHandlingCount()`, delt med Dashboard sin
+desktop-logikk — ingen egen parallell tellelogikk) vises på 📋 Aktive
+saker og 📅 Planlegging (sistnevnte via `flatePlanleggingData(30)` sin
+totale lengde) — eneste "informasjon" på hjemskjermen, som små røde
+tallmerker på ikonene, ikke egne seksjoner.
+
+**Service/Dekk-dyplenke** (`mobilBilvalgMaal`, `'' | 'service' | 'dekk'`):
+Bilregister sin eksisterende biltrykk-håndtering (`data-open`) sjekker
+flagget og forhåndsåpner/scroller til riktig seksjon i Kjøretøyprofil
+**etter** `goTo('bilkort', ...)` (viktig rekkefølge — `goTo()` nullstiller
+`bilkortOpenSections` til en ny, tom Set ved hvert bilkort-besøk, så
+`.add('dekk')` må skje etter, ikke før, ellers overskrives den umiddelbart).
+
+## Historikk-hub (Regel 5)
+
+`renderHistorikk()`/`flateHistorikkTidslinje()` — master for Kontroll,
+Skader, Verksted, Dekk, Kostnader OG Varsler (sjette type, avklart
+eksplisitt). Erstatter disse som primærnavigasjon i BÅDE desktop-sidebar og
+mobilens ☰ Meny (`drawerOversikterHtml()` omskrevet). De opprinnelige
+`renderKontrolloversikt()`/`renderSkader()`/`renderVerksted()`/
+`renderDekkoversikt()`/`renderKostnadsoversikt()`/`renderVarslerOversikt()`-
+funksjonene er **UENDRET i koden** (kan nås direkte om nødvendig) — kun
+ikke lenger koblet til noen meny.
+
+`flateHistorikkTidslinje(filterType, filterVehicleId)` gjenbruker
+`vehicleHistorikkTidslinje()` direkte per bil (loop + merge), ingen
+parallell datainnhentingslogikk. Filtrerbar på type (6 kategorier) + bil +
+dato (dato-filter kun på desktop, `currentUiExperience() === 'desktop'` —
+mindre skjerm, sjeldnere presist datobehov i felt).
+
+## Planlegging (Regel 6)
+
+`renderPlanlegging()`/`flatePlanleggingData()` — hjem for Service, Dekk,
+Verksted, Oppfølging OG EU-kontroll (fem kategorier, EU-kontroll lagt til
+eksplisitt i denne runden). Flåtebred generalisering av Dashboardets
+"📅 Kommer snart" (26.2), uten 5-post-taket. Periodevalg 7/30/90 dager
+(styrer kun verksted/oppfølging sitt visningsvindu — service/dekk/EU-
+kontroll sin status er alltid live og tidløs i seg selv, jf.
+`vehicleServiceStatus()`/`dekkAlderStatus()`/`vehicleEuKontrollStatus()`).
+"Kommende dekkskift" er en presisering: appen har INGEN fremtidsdatert
+dekkskift-plan — bruker eksisterende `dekkAlderStatus()` (DOT-alder 🟡/🔴)
+som "trenger snart"-signal, ikke en kalenderdato.
+
+## EU-kontroll (ny funksjonalitet, samme mønster som Service)
+
+`v.euGodkjentTil` (dato, Airtable `EuGodkjentTil` — se
+AIRTABLE_MIGRATION.md), `vehicleEuKontrollStatus()` (60 dagers
+varselgrense, `EU_KONTROLL_VARSEL_DAGER`). Redigeres i Bilinformasjon
+(samme skjema-mønster som øvrige datofelt). Vises i Kjøretøyprofil sitt
+toppanel (se under) og som egen kategori i Planlegging.
+
+## Kjøretøyprofil — ytterligere forenklet (Regel 7)
+
+Toppanelet (`toppseksjonBody`) er nå UTELUKKENDE: Registreringsnummer,
+Kilometerstand, Siste service, EU-godkjent til — "Kun dette" (Regel 7,
+reaffirmerer og fullfører retningen fra 26.3). ALL annen informasjon
+(Bilgruppe, Biltype, Hovedstatus, Kontrollstatus, Aktive saker, Kritiske
+saker, Forfalte oppfølginger, Neste handling, Neste oppfølgingsdato, Neste
+verkstedtime, Sist oppdatert) ligger nå UTELUKKENDE i "🩺 Operativ status"
+— motsatt retning av 26.3 sin dedupliserings-plassering (den fjernet
+duplikater FRA Operativ status; nå går all operativ info DIT, ut av
+toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett
+sted.
+
+---
+
 # Kjøretøyprofil — restrukturert til 6 seksjoner (Prioritet 26.3)
 
 Godkjent løsning for duplikatstatus og seksjonsantall:

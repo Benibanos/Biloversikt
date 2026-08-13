@@ -110,6 +110,41 @@
   .btn-label-short{display:none;}
   .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .menu-wrap{position:relative;}
+
+  /* ---- Prioritet 27 (Design 2.0) — Desktop sidebar ("Kontrollsenter") ---- */
+  .app-shell{display:block;}
+  .app-shell-desktop{display:flex;align-items:flex-start;gap:24px;}
+  .app-shell-desktop .app-shell-main{flex:1;min-width:0;}
+  /* Regel 1: sidebaren ER navigasjonen på desktop — ☰ Meny/drawer er fortsatt fullt
+     funksjonell i DOM (ingen logikk fjernet), men skjules visuelt siden Analyse/
+     Innstillinger/overstyring allerede ligger i sidebarens sekundærseksjon. */
+  .app-shell-desktop .shell-top-right{display:none;}
+  .desktop-sidebar{
+    flex:0 0 232px;position:sticky;top:20px;
+    display:flex;flex-direction:column;gap:4px;
+    background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
+    padding:18px 14px;
+  }
+  .desktop-sidebar-brand{padding:2px 8px 16px;}
+  .desktop-sidebar-nav{display:flex;flex-direction:column;gap:2px;}
+  .desktop-sidebar-secondary{display:flex;flex-direction:column;gap:2px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+  .desktop-sidebar-item{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    padding:10px 12px;border-radius:10px;border:none;background:transparent;
+    font-family:inherit;font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer;
+  }
+  .desktop-sidebar-item:hover{background:var(--bg);}
+  .desktop-sidebar-item.active{background:var(--chrome-bg);color:var(--chrome-text);}
+  .desktop-sidebar-item.small{font-size:13px;font-weight:500;color:var(--muted);padding:8px 12px;}
+  .desktop-sidebar-item.small.active{background:var(--chrome-bg);color:var(--chrome-text);}
+  .desktop-sidebar-ikon{font-size:17px;line-height:1;flex-shrink:0;}
+  @media (max-width:1199px){
+    /* Regel: nettbrett (768–1199px) bruker Desktop-opplevelsen, men med smalere sidebar
+       for å gi mer plass til selve innholdet på et mindre skjermformat. */
+    .desktop-sidebar{flex-basis:76px;padding:14px 8px;}
+    .desktop-sidebar-brand,.desktop-sidebar-item span:not(.desktop-sidebar-ikon){display:none;}
+    .desktop-sidebar-item{justify-content:center;padding:12px 6px;}
+  }
   /* Optimalisering 15 (Dashboard Cleanup v2): Bilparkhelse Status-raden og "Biler i drift
      nå" i toppfeltet — kun til stede når screen==='dashboard'. flex-wrap gjør at chipsene
      naturlig går fra én rad (desktop) til stablet (smale skjermer) uten egen mobil-markup. */
@@ -324,6 +359,26 @@
   .dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:26px;}
   .dash-row-2 .stat-grid{margin-bottom:0;}
   .dash-group-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
+  /* Prioritet 27 (Design 2.0) — Planlegging: 4 kolonner på desktop, 1 kolonne på mobil
+     (mobil-override nedenfor sammen med .dash-group-grid sin egen). */
+  .planlegging-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;align-items:start;}
+  /* Prioritet 27 (Design 2.0) — Regel 2/3: mobilens ikonbaserte, handlingsdrevne
+     hjemskjerm. 2 kolonner (nådd lett med én hånd, stående skjerm), store trykkflater
+     (min 100px høyde), minimalt med tekst. */
+  .mobil-hjem-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px;}
+  .mobil-hjem-btn{
+    position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    min-height:112px;padding:16px 10px;border-radius:18px;border:1.5px solid var(--line);
+    background:var(--surface);cursor:pointer;font-family:inherit;
+  }
+  .mobil-hjem-btn:active{background:var(--bg);}
+  .mobil-hjem-ikon{font-size:34px;line-height:1;}
+  .mobil-hjem-label{font-size:13.5px;font-weight:700;color:var(--ink);text-align:center;}
+  .mobil-hjem-badge{
+    position:absolute;top:10px;right:10px;background:var(--red);color:#fff;
+    font-size:11.5px;font-weight:700;min-width:20px;height:20px;padding:0 6px;
+    border-radius:100px;display:flex;align-items:center;justify-content:center;
+  }
   .dash-group-card{padding:0;overflow:hidden;}
   .group-card-head{
     display:flex;justify-content:space-between;align-items:center;gap:10px;
@@ -582,7 +637,7 @@
 
     /* Dashboard: Bilparkstatus/Sjåførkontroll og de tre bilgruppekortene stables
        under hverandre i stedet for sideveis scrolling */
-    .dash-row-2, .dash-group-grid{grid-template-columns:1fr;}
+    .dash-row-2, .dash-group-grid, .planlegging-grid{grid-template-columns:1fr;}
 
     /* Velkomstkort: to kolonner blir én, med en tynn linje over i stedet for til
        venstre når statuslinjene havner under hilsenen i stedet for ved siden av */
@@ -720,6 +775,38 @@ let verksteder = [];
 let loaded = false;
 
 let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
+
+// ---- Prioritet 27 — Adaptiv Layout: enhetsdeteksjon ----
+// To adskilte brukeropplevelser (Mobile Experience / Desktop Experience) rundt de SAMME
+// renderX()-skjermene og all annen forretningslogikk — kun navigasjonsrammen (shell)
+// rundt dem er ulik. Ingen ny datamodell, ingen duplisert logikk.
+//
+// Tre bredde-baserte enhetsklasser oppdages (til CSS/finjustering), men de slås sammen
+// til KUN to UI-opplevelser: mobil → Mobile Experience, nettbrett OG desktop →
+// Desktop Experience. Begrunnelse: oppgaven definerer bare to opplevelser ("Lag én app
+// med: Mobile Experience, Desktop Experience"), ikke tre — og fra 768px og oppover er
+// det nok bredde til en permanent sidebar (samme terskel appens egen CSS allerede bruker
+// til layoutjusteringer andre steder). Denne grensen kan justeres ett sted
+// (DEVICE_BREAKPOINTS) om erfaring tilsier noe annet.
+const DEVICE_BREAKPOINTS = {mobil: 768, nettbrett: 1200};
+// Manuell overstyring — velges eksplisitt av bruker (bekreftet ønsket), overstyrer
+// automatisk deteksjon til økten avsluttes eller brukeren bytter tilbake. Lagres IKKE
+// per enhet i Airtable/window.storage — kun i minnet (samme som andre rene UI-valg som
+// f.eks. drawerOversikterOpen) siden det er en midlertidig preferanse for denne konkrete
+// skjermen/vinduet, ikke noe som skal følge brukeren til en annen enhet.
+let deviceOverride = null; // null (auto) | 'mobil' | 'desktop'
+function detectDeviceType(){
+  const w = window.innerWidth;
+  if(w < DEVICE_BREAKPOINTS.mobil) return 'mobil';
+  if(w < DEVICE_BREAKPOINTS.nettbrett) return 'nettbrett';
+  return 'desktop';
+}
+// Selve UI-opplevelsen appen skal vise — det eneste stedet nettbrett-detaljen "kollapses"
+// inn i mobil/desktop-valget (se begrunnelse over).
+function currentUiExperience(){
+  if(deviceOverride) return deviceOverride;
+  return detectDeviceType() === 'mobil' ? 'mobil' : 'desktop';
+}
 // Optimalisering 1 — Universell tilbakeknapp: stack av {screen, vehicleId} som goTo()
 // bygger opp automatisk ved vanlig navigasjon, og som goBack() spoler tilbake gjennom.
 // Sikrer at "← Tilbake" alltid går til stedet brukeren faktisk kom fra (ikke en fast
@@ -741,7 +828,7 @@ let filterLoyve = ''; // '' | 'har' | 'mangler'
 // (Dashboard skal kun vise handling). Chipsene ruter nå hit i stedet, til den faktiske
 // Bilregister-siden, filtrert på samme vehicleHovedstatus()-verdi som før (uendret
 // funksjon, kun ny destinasjon — se goToRegisterHovedstatus()).
-let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'kritisk' | 'har-aktiv-sjafor'
+let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'kritisk' | 'har-aktiv-sjafor' | 'tilgjengelig'
 let showAddVehicleForm = false;
 
 let skadeFilterBil = '';
@@ -786,6 +873,12 @@ let analyseFilterType = ''; // sakstype
 let analyseFilterStatus = ''; // '' | 'apen' | 'lukket'
 let showSakFilterMeny = false;
 let showAddSak = false;
+// Prioritet 27 (Design 2.0) — mobilens Service/Dekk-ikoner: "Trykk → Velg bil → Åpne
+// seksjon". Register-siden (Biloversikt) går uansett til Kjøretøyprofil ved biltrykk
+// (data-open, uendret) — dette flagget gjør KUN at riktig seksjon i tillegg blir
+// forhåndsåpnet/scrollet til når man kommer fra nettopp disse to ikonene, i stedet for å
+// bygge en helt egen "velg bil"-skjerm.
+let mobilBilvalgMaal = ''; // '' | 'service' | 'dekk'
 let sakPrefillVehicleId = '';
 let editingSakId = null;
 // ---- Saksbehandling Wizard ----
@@ -867,6 +960,18 @@ let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøst
 let bilkortHistorikkSubOpen = new Set(); // delmengde av: 'tidslinje' | 'nokkeltall' | 'kontroll' | 'skade'
 let showUteAvDriftForm = false; // Fase 7: viser "Marker ute av drift"/"Sett tilbake i drift"-skjema
 let bilkortHistorikkFilter = ''; // Fase 7: '' | 'kontroll' | 'skade' | 'varsellampe' | 'sak' | 'verksted' | 'dekk' | 'kostnad' | 'statusendring'
+// Prioritet 27 (Design 2.0) — Historikk-hub: flåtebred variant av samme filter-konsept
+// som bilkortHistorikkFilter over, kun med et ekstra bil-filter siden denne ikke lenger
+// er bundet til én bil. Erstatter de fem tidligere separate oversiktssidene som
+// primærnavigasjon (se CLAUDE.md).
+let historikkHubFilterType = '';
+let historikkHubFilterVehicleId = '';
+let historikkHubFilterDatoFra = '';
+let historikkHubFilterDatoTil = '';
+// Prioritet 27 — Planlegging: flåtebred generalisering av Dashboardets "Kommer snart"
+// (Prioritet 26.2), uten 5-post-taket. Periodevalg styrer kun visningsvinduet for
+// verkstedtimer/oppfølging (service/dekk-status er alltid live og tidløs i seg selv).
+let planleggingPeriodeDager = 30; // 7 | 30 | 90
 let varslerOpenVehicles = new Set(); // hvilke biler som er utvidet på "Aktive varsellamper"-oversikten
 function toggleVarslerVehicle(vehicleId){
   if(varslerOpenVehicles.has(vehicleId)) varslerOpenVehicles.delete(vehicleId);
@@ -1024,6 +1129,17 @@ function sakerOppfolgingIdag(){
 // Saker som skal vises i "Forfalte saker" på Dashboard.
 function sakerForfalt(){
   return aktiveSaker.filter(s => sakErApen(s) && sakOppfolgingStatus(s) === 'forfalt');
+}
+// Prioritet 27 (Design 2.0): delt tellefunksjon for "krever handling nå"-totalen —
+// gjenbrukt av både Dashboard (desktop, se renderDashboard) og mobilens ikonrutenett-
+// badges (se renderMobilHjem), slik at tallet aldri kan divergere mellom de to
+// opplevelsene. Samme beregning som dashTotalHandlinger inne i renderDashboard brukte
+// fra Prioritet 26.2 av.
+function totaltKreverHandlingCount(){
+  const kritiske = aktiveSaker.filter(s => sakErApen(s) && s.priority === 'kritisk').length;
+  const oppfolging = aktiveSaker.filter(s => sakErApen(s) && s.priority !== 'kritisk' && sakKreverHandling(s)).length;
+  const manglerKontroll = vehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)).length;
+  return kritiske + oppfolging + manglerKontroll;
 }
 // Kort tekst som forklarer hva som må gjøres — brukt i Dashboard-listene.
 function sakVarslingTekst(s){
@@ -1565,7 +1681,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse'];
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','planlegging'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -2322,6 +2438,20 @@ function vehicleServiceStatus(v){
   if(gjenstaende <= SERVICE_VARSEL_KM) return {status:'snart', ikon:'🟡', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
   return {status:'ok', ikon:'🟢', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
 }
+// ---- EU-kontroll (periodisk kjøretøykontroll) — ny funksjonalitet, samme mønster som
+// Service (Prioritet 26.3). Ett datofelt på selve kjøretøyet (v.euGodkjentTil), ingen
+// egen historikk-liste — kun forfallsdatoen er relevant å spore, i motsetning til
+// Service der hver utført service faktisk logges (EU-kontroll er en frist, ikke en
+// hendelseslogg). LIVE-beregnet status ved hvert render(), samme prinsipp som resten.
+const EU_KONTROLL_VARSEL_DAGER = 60; // "snart"-terskel: varsel når det er 60 dager eller mindre igjen
+function vehicleEuKontrollStatus(v){
+  if(!v.euGodkjentTil) return {status:'ukjent', ikon:'⚪', tekst:'Ikke registrert'};
+  const gjenstaende = daysUntil(v.euGodkjentTil);
+  if(gjenstaende === null) return {status:'ukjent', ikon:'⚪', tekst:'Ikke registrert'};
+  if(gjenstaende < 0) return {status:'forfalt', ikon:'🔴', tekst:`Forfalt — ${Math.abs(gjenstaende)} dag${Math.abs(gjenstaende)===1?'':'er'} siden fristen`, gjenstaende};
+  if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER) return {status:'snart', ikon:'🟡', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
+  return {status:'ok', ikon:'🟢', tekst:`Godkjent til ${fmt(v.euGodkjentTil)}`, gjenstaende};
+}
 function fmtDateObj(d){
   return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
 }
@@ -2562,6 +2692,7 @@ async function saveVehicleForm(id){
   v.dekk = document.getElementById('f-dekk').value;
   v.km = document.getElementById('f-km').value;
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
+  v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
   await saveVehicles();
   if(pendingVehiclePhoto){
     v.hasPhoto = true;
@@ -3072,6 +3203,20 @@ async function deleteSak(id){
   editingSakId = null;
   sakWizardStep = null;
   render();
+}
+// Prioritet 27 (Design 2.0) — mobilens 🚚 Min bil-ikon. Gjeninnfører logikken fra det
+// tidligere ⭐ Min bil-dashboardkortet (fjernet i Prioritet 26.2, flagget som tapt
+// funksjonalitet siden — se CLAUDE.md): samme case-insensitive sammenligning mot
+// vehicleAktivSjafor() som startBilokt() allerede bruker andre steder. IKKE koblet til
+// den separate sjåfør-URL-modusen (?sjafor=1/kontroll.html) — det er en bevisst adskilt,
+// låst inngang for dedikerte sjåfør-enheter og røres ikke her.
+function goToMinBil(){
+  const egenBil = loggedInRole ? vehicles.find(v => {
+    const sjafor = vehicleAktivSjafor(v.id);
+    return sjafor && sjafor.trim().toLowerCase() === loggedInRole.trim().toLowerCase();
+  }) : null;
+  if(egenBil){ goTo('bilkort', egenBil.id); return; }
+  goToRegisterHovedstatus('tilgjengelig');
 }
 function goToRegisterSak(vehicleId){
   sakPrefillVehicleId = vehicleId;
@@ -3766,6 +3911,55 @@ async function deleteAdminUser(id){
 
 // Gjenbrukbar merkevareblokk (ikon + navn + undertittel), vist likt på alle skjermer
 // — administrasjon, sjåførmodus og innloggingssiden.
+// ================= Prioritet 27 (Design 2.0) — Desktop sidebar =================
+// Regel 1/4: fem primære navigasjonspunkter (Kontrollsenter), sekundære lenker
+// (Analyse, Innstillinger, manuell overstyring) nederst — atskilt fra primærnavigasjon
+// for å holde de fem hovedpunktene rene, jf. Regel 8 (Less is More).
+const DESKTOP_NAV_PRIMARY = [
+  {scr:'dashboard', ikon:'🏠', label:'Dashboard'},
+  {scr:'aktivesaker', ikon:'🗂️', label:'Aktive saker'},
+  {scr:'historikk', ikon:'🕐', label:'Historikk'},
+  {scr:'planlegging', ikon:'📅', label:'Planlegging'},
+  {scr:'register', ikon:'🚐', label:'Biloversikt'}
+];
+function renderDesktopSidebarHtml(){
+  const analyseAktiv = screen === 'analyse' || screen === 'rapporter';
+  return `
+    <nav class="desktop-sidebar">
+      <div class="desktop-sidebar-brand">${brandBlockHtml()}</div>
+      <div class="desktop-sidebar-nav">
+        ${DESKTOP_NAV_PRIMARY.map(item => `
+          <button type="button" class="desktop-sidebar-item ${screen===item.scr?'active':''}" data-desktop-nav="${item.scr}">
+            <span class="desktop-sidebar-ikon">${item.ikon}</span><span>${item.label}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="desktop-sidebar-secondary">
+        <button type="button" class="desktop-sidebar-item small ${analyseAktiv?'active':''}" data-desktop-nav="analyse">
+          <span class="desktop-sidebar-ikon">📊</span><span>Analyse</span>
+        </button>
+        <button type="button" class="desktop-sidebar-item small ${screen==='innstillinger'?'active':''}" data-desktop-nav="innstillinger">
+          <span class="desktop-sidebar-ikon">⚙️</span><span>Innstillinger</span>
+        </button>
+        <button type="button" class="desktop-sidebar-item small" id="device-override-btn">
+          <span class="desktop-sidebar-ikon">📱</span><span>Bytt til Mobil-visning</span>
+        </button>
+      </div>
+    </nav>
+  `;
+}
+function attachDesktopSidebarListeners(){
+  document.querySelectorAll('[data-desktop-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.desktopNav)));
+  const overrideBtn = document.getElementById('device-override-btn');
+  if(overrideBtn) overrideBtn.addEventListener('click', () => { deviceOverride = 'mobil'; render(); });
+}
+// Prioritet 27 — manuell overstyring TILBAKE til desktop (vist i mobilens ☰ Meny, se
+// renderDrawer/attachDrawerListeners). Egen liten knapp der siden allerede finnes en
+// naturlig plass for sekundære/administrative valg på mobil.
+function attachMobilOverrideListener(){
+  const btn = document.getElementById('mobil-override-btn');
+  if(btn) btn.addEventListener('click', () => { deviceOverride = 'desktop'; render(); });
+}
 function brandBlockHtml(){
   return `
     <div class="brand-block">
@@ -3801,6 +3995,8 @@ function render(){
   else if(screen === 'aktivesaker') body = renderAktiveSaker();
   else if(screen === 'rapporter') body = renderRapporter();
   else if(screen === 'analyse') body = renderAnalyse();
+  else if(screen === 'historikk') body = renderHistorikk();
+  else if(screen === 'planlegging') body = renderPlanlegging();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
   // Optimalisering 15/Prioritet 17 (Del 4-5): Bilparkhelse Status og "Biler i drift nå"
@@ -3817,8 +4013,9 @@ function render(){
   // ALLE skjermer i appen (ikke bare Dashboard), og må sitte på nøyaktig samme sted
   // uansett hvilken side brukeren er på for å være pålitelig gjenfinnbar. Å flytte den kun
   // på Dashboard ville gjort at den "hopper" avhengig av hvilken skjerm man er på.
+  const uiExp = currentUiExperience();
   let dashHeaderStatusHtml = '';
-  if(screen === 'dashboard'){
+  if(screen === 'dashboard' && uiExp === 'desktop'){
     const hbp = {operativ:0, oppfolging:0, verksted:0, kritisk:0};
     vehicles.forEach(v => { const st = vehicleHovedstatus(v.id); if(hbp[st] !== undefined) hbp[st]++; });
     const hDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
@@ -3832,29 +4029,43 @@ function render(){
       <span class="shell-top-drift" data-goto-biloversikt-filter="har-aktiv-sjafor">🚚 ${hDriftCount} biler i drift nå</span>
     </div>`;
   }
+  // Prioritet 27 (Design 2.0) — desktop sidebar. Regel 1/4: fem primære punkter
+  // (Dashboard/Aktive saker/Historikk/Planlegging/Biloversikt) + sekundære lenker
+  // (Analyse, Innstillinger, manuell overstyring) nederst. Eksisterende ☰ Meny/drawer
+  // ER UENDRET og fortsatt fullt funksjonell bak sidebaren (kun visuelt skjult via CSS
+  // på desktop, se .app-shell-desktop .shell-top-right) — minimerer risiko ved å ikke
+  // røre drawer-logikken i det hele tatt, kun legge sidebaren til SIDEN AV den.
+  const desktopSidebarHtml = uiExp === 'desktop' ? renderDesktopSidebarHtml() : '';
+
   app.innerHTML = `
-    <div class="shell-top">
-      ${brandBlockHtml()}
-      <div class="shell-top-right">
-        <div class="menu-wrap">
-          <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
-            ☰ Meny
-          </button>
+    <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : ''}">
+      ${desktopSidebarHtml}
+      <div class="app-shell-main">
+        <div class="shell-top">
+          ${brandBlockHtml()}
+          <div class="shell-top-right">
+            <div class="menu-wrap">
+              <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
+                ☰ Meny
+              </button>
+            </div>
+          </div>
+          ${dashHeaderStatusHtml}
         </div>
+        ${body}
       </div>
-      ${dashHeaderStatusHtml}
     </div>
-    ${body}
   `;
 
   document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
+  if(uiExp === 'desktop') attachDesktopSidebarListeners();
 
   renderDrawer();
   renderKontrollSlettModal();
   attachKontrollSlettModalListeners();
 
-  if(screen === 'dashboard') attachDashboardListeners();
+  if(screen === 'dashboard'){ if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); else attachDashboardListeners(); }
   else if(screen === 'register') attachRegisterListeners();
   else if(screen === 'bilkort') attachBilkortListeners();
   else if(screen === 'skader') attachSkaderListeners();
@@ -3868,6 +4079,8 @@ function render(){
   else if(screen === 'aktivesaker') attachAktiveSakerListeners();
   else if(screen === 'rapporter') attachRapporterListeners();
   else if(screen === 'analyse') attachAnalyseListeners();
+  else if(screen === 'historikk') attachHistorikkListeners();
+  else if(screen === 'planlegging') attachPlanleggingListeners();
 }
 
 // ================= Mobilmeny (drawer) =================
@@ -3885,31 +4098,16 @@ function drawerItemHtml(scr, icon, label, sub){
       ${active ? '<span class="drawer-dot" aria-hidden="true"></span>' : ''}
     </button>`;
 }
-// Optimalisering 6: "Oversikter ▼" — samler Biloversikt/Kontrolloversikt/
-// Verkstedoversikt/Skadeoversikt/Varseloversikt/Dekkoversikt/Kostnadsoversikt i én
-// undermeny i stedet for syv separate rader i hovedmenyen. Ren navigasjonsendring —
-// hver side, hver goTo()-rute og hver hurtigknapp inn til dem er helt uendret, kun
-// selve menyoppføringen er flyttet. "Biloversikt" ruter til den eksisterende
-// Bilregister-siden (`register`) — det finnes ingen egen "Biloversikt"-side å peke
-// til uten å bryte "ikke implementer nye sider".
+// Prioritet 27 (Design 2.0), Regel 5: Historikk-huben ERSTATTER Kontrolloversikt/
+// Skadeoversikt/Dekkoversikt/Kostnadsoversikt/Verkstedoversikt/Varseloversikt som
+// navigasjonspunkter i mobilens ☰ Meny (samme prinsipp som desktop-sidebaren). De
+// opprinnelige renderX()-funksjonene er UENDRET i koden (kun ikke lenger koblet til
+// noen meny/sidebar) — se CLAUDE.md.
 function drawerOversikterHtml(){
-  const paOversiktsside = OVERSIKT_SCREENS.includes(screen);
-  const apen = drawerOversikterOpen || paOversiktsside;
   return `
-    <button class="drawer-item" id="drawer-oversikter-toggle" aria-expanded="${apen}">
-      <span class="drawer-icon">📚</span><span>Oversikter</span>
-      <span class="drawer-toggle-ikon" aria-hidden="true">${apen ? '▲' : '▼'}</span>
-    </button>
-    ${apen ? `
-    <div class="drawer-nav" style="padding:0 10px;">
-      ${drawerItemHtml('register', '🚐', 'Biloversikt', true)}
-      ${drawerItemHtml('kontrolloversikt', '📊', 'Kontrolloversikt', true)}
-      ${drawerItemHtml('verksted', '🔧', 'Verkstedoversikt', true)}
-      ${drawerItemHtml('skader', '⚠️', 'Skadeoversikt', true)}
-      ${drawerItemHtml('varsler', '🚨', 'Varseloversikt', true)}
-      ${drawerItemHtml('dekkoversikt', '🛞', 'Dekkoversikt', true)}
-      ${drawerItemHtml('kostnadsoversikt', '💰', 'Kostnadsoversikt', true)}
-    </div>` : ''}
+    ${drawerItemHtml('register', '🚐', 'Biloversikt')}
+    ${drawerItemHtml('historikk', '🕐', 'Historikk')}
+    ${drawerItemHtml('planlegging', '📅', 'Planlegging')}
   `;
 }
 function renderDrawer(){
@@ -3934,6 +4132,7 @@ function renderDrawer(){
       ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
     </div>
     <div class="drawer-footer">
+      <button class="drawer-item" id="mobil-override-btn"><span class="drawer-icon">🖥️</span><span>Bytt til Desktop-visning</span></button>
       <button class="drawer-item" id="drawer-logout-btn"><span class="drawer-icon">🚪</span><span>Logg ut</span></button>
     </div>
   `;
@@ -3946,13 +4145,9 @@ function renderDrawer(){
     closeDrawer();
     goTo(el.dataset.drawerNav);
   }));
-  const oversikterToggle = document.getElementById('drawer-oversikter-toggle');
-  if(oversikterToggle) oversikterToggle.addEventListener('click', () => {
-    drawerOversikterOpen = !drawerOversikterOpen;
-    renderDrawer();
-  });
   document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
   document.getElementById('drawer-logout-btn').addEventListener('click', () => { closeDrawer(); logout(); });
+  attachMobilOverrideListener();
 }
 function openDrawer(){
   headerMenuOpen = true;
@@ -4368,8 +4563,58 @@ function isFlagged(v){
   return vehicleReasons(v).length > 0 || openCount > 0;
 }
 
+// ================= Prioritet 27 (Design 2.0) — Mobil hjemskjerm =================
+// Regel 3: "Mobil Dashboard skal ikke eksistere som Desktop Dashboard." Ikonbasert,
+// handlingsdrevet hjemskjerm — IKKE en smal utgave av desktopens kort-baserte Dashboard.
+// Samme underliggende data som resten av appen (kun badge-tall på tre av ikonene) —
+// totaltKreverHandlingCount()/flatePlanleggingData() er delte funksjoner, ingen egen
+// datamodell for mobil.
+const MOBIL_HJEM_IKONER = [
+  {key:'minbil', ikon:'🚚', label:'Min bil'},
+  {key:'kontroll', ikon:'✅', label:'Kontroll'},
+  {key:'avvik', ikon:'🚨', label:'Registrer avvik'},
+  {key:'aktivesaker', ikon:'📋', label:'Aktive saker'},
+  {key:'service', ikon:'🔧', label:'Service'},
+  {key:'dekk', ikon:'🛞', label:'Dekk'},
+  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
+  {key:'planlegging', ikon:'📅', label:'Planlegging'}
+];
+function renderMobilHjem(){
+  const badgeAktiveSaker = totaltKreverHandlingCount();
+  const planData = flatePlanleggingData(30);
+  const badgePlanlegging = planData.service.length + planData.dekk.length + planData.verksted.length + planData.oppfolging.length + planData.euKontroll.length;
+  const BADGE = {aktivesaker: badgeAktiveSaker, planlegging: badgePlanlegging};
+  return `
+    <div class="mobil-hjem-grid">
+      ${MOBIL_HJEM_IKONER.map(x => `
+        <button type="button" class="mobil-hjem-btn" data-mobilhjem="${x.key}">
+          ${BADGE[x.key] ? `<span class="mobil-hjem-badge">${BADGE[x.key]}</span>` : ''}
+          <span class="mobil-hjem-ikon">${x.ikon}</span>
+          <span class="mobil-hjem-label">${x.label}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+function attachMobilHjemListeners(){
+  document.querySelectorAll('[data-mobilhjem]').forEach(el => el.addEventListener('click', () => {
+    const key = el.dataset.mobilhjem;
+    if(key === 'minbil') goToMinBil();
+    else if(key === 'kontroll') goToRegisterKontroll('');
+    else if(key === 'avvik') goToRegisterSak('');
+    else if(key === 'aktivesaker') goTo('aktivesaker');
+    else if(key === 'service'){ mobilBilvalgMaal = 'service'; goTo('register'); }
+    else if(key === 'dekk'){ mobilBilvalgMaal = 'dekk'; goTo('register'); }
+    else if(key === 'biloversikt') goTo('register');
+    else if(key === 'planlegging') goTo('planlegging');
+  }));
+}
+
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
+  // Regel 3 (Prioritet 27 — Design 2.0): mobil får en helt annen forside her — ingen av
+  // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
+  if(currentUiExperience() === 'mobil') return renderMobilHjem();
   const totalVehicles = vehicles.length;
 
   const today = todayISO();
@@ -4630,11 +4875,12 @@ function renderRegister(){
     if(filterKontrollStatus === 'ikke' && (isKontrollertIdag(v.id) || vehicleErReserveUnntatt(v.id))) return false;
     if(filterLoyve === 'har' && !v.loyvenummer) return false;
     if(filterLoyve === 'mangler' && v.loyvenummer) return false;
-    // Prioritet 26.2: samme filter Dashboardets Bilparkhelse-chips brukte tidligere
-    // (nå flyttet hit, se goToRegisterHovedstatus()) — gjenbruker vehicleHovedstatus()/
-    // vehicleAktivSjafor() uendret, ingen ny tellelogikk.
+    // Prioritet 26.2/27: samme filter Dashboardets Bilparkhelse-chips og mobilens
+    // 🚚 Min bil-ikon bruker — gjenbruker vehicleHovedstatus()/vehicleAktivSjafor()
+    // uendret, ingen ny tellelogikk.
     if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
-    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && vehicleHovedstatus(v.id) !== filterHovedstatus) return false;
+    if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
+    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== filterHovedstatus) return false;
     return true;
   });
 
@@ -4736,7 +4982,19 @@ function attachRegisterListeners(){
   document.getElementById('f-kontrollstatus').addEventListener('change', e => { filterKontrollStatus = e.target.value; render(); });
   document.getElementById('f-hovedstatus').addEventListener('change', e => { filterHovedstatus = e.target.value; render(); });
   document.getElementById('f-loyve').addEventListener('change', e => { filterLoyve = e.target.value; render(); });
-  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
+  document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => {
+    const vid = el.dataset.open;
+    const maal = mobilBilvalgMaal;
+    mobilBilvalgMaal = '';
+    goTo('bilkort', vid);
+    // goTo('bilkort', ...) nullstiller bilkortOpenSections til en ny, tom Set — derfor må
+    // 'dekk' legges til ETTER goTo(), ikke før, ellers overskrives den umiddelbart.
+    if(maal === 'dekk'){ bilkortOpenSections.add('dekk'); render(); }
+    if(maal){
+      // Vent til bilkort er rendret før vi scroller til riktig seksjon.
+      setTimeout(() => { const el2 = document.getElementById('bilkort-seksjon-' + maal); if(el2) el2.scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
+    }
+  }));
 }
 function galleryCard(v){
   const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
@@ -5436,10 +5694,23 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
   if(filterType) filtered = filtered.filter(h => h.type === filterType);
   return filtered.sort((a, b) => (b.dato + (b.tid || '')).localeCompare(a.dato + (a.tid || '')));
 }
+// Prioritet 27 (Design 2.0) — Historikk-hub: flåtebred variant av tidslinjen over.
+// Gjenbruker vehicleHistorikkTidslinje() direkte per bil (samme datakilder, samme
+// hendelsesformer) i stedet for å bygge en parallell datainnhentingslogikk — eneste nye
+// er sammenslåingen på tvers av biler og at hver hendelse merkes med vehicleId.
+function flateHistorikkTidslinje(filterType, filterVehicleId){
+  const vehicleListe = filterVehicleId ? vehicles.filter(x => x.id === filterVehicleId) : vehicles;
+  let alle = [];
+  vehicleListe.forEach(v => {
+    vehicleHistorikkTidslinje(v.id).forEach(h => alle.push(Object.assign({}, h, {vehicleId: v.id})));
+  });
+  if(filterType) alle = alle.filter(h => h.type === filterType);
+  return alle.sort((a, b) => (b.dato + (b.tid || '')).localeCompare(a.dato + (a.tid || '')));
+}
 function bilkortAccordionRow(key, title, count, bodyHtml){
   const open = bilkortOpenSections.has(key);
   return `
-    <div class="acc-row ${open ? 'expanded' : ''}">
+    <div class="acc-row ${open ? 'expanded' : ''}" id="bilkort-seksjon-${key}">
       <div class="acc-head" data-toggle-bilkort="${key}">
         <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
         <div class="acc-head-right">
@@ -5505,29 +5776,40 @@ function renderBilkort(){
   const vServiceStatus = vehicleServiceStatus(v);
   const KATEGORI_BILTYPE_LABEL = {bil:'Bil', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
 
+  // Prioritet 27 (Design 2.0): Kjøretøyprofil-toppanelet forenklet til KUN de fire
+  // feltene som identifiserer bilen og dens to viktigste frister — Bilgruppe/Biltype/
+  // Hovedstatus/Kontrollstatus/Aktive saker/Neste verkstedtime/Sist oppdatert er flyttet
+  // ned i "🩺 Operativ status" (se under), som nå er ENESTE sted operativ informasjon
+  // vises — reverserer 26.3 sin deduplisering-plassering (den fjernet duplikater fra
+  // Operativ status; nå går all operativ info MOTSATT vei, inn i Operativ status, ut av
+  // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
+  const euKontrollStatus = vehicleEuKontrollStatus(v);
+  const euKontrollFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
   const toppseksjonBody = `
     <div class="ov-grid">
       <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${esc(v.regnr)}</span></div>
-      <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
-      <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
       <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
-      <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
-      <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-      <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
-      <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) : 'Ingen planlagt'}</span></div>
-      <div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${sisteHendelse ? fmt(sisteHendelse.dato) : '–'}</span></div>
+      <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Ingen registrert'}</span></div>
+      <div class="ov-item"><span class="ov-label">EU-godkjent til</span><span class="ov-value" style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? fmt(v.euGodkjentTil) : 'Ikke registrert'}</span></div>
     </div>
   `;
 
-  // Prioritet 26.3: Bilstatus/Kontrollstatus/Aktive saker/Neste verkstedtime er FJERNET
-  // herfra — de vises allerede i "🚐 Kjøretøyprofil"-panelet rett over (toppseksjonBody).
-  // Operativ status viser nå kun feltene som er UNIKE for denne seksjonen.
+  // Operativ status er nå ENESTE sted all operativ informasjon om bilen vises — identitet
+  // (bilgruppe/biltype), driftsstatus (hovedstatus/kontrollstatus), saksbilde (aktive/
+  // kritiske/forfalte saker, neste handling/oppfølgingsdato) og neste verkstedtime, samlet.
   const operativStatusBody = `
     <div class="ov-grid">
+      <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
+      <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
+      <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
+      <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
+      <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
       <div class="ov-item"><span class="ov-label">Kritiske saker</span><span class="ov-value">${vKritiskeSakerListe.length}</span></div>
       <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
       <div class="ov-item"><span class="ov-label">Neste handling</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.nextAction ? esc(vNesteOppfolging.nextAction) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
       <div class="ov-item"><span class="ov-label">Neste oppfølgingsdato</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.followUpDate ? fmt(vNesteOppfolging.followUpDate) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
+      <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
+      <div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${sisteHendelse ? fmt(sisteHendelse.dato) : '–'}</span></div>
     </div>
     ${v.uteAvDrift ? `<div class="required-hint" style="margin-top:10px;background:var(--red-soft);color:var(--red);padding:10px 12px;border-radius:10px;font-weight:600;">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
   `;
@@ -5676,6 +5958,7 @@ function renderBilkort(){
       <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(v.km||''))}"></div>
     </div>
     <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
+    <div class="field" style="margin-bottom:10px;"><label>EU-godkjent til</label><input id="f-eu-godkjent-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${v.euGodkjentTil ? fmt(v.euGodkjentTil) : ''}"></div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
@@ -5875,7 +6158,7 @@ function renderBilkort(){
       </div>
     </div>
 
-    <div class="panel" style="margin-bottom:16px;${vServiceStatus.status === 'forfalt' ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+    <div class="panel" id="bilkort-seksjon-service" style="margin-bottom:16px;${vServiceStatus.status === 'forfalt' ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
       <div class="ov-label" style="margin-bottom:8px;">🔧 Service</div>
       ${serviceBody}
     </div>
@@ -6664,6 +6947,132 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
     </div>` : '';
   return grupper + foreldreloseHtml;
 }
+// ================= scrHistorikk (Prioritet 27 — Design 2.0) =================
+// Erstatter Kontrolloversikt/Skadeoversikt/Dekkoversikt/Kostnadsoversikt/
+// Verkstedoversikt/Varseloversikt som primærnavigasjon — samme underliggende data,
+// samlet i én filtrerbar hub (flateHistorikkTidslinje()). De opprinnelige
+// renderX()-funksjonene er UENDRET og fortsatt i koden (kan nås direkte om nødvendig),
+// men er ikke lenger koblet til sidebar/☰ Meny (se CLAUDE.md).
+const HISTORIKK_HUB_TYPER = ['kontroll', 'skade', 'dekk', 'kostnad', 'verksted', 'varsellampe'];
+function renderHistorikk(){
+  const treff = flateHistorikkTidslinje(historikkHubFilterType || null, historikkHubFilterVehicleId || null)
+    .filter(h => (!historikkHubFilterDatoFra || h.dato >= historikkHubFilterDatoFra) && (!historikkHubFilterDatoTil || h.dato <= historikkHubFilterDatoTil));
+  const visDatoFilter = currentUiExperience() === 'desktop';
+  return `
+    <div class="backrow"><button class="backbtn" id="hist-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">🕐 Historikk</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Samlet historikk for hele flåten — kontroller, skader, dekk, kostnader, verksted og varsellamper.</div>
+
+    <div class="filters-row" style="margin-bottom:16px;">
+      <select id="hist-type">
+        <option value="" ${historikkHubFilterType===''?'selected':''}>Alle typer</option>
+        ${HISTORIKK_HUB_TYPER.map(t => `<option value="${t}" ${historikkHubFilterType===t?'selected':''}>${HISTORIKK_TYPE_IKON[t]} ${HISTORIKK_TYPE_LABEL[t]}</option>`).join('')}
+      </select>
+      <select id="hist-vehicle">
+        <option value="" ${historikkHubFilterVehicleId===''?'selected':''}>Alle biler</option>
+        ${sortedVehicles(vehicles).map(v => `<option value="${v.id}" ${historikkHubFilterVehicleId===v.id?'selected':''}>${esc(vehicleLabel(v))}</option>`).join('')}
+      </select>
+      ${visDatoFilter ? `
+      <input id="hist-fra" type="text" inputmode="numeric" data-kind="date" placeholder="Fra (DD/MM/ÅÅÅÅ)" maxlength="10" value="${historikkHubFilterDatoFra ? fmt(historikkHubFilterDatoFra) : ''}">
+      <input id="hist-til" type="text" inputmode="numeric" data-kind="date" placeholder="Til (DD/MM/ÅÅÅÅ)" maxlength="10" value="${historikkHubFilterDatoTil ? fmt(historikkHubFilterDatoTil) : ''}">
+      ` : ''}
+    </div>
+
+    <div class="count" style="margin-bottom:10px;">${treff.length} hendelse${treff.length===1?'':'r'}</div>
+    ${treff.length === 0 ? `<div class="empty-note">Ingen hendelser matcher gjeldende filter.</div>` : `
+    <ul class="dmg-simple-list">
+      ${treff.map(h => {
+        const v = vehicles.find(x => x.id === h.vehicleId);
+        return `<li style="cursor:pointer;" data-goto-bilkort="${h.vehicleId}"><span class="dmg-simple-main">${fmt(h.dato)} ${HISTORIKK_TYPE_IKON[h.type]} ${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'} — ${esc(h.tekst)}${h.av ? ' · ' + esc(h.av) : ''}</span></li>`;
+      }).join('')}
+    </ul>`}
+  `;
+}
+function attachHistorikkListeners(){
+  document.getElementById('hist-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('hist-type').addEventListener('change', e => { historikkHubFilterType = e.target.value; render(); });
+  document.getElementById('hist-vehicle').addEventListener('change', e => { historikkHubFilterVehicleId = e.target.value; render(); });
+  const fraEl = document.getElementById('hist-fra');
+  if(fraEl) fraEl.addEventListener('change', () => { historikkHubFilterDatoFra = readDateInput('hist-fra'); render(); });
+  const tilEl = document.getElementById('hist-til');
+  if(tilEl) tilEl.addEventListener('change', () => { historikkHubFilterDatoTil = readDateInput('hist-til'); render(); });
+  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
+}
+
+// ================= scrPlanlegging (Prioritet 27 — Design 2.0) =================
+// Flåtebred generalisering av Dashboardets "📅 Kommer snart" (Prioritet 26.2), uten
+// 5-post-taket — full liste over alt som nærmer seg: service, dekk (alders-signal, se
+// CLAUDE.md — ingen egen "planlagt dekkskift-dato" finnes i appen), verkstedtimer og
+// oppfølginger. Samme underliggende funksjoner som Dashboard/Kjøretøyprofil allerede
+// bruker (vehicleServiceStatus/dekkAlderStatus/sakOppfolgingStatus) — ingen ny
+// forretningslogikk, kun aggregering uten cap.
+function flatePlanleggingData(periodeDager){
+  const d = new Date(); d.setDate(d.getDate() + periodeDager);
+  const grense = d.toISOString().slice(0, 10);
+  const service = vehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart' || x.status.status === 'forfalt')
+    .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
+  const dekk = vehicles.map(v => {
+    const sesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
+    const dot = sesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot;
+    const st = dekkAlderStatus(dot);
+    return {v, status: st};
+  }).filter(x => x.status && (x.status.status === 'aldring' || x.status.status === 'gammel'))
+    .sort((a,b) => (a.status.status === 'gammel' ? 0 : 1) - (b.status.status === 'gammel' ? 0 : 1));
+  const verksted = verkstedtimer.filter(t => t.dato >= todayISO() && t.dato <= grense)
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+  const oppfolging = aktiveSaker.filter(s => sakOppfolgingStatus(s) === 'snart' && s.followUpDate <= grense)
+    .sort((a,b) => (a.followUpDate||'').localeCompare(b.followUpDate||''));
+  // Regel 6 (Prioritet 27 — Design 2.0): EU-kontroll er nå en av Planleggings fem
+  // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
+  const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart' || x.status.status === 'forfalt')
+    .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
+  return {service, dekk, verksted, oppfolging, euKontroll};
+}
+function renderPlanlegging(){
+  const data = flatePlanleggingData(planleggingPeriodeDager);
+  const totalt = data.service.length + data.dekk.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
+  const kolonneHtml = (tittel, ikon, liste, radHtml) => `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:10px;">${ikon} ${tittel} (${liste.length})</div>
+      ${liste.length === 0 ? `<div class="empty-note">Ingen kommende.</div>` : `<ul class="dmg-simple-list">${liste.map(radHtml).join('')}</ul>`}
+    </div>`;
+  return `
+    <div class="backrow"><button class="backbtn" id="plan-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">📅 Planlegging</h2>
+    <div class="required-hint" style="margin-bottom:16px;">Alt som krever oppmerksomhet de neste dagene/ukene — ${totalt} totalt.</div>
+
+    <div class="filters-row" style="margin-bottom:16px;">
+      <select id="plan-periode">
+        <option value="7" ${planleggingPeriodeDager===7?'selected':''}>Neste 7 dager</option>
+        <option value="30" ${planleggingPeriodeDager===30?'selected':''}>Neste 30 dager</option>
+        <option value="90" ${planleggingPeriodeDager===90?'selected':''}>Neste 90 dager</option>
+      </select>
+    </div>
+
+    <div class="planlegging-grid">
+      ${kolonneHtml('Service', '🔧', data.service, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${kolonneHtml('Dekk', '🛞', data.dekk, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${kolonneHtml('Verksted', '🔧', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
+      ${kolonneHtml('Oppfølging', '📋', data.oppfolging, s => { const sv = sakVehicle(s); return `<li style="cursor:pointer;" data-goto-sak="${s.id}"><span class="dmg-simple-main">${sv ? esc(vehicleLabel(sv)) : 'Slettet kjøretøy'} · ${esc(sakKortOverskrift(s))} · ${fmt(s.followUpDate)}</span></li>`; })}
+      ${kolonneHtml('EU-kontroll', '🚦', data.euKontroll, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+    </div>
+  `;
+}
+function attachPlanleggingListeners(){
+  document.getElementById('plan-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('plan-periode').addEventListener('change', e => { planleggingPeriodeDager = Number(e.target.value); render(); });
+  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
+  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
+  document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
+    const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
+    if(!vt) return;
+    vtFilterBil = vt.vehicleId; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
+    showVtFilterMeny = false;
+    vtOversiktOpenVehicles = new Set([vt.vehicleId]);
+    goTo('verksted');
+  }));
+}
+
 function renderAktiveSaker(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   const visning = aktiveSaker.filter(s => {
@@ -8950,7 +9359,7 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // `toggleHeaderMenu()` som før — åpner den også når den er lukket, uendret).
 // Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
 // textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'bilkort', 'kontroll', 'register', 'innstillinger'];
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'planlegging', 'bilkort', 'kontroll', 'register', 'innstillinger'];
 const SWIPE_EDGE_SONE = 24; // px fra venstre kant — bevisst smal for presisjon, ikke aggressiv deteksjon
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;
@@ -9016,6 +9425,26 @@ if(driverMode){
 }
 loadAll();
 if(!driverMode) fetchWeather();
+
+// Prioritet 27 — Adaptiv Layout: reagerer på faktisk vindusendring (nettleser endres i
+// sanntid, nettbrett roteres) — ikke bare ved sideinnlasting. Re-renderer KUN dersom
+// selve UI-opplevelsen (mobil/desktop) faktisk krysser en grense, ikke ved hver eneste
+// pikselendring, for å unngå unødvendige re-renders mens noen f.eks. drar i et
+// nettleservindu. Debounces (150ms) av samme grunn. Ingen effekt når `deviceOverride`
+// er satt — da er brukeren bevisst i manuell modus og skal ikke bli "hentet tilbake" av
+// en tilfeldig vindusendring.
+let lastKnownUiExperience = currentUiExperience();
+let resizeDebounceTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeDebounceTimer);
+  resizeDebounceTimer = setTimeout(() => {
+    const ny = currentUiExperience();
+    if(ny !== lastKnownUiExperience){
+      lastKnownUiExperience = ny;
+      if(!driverMode && screen !== 'login') render();
+    }
+  }, 150);
+});
 
 // ================= PWA: installasjon og offline-støtte =================
 if('serviceWorker' in navigator){

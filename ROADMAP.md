@@ -668,5 +668,39 @@ Innhold:
   tillegg til identitetsheader og Faresone som ikke telles som
   operativt innhold
 
+────────────────────────────
+
+✅ Prioritet 27 (implementert)
+Design 2.0 — Adaptiv Layout (Mobil + Desktop)
+
+Mål:
+Mobil og Desktop skal ikke være samme system i ulik størrelse — to
+forskjellige brukeropplevelser med samme data. Desktop = Kontrollsenter.
+Mobil = Operativ app. Ved konflikt: Less is More vinner alltid.
+
+Innhold:
+- Enhetsdeteksjon (bredde-basert, tre klasser oppdaget — mobil/nettbrett/
+  desktop — men kun to UI-opplevelser, nettbrett bruker Desktop) + manuell
+  overstyringsknapp begge veier
+- Desktop: permanent sidebar, fem primære punkter (Dashboard/Aktive saker/
+  Historikk/Planlegging/Biloversikt) + sekundært (Analyse, Innstillinger).
+  Desktop Dashboard uendret fra 26.2 (matchet Regel 4 sin "Kun"-liste
+  allerede)
+- Mobil: helt nytt ikonbasert hjemskjerm (8 store ikoner), IKKE lenger
+  kort-basert Dashboard. Badge-tall på Aktive saker/Planlegging, delt
+  tellefunksjon med desktop
+- Ny Historikk-hub — master for Kontroll/Skader/Verksted/Dekk/Kostnader/
+  Varsler, erstatter disse som primærnavigasjon (gamle sider uendret i
+  koden, kun avkoblet fra meny)
+- Ny Planlegging-side — hjem for Service/Dekk/Verksted/Oppfølging/
+  EU-kontroll, flåtebred generalisering av Dashboardets "Kommer snart"
+- Nytt EU-kontroll-felt (km-service-mønster, 60 dagers varselgrense)
+- Kjøretøyprofil ytterligere forenklet: toppanel KUN Reg.nr/Km/Siste
+  service/EU-godkjent til, all annen info i Operativ status
+- Service/Dekk-dyplenke fra mobil: velg bil → seksjon forhåndsåpnet/
+  scrollet til automatisk
+- Ingen ny forretningslogikk noe sted — kun ny shell/navigasjon rundt
+  eksisterende renderX()-funksjoner, og fleet-wide generaliseringer av
+  allerede eksisterende per-bil-funksjoner
 
 
