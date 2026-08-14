@@ -364,6 +364,25 @@ Reduserer Kjøretøyprofil sin accordion-liste fra 7 til 6 rader.
 
 ---
 
+## 5. To mindre mobil-UI-justeringer
+
+**Biloversikt flyttet opp:** `MOBIL_HJEM_IKONER` omordnet slik at
+🚐 Biloversikt nå er fjerde ikon (andre rad, sammen med Kontroll/
+Registrer avvik/Aktive saker i de to øverste radene), i stedet for sjette
+(tidligere gruppert med Service/Dekk/Planlegging nederst). Kun
+rekkefølge endret — ingen ny logikk.
+
+**☰ Meny flyttet ned på mobil:** Toppkortet (`.shell-top`) stables nå
+vertikalt på skjermer ≤768px (`flex-direction:column`) i stedet for
+side-ved-side med merkevaren — menyknappen havner under merkevare-raden,
+høyrejustert, tydelig sekundær. Kun CSS (ny regel i eksisterende
+`@media (max-width:768px)`-blokk) — ingen endring i selve
+menyens funksjon, plassering i DOM, eller oppførsel på desktop (der
+`.shell-top-right` uansett er skjult av `.app-shell-desktop`-regelen fra
+før, siden sidebaren er navigasjonen der).
+
+---
+
 # Prioritet 26.4 — Finjusteringer etter Design 2.0
 
 ## 1. 🚚 Min bil fjernet som eget hovedikon

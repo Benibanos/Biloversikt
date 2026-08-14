@@ -700,6 +700,12 @@
     .stat-card, .acc-row, .panel, .sjafor-stats-grid, .acc-head, .acc-head-right{
       max-width:100%;box-sizing:border-box;
     }
+    /* ☰ Meny oppleves for dominerende ved siden av merkevaren på mobil (samme
+       visuelle vekt som selve logoen). Stables i stedet under, høyrejustert og
+       tydelig sekundær — renere toppområde uten å røre menyens funksjon/plassering
+       på desktop (der shell-top-right uansett er skjult, sidebaren er navigasjonen). */
+    .shell-top{flex-direction:column;align-items:stretch;padding-bottom:10px;}
+    .shell-top-right{justify-content:flex-end;}
   }
 
   /* Touch-enheter uansett skjermbredde (f.eks. nettbrett i portrett) får samme
@@ -4617,9 +4623,9 @@ const MOBIL_HJEM_IKONER = [
   {key:'kontroll', ikon:'✅', label:'Kontroll'},
   {key:'avvik', ikon:'🚨', label:'Registrer avvik'},
   {key:'aktivesaker', ikon:'📋', label:'Aktive saker'},
+  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
   {key:'service', ikon:'🔧', label:'Service'},
   {key:'dekk', ikon:'🛞', label:'Dekk'},
-  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
   {key:'planlegging', ikon:'📅', label:'Planlegging'}
 ];
 function renderMobilHjem(){
