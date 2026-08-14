@@ -663,8 +663,12 @@
     /* Statistikk-kort: aldri mer enn to smale kort ved siden av hverandre */
     .stat-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
 
-    /* Header/meny: menyknappen holdes til høyre — lettest å nå med tommelen på mobil */
-    .shell-top-right{width:100%;justify-content:flex-end;}
+    /* Header/meny: BILPARK til venstre, ☰ Meny til høyre, samme rad (Prioritet 26.4) —
+       width:100% her tvang tidligere menyen til egen rad på ekte telefonbredder
+       (flex-wrap:wrap på .shell-top + full bredde = automatisk linjeskift), og var den
+       faktiske gjenværende årsaken til at toppkortet fortsatt virket for høyt selv etter
+       forrige rundes justering. auto lar begge dele raden som tiltenkt. */
+    .shell-top-right{width:auto;justify-content:flex-end;}
 
     /* Kort og paneler: litt tettere luft, men fortsatt tydelig avstand */
     #app{padding:16px 12px 90px;}
@@ -9530,6 +9534,20 @@ const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', '
 const SWIPE_EDGE_SONE = 28; // px fra venstre kant — bredt nok til å treffe pålitelig (iOS bruker typisk 20-25px), fortsatt smalt nok til å ikke stjele vanlig sveiping i innhold
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;
+// KRITISK FEILRETTING (finjustering — sveip føltes fortsatt ikke som iOS): den
+// strukturelle årsaken var at INGENTING skjedde visuelt under selve sveipet — kun et
+// binært "hopp" ved touchend, uansett hvor korrekt logikken (kant/retning/terskel) var.
+// iOS-følelsen kommer fra at innholdet følger fingeren i sanntid og enten glir helt ut
+// (fullført) eller fjærer tilbake (avbrutt) — ikke fra selve navigasjons-logikken alene.
+// swipeDragActive = et reelt kant-sveip på en tilbake-fähig skjerm er i gang akkurat nå.
+let swipeDragActive = false;
+function swipeDragEl(){
+  return document.querySelector('.app-shell-main') || document.getElementById('app');
+}
+function swipeResetDrag(){
+  const el = swipeDragEl();
+  if(el){ el.style.transition = ''; el.style.transform = ''; el.style.boxShadow = ''; el.style.willChange = ''; }
+}
 document.addEventListener('touchstart', (e) => {
   if(e.touches.length !== 1){ swipeStartX = null; return; }
   const target = e.target;
@@ -9537,29 +9555,42 @@ document.addEventListener('touchstart', (e) => {
   swipeStartX = e.touches[0].clientX;
   swipeStartY = e.touches[0].clientY;
   swipeFraKant = swipeStartX <= SWIPE_EDGE_SONE;
+  swipeDragActive = false;
 }, {passive: true});
 document.addEventListener('touchmove', (e) => {
   if(swipeStartX === null || swipeIgnored) return;
   const dx = e.touches[0].clientX - swipeStartX;
   const dy = e.touches[0].clientY - swipeStartY;
-  // Avbryt kun ved en TYDELIG vertikal bevegelse (scrolling) — venter til det faktisk
-  // er nok bevegelse (>10px) til at retningen er meningsfull, i stedet for å avgjøre på
-  // første touchmove-event (der dx/dy ofte er noen få piksler støy uansett retning,
-  // noe som tidligere kunne avbryte et reelt horisontalt sveip før det rakk å etablere
-  // seg — hovedårsaken til at kant-sveipet føltes upålitelig).
-  if((Math.abs(dx) > 10 || Math.abs(dy) > 10) && Math.abs(dy) > Math.abs(dx)){ swipeIgnored = true; }
+  // Avbryt kun ved en TYDELIG vertikal bevegelse (scrolling), og kun før et reelt
+  // kant-sveip er i gang — når selve dra-bevegelsen først er i gang, skal den (som på
+  // iOS) ikke kunne avbrytes av litt vertikal skjelving midt i sveipet.
+  if(!swipeDragActive){
+    if((Math.abs(dx) > 10 || Math.abs(dy) > 10) && Math.abs(dy) > Math.abs(dx)){ swipeIgnored = true; return; }
+  }
+  if(swipeFraKant && dx > 0 && !driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)){
+    swipeDragActive = true;
+    const el = swipeDragEl();
+    if(el){
+      const clamped = Math.min(dx, window.innerWidth);
+      el.style.transition = 'none';
+      el.style.willChange = 'transform';
+      el.style.transform = `translateX(${clamped}px)`;
+      el.style.boxShadow = '-10px 0 28px rgba(0,0,0,.16)';
+    }
+  }
 }, {passive: true});
 document.addEventListener('touchend', (e) => {
-  if(swipeStartX === null || swipeIgnored){ swipeStartX = null; return; }
+  if(swipeStartX === null || swipeIgnored){ swipeStartX = null; swipeResetDrag(); return; }
   const touch = e.changedTouches[0];
   const dx = touch.clientX - swipeStartX;
   const dy = touch.clientY - swipeStartY;
   const fraKant = swipeFraKant;
+  const varDrag = swipeDragActive;
   swipeStartX = null;
-  if(Math.abs(dx) < SWIPE_TERSKEL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  if(dx > 0){
-    if(!fraKant) return; // kun kant-sveip trigger tilbake-navigasjon
-    if(driverMode || !OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)) return;
+  swipeDragActive = false;
+  const skalTilbake = fraKant && dx > 0 && Math.abs(dx) >= SWIPE_TERSKEL && Math.abs(dx) >= Math.abs(dy) * 1.5
+    && !driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen);
+  const utforNavigasjon = () => {
     if((screen === 'rapporter' && rapportType) || (screen === 'analyse' && analyseType)){
       if(screen === 'rapporter'){ rapportType = ''; showRapportFilterMeny = false; }
       else { analyseType = ''; showAnalyseFilterMeny = false; }
@@ -9567,6 +9598,30 @@ document.addEventListener('touchend', (e) => {
     } else {
       goBack(screen === 'bilkort' ? 'register' : 'dashboard');
     }
+  };
+  if(varDrag){
+    const el = swipeDragEl();
+    if(skalTilbake){
+      // Fullfør ut av skjermen (rask, iOS-lignende utglidning), naviger deretter.
+      if(el){
+        el.style.transition = 'transform 150ms ease-out';
+        el.style.transform = `translateX(${window.innerWidth}px)`;
+      }
+      setTimeout(() => { utforNavigasjon(); swipeResetDrag(); }, 150);
+    } else {
+      // Under terskel eller ikke lenger horisontalt dominant — fjær tilbake til start,
+      // samme mønster som iOS når man slipper for tidlig/for kort.
+      if(el){
+        el.style.transition = 'transform 180ms ease-out';
+        el.style.transform = 'translateX(0)';
+      }
+      setTimeout(swipeResetDrag, 180);
+    }
+    return;
+  }
+  if(dx > 0){
+    if(!skalTilbake) return;
+    utforNavigasjon();
   } else {
     // Sveip venstre: lukk menyen om den er åpen, ellers uendret oppførsel
     // (åpner menyen — samme som før).

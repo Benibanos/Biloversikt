@@ -383,6 +383,49 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Prioritet 26.4 — Finjusteringer etter Design 2.0 (oppfølging 3)
+
+## Meny øverst til høyre — den faktiske gjenværende årsaken
+
+Forrige rundes "revert" (meny tilbake øverst, mindre toppkort) så riktig
+ut i teorien, men en ELDRE, ikke-relatert regel overstyrte den på ekte
+telefonbredder: `.shell-top-right{width:100%;...}` inne i
+`@media (max-width:640px)` (fra lenge før denne redesign-serien) tvang
+menyknappen til egen rad via `flex-wrap:wrap` på `.shell-top`, uansett
+hva som ble endret i 768px-blokken. Rettet til `width:auto` — BILPARK og
+☰ Meny deler nå samme rad ned til minste telefonbredde, som gir den
+lavere toppkort-høyden som var målet hele tiden.
+
+## Ikonrekkefølge
+
+Uendret — bekreftet riktig (Biloversikt → Kontroll → Registrer avvik →
+Aktive saker → Service → Dekk → Planlegging).
+
+## Sveip tilbake — reell drag-følging lagt til
+
+Forrige runde rettet den LOGISKE feilen (kant/ikke-kant byttet om) og en
+touchmove-sensitivitetsfeil, men sveipet var fortsatt strukturelt et
+binært "hopp" — ingenting skjedde visuelt før `touchend`, uansett hvor
+korrekt logikken ellers var. Dette er den grunnleggende forskjellen fra
+iOS, som følger fingeren kontinuerlig.
+
+Lagt til: `.app-shell-main` (hele shell-top+innhold) følger nå fingeren
+1:1 via `transform:translateX()` under selve kant-sveipet
+(`swipeDragActive`), med skygge for dybdefølelse. Ved slipp: fullføres
+sveipet med en rask utglidning (150ms) før selve navigasjonen
+(`goBack()`) kjøres, eller fjærer tilbake til start (180ms) dersom
+terskelen ikke ble nådd — samme "commit eller avbryt"-mønster som iOS.
+`will-change:transform` settes kun mens draget faktisk er aktivt (fjernes
+i `swipeResetDrag()`) for jevnere komposittering på de tyngre skjermene
+som ble spesifikt nevnt (Historikk, Aktive Saker, Planlegging).
+
+Har vertikal jitter FØR draget er aktivt, avbrytes det fortsatt (uendret
+fra forrige runde) — men når draget FØRST er aktivt, kan det ikke lenger
+avbrytes av vertikal skjelving midt i bevegelsen (samme som iOS sin
+"committed" pan-gesture).
+
+---
+
 # Prioritet 26.4 — Finjusteringer etter Design 2.0 (oppfølging 2)
 
 ## Meny tilbake øverst, toppkort lavere
