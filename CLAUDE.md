@@ -364,6 +364,106 @@ Reduserer Kjøretøyprofil sin accordion-liste fra 7 til 6 rader.
 
 ---
 
+# Prioritet 26.4 — Finjusteringer etter Design 2.0
+
+## 1. 🚚 Min bil fjernet som eget hovedikon
+
+Løste samme oppgave som 🚐 Biloversikt — unødvendig navigasjon. Fjernet
+fra `MOBIL_HJEM_IKONER` (7 ikoner igjen). Den tidligere `goToMinBil()`
+er erstattet med `egenAktiveBil()` — en ren oppslagsfunksjon (samme
+`vehicleAktivSjafor()`-sammenligning som før), nå brukt til å **markere**
+driftskoordinatorens egen aktive bil i Biloversikt i stedet for å navigere
+dit: en fremhevet "🚚 Aktiv bil: [bil] →"-banner øverst på siden, PLUSS
+bilen løftes til øverst i sin egen kategorigruppe (`galleryCard(v,
+erMinAktiveBil)`, ny "⭐ Min aktive bil"-merking på selve kortet). Gruppen
+den tilhører åpnes også automatisk. Ingen ny datakilde — kun ny
+plassering av eksisterende oppslag.
+
+## 2. Dashboard-telling vs Aktive Saker — gjenværende avvik funnet og rettet
+
+Forrige rettingsrunde innførte `sakKreverHandlingSamletMaster()` som
+masterkilde for Dashboard (desktop) og Aktive Saker sitt filter. Ved
+denne rundens gjennomgang ble **`totaltKreverHandlingCount()`** —
+badge-tallet på mobilens 📋 Aktive saker-ikon — funnet UENDRET med den
+gamle feilen (egen duplisert kritisk/oppfølging-beregning OG
+`manglerKontrollCount` blandet inn i sak-tallet). Rettet til
+`aktiveSaker.filter(sakKreverHandlingSamletMaster).length` — samme
+kildekode som resten av appen. Dette var den gjenværende årsaken til at
+avviket fortsatt ble opplevd (trolig sett fra mobilvisningen).
+
+## 3. EU-kontroll — full varslingslogikk (samme mønster som service)
+
+`vehicleEuKontrollStatus()` har nå fire eksplisitte nivåer i stedet for
+tre: 🟢 ok (mer enn 90 dager/~3 mnd igjen), 🟡 `snart-gul` (90 dager eller
+mindre), 🔴 `snart-rod` (30 dager/~1 mnd eller mindre), 🔴 `forfalt`
+(passert). "3 måneder"/"1 måned" oversatt til dager (90/30) siden all
+annen datologikk i appen (`daysUntil()`) allerede regner i hele dager.
+Fallback-tekst rettet til "Mangler registrering" (var "Ikke registrert").
+
+**Synlig i:** Kjøretøyprofil (toppanel, rå dato), Operativ status
+(indikator), Planlegging (egen kolonne, uendret fra forrige runde),
+Dashboard sitt "🚨 Krever handling nå"/"🎯 Prioriterte biler" — NY denne
+runden: kun `forfalt`-nivået vises der (kjøring med utløpt EU-kontroll er
+et compliance-/sikkerhetsbrudd, samme alvorlighetsnivå som en kritisk
+sak — `sort:0`, `prioritet:'Kritisk'`, teller også med i `krHarKritisk`
+for panelfarging). `snart-gul`/`snart-rod` (ikke enda forfalt) vises
+bevisst KUN via Planlegging/Operativ status, ikke i Krever handling nå —
+det kortet skal fortsatt kun vise det som krever handling NÅ, ikke om
+1–3 måneder (Less is More).
+
+Tomtilstand-sjekken for "Krever handling nå"-kortet er samtidig forenklet
+fra to parallelle betingelser (`dashTotalHandlinger === 0 &&
+uteAvDriftBiler.length === 0`) til direkte `dashKreverListe.length ===
+0` — færre steder betingelsen kan komme i utakt med selve listen.
+
+## 4. Biloversikt gruppert dropdown-visning
+
+Allerede korrekt implementert i forrige runde (se "Biloversikt —
+gruppert dropdown-visning" lenger ned) — verifisert uendret og fortsatt
+riktig ved denne gjennomgangen. Ingen endring nødvendig utover
+integrasjonen med "Min aktive bil"-merkingen i punkt 1 over.
+
+---
+
+# KRITISK FEILRETTING — Dashboard-telling stemte ikke med Aktive Saker
+
+**Symptom:** Dashboard viste et tall (via "Se alle"-knappen på "🚨 Krever
+handling nå") som ikke matchet antall saker synlig i Aktive Saker ved
+klikk-igjennom.
+
+**Rotårsak, bekreftet ved kodegjennomgang (to separate feil samtidig):**
+1. `dashKreverListe` (tallet som ble vist) blandet sammen FIRE ulike ting i
+   én liste: kritiske saker, oppfølgingssaker som krever handling, biler
+   ute av drift, og biler som mangler kontroll i dag. De to siste er IKKE
+   saker — ingen `sakId`, finnes aldri i `aktiveSaker`-arrayet — og kunne
+   derfor aldri gjenfinnes i Aktive Saker uansett filter.
+2. "Se alle"-knappen navigerte med `goToAktiveSakerFiltered({})` — viste
+   ALLE åpne saker, ikke det samme (smalere) utvalget Dashboard talte.
+
+**Løsning — én masterkilde:** `sakKreverHandlingSamletMaster(s)` er nå
+den ENESTE definisjonen av "krever handling nå" i hele appen
+(`sakErApen(s) && (s.priority === 'kritisk' || sakKreverHandling(s))`).
+Både Dashboard (`kritiskeSakerAlle`/`oppfolgingKreverHandlingSaker`,
+begge avledet fra denne ene funksjonen) og Aktive Saker (nytt filter
+`sakFilterKreverHandlingSamlet`, kaller samme funksjon direkte) bruker
+nøyaktig samme kildekode — ikke to parallelle implementasjoner som
+tilfeldigvis regner likt.
+
+Dashboard sin "Se alle saker (N)"-knapp viser nå KUN sak-tallet
+(`dashTotalSaker`) og navigerer med det nye, presise filteret
+(`data-goto-aktivesaker-filter="krever-handling"` →
+`goToAktiveSakerFiltered({kreverHandlingSamlet: true})`) — tallet på
+Dashboard og "N / M aktive saker"-telleren i Aktive Saker er nå
+garantert identiske ved dette klikket.
+
+**Ute av drift/mangler kontroll er IKKE fjernet** — de vises fortsatt i
+selve "Krever handling nå"-listen (fortsatt reelle, actionable signaler),
+men telles nå aldri sammen med sak-tallet. Vises i stedet som en egen,
+tydelig merket linje under knappen ("+ X biler ute av drift, Y biler
+mangler kontroll — ikke saker, vises kun her og i Biloversikt").
+
+---
+
 # Prioritet 27 — Design 2.0: Adaptiv Layout (Mobil + Desktop)
 
 **Kjerneprinsipp (Regel 1/8):** Mobil og Desktop er IKKE samme system i ulik

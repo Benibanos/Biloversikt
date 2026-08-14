@@ -862,6 +862,11 @@ let sakFilterType = '';
 let sakFilterStatus = '';
 let sakFilterPrioritet = '';
 let sakFilterKreverHandling = false;
+// KRITISK FEILRETTING: eget filter for "nøyaktig det Dashboard sitt Krever handling
+// nå-kort talte" — en ren OR mellom kritisk og sakKreverHandling(), som ikke lot seg
+// uttrykke med de eksisterende AND-kombinerte filtrene over. Bruker
+// sakKreverHandlingSamletMaster() direkte, samme funksjon Dashboard bruker.
+let sakFilterKreverHandlingSamlet = false;
 let sakFilterKunApne = false;
 let sakFilterOppfolging = ''; // '' | 'idag' | 'forfalt' | '7dager' | 'ingen-dato' — Fase 5 (oppfølgingsmotor)
 
@@ -1132,6 +1137,18 @@ function sakKreverHandling(s){
   const op = sakOppfolgingStatus(s);
   return op === 'forfalt' || op === 'idag';
 }
+// KRITISK FEILRETTING (feilsøkingsrunde): dette er nå den ENESTE definisjonen av
+// "krever handling nå" i hele appen. Dashboard sitt "🚨 Krever handling nå"-kort og
+// Aktive Saker sitt "krever handling"-filter kaller BEGGE nøyaktig denne funksjonen —
+// ikke to separate implementasjoner som tilfeldigvis regner likt. En sak regnes som
+// "krever handling" hvis den er kritisk (uansett status/oppfølgingsdato) ELLER oppfyller
+// sakKreverHandling() (uansett prioritet). Rotårsaken til avviket som ble meldt: Dashboard
+// blandet inn "ute av drift"-biler og "mangler kontroll"-biler i samme tall som sakene —
+// disse er IKKE saker (ingen sakId, finnes aldri i aktiveSaker) og telles derfor ikke
+// lenger sammen med sakene i noe tall som hevder å representere Aktive Saker.
+function sakKreverHandlingSamletMaster(s){
+  return sakErApen(s) && (s.priority === 'kritisk' || sakKreverHandling(s));
+}
 // Saker som skal vises i "Oppfølging i dag" på Dashboard: oppfølgingsdato er i dag,
 // eller en verkstedtime har passert uten at saken er bekreftet ferdig.
 function sakerOppfolgingIdag(){
@@ -1146,11 +1163,15 @@ function sakerForfalt(){
 // badges (se renderMobilHjem), slik at tallet aldri kan divergere mellom de to
 // opplevelsene. Samme beregning som dashTotalHandlinger inne i renderDashboard brukte
 // fra Prioritet 26.2 av.
+// KRITISK FEILRETTING (Prioritet 26.4): denne kalte tidligere en egen, duplisert
+// beregning av kritiske/oppfølgingssaker OG blandet inn "mangler kontroll"-biler i
+// sak-tallet — nøyaktig samme feilmønster som ble rettet i Dashboard sitt "Krever
+// handling nå"-kort, men denne funksjonen (brukt til badge-tallet på mobilens
+// 📋 Aktive saker-ikon) ble aldri oppdatert til å bruke masterfunksjonen. Nå: ren
+// sak-telling, samme kilde som Dashboard og Aktive Saker sitt filter bruker — garantert
+// identisk tall over alt.
 function totaltKreverHandlingCount(){
-  const kritiske = aktiveSaker.filter(s => sakErApen(s) && s.priority === 'kritisk').length;
-  const oppfolging = aktiveSaker.filter(s => sakErApen(s) && s.priority !== 'kritisk' && sakKreverHandling(s)).length;
-  const manglerKontroll = vehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)).length;
-  return kritiske + oppfolging + manglerKontroll;
+  return aktiveSaker.filter(sakKreverHandlingSamletMaster).length;
 }
 // Kort tekst som forklarer hva som må gjøres — brukt i Dashboard-listene.
 function sakVarslingTekst(s){
@@ -2454,13 +2475,20 @@ function vehicleServiceStatus(v){
 // egen historikk-liste — kun forfallsdatoen er relevant å spore, i motsetning til
 // Service der hver utført service faktisk logges (EU-kontroll er en frist, ikke en
 // hendelseslogg). LIVE-beregnet status ved hvert render(), samme prinsipp som resten.
-const EU_KONTROLL_VARSEL_DAGER = 60; // "snart"-terskel: varsel når det er 60 dager eller mindre igjen
+//
+// Prioritet 26.4 (punkt 3): fire eksplisitte nivåer, samme struktur som servicevarsler
+// men tidsbasert i stedet for km-basert. "3 måneder"/"1 måned" oversatt til dager
+// (90/30) siden all annen dato-logikk i appen (daysUntil() m.fl.) allerede regner i
+// hele dager — ingen kalendermåned-aritmetikk innført et nytt sted i koden.
+const EU_KONTROLL_VARSEL_DAGER_GUL = 90; // "3 måneder eller mindre igjen" → gul
+const EU_KONTROLL_VARSEL_DAGER_ROD = 30; // "1 måned eller mindre igjen" → rød (fortsatt ikke forfalt)
 function vehicleEuKontrollStatus(v){
-  if(!v.euGodkjentTil) return {status:'ukjent', ikon:'⚪', tekst:'Ikke registrert'};
+  if(!v.euGodkjentTil) return {status:'ukjent', ikon:'⚪', tekst:'Mangler registrering'};
   const gjenstaende = daysUntil(v.euGodkjentTil);
-  if(gjenstaende === null) return {status:'ukjent', ikon:'⚪', tekst:'Ikke registrert'};
+  if(gjenstaende === null) return {status:'ukjent', ikon:'⚪', tekst:'Mangler registrering'};
   if(gjenstaende < 0) return {status:'forfalt', ikon:'🔴', tekst:`Forfalt — ${Math.abs(gjenstaende)} dag${Math.abs(gjenstaende)===1?'':'er'} siden fristen`, gjenstaende};
-  if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER) return {status:'snart', ikon:'🟡', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
+  if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER_ROD) return {status:'snart-rod', ikon:'🔴', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
+  if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER_GUL) return {status:'snart-gul', ikon:'🟡', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
   return {status:'ok', ikon:'🟢', tekst:`Godkjent til ${fmt(v.euGodkjentTil)}`, gjenstaende};
 }
 function fmtDateObj(d){
@@ -2602,6 +2630,7 @@ function goToAktiveSakerFiltered(opts){
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = '';
   sakFilterPrioritet = (opts && opts.prioritet) || '';
   sakFilterKreverHandling = !!(opts && opts.kreverHandling);
+  sakFilterKreverHandlingSamlet = !!(opts && opts.kreverHandlingSamlet);
   sakFilterKunApne = true;
   sakFilterOppfolging = (opts && opts.oppfolging) || '';
   showSakFilterMeny = false;
@@ -2947,7 +2976,7 @@ function goToRegisterSkade(vehicleId){
 }
 function goToAktiveSakerForVehicle(vehicleId){
   sakFilterBil = vehicleId; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterOppfolging = '';
+  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
   showSakFilterMeny = false;
   sakOversiktOpenVehicles = new Set([vehicleId]);
   goTo('aktivesaker');
@@ -3217,19 +3246,17 @@ async function deleteSak(id){
   sakWizardStep = null;
   render();
 }
-// Prioritet 27 (Design 2.0) — mobilens 🚚 Min bil-ikon. Gjeninnfører logikken fra det
-// tidligere ⭐ Min bil-dashboardkortet (fjernet i Prioritet 26.2, flagget som tapt
-// funksjonalitet siden — se CLAUDE.md): samme case-insensitive sammenligning mot
-// vehicleAktivSjafor() som startBilokt() allerede bruker andre steder. IKKE koblet til
-// den separate sjåfør-URL-modusen (?sjafor=1/kontroll.html) — det er en bevisst adskilt,
-// låst inngang for dedikerte sjåfør-enheter og røres ikke her.
-function goToMinBil(){
-  const egenBil = loggedInRole ? vehicles.find(v => {
+// Prioritet 26.4 (punkt 1): 🚚 Min bil som eget hovedikon er fjernet — samme oppgave som
+// 🚐 Biloversikt løste allerede, og skapte unødvendig navigasjon. I stedet: finn
+// driftskoordinatorens egen aktive bil (samme case-insensitive sammenligning mot
+// vehicleAktivSjafor() som startBilokt() bruker andre steder), slik at Biloversikt kan
+// markere den tydelig øverst i riktig gruppe (se galleryCard()/renderRegister()).
+function egenAktiveBil(){
+  if(!loggedInRole) return null;
+  return vehicles.find(v => {
     const sjafor = vehicleAktivSjafor(v.id);
     return sjafor && sjafor.trim().toLowerCase() === loggedInRole.trim().toLowerCase();
-  }) : null;
-  if(egenBil){ goTo('bilkort', egenBil.id); return; }
-  goToRegisterHovedstatus('tilgjengelig');
+  }) || null;
 }
 function goToRegisterSak(vehicleId){
   sakPrefillVehicleId = vehicleId;
@@ -3239,14 +3266,14 @@ function goToRegisterSak(vehicleId){
 }
 function goToAktiveSakerKreverHandling(){
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = true; sakFilterOppfolging = '';
+  sakFilterKunApne = false; sakFilterKreverHandling = true; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
   showSakFilterMeny = true;
   goTo('aktivesaker');
 }
 // Fase 5: naviger til Aktive Saker med et av de nye oppfølgingsfiltrene forhåndsvalgt.
 function goToAktiveSakerOppfolging(type){
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterOppfolging = type;
+  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = type;
   showSakFilterMeny = true;
   goTo('aktivesaker');
 }
@@ -3261,7 +3288,7 @@ function goToSakDetalj(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
   if(!s) return;
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterOppfolging = '';
+  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
   showSakFilterMeny = false;
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
   editingSakId = s.id;
@@ -4587,7 +4614,6 @@ function isFlagged(v){
 // totaltKreverHandlingCount()/flatePlanleggingData() er delte funksjoner, ingen egen
 // datamodell for mobil.
 const MOBIL_HJEM_IKONER = [
-  {key:'minbil', ikon:'🚚', label:'Min bil'},
   {key:'kontroll', ikon:'✅', label:'Kontroll'},
   {key:'avvik', ikon:'🚨', label:'Registrer avvik'},
   {key:'aktivesaker', ikon:'📋', label:'Aktive saker'},
@@ -4616,8 +4642,7 @@ function renderMobilHjem(){
 function attachMobilHjemListeners(){
   document.querySelectorAll('[data-mobilhjem]').forEach(el => el.addEventListener('click', () => {
     const key = el.dataset.mobilhjem;
-    if(key === 'minbil') goToMinBil();
-    else if(key === 'kontroll') goToRegisterKontroll('');
+    if(key === 'kontroll') goToRegisterKontroll('');
     else if(key === 'avvik') goToRegisterSak('');
     else if(key === 'aktivesaker') goTo('aktivesaker');
     else if(key === 'service') goTo('service');
@@ -4649,21 +4674,40 @@ function renderDashboard(){
   // "prioritet"-felt (Kritisk/Høy/Normal) per element, jf. Prioritet 26.2 sitt krav om
   // en synlig Prioritet-kolonne. Fortsatt gjenbruk av sakKreverHandling() — ingen ny
   // forretningslogikk, kun samlet presentasjon.
-  const kritiskeSakerAlle = aktiveSaker.filter(s => sakErApen(s) && s.priority === 'kritisk');
-  const oppfolgingKreverHandlingSaker = aktiveSaker.filter(s => sakErApen(s) && s.priority !== 'kritisk' && sakKreverHandling(s));
+  // KRITISK FEILRETTING: begge listene under er nå avledet fra sakKreverHandlingSamletMaster()
+  // — samme funksjon Aktive Saker sitt sakFilterKreverHandlingSamlet-filter bruker (se
+  // renderAktiveSaker()). Union av de to listene er BYGGET til å være identisk med
+  // sakKreverHandlingSamletMaster()-resultatet (kritisk går alltid i første liste,
+  // resten i andre — ingen sak kan havne i begge eller ingen av dem).
+  const sakerKreverHandlingMaster = aktiveSaker.filter(sakKreverHandlingSamletMaster);
+  const kritiskeSakerAlle = sakerKreverHandlingMaster.filter(s => s.priority === 'kritisk');
+  const oppfolgingKreverHandlingSaker = sakerKreverHandlingMaster.filter(s => s.priority !== 'kritisk');
   const uteAvDriftBiler = vehicles.filter(v => v.uteAvDrift);
-  const dashTotalHandlinger = kritiskeSakerAlle.length + oppfolgingKreverHandlingSaker.length + manglerKontrollCount;
+  // "Se alle"-tallet på Dashboard skal ALDRI vise mer enn det som faktisk finnes i Aktive
+  // Saker — derfor telles KUN saker her, ikke kjøretøyflagg (ute av drift/mangler kontroll
+  // er ikke saker, har ingen sakId, og finnes aldri i aktiveSaker-arrayet).
+  const dashTotalSaker = sakerKreverHandlingMaster.length;
+  const dashTotalHandlinger = dashTotalSaker + manglerKontrollCount;
   // Optimalisering 15 (Del 5): kun kritiske saker/ute av drift skal farge panelet rødt —
   // manglende kontroll (og oppfølging i dag) er lavere alvorlighetsgrad og skal IKKE lenger
   // gjøre hele "Krever handling nå" rød bare fordi noen biler ikke er kontrollert ennå.
-  const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0;
+  const euForfalteBiler = vehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt');
+  const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0;
   const dashKreverListe = [];
   uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', prioritet:'Kritisk', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
   kritiskeSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
     dashKreverListe.push({sort:0, ikon:'🔴', prioritet:'Kritisk', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
-  oppfolgingKreverHandlingSaker.forEach(s => {
+  // Prioritet 26.4 (punkt 3): EU-kontroll vises i Krever handling nå "når relevant" —
+  // her definert som forfalt (kjøring med utløpt EU-kontroll er et compliance-/
+  // sikkerhetsbrudd, samme alvorlighetsnivå som en kritisk sak). Kun forfalt, ikke
+  // gul/rød "snart"-nivå — de dekkes av Planlegging/Operativ status, Krever handling nå
+  // skal fortsatt kun vise det som faktisk krever handling NÅ (Less is More).
+  euForfalteBiler.forEach(v => {
+    const st = vehicleEuKontrollStatus(v);
+    dashKreverListe.push({sort:0, ikon:'🚦', prioritet:'Kritisk', vehicleId:v.id, linje1:'EU-kontroll forfalt', linje2: st.tekst, aksjon:'Bestill EU-kontroll'});
+  });  oppfolgingKreverHandlingSaker.forEach(s => {
     const op = sakOppfolgingStatus(s);
     const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
     const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
@@ -4742,7 +4786,7 @@ function renderDashboard(){
 
     <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);background:var(--red-soft);' : (dashTotalHandlinger > 0 ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
       <div class="ov-label" style="${krHarKritisk ? 'color:var(--red);' : (dashTotalHandlinger > 0 ? 'color:var(--amber);' : '')}margin-bottom:10px;">${krHarKritisk ? '🔴' : (dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
-      ${dashTotalHandlinger === 0 && uteAvDriftBiler.length === 0 ? `
+      ${dashKreverListe.length === 0 ? `
       <div style="color:var(--green);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
       ` : `
       <div class="dmg-list">
@@ -4762,7 +4806,8 @@ function renderDashboard(){
           </div>`;
         }).join('')}
       </div>
-      <button type="button" class="btn secondary small" style="margin-top:10px;" data-goto-aktivesaker-filter="alle">Se alle${dashKreverListe.length > 5 ? ` (${dashKreverListe.length})` : ''}</button>
+      <button type="button" class="btn secondary small" style="margin-top:10px;" data-goto-aktivesaker-filter="krever-handling">Se alle saker${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''}</button>
+      ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
       `}
     </div>
 
@@ -4826,6 +4871,7 @@ function attachDashboardListeners(){
     const kind = el.dataset.gotoAktivesakerFilter;
     if(kind === 'kritisk') goToAktiveSakerFiltered({prioritet: 'kritisk'});
     else if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
+    else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
   }));
   document.querySelectorAll('[data-goto-vt-vehicle]').forEach(el => el.addEventListener('click', () => {
@@ -4980,12 +5026,24 @@ function renderRegister(){
         <div>${vehicles.length === 0 ? 'Trykk «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.'}</div>
       </div>
     ` : `
+      ${(() => {
+        // Prioritet 26.4 (punkt 1): 🚚 Min bil er fjernet som eget hovedikon — i stedet
+        // markeres driftskoordinatorens egen aktive bil tydelig her, øverst i riktig
+        // gruppe, som allerede er stedet man finner ALLE biler.
+        const minBil = egenAktiveBil();
+        return minBil ? `<div class="required-hint" style="margin-bottom:14px;background:var(--amber-soft);color:var(--ink);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;" data-open="${minBil.id}">🚚 Aktiv bil: ${esc(vehicleLabel(minBil))} →</div>` : '';
+      })()}
       <div class="dash-group-grid" style="grid-template-columns:1fr;">
         ${KATEGORI_ORDER.filter(k => filtered.some(v => v.kategori === k)).map(k => {
-          const gruppeBiler = sortedVehicles(filtered.filter(v => v.kategori === k));
-          // Er kun ÉN kategori synlig pga. filter, åpnes gruppen automatisk i tillegg
-          // til manuelt åpnede grupper.
-          const open = registerGrupperApne.has(k) || filterKategori === k;
+          const minBil = egenAktiveBil();
+          const gruppeBilerSortert = sortedVehicles(filtered.filter(v => v.kategori === k));
+          // Egen aktive bil løftes øverst i sin gruppe — samme liste, kun omsortert.
+          const gruppeBiler = minBil && minBil.kategori === k
+            ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
+            : gruppeBilerSortert;
+          // Er kun ÉN kategori synlig pga. filter, eller gruppen inneholder egen aktive
+          // bil, åpnes gruppen automatisk i tillegg til manuelt åpnede grupper.
+          const open = registerGrupperApne.has(k) || filterKategori === k || (minBil && minBil.kategori === k);
           return `
           <div class="panel dash-group-card">
             <div class="group-card-head" data-toggle-register-gruppe="${k}">
@@ -4998,7 +5056,7 @@ function renderRegister(){
             <div class="vehicle-group-body ${open?'open':''}">
               <div>
                 <div class="gallery" style="margin-top:12px;">
-                  ${gruppeBiler.map(v => galleryCard(v)).join('')}
+                  ${gruppeBiler.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
                 </div>
               </div>
             </div>
@@ -5024,7 +5082,7 @@ function attachRegisterListeners(){
   document.querySelectorAll('[data-toggle-register-gruppe]').forEach(el => el.addEventListener('click', () => toggleRegisterGruppe(el.dataset.toggleRegisterGruppe)));
   document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
 }
-function galleryCard(v){
+function galleryCard(v, erMinAktiveBil){
   const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
   const totalCount = damages.filter(d => d.vehicleId === v.id).length;
   const aktiveVarsler = activeVarsellysForVehicle(v.id);
@@ -5036,10 +5094,11 @@ function galleryCard(v){
   // datakilde, kun lagt til visning her (manglet tidligere på selve Biloversikt-siden).
   const aktivSjafor = vehicleAktivSjafor(v.id);
   return `
-    <div class="gcard ${v.status}" data-open="${v.id}">
+    <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);border-width:2px;"' : ''}>
       <div class="gcard-head">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
         <div class="gcard-titles">
+          ${erMinAktiveBil ? `<div class="vl-indicator amber" style="margin-bottom:4px;font-weight:700;">⭐ Min aktive bil</div>` : ''}
           <div class="model">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
           <div class="model-sub">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}${v.arsmodell ? ' · Årsmodell ' + esc(v.arsmodell) : ''}${v.loyvenummer ? ' · Løyve ' + esc(v.loyvenummer) : ''}</div>
           <div class="vl-indicator ${aktiveVarsler.length > 0 ? 'red' : 'green'}" style="margin-top:4px;">
@@ -5812,13 +5871,13 @@ function renderBilkort(){
   // Operativ status; nå går all operativ info MOTSATT vei, inn i Operativ status, ut av
   // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
   const euKontrollStatus = vehicleEuKontrollStatus(v);
-  const euKontrollFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
+  const euKontrollFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
   const toppseksjonBody = `
     <div class="ov-grid">
-      <div class="ov-item"><span class="ov-label">Registreringsnummer</span><span class="ov-value">${esc(v.regnr)}</span></div>
-      <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
-      <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Ingen registrert'}</span></div>
-      <div class="ov-item"><span class="ov-label">EU-godkjent til</span><span class="ov-value" style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? fmt(v.euGodkjentTil) : 'Ikke registrert'}</span></div>
+      <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${v.regnr ? esc(v.regnr) : '<span style="color:var(--muted);font-style:italic;">Mangler registrering</span>'}</span></div>
+      <div class="ov-item"><span class="ov-label">Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '<span style="color:var(--muted);font-style:italic;">Mangler registrering</span>'}</span></div>
+      <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : '<span style="color:var(--muted);font-style:italic;">Mangler registrering</span>'}</span></div>
+      <div class="ov-item"><span class="ov-label">EU-godkjent til</span><span class="ov-value" style="${v.euGodkjentTil ? `color:${euKontrollFarge};font-weight:600;` : ''}">${v.euGodkjentTil ? euKontrollStatus.ikon + ' ' + fmt(v.euGodkjentTil) : '<span style="color:var(--muted);font-style:italic;">Mangler registrering</span>'}</span></div>
     </div>
   `;
 
@@ -5831,6 +5890,7 @@ function renderBilkort(){
       <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
       <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
       <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
+      <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
       <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
       <div class="ov-item"><span class="ov-label">Kritiske saker</span><span class="ov-value">${vKritiskeSakerListe.length}</span></div>
       <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
@@ -6079,6 +6139,7 @@ function renderBilkort(){
       <div class="ov-grid" style="margin-top:12px;">
         <div class="ov-item" style="cursor:pointer;" data-goto-service="${v.id}"><span class="ov-label">🔧 Service</span><span class="ov-value" style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${vServiceStatus.tekst} →</span></div>
         <div class="ov-item" style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="ov-label">🛞 Dekk</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'} →</span></div>
+        <div class="ov-item"><span class="ov-label">🚦 EU-kontroll</span><span class="ov-value" style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? euKontrollStatus.tekst : 'Mangler registrering'}</span></div>
       </div>
       <div style="margin-top:12px;">
         ${uteAvDriftBody}
@@ -7119,7 +7180,7 @@ function flatePlanleggingData(periodeDager){
     .sort((a,b) => (a.followUpDate||'').localeCompare(b.followUpDate||''));
   // Regel 6 (Prioritet 27 — Design 2.0): EU-kontroll er nå en av Planleggings fem
   // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
-  const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart' || x.status.status === 'forfalt')
+  const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
   return {service, dekk, verksted, oppfolging, euKontroll};
 }
@@ -7179,6 +7240,7 @@ function renderAktiveSaker(){
     if(sakFilterPrioritet && s.priority !== sakFilterPrioritet) return false;
     if(sakFilterKunApne && !sakErApen(s)) return false;
     if(sakFilterKreverHandling && !sakKreverHandling(s)) return false;
+    if(sakFilterKreverHandlingSamlet && !sakKreverHandlingSamletMaster(s)) return false;
     if(sakFilterOppfolging){
       const op = sakOppfolgingStatus(s);
       if(sakFilterOppfolging === 'idag' && op !== 'idag') return false;
@@ -7192,7 +7254,7 @@ function renderAktiveSaker(){
     }
     return true;
   });
-  const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterPrioritet, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0);
+  const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterPrioritet, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0) + (sakFilterKreverHandlingSamlet?1:0);
   const oversiktBody = sakGroupedSection(visning, sakOversiktOpenVehicles, 'toggle-sako-vehicle');
 
   return `
