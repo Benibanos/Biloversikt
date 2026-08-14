@@ -415,6 +415,13 @@
 
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
   .ov-item{display:flex;flex-direction:column;gap:2px;}
+  /* Prioritet 26.6 (punkt 2) — Operativ status i to kolonner. auto-fit/minmax lar
+     layouten selv avgjøre: ekte 2-kolonne side ved side når det er nok bredde (typisk
+     desktop/bredere mobil), automatisk stabling til to tydelige seksjoner når det ikke er
+     det (typisk smal mobil) — samme mønster .ov-grid selv allerede bruker, ingen egen
+     mobil/desktop-forgrening nødvendig. */
+  .ov-split-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;}
+  .ov-split-col{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
   .sjafor-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
   .dekk-status-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 16px;}
   .ov-item-clickable{
@@ -5896,24 +5903,41 @@ function renderBilkort(){
   // Operativ status er nå ENESTE sted all operativ informasjon om bilen vises — identitet
   // (bilgruppe/biltype), driftsstatus (hovedstatus/kontrollstatus), saksbilde (aktive/
   // kritiske/forfalte saker, neste handling/oppfølgingsdato) og neste verkstedtime, samlet.
+  // Prioritet 26.6 (punkt 2): Operativ status delt i to kolonner for raskere skanning —
+  // venstre: identitet/driftsstatus, høyre: saksbilde/tidslinje. .ov-split-grid bruker
+  // auto-fit/minmax slik at layouten selv avgjør ekte 2-kolonne (nok bredde, typisk
+  // desktop) vs. to stablede seksjoner (for smalt, typisk mobil) — ingen egen
+  // mobil/desktop-gren nødvendig, samme CSS-mønster som .ov-grid allerede bruker internt.
   const operativStatusBody = `
-    <div class="ov-grid">
-      <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
-      <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
-      <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
-      <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-      <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
-      <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
-      <div class="ov-item"><span class="ov-label">Kritiske saker</span><span class="ov-value">${vKritiskeSakerListe.length}</span></div>
-      <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
-      <div class="ov-item"><span class="ov-label">Neste handling</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.nextAction ? esc(vNesteOppfolging.nextAction) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
-      <div class="ov-item"><span class="ov-label">Neste oppfølgingsdato</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.followUpDate ? fmt(vNesteOppfolging.followUpDate) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
-      <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
-      <div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${sisteHendelse ? fmt(sisteHendelse.dato) : '–'}</span></div>
+    <div class="ov-split-grid">
+      <div class="ov-split-col">
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
+          <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
+          <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
+          <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
+          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
+        </div>
+      </div>
+      <div class="ov-split-col">
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Kritiske saker</span><span class="ov-value">${vKritiskeSakerListe.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Neste handling</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.nextAction ? esc(vNesteOppfolging.nextAction) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
+          <div class="ov-item"><span class="ov-label">Neste oppfølgingsdato</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.followUpDate ? fmt(vNesteOppfolging.followUpDate) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
+          <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
+          <div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${sisteHendelse ? fmt(sisteHendelse.dato) : '–'}</span></div>
+        </div>
+      </div>
     </div>
     ${v.uteAvDrift ? `<div class="required-hint" style="margin-top:10px;background:var(--red-soft);color:var(--red);padding:10px 12px;border-radius:10px;font-weight:600;">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
   `;
 
+  // Prioritet 26.6 (punkt 1): selve "Marker ute av drift"-knappen/skjemaet er flyttet ned
+  // til Faresone (sammen med Slett bil — begge er spesielle/risikofylte handlinger, ikke
+  // operativ informasjon). uteAvDriftBody-konstanten er uendret, kun BRUKT et annet sted
+  // i templaten under (se Faresone).
   const uteAvDriftBody = !v.uteAvDrift ? `
     <button type="button" class="btn danger-outline" id="uad-marker-btn">${showUteAvDriftForm ? 'Avbryt' : '⛔ Marker ute av drift'}</button>
     ${showUteAvDriftForm ? `
@@ -6153,9 +6177,6 @@ function renderBilkort(){
         <div class="ov-item" style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="ov-label">🛞 Dekk</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'} →</span></div>
         <div class="ov-item"><span class="ov-label">🚦 EU-kontroll</span><span class="ov-value" style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? euKontrollStatus.tekst : 'Mangler registrering'}</span></div>
       </div>
-      <div style="margin-top:12px;">
-        ${uteAvDriftBody}
-      </div>
     </div>
 
     <div class="panel" style="margin-bottom:16px;">
@@ -6170,6 +6191,10 @@ function renderBilkort(){
 
     <div class="danger-zone">
       <h4 class="danger-zone-title">⚠️ Faresone</h4>
+      <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? 'Ute av drift er en driftskritisk markering.' : 'Marker ute av drift eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
+      <div style="margin-bottom:16px;">
+        ${uteAvDriftBody}
+      </div>
       <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
       <button class="btn danger" id="del-vehicle">🗑️ Slett bil</button>
     </div>

@@ -383,6 +383,37 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Prioritet 26.6 — Operativ Status Cleanup
+
+## 1. "Marker ute av drift" flyttet til Faresone
+
+`uteAvDriftBody`-konstanten er uendret (samme knapp/skjema), men BRUKES
+nå i Faresone, over "🗑️ Slett bil" — ikke lenger inne i Operativ
+status-panelet. Begrunnelse fra oppgaven: begge er spesielle,
+risikofylte handlinger, ikke operativ informasjon. Faresone-teksten er
+justert til å nevne begge handlingene.
+
+## 2. Operativ status i to kolonner
+
+`operativStatusBody` delt i `.ov-split-grid` (to `.ov-split-col`):
+venstre — Bilgruppe/Biltype/Hovedstatus/Kontrollstatus/Aktiv sjåfør;
+høyre — Aktive saker/Kritiske saker/Forfalte oppfølginger/Neste handling/
+Neste oppfølgingsdato/Neste verkstedtime/Sist oppdatert. CSS bruker
+`auto-fit`/`minmax(260px,1fr)` (samme mønster `.ov-grid` selv allerede
+brukte internt) — layouten avgjør selv ekte 2-kolonne (nok bredde) vs.
+to stablede, tydelig avgrensede seksjoner (for smalt), uten egen
+mobil/desktop-forgrening i koden.
+
+## 3. Handlingsknappenes plassering — verifisert, ingen endring nødvendig
+
+Kontrollert opp mot faktisk kode: quick-links-raden (✅ Registrer
+kontroll / ⚠️ Registrer skade / 🔧 Registrer verkstedtime / 📋 Åpne
+aktive saker) lå allerede nøyaktig mellom "🚐 Kjøretøyprofil"-panelet og
+"🩺 Operativ status"-panelet — samme rekkefølge oppgaven ba om. Ingen
+kodeendring var nødvendig her.
+
+---
+
 # Prioritet 26.4 — Finjusteringer etter Design 2.0 (oppfølging 3)
 
 ## Meny øverst til høyre — den faktiske gjenværende årsaken
