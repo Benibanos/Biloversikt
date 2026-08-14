@@ -700,12 +700,14 @@
     .stat-card, .acc-row, .panel, .sjafor-stats-grid, .acc-head, .acc-head-right{
       max-width:100%;box-sizing:border-box;
     }
-    /* ☰ Meny oppleves for dominerende ved siden av merkevaren på mobil (samme
-       visuelle vekt som selve logoen). Stables i stedet under, høyrejustert og
-       tydelig sekundær — renere toppområde uten å røre menyens funksjon/plassering
-       på desktop (der shell-top-right uansett er skjult, sidebaren er navigasjonen). */
-    .shell-top{flex-direction:column;align-items:stretch;padding-bottom:10px;}
-    .shell-top-right{justify-content:flex-end;}
+    /* ☰ Meny tilbake øverst til høyre (forrige rundes stabling under merkevaren ga for
+       mye tomrom og mindre plass til selve app-ikonene under). I stedet gjøres selve
+       toppkortet lavere: mindre padding, mindre merkevaretekst — samme side-ved-side
+       plassering som originalen, men et renere, kortere toppområde. */
+    .shell-top{padding:10px 16px;margin-bottom:12px;}
+    .brand{font-size:19px;gap:7px;}
+    .brand svg{width:18px;height:18px;}
+    .brand-sub{font-size:10.5px;}
   }
 
   /* Touch-enheter uansett skjermbredde (f.eks. nettbrett i portrett) får samme
@@ -4620,10 +4622,10 @@ function isFlagged(v){
 // totaltKreverHandlingCount()/flatePlanleggingData() er delte funksjoner, ingen egen
 // datamodell for mobil.
 const MOBIL_HJEM_IKONER = [
+  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
   {key:'kontroll', ikon:'✅', label:'Kontroll'},
   {key:'avvik', ikon:'🚨', label:'Registrer avvik'},
   {key:'aktivesaker', ikon:'📋', label:'Aktive saker'},
-  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
   {key:'service', ikon:'🔧', label:'Service'},
   {key:'dekk', ikon:'🛞', label:'Dekk'},
   {key:'planlegging', ikon:'📅', label:'Planlegging'}
@@ -9506,26 +9508,26 @@ const drawerOverlayEl = document.getElementById('drawer-overlay');
 if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 
 // ================= Sveipenavigasjon (mobil) =================
-// Optimalisering 7: to uavhengige sveipegester, skilt på HVOR sveipen starter
-// (ikke bare retning), slik at de aldri kommer i konflikt med hverandre:
-//
-// 1) Sveip høyre fra en smal sone helt ute i venstre skjermkant
-//    (SWIPE_EDGE_SONE) = åpne sidemenyen (samme som ☰ Meny/`openDrawer()`).
-//    Fungerer på alle hovedsider (Dashboard, Biloversikt, Kontrolloversikt,
-//    Verkstedoversikt, Aktive Saker, Kjøretøyprofil, Skadeoversikt,
-//    Varseloversikt, Dekkoversikt) siden menyknappen finnes likt på alle
-//    admin-skjermer. Sjåførmodus ("Min Bil") har ingen sidemeny i det hele
-//    tatt (egen, bevisst minimal skjermflyt) og er derfor uendret utelatt.
-// 2) Sveip høyre som IKKE starter i kantsonen beholder den eksisterende
-//    "tilbake"-logikken (samme som ← Tilbake-knappen, via
-//    navigasjonshistorikken) på oversiktssidene — helt uendret oppførsel,
-//    ingen eksisterende navigasjon brytes.
-// Sveip venstre hvor som helst = lukk menyen når den er åpen (samme
-// `toggleHeaderMenu()` som før — åpner den også når den er lukket, uendret).
-// Rene vertikale bevegelser (scrolling) og sveip som starter i input/select/
-// textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
+// Kant-sveip (fra en smal sone helt i venstre skjermkant, SWIPE_EDGE_SONE) høyre =
+// tilbake-navigasjon, samme mål som ← Tilbake-knappen (goBack(), via
+// navigasjonshistorikken) — iOS-mønsteret brukeren ba om. Fungerer på alle undersider
+// (OVERSIKT_SWIPE_BACK_SCREENS). Sveip som IKKE starter i kantsonen gjør ingenting (unngår
+// utilsiktet tilbake-navigering midt i vanlig sveiping av innhold). Sveip venstre hvor som
+// helst = lukk/åpne menyen (uendret, `toggleHeaderMenu()`). Sjåførmodus ("Min Bil") har
+// ingen sidemeny/tilbake-navigasjon i det hele tatt (egen, bevisst minimal skjermflyt) og
+// er derfor uendret utelatt. Rene vertikale bevegelser (scrolling) og sveip som starter i
+// input/select/textarea/knapp ignoreres, slik at de ikke kommer i konflikt med normal bruk.
+// KRITISK FEILRETTING (sveip-tilbake): logikken var byttet om — kant-sveip åpnet
+// sidemenyen, mens "tilbake" kun trigget ved sveip som IKKE startet i kantsonen. Dette
+// er stikk motsatt av iOS-konvensjonen (kant-sveip = tilbake). Rettet: kant-sveip er nå
+// ALLTID tilbake-navigasjon (samme mål som ← Tilbake-knappen, via goBack()), på alle
+// undersider (OVERSIKT_SWIPE_BACK_SCREENS). Meny-åpning via kant-sveip er fjernet — det
+// er ikke et iOS-mønster og var nettopp det som konfliktet med tilbake-sveipet; ☰ Meny
+// åpnes fortsatt uendret via selve knappen. Sveip som ikke starter i kantsonen gjør nå
+// ingenting (fjerner en tidligere kilde til utilsiktet tilbake-navigering midt i vanlig
+// innholds-sveiping/scrolling).
 const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'planlegging', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger'];
-const SWIPE_EDGE_SONE = 24; // px fra venstre kant — bevisst smal for presisjon, ikke aggressiv deteksjon
+const SWIPE_EDGE_SONE = 28; // px fra venstre kant — bredt nok til å treffe pålitelig (iOS bruker typisk 20-25px), fortsatt smalt nok til å ikke stjele vanlig sveiping i innhold
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;
 document.addEventListener('touchstart', (e) => {
@@ -9540,8 +9542,12 @@ document.addEventListener('touchmove', (e) => {
   if(swipeStartX === null || swipeIgnored) return;
   const dx = e.touches[0].clientX - swipeStartX;
   const dy = e.touches[0].clientY - swipeStartY;
-  // Klart vertikal bevegelse (scrolling) — ikke tolk som sveip.
-  if(Math.abs(dy) > Math.abs(dx)){ swipeIgnored = true; }
+  // Avbryt kun ved en TYDELIG vertikal bevegelse (scrolling) — venter til det faktisk
+  // er nok bevegelse (>10px) til at retningen er meningsfull, i stedet for å avgjøre på
+  // første touchmove-event (der dx/dy ofte er noen få piksler støy uansett retning,
+  // noe som tidligere kunne avbryte et reelt horisontalt sveip før det rakk å etablere
+  // seg — hovedårsaken til at kant-sveipet føltes upålitelig).
+  if((Math.abs(dx) > 10 || Math.abs(dy) > 10) && Math.abs(dy) > Math.abs(dx)){ swipeIgnored = true; }
 }, {passive: true});
 document.addEventListener('touchend', (e) => {
   if(swipeStartX === null || swipeIgnored){ swipeStartX = null; return; }
@@ -9552,22 +9558,14 @@ document.addEventListener('touchend', (e) => {
   swipeStartX = null;
   if(Math.abs(dx) < SWIPE_TERSKEL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   if(dx > 0){
-    if(fraKant){
-      // Sveip høyre fra venstre kant: åpne sidemenyen (kun der menyknappen finnes).
-      if(!driverMode && loggedInRole && !headerMenuOpen) openDrawer();
-      return;
-    }
-    // Sveip høyre (ikke fra kanten): samme "tilbake"-logikk som ← Tilbake-
-    // knappen (går til reell forrige skjerm via navigasjonshistorikken).
-    // Ingenting på Dashboard selv. Uendret fra tidligere.
-    if(!driverMode && OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)){
-      if((screen === 'rapporter' && rapportType) || (screen === 'analyse' && analyseType)){
-        if(screen === 'rapporter'){ rapportType = ''; showRapportFilterMeny = false; }
-        else { analyseType = ''; showAnalyseFilterMeny = false; }
-        render();
-      } else {
-        goBack(screen === 'bilkort' ? 'register' : 'dashboard');
-      }
+    if(!fraKant) return; // kun kant-sveip trigger tilbake-navigasjon
+    if(driverMode || !OVERSIKT_SWIPE_BACK_SCREENS.includes(screen)) return;
+    if((screen === 'rapporter' && rapportType) || (screen === 'analyse' && analyseType)){
+      if(screen === 'rapporter'){ rapportType = ''; showRapportFilterMeny = false; }
+      else { analyseType = ''; showAnalyseFilterMeny = false; }
+      render();
+    } else {
+      goBack(screen === 'bilkort' ? 'register' : 'dashboard');
     }
   } else {
     // Sveip venstre: lukk menyen om den er åpen, ellers uendret oppførsel

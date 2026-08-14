@@ -383,6 +383,56 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Prioritet 26.4 — Finjusteringer etter Design 2.0 (oppfølging 2)
+
+## Meny tilbake øverst, toppkort lavere
+
+Forrige rundes stabling (meny under merkevaren) ga for mye tomrom og
+mindre plass til app-ikonene. Reversert: ☰ Meny er tilbake øverst til
+høyre, side ved side med merkevaren som originalen — men selve
+toppkortet er gjort lavere på mobil (mindre padding, mindre
+merkevaretekst/ikon/undertekst i `@media (max-width:768px)`), som løser
+det egentlige målet (mindre tomrom, renere område) uten å ofre
+plasseringen.
+
+## Ny ikonrekkefølge — Biloversikt først
+
+`MOBIL_HJEM_IKONER` omordnet: Biloversikt → Kontroll → Registrer avvik →
+Aktive saker → Service → Dekk → Planlegging. Biloversikt er nå første og
+øverste ikon.
+
+## KRITISK FEILRETTING — Sveip tilbake var byttet om
+
+**Rotårsak funnet ved kodegjennomgang:** sveipenavigasjonen hadde kant-
+og ikke-kant-sveip forbyttet. Kant-sveip (fra venstre skjermkant) åpnet
+tidligere sidemenyen; "tilbake" trigget kun ved sveip som IKKE startet i
+kantsonen — stikk motsatt av iOS-konvensjonen (kant-sveip = tilbake).
+Brukere som sveipet fra kanten (den naturlige iOS-refleksen) fikk
+sidemenyen i stedet for å gå tilbake.
+
+**Rettet:** kant-sveip er nå ALLTID tilbake-navigasjon (samme
+`goBack()`-mål som ← Tilbake-knappen, inkl. samme spesialhåndtering for
+rapport-/analysetype-undernavigasjon), på alle undersider
+(`OVERSIKT_SWIPE_BACK_SCREENS`, uendret liste). Meny-åpning via
+kant-sveip er fjernet i sin helhet — ikke et iOS-mønster, og var
+nettopp det som konfliktet. ☰ Meny-knappen selv er helt uendret. Sveip
+som ikke starter i kantsonen gjør nå ingenting (fjerner samtidig en
+tidligere kilde til utilsiktet tilbake-navigering midt i vanlig
+sveiping/scrolling av innhold — bedre for "ikke konflikter med
+scrolling"-kravet).
+
+**Sekundær feil rettet:** `touchmove`-lytteren avbrøt tidligere sveipet
+permanent ved den minste vertikale bevegelse, vurdert allerede på FØRSTE
+touchmove-event — der `dx`/`dy` ofte bare er et par pikslers støy
+uansett faktisk retning. Dette kunne drepe et reelt horisontalt sveip
+før det rakk å etablere seg, og er trolig hovedårsaken til at sveipet
+"ikke fungerte tilfredsstillende" selv når retningen var korrekt.
+Rettet: avbrytelse vurderes nå først når bevegelsen er stor nok (>10px)
+til at retning er meningsfull. `SWIPE_EDGE_SONE` også utvidet fra 24px
+til 28px (nærmere iOS sin egen kantsone) for mer pålitelig treff.
+
+---
+
 # Prioritet 26.4 — Finjusteringer etter Design 2.0
 
 ## 1. 🚚 Min bil fjernet som eget hovedikon
