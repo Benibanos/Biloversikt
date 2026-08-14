@@ -9647,9 +9647,12 @@ document.addEventListener('touchend', (e) => {
   if(dx > 0){
     if(!skalTilbake) return;
     utforNavigasjon();
-  } else {
-    // Sveip venstre: lukk menyen om den er åpen, ellers uendret oppførsel
-    // (åpner menyen — samme som før).
+  } else if(dx < -SWIPE_TERSKEL && Math.abs(dx) >= Math.abs(dy) * 1.5) {
+    // KRITISK FEILRETTING: denne grenen manglet tidligere enhver avstandssjekk — ethvert
+    // vanlig trykk (dx≈0, altså dx<=0) endte her og åpnet/lukket menyen direkte, i stedet
+    // for å la trykket nå det faktiske elementet under fingeren. Krever nå samme reelle,
+    // horisontalt dominante sveip (forbi SWIPE_TERSKEL) som tilbake-sveipet, ikke bare
+    // "ikke et sveip til høyre".
     if(!driverMode && loggedInRole){
       toggleHeaderMenu();
     }

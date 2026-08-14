@@ -383,6 +383,41 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# KRITISK FEILRETTING — Mobilnavigasjon åpnet menyen i stedet for å navigere
+
+**Symptom:** alle 7 ikonene på mobilens hjemskjerm åpnet ☰ Meny i stedet
+for å navigere til riktig skjerm.
+
+**Rotårsak, bekreftet ved kodegjennomgang:** forrige rundes sveip-
+refaktorering (drag-følging, Prioritet 26.4 oppfølging 3) fjernet en
+universell minimumsterskel (`if(Math.abs(dx) < SWIPE_TERSKEL || ...)
+return;`) som tidligere lå FØR forgreningen mellom "sveip høyre"/"sveip
+venstre". Terskelen ble kun bygget inn i `skalTilbake` (høyre-grenen),
+men venstre-grenen (`toggleHeaderMenu()`) fikk ALDRI en tilsvarende
+sjekk — ethvert touchend der `dx <= 0` (praktisk talt et hvert vanlig
+trykk, siden fingeren knapt beveger seg under et tap) endte i
+menyveksling.
+
+**Rettet:** venstre-grenen krever nå samme reelle, horisontalt dominante
+bevegelse forbi `SWIPE_TERSKEL` som høyre-grenen, i stedet for kun "ikke
+et sveip til høyre".
+
+**Andre hypoteser undersøkt og avkreftet ved kodegjennomgang** (ba om i
+oppgaven): `.drawer-overlay` har korrekt `pointer-events:none` i lukket
+tilstand (kun `pointer-events:auto` når `.open`-klassen er satt) —
+overlayet kan ikke stjele trykk fra ikonene når menyen er lukket.
+Ikonene er ekte `<button>`-elementer, korrekt ekskludert fra
+sveip-deteksjon via `target.closest('...button...')` i touchstart.
+Ikon-klikkene bruker uendret, standard `click`-lyttere
+(`attachMobilHjemListeners()`), upåvirket av touch-lytterne når disse
+fungerer korrekt.
+
+**Berørt funksjon:** `document.addEventListener('touchend', ...)`
+(sveipenavigasjon-blokken, `index.html`).
+**Endret fil:** kun `index.html`.
+
+---
+
 # Prioritet 26.6 — Operativ Status Cleanup
 
 ## 1. "Marker ute av drift" flyttet til Faresone
