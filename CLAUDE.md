@@ -383,6 +383,50 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# KRITISK REGRESJON — Kontrollhistorikk kunne ikke slettes
+
+**Symptom:** slett-knapp for tidligere kontroller var ikke lenger
+tilgjengelig noe sted i UI.
+
+**Rotårsak, bekreftet ved kodegjennomgang:** det finnes to forskjellige
+kort-komponenter for én registrert kontroll — `kontrollHistoryCard(k)`
+(brukt i Kjøretøyprofil sin Historikk→Kontroller-fane) har **aldri** hatt
+slett-knapp. `kontrollHistorikkRow(k)` (med slett-knapp) brukes **kun**
+av `renderKontrolloversikt()` — den frittstående, flåtebrede siden som
+bevisst ble koblet fra all navigasjon i Prioritet 27 (erstattet av
+Historikk-huben). Dette gjorde slett-funksjonen uoppnåelig i UI, selv om
+selve slettelogikken (`deleteKontroll()`/`performKontrollDeletion()`,
+inkl. full rekalkulering av km/varsellamper/statushistorikk) var
+fullstendig intakt og urørt hele tiden.
+
+**To feil rettet:**
+1. Slett-knapp (admin-gated, samme mønster som `kontrollHistorikkRow`)
+   lagt til i `kontrollHistoryCard()`.
+2. `[data-delete-kontroll]`-klikklytteren var KUN registrert i
+   `attachKontrolloversiktListeners()` (samme frakoblede side) — uten
+   tilsvarende registrering i `attachBilkortListeners()` ville knappen
+   fra punkt 1 vært synlig, men uten funksjon. Lagt til der også.
+
+**Ny/gjeninnført vei:** Biloversikt → velg bil → Kjøretøyprofil →
+Historikk → Kontroller-fanen → 🗑️ Slett kontroll (samme smarte
+slettedialog med "kun kontroll"/"full cleanup" som før — modalen selv
+(`renderKontrollSlettModal()`) var aldri påvirket).
+
+**Berørte funksjoner:** `kontrollHistoryCard()`, `attachBilkortListeners()`.
+**Endret fil:** kun `index.html`. Ingen endring i selve slette-/
+rekalkuleringslogikken (`deleteKontroll`/`performKontrollDeletion`) — den
+var aldri i stykker.
+
+**Bevisst ikke gjort:** delete-knapp er ikke lagt til i den nye,
+flåtebrede Historikk-huben (`renderHistorikk()`/`flateHistorikkTidslinje()`)
+— den viser generiske, sammenslåtte tidslinjehendelser på tvers av alle
+typer (kontroll/skade/dekk/kostnad/verksted/varsellampe), ikke
+strukturerte kontroll-objekter med tilgang til slette-/rekalkulerings-
+logikken. Per-kjøretøy-veien over dekker samme behov uten denne
+kompleksiteten.
+
+---
+
 # KRITISK FEILRETTING — Mobilnavigasjon åpnet menyen i stedet for å navigere
 
 **Symptom:** alle 7 ikonene på mobilens hjemskjerm åpnet ☰ Meny i stedet

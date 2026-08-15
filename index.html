@@ -5262,6 +5262,7 @@ function kontrollHistoryCard(k){
         ${avvik ? lines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>Ingen avvik</div>'}
       </div>
       <div class="kt-history-meta">Sjåfør: ${esc(k.sjafor)} · kl. ${esc(k.tidspunkt)}</div>
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:10px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">🗑️ Slett kontroll</button></div>` : ''}
     </div>
   `;
 }
@@ -6272,6 +6273,12 @@ function attachBilkortListeners(){
   // dedikerte arbeidsflatene direkte, med bilen forhåndsvalgt.
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+  // REGRESJONSFIKS (kontrollsletting): denne lyttermet var tidligere kun koblet opp i
+  // attachKontrolloversiktListeners() — som ikke lenger nås via noen meny etter at
+  // Historikk-huben erstattet de separate oversiktssidene (Prioritet 27). Slett-knappen i
+  // kontrollHistoryCard() (Kjøretøyprofil → Historikk → Kontroller) var derfor synlig, men
+  // uten virkning, siden ingen click-lytter noensinne ble registrert i denne konteksten.
+  document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
 }
 
 // ================= scrService (funksjonsbasert navigasjon) =================
