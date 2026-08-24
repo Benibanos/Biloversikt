@@ -141,7 +141,12 @@ selv om skaden lukkes)
 `SakId` (text — intern id til Aktiv Sak denne verkstedtimen er registrert
 fra, se AktiveSaker), `CaseId` (text — lesbart saksnummer, f.eks.
 "SAK-0001", for visning uten oppslag), `Kontaktperson` (text), `Telefon`
-(text) — de to siste lagt til i "Fase 3 — Verkstedflyt"
+(text) — de to siste lagt til i "Fase 3 — Verkstedflyt". `Type` (text —
+lagt til i Prioritet 26.7/Planlagt service: `'service'` for planlagte
+serviceavtaler, tom/udefinert for ordinære verkstedtimer). **Viktig:**
+`Type` er lagt til i `storage_airtable.js` sin `LIST_TABLES` samtidig som
+denne dokumentasjonen — husk fortsatt å opprette selve kolonnen i
+Airtable-basen (eller kjør "🔄 Synkroniser Airtable" i Innstillinger).
 
 **TireCosts**: `AppId`, `VehicleId` (text), `Dato` (text), `Kostnad`
 (number), `Kommentar` (long text) — registrert fra Kostnadsoversikt

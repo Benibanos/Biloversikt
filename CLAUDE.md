@@ -383,6 +383,46 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Prioritet 26.7 — Planlagt service og skjerpet servicevarsling
+
+## 1. Planlagt service
+
+Ny registreringsflyt i `renderServiceSkjerm()`: "📅 Planlegg service"
+(bil allerede valgt via `serviceValgtVehicleId` → Dato → Klokkeslett →
+Verksted → Kommentar → Lagre — nøyaktig flyten fra oppgaven). Lagres som
+et vanlig `verkstedtimer`-objekt (`submitPlanlagtService()`), kun med
+`type: 'service'` og `beskrivelse: 'Service'` — samme underliggende
+datamodell/tabell som ordinære verkstedtimer, ingen ny datastruktur.
+
+Vises i Planlegging **automatisk, uendret** — "🔧 Verksted"-kolonnen
+(`flatePlanleggingData()`) filtrerer allerede ikke på type, så en
+planlagt service dukker opp der akkurat som enhver annen verkstedtime,
+med samme dato/tidspunkt-formatering. Ingen kodeendring var nødvendig i
+Planlegging selv for å oppfylle "vises på samme måte som verkstedtimer".
+
+Egen liste over kommende planlagte servicer vises også direkte på
+Service-skjermen for valgt bil (`vPlanlagteServicer`, filtrert på
+`type==='service' && dato >= i dag`).
+
+## 2. Skjerpet servicevarsling — fire nivåer
+
+`vehicleServiceStatus()` har nå samme firenivå-struktur som
+`vehicleEuKontrollStatus()` fikk i Prioritet 26.4: 🟢 ok (mer enn 2500 km
+igjen), 🟡 `snart-gul` (2500 km eller mindre), 🔴 `snart-rod` (1000 km
+eller mindre), 🔴 `forfalt` (intervall passert). Erstatter det tidligere
+enkeltnivået `SERVICE_VARSEL_KM = 1000` (grønn/gul/rød i praksis kun to
+reelle nivåer) — 1500 km igjen er nå korrekt gul, ikke grønn.
+
+Alle konsumenter oppdatert til de nye statusnavnene: Serviceindikator
+(Kjøretøyprofil topppanel, Operativ status), Service-skjermens egen
+statusgrid/panelfarge, Planlegging sitt Service-filter. **Nytt denne
+runden:** Service (kun `forfalt`-nivået, samme prinsipp som EU-kontroll)
+vises nå også i Dashboard sitt "🚨 Krever handling nå"/"🎯 Prioriterte
+biler" (`serviceForfalteBiler`, inkludert i `krHarKritisk`) — målet er at
+service planlegges FØR den blir kritisk, ikke først når den er rett på.
+
+---
+
 # KRITISK REGRESJON — Kontrollhistorikk kunne ikke slettes
 
 **Symptom:** slett-knapp for tidligere kontroller var ikke lenger

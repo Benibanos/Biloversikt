@@ -1101,6 +1101,9 @@ let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
+// Prioritet 26.7 (punkt 1): planlagt service — egen registreringsflyt, atskilt fra
+// "Registrer service" (allerede utført). Lagres som verkstedtimer med type='service'.
+let showPlanleggService = false;
 // Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
 // (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
 // Kontroll (kontrollFormVehicleId) og Registrer avvik (sakPrefillVehicleId) — inline
@@ -2454,11 +2457,16 @@ function dekkAlderStatus(dot){
 // ---- Service — km-basert serviceintervall (ny funksjonalitet) ----
 // Enkelt, forutsigbart km-basert intervall: serviceIntervallKm settes per bil
 // (v.serviceIntervallKm), og "neste service" beregnes som siste registrerte
-// service sin km + intervallet. Varselgrense (VARSEL_KM) er bevisst en fast,
-// enkel terskel (samme prinsipp som dekkAlderStatus sine faste årsgrenser)
-// fremfor en konfigurerbar prosentandel — enklere å forstå og forutse for
-// driftskoordinator.
-const SERVICE_VARSEL_KM = 1000; // "snart"-terskel: varsel når det gjenstår 1000 km eller mindre
+// service sin km + intervallet. Varselgrenser er bevisst faste, enkle
+// terskler (samme prinsipp som dekkAlderStatus/vehicleEuKontrollStatus sine
+// faste grenser) fremfor en konfigurerbar prosentandel — enklere å forstå
+// og forutse for driftskoordinator.
+//
+// Skjerpet terskel (Prioritet 26.7 punkt 2): fire nivåer, samme struktur som
+// EU-kontroll — 1500 km igjen skal IKKE lenger være grønt. Målet er at
+// service planlegges FØR den blir kritisk, ikke først når den er rett på.
+const SERVICE_VARSEL_KM_GUL = 2500; // "gul"-terskel: 2500 km eller mindre igjen
+const SERVICE_VARSEL_KM_ROD = 1000; // "rød, men ikke forfalt ennå"-terskel: 1000 km eller mindre igjen
 function vehicleServiceHistorikk(vehicleId){
   return servicehistorikk.filter(s => s.vehicleId === vehicleId).sort((a,b) => (b.km||0) - (a.km||0) || b.dato.localeCompare(a.dato));
 }
@@ -2478,15 +2486,17 @@ function vehicleNesteServiceKm(vehicleId, v){
   return baseline + intervall;
 }
 // Statusberegning — LIVE, ut fra bilens nåværende km (v.km) mot beregnet
-// "neste service"-km. Samme fargeprinsipp som resten av appen: grønn = god
-// margin, gul = nærmer seg (innen SERVICE_VARSEL_KM), rød = forfalt.
+// "neste service"-km. Fire nivåer, samme mønster som vehicleEuKontrollStatus():
+// 🟢 ok (mer enn 2500 km igjen), 🟡 snart-gul (2500 km eller mindre), 🔴
+// snart-rod (1000 km eller mindre), 🔴 forfalt (intervall passert).
 function vehicleServiceStatus(v){
   const nesteKm = vehicleNesteServiceKm(v.id, v);
   if(nesteKm === null) return {status:'ukjent', ikon:'⚪', tekst:'Serviceintervall ikke satt'};
   const naaverendeKm = v.km ? Number(v.km) : 0;
   const gjenstaende = nesteKm - naaverendeKm;
   if(gjenstaende < 0) return {status:'forfalt', ikon:'🔴', tekst:`Forfalt — ${Math.abs(gjenstaende).toLocaleString('nb-NO')} km over intervall`, gjenstaende};
-  if(gjenstaende <= SERVICE_VARSEL_KM) return {status:'snart', ikon:'🟡', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
+  if(gjenstaende <= SERVICE_VARSEL_KM_ROD) return {status:'snart-rod', ikon:'🔴', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
+  if(gjenstaende <= SERVICE_VARSEL_KM_GUL) return {status:'snart-gul', ikon:'🟡', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
   return {status:'ok', ikon:'🟢', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
 }
 // ---- EU-kontroll (periodisk kjøretøykontroll) — ny funksjonalitet, samme mønster som
@@ -2620,7 +2630,7 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormSjaforNavn = '';
   }
-  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; serviceSaveConfirmedId = null; }
+  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; }
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; }
   render();
 }
@@ -3390,6 +3400,33 @@ async function submitService(ev){
   await saveVehicles();
   await reloadOne('vehicles');
   showAddService = false;
+  render();
+}
+// Prioritet 26.7 (punkt 1): planlagt service — samme flyt/datamodell som en vanlig
+// verkstedtime (submitAddVT), men en enklere, dedikert versjon (kun bil/dato/tid/
+// verksted/kommentar, ingen sak-kobling/pris/kontaktperson) og med type='service' for
+// kategorisering. Lagres i SAMME verkstedtimer-array/tabell — "på samme måte som
+// verkstedtime" — slik at Planlegging kan vise den identisk til andre verkstedtimer.
+async function submitPlanlagtService(ev){
+  ev.preventDefault();
+  const dato = readDateInput('ps-dato');
+  const tidspunkt = readTimeInput('ps-tid');
+  const verksted = document.getElementById('ps-verksted').value;
+  const kommentar = document.getElementById('ps-kommentar').value.trim();
+  const msgEl = document.getElementById('ps-msg');
+  if(!dato || !verksted){
+    msgEl.textContent = 'Fyll ut dato (DD/MM/ÅÅÅÅ) og verksted.';
+    return;
+  }
+  const v = vehicles.find(x => x.id === serviceValgtVehicleId);
+  if(!v) return;
+  verkstedtimer.push({
+    id: uid(), vehicleId: serviceValgtVehicleId, verksted, dato, tidspunkt,
+    beskrivelse: 'Service', type: 'service', pris: null, notater: kommentar,
+    sakId: '', caseId: '', kontaktperson: '', telefon: ''
+  });
+  await saveVerkstedtimer();
+  showPlanleggService = false;
   render();
 }
 async function submitAddVT(ev){
@@ -4711,7 +4748,8 @@ function renderDashboard(){
   // manglende kontroll (og oppfølging i dag) er lavere alvorlighetsgrad og skal IKKE lenger
   // gjøre hele "Krever handling nå" rød bare fordi noen biler ikke er kontrollert ennå.
   const euForfalteBiler = vehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt');
-  const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0;
+  const serviceForfalteBiler = vehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt');
+  const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0 || serviceForfalteBiler.length > 0;
   const dashKreverListe = [];
   uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', prioritet:'Kritisk', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
   kritiskeSakerAlle.forEach(s => {
@@ -4726,7 +4764,16 @@ function renderDashboard(){
   euForfalteBiler.forEach(v => {
     const st = vehicleEuKontrollStatus(v);
     dashKreverListe.push({sort:0, ikon:'🚦', prioritet:'Kritisk', vehicleId:v.id, linje1:'EU-kontroll forfalt', linje2: st.tekst, aksjon:'Bestill EU-kontroll'});
-  });  oppfolgingKreverHandlingSaker.forEach(s => {
+  });
+  // Prioritet 26.7 (punkt 2): Service vises i Krever handling nå/Prioriterte biler "når
+  // relevant" — samme prinsipp og samme sort-nivå som EU-kontroll over. Kun forfalt (ikke
+  // gul/rød "snart"-nivå, som fortsatt kun dekkes av Planlegging/Operativ status) —
+  // Krever handling nå skal fortsatt kun vise det som faktisk krever handling NÅ.
+  serviceForfalteBiler.forEach(v => {
+    const st = vehicleServiceStatus(v);
+    dashKreverListe.push({sort:0, ikon:'🔧', prioritet:'Kritisk', vehicleId:v.id, linje1:'Service forfalt', linje2: st.tekst, aksjon:'Bestill service'});
+  });
+  oppfolgingKreverHandlingSaker.forEach(s => {
     const op = sakOppfolgingStatus(s);
     const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
     const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
@@ -5963,7 +6010,7 @@ function renderBilkort(){
   // historikk) er flyttet til en egen, dedikert skjerm (screen='service',
   // renderServiceSkjerm()) — Kjøretøyprofil viser kun en kort statuslenke i Operativ
   // status (funksjonsbasert navigasjon, "ren kjøretøyinformasjon").
-  const serviceStatusFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
+  const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
 
   const aktiveSakerBody = vAktiveSakerListe.length === 0 ? `<div class="empty-note">Ingen registrerte aktive saker.</div>` : `
     <div class="dmg-list">
@@ -6293,14 +6340,19 @@ function renderServiceSkjerm(){
     const vServiceHistorikk = vehicleServiceHistorikk(v.id);
     const vSisteService = vehicleSisteService(v.id);
     const vServiceStatus = vehicleServiceStatus(v);
-    const serviceStatusFarge = {ok:'var(--green)', snart:'var(--amber)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
+    // Prioritet 26.7 (punkt 1): planlagte serviceavtaler er verkstedtimer med type='service'
+    // — samme datastruktur/tabell som vanlige verkstedtimer ("på samme måte som
+    // verkstedtime"), kun kategorisert. Ingen ny datamodell.
+    const vPlanlagteServicer = verkstedtimer.filter(t => t.vehicleId === v.id && t.type === 'service' && t.dato >= todayISO())
+      .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
+    const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
     vehicleCardHtml = `
       <div class="kt-vehicle-card" style="margin-bottom:16px;">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
         <div><div class="model">${esc(v.bilnummer)}</div><div class="model-sub">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</div></div>
       </div>`;
     contentHtml = `
-      <div class="panel" style="margin-bottom:16px;${vServiceStatus.status === 'forfalt' ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+      <div class="panel" style="margin-bottom:16px;${(vServiceStatus.status === 'forfalt' || vServiceStatus.status === 'snart-rod') ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart-gul' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="ov-grid" style="margin-bottom:12px;">
           <div class="ov-item"><span class="ov-label">Serviceintervall</span><span class="ov-value">${v.serviceIntervallKm ? Number(v.serviceIntervallKm).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span></div>
           <div class="ov-item"><span class="ov-label">Siste service</span><span class="ov-value">${vSisteService ? fmt(vSisteService.dato) + ' — ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Ingen registrert'}</span></div>
@@ -6312,7 +6364,34 @@ function renderServiceSkjerm(){
         </div>
         <div class="panel-actions" style="margin-bottom:16px;"><button class="btn secondary" id="save-service-intervall-btn">Lagre intervall</button></div>
         ${serviceSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-bottom:16px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
+      </div>
 
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="ov-label" style="margin-bottom:10px;">📅 Planlagt service</div>
+        ${vPlanlagteServicer.length === 0 ? `<div class="empty-note" style="margin-bottom:14px;">Ingen planlagte serviceavtaler.</div>` : `
+        <ul class="dmg-simple-list" style="margin-bottom:14px;">
+          ${vPlanlagteServicer.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</span></li>`).join('')}
+        </ul>`}
+        <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
+        ${showPlanleggService ? `
+        <form class="panel" id="planlegg-service-form" style="margin-top:14px;">
+          <div class="row2">
+            <div class="field"><label>Dato</label><input id="ps-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+            <div class="field"><label>Klokkeslett</label><input id="ps-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+            <select id="ps-verksted" required>
+              <option value="">Velg verksted...</option>
+              ${verkstedSelectOptions('')}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="ps-kommentar" type="text" placeholder="Valgfritt"></div>
+          <div class="form-msg" id="ps-msg"></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+        </form>` : ''}
+      </div>
+
+      <div class="panel" style="margin-bottom:16px;${(vServiceStatus.status === 'forfalt' || vServiceStatus.status === 'snart-rod') ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart-gul' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="toolbar" style="margin-bottom:14px;">
           <div class="count">${vServiceHistorikk.length} service${vServiceHistorikk.length===1?'':'r'} registrert</div>
           <button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>
@@ -6359,13 +6438,17 @@ function renderServiceSkjerm(){
 }
 function attachServiceSkjermListeners(){
   document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; serviceSaveConfirmedId = null; render(); });
+  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
   if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
   const serviceBtn = document.getElementById('ny-service-btn');
   if(serviceBtn) serviceBtn.addEventListener('click', () => { showAddService = !showAddService; render(); });
   const serviceForm = document.getElementById('add-service-form');
   if(serviceForm) serviceForm.addEventListener('submit', submitService);
+  const planleggBtn = document.getElementById('ny-planlagt-service-btn');
+  if(planleggBtn) planleggBtn.addEventListener('click', () => { showPlanleggService = !showPlanleggService; render(); });
+  const planleggForm = document.getElementById('planlegg-service-form');
+  if(planleggForm) planleggForm.addEventListener('submit', submitPlanlagtService);
 }
 
 // ================= scrDekk (funksjonsbasert navigasjon) =================
@@ -7209,7 +7292,7 @@ function attachHistorikkListeners(){
 function flatePlanleggingData(periodeDager){
   const d = new Date(); d.setDate(d.getDate() + periodeDager);
   const grense = d.toISOString().slice(0, 10);
-  const service = vehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart' || x.status.status === 'forfalt')
+  const service = vehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
   const dekk = vehicles.map(v => {
     const sesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
