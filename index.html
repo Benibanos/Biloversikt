@@ -836,6 +836,9 @@ let currentVehicleId = null;
 let pendingVehiclePhoto = null;
 let editingDamageId = null;
 let editingVTId = null;
+// Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som editingVTId
+// (verkstedtimer) rett over. "Skal fungere på samme måte som andre historikkobjekter."
+let editingServiceId = null;
 let pendingPhotoData = null; // felles buffer for bildeopplasting (skade/bil)
 
 let filterSearch = '';
@@ -1096,6 +1099,12 @@ let dekkkostnader = []; // logg over registrerte dekk-kjøp/kostnader per bil, s
 // CLAUDE.md "Service — km-basert serviceintervall"): logg over utførte servicer per bil,
 // samme lagringsmønster som dekkhistorikk (window.storage, delt, JSON-liste).
 let servicehistorikk = []; // logg over utførte servicer per bil, se saveServicehistorikk() — {id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}
+// Serviceavtaler og verkstedtimer er bevisst ADSKILT — en registrert serviceavtale skal
+// IKKE automatisk bli en verkstedtime. Egen liste, egen lagringsnøkkel (samme generiske
+// Settings-mønster som servicehistorikk — ingen egen Airtable-tabell/feltkartlegging
+// nødvendig, se saveServicehistorikk()). Kan vises side om side med Verksted i
+// Planlegging, men lagres og behandles fullstendig separat.
+let planlagteServicer = []; // {id, vehicleId, dato, tidspunkt, verksted, kommentar}
 let aktiveSaker = []; // "Aktive Saker" — grunnmur for avviksoppfølging (Fase 1), se saveAktiveSaker()
 let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
@@ -1858,6 +1867,8 @@ async function loadAll(){
   catch(e){ dekkkostnader = []; }
   try{ const sh = await window.storage.get('servicehistorikk', true); servicehistorikk = sh && sh.value ? JSON.parse(sh.value) : []; }
   catch(e){ servicehistorikk = []; }
+  try{ const ps = await window.storage.get('planlagteservicer', true); planlagteServicer = ps && ps.value ? JSON.parse(ps.value) : []; }
+  catch(e){ planlagteServicer = []; }
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
@@ -1956,6 +1967,7 @@ async function reloadOne(key){
     else if(key === 'dekkhistorikk') dekkhistorikk = parsed;
     else if(key === 'dekkkostnader') dekkkostnader = parsed;
     else if(key === 'servicehistorikk') servicehistorikk = parsed;
+    else if(key === 'planlagteservicer') planlagteServicer = parsed;
     else if(key === 'aktiveSaker') aktiveSaker = parsed;
   }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
 }
@@ -2036,6 +2048,10 @@ async function saveDekkkostnader(){
 }
 async function saveServicehistorikk(){
   try{ await window.storage.set('servicehistorikk', JSON.stringify(servicehistorikk), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function savePlanlagteServicer(){
+  try{ await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function savePhoto(key, dataUrl){
@@ -2630,7 +2646,7 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormSjaforNavn = '';
   }
-  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; }
+  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; }
   render();
 }
@@ -3402,11 +3418,10 @@ async function submitService(ev){
   showAddService = false;
   render();
 }
-// Prioritet 26.7 (punkt 1): planlagt service — samme flyt/datamodell som en vanlig
-// verkstedtime (submitAddVT), men en enklere, dedikert versjon (kun bil/dato/tid/
-// verksted/kommentar, ingen sak-kobling/pris/kontaktperson) og med type='service' for
-// kategorisering. Lagres i SAMME verkstedtimer-array/tabell — "på samme måte som
-// verkstedtime" — slik at Planlegging kan vise den identisk til andre verkstedtimer.
+// Serviceavtaler og verkstedtimer er bevisst ADSKILT (se planlagteServicer over) — en
+// registrert serviceavtale skal IKKE automatisk bli en verkstedtime. Enklere, dedikert
+// registreringsflyt (bil/dato/tid/verksted/kommentar), lagret i sin egen array/nøkkel —
+// helt uavhengig av verkstedtimer sin datamodell/tabell.
 async function submitPlanlagtService(ev){
   ev.preventDefault();
   const dato = readDateInput('ps-dato');
@@ -3420,12 +3435,10 @@ async function submitPlanlagtService(ev){
   }
   const v = vehicles.find(x => x.id === serviceValgtVehicleId);
   if(!v) return;
-  verkstedtimer.push({
-    id: uid(), vehicleId: serviceValgtVehicleId, verksted, dato, tidspunkt,
-    beskrivelse: 'Service', type: 'service', pris: null, notater: kommentar,
-    sakId: '', caseId: '', kontaktperson: '', telefon: ''
+  planlagteServicer.push({
+    id: uid(), vehicleId: serviceValgtVehicleId, verksted, dato, tidspunkt, kommentar
   });
-  await saveVerkstedtimer();
+  await savePlanlagteServicer();
   showPlanleggService = false;
   render();
 }
@@ -3505,6 +3518,39 @@ async function deleteVT(id){
   verkstedtimer = verkstedtimer.filter(t => t.id !== id);
   await saveVerkstedtimer();
   editingVTId = null;
+  render();
+}
+// Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som toggleEditVT/
+// saveVTEdit/deleteVT over. "Siste service"/"neste service"/serviceindikator/
+// Planlegging/Dashboard trenger INGEN egen rekalkuleringskode — de er allerede LIVE
+// beregnet fra servicehistorikk (vehicleSisteService()/vehicleNesteServiceKm()/
+// vehicleServiceStatus()) ved hvert render(), samme prinsipp som resten av appen.
+function toggleEditService(id){
+  editingServiceId = editingServiceId === id ? null : id;
+  render();
+}
+async function saveServiceEdit(id){
+  const s = servicehistorikk.find(x => x.id === id);
+  if(!s) return;
+  const newDato = readDateInput('e-sv-dato-'+id);
+  if(!newDato){ alert('Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'); return; }
+  const kmRaw = document.getElementById('e-sv-km-'+id).value.trim();
+  const type = document.getElementById('e-sv-type-'+id).value.trim();
+  if(!kmRaw || !type){ alert('Fyll ut kilometerstand og type service.'); return; }
+  s.dato = newDato;
+  s.km = Number(kmRaw);
+  s.type = type;
+  s.verksted = document.getElementById('e-sv-verksted-'+id).value;
+  s.kommentar = document.getElementById('e-sv-kommentar-'+id).value.trim();
+  await saveServicehistorikk();
+  editingServiceId = null;
+  render();
+}
+async function deleteService(id){
+  if(!confirm('Slette denne serviceregistreringen?')) return;
+  servicehistorikk = servicehistorikk.filter(s => s.id !== id);
+  await saveServicehistorikk();
+  editingServiceId = null;
   render();
 }
 function goToRegisterVT(vehicleId){
@@ -5795,8 +5841,8 @@ function attachVarslerOversiktListeners(){
 // ================= scrBilkort =================
 const DEKK_RETNING_LABEL = {'sommer-vinter':'Sommer → Vinter', 'vinter-sommer':'Vinter → Sommer'};
 const HISTORIKK_TYPE_ORDER = ['kontroll', 'skade', 'varsellampe', 'sak', 'verksted', 'dekk', 'kostnad', 'statusendring'];
-const HISTORIKK_TYPE_LABEL = {kontroll:'Kontroller', skade:'Skader', varsellampe:'Varsellamper', sak:'Aktive saker', verksted:'Verksted', dekk:'Dekk', kostnad:'Kostnader', statusendring:'Statusendringer'};
-const HISTORIKK_TYPE_IKON = {kontroll:'✅', skade:'⚠️', varsellampe:'🚨', sak:'🗂️', verksted:'🔧', dekk:'🛞', kostnad:'💰', statusendring:'⛔'};
+const HISTORIKK_TYPE_LABEL = {kontroll:'Kontroller', skade:'Skader', varsellampe:'Varsellamper', sak:'Aktive saker', verksted:'Verksted', dekk:'Dekk', kostnad:'Kostnader', statusendring:'Statusendringer', service:'Service'};
+const HISTORIKK_TYPE_IKON = {kontroll:'✅', skade:'⚠️', varsellampe:'🚨', sak:'🗂️', verksted:'🔧', dekk:'🛞', kostnad:'💰', statusendring:'⛔', service:'🔧'};
 // Fase 7 — Komplett kjøretøyhistorikk: samlet, kronologisk tidslinje for én bil,
 // bygget fra ALLE eksisterende datakilder (ingen egen historikk-lagring/duplisering).
 // Nyeste hendelse først. Hendelser knyttet til samme sak bærer saksnummeret
@@ -5852,11 +5898,22 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
 // Gjenbruker vehicleHistorikkTidslinje() direkte per bil (samme datakilder, samme
 // hendelsesformer) i stedet for å bygge en parallell datainnhentingslogikk — eneste nye
 // er sammenslåingen på tvers av biler og at hver hendelse merkes med vehicleId.
+//
+// Servicehistorikk er bevisst IKKE lagt inn i vehicleHistorikkTidslinje() selv (den
+// brukes fortsatt av Kjøretøyprofil, som skal forbli ren kjøretøyinformasjon uten
+// Service-seksjon, se "Funksjonsbasert navigasjon"-kapittelet) — legges i stedet til
+// direkte her, som en egen, flåtebred kilde kun for selve Historikk-huben.
 function flateHistorikkTidslinje(filterType, filterVehicleId){
   const vehicleListe = filterVehicleId ? vehicles.filter(x => x.id === filterVehicleId) : vehicles;
   let alle = [];
   vehicleListe.forEach(v => {
     vehicleHistorikkTidslinje(v.id).forEach(h => alle.push(Object.assign({}, h, {vehicleId: v.id})));
+  });
+  const serviceListe = filterVehicleId ? servicehistorikk.filter(s => s.vehicleId === filterVehicleId) : servicehistorikk;
+  serviceListe.forEach(s => {
+    alle.push({dato: s.dato, tid: '', type: 'service', vehicleId: s.vehicleId,
+      tekst: 'Service registrert: ' + s.type + (s.km ? ' · ' + Number(s.km).toLocaleString('nb-NO') + ' km' : '') + (s.verksted ? ' · ' + s.verksted : ''),
+      av: s.createdBy || ''});
   });
   if(filterType) alle = alle.filter(h => h.type === filterType);
   return alle.sort((a, b) => (b.dato + (b.tid || '')).localeCompare(a.dato + (a.tid || '')));
@@ -6333,6 +6390,44 @@ function attachBilkortListeners(){
 // Kontroll (kt-vehicle/kontrollFormVehicleId): inline, gruppert bilvalg (vehicleOptions())
 // direkte på selve arbeidsflaten. Målet er at brukeren går rett til oppgaven, ikke via
 // Kjøretøyprofil først.
+// ================= scrService (funksjonsbasert navigasjon) =================
+// Prioritet 26.8: hver servicehistorikk-post er nå et klikkbart, utvidbart kort — "Åpne
+// service → [Rediger] [Slett]" — samme mønster (dmg-editbox/data-toggle) som vtCard()
+// (verkstedtimer) allerede etablerte, "på samme måte som andre historikkobjekter".
+function serviceHistoryCard(s){
+  const editing = editingServiceId === s.id;
+  return `
+    <div class="vt-card unset">
+      <div class="vt-top" data-toggle-service="${s.id}">
+        <div class="vt-main">
+          <div class="vt-desc">${esc(s.type)}</div>
+          <div class="dmg-meta">${Number(s.km).toLocaleString('nb-NO')} km${s.verksted ? ' · ' + esc(s.verksted) : ''}${s.kommentar ? ' · ' + esc(s.kommentar) : ''}</div>
+        </div>
+        <div class="vt-when"><div class="vt-date">${fmt(s.dato)}</div></div>
+      </div>
+      ${editing ? `
+      <div class="dmg-editbox">
+        <div class="row2">
+          <div class="field"><label>Dato</label><input id="e-sv-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(s.dato)}"></div>
+          <div class="field"><label>Kilometerstand</label><input id="e-sv-km-${s.id}" type="number" inputmode="numeric" min="0" step="1" value="${s.km}"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Type service</label><input id="e-sv-type-${s.id}" type="text" value="${esc(s.type)}"></div>
+        <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+          <select id="e-sv-verksted-${s.id}">
+            <option value="">Ikke satt / internt</option>
+            ${verkstedSelectOptions(s.verksted)}
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><input id="e-sv-kommentar-${s.id}" type="text" value="${esc(s.kommentar||'')}"></div>
+        <div class="panel-actions">
+          <button class="btn small" id="sv-save-${s.id}">Lagre endringer</button>
+          <button class="btn secondary small" id="sv-cancel-${s.id}">Avbryt</button>
+          <button class="btn danger-outline small" id="sv-delete-${s.id}">Slett</button>
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+}
 function renderServiceSkjerm(){
   const v = vehicles.find(x => x.id === serviceValgtVehicleId) || null;
   let vehicleCardHtml = '', contentHtml = '';
@@ -6343,7 +6438,7 @@ function renderServiceSkjerm(){
     // Prioritet 26.7 (punkt 1): planlagte serviceavtaler er verkstedtimer med type='service'
     // — samme datastruktur/tabell som vanlige verkstedtimer ("på samme måte som
     // verkstedtime"), kun kategorisert. Ingen ny datamodell.
-    const vPlanlagteServicer = verkstedtimer.filter(t => t.vehicleId === v.id && t.type === 'service' && t.dato >= todayISO())
+    const vPlanlagteServicer = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
       .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
     const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
     vehicleCardHtml = `
@@ -6370,7 +6465,7 @@ function renderServiceSkjerm(){
         <div class="ov-label" style="margin-bottom:10px;">📅 Planlagt service</div>
         ${vPlanlagteServicer.length === 0 ? `<div class="empty-note" style="margin-bottom:14px;">Ingen planlagte serviceavtaler.</div>` : `
         <ul class="dmg-simple-list" style="margin-bottom:14px;">
-          ${vPlanlagteServicer.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</span></li>`).join('')}
+          ${vPlanlagteServicer.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span></li>`).join('')}
         </ul>`}
         <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
         ${showPlanleggService ? `
@@ -6414,9 +6509,7 @@ function renderServiceSkjerm(){
           <div class="panel-actions"><button class="btn" type="submit">Lagre service</button></div>
         </form>` : ''}
         ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
-        <ul class="dmg-simple-list">
-          ${vServiceHistorikk.map(s => `<li><span class="dmg-simple-main">${fmt(s.dato)} — ${Number(s.km).toLocaleString('nb-NO')} km · ${esc(s.type)}${s.verksted ? ' · ' + esc(s.verksted) : ''}${s.kommentar ? ' · ' + esc(s.kommentar) : ''}</span></li>`).join('')}
-        </ul>`}
+        <div class="dmg-list">${vServiceHistorikk.map(s => serviceHistoryCard(s)).join('')}</div>`}
       </div>`;
   }
   return `
@@ -6449,6 +6542,15 @@ function attachServiceSkjermListeners(){
   if(planleggBtn) planleggBtn.addEventListener('click', () => { showPlanleggService = !showPlanleggService; render(); });
   const planleggForm = document.getElementById('planlegg-service-form');
   if(planleggForm) planleggForm.addEventListener('submit', submitPlanlagtService);
+  document.querySelectorAll('[data-toggle-service]').forEach(el => el.addEventListener('click', () => toggleEditService(el.dataset.toggleService)));
+  servicehistorikk.filter(s => s.vehicleId === serviceValgtVehicleId).forEach(s => {
+    const saveBtn = document.getElementById('sv-save-'+s.id);
+    if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveServiceEdit(s.id); });
+    const cancelBtn = document.getElementById('sv-cancel-'+s.id);
+    if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingServiceId = null; render(); });
+    const delBtn = document.getElementById('sv-delete-'+s.id);
+    if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteService(s.id); });
+  });
 }
 
 // ================= scrDekk (funksjonsbasert navigasjon) =================
@@ -7236,7 +7338,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
 // samlet i én filtrerbar hub (flateHistorikkTidslinje()). De opprinnelige
 // renderX()-funksjonene er UENDRET og fortsatt i koden (kan nås direkte om nødvendig),
 // men er ikke lenger koblet til sidebar/☰ Meny (se CLAUDE.md).
-const HISTORIKK_HUB_TYPER = ['kontroll', 'skade', 'dekk', 'kostnad', 'verksted', 'varsellampe'];
+const HISTORIKK_HUB_TYPER = ['kontroll', 'skade', 'dekk', 'kostnad', 'verksted', 'varsellampe', 'service'];
 function renderHistorikk(){
   const treff = flateHistorikkTidslinje(historikkHubFilterType || null, historikkHubFilterVehicleId || null)
     .filter(h => (!historikkHubFilterDatoFra || h.dato >= historikkHubFilterDatoFra) && (!historikkHubFilterDatoTil || h.dato <= historikkHubFilterDatoTil));
@@ -7294,6 +7396,11 @@ function flatePlanleggingData(periodeDager){
   const grense = d.toISOString().slice(0, 10);
   const service = vehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
+  // Serviceavtaler og verkstedtimer er adskilte datakilder (egen array, se
+  // planlagteServicer) — hentes og vises separat fra verksted-listen under, selv om
+  // begge til slutt havner i samme Planlegging-skjerm.
+  const planlagtService = planlagteServicer.filter(t => t.dato >= todayISO() && t.dato <= grense)
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
   const dekk = vehicles.map(v => {
     const sesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
     const dot = sesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot;
@@ -7309,15 +7416,28 @@ function flatePlanleggingData(periodeDager){
   // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
   const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
-  return {service, dekk, verksted, oppfolging, euKontroll};
+  return {service, planlagtService, dekk, verksted, oppfolging, euKontroll};
 }
 function renderPlanlegging(){
   const data = flatePlanleggingData(planleggingPeriodeDager);
-  const totalt = data.service.length + data.dekk.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
+  const totalt = data.service.length + data.planlagtService.length + data.dekk.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
   const kolonneHtml = (tittel, ikon, liste, radHtml) => `
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">${ikon} ${tittel} (${liste.length})</div>
       ${liste.length === 0 ? `<div class="empty-note">Ingen kommende.</div>` : `<ul class="dmg-simple-list">${liste.map(radHtml).join('')}</ul>`}
+    </div>`;
+  // Service-kolonnen viser to adskilte datakilder side om side i samme liste — km-varsler
+  // (vehicleServiceStatus()) og planlagte serviceavtaler (planlagteServicer) — men de
+  // lagres og behandles fullstendig separat (se flatePlanleggingData()). Verksted-
+  // kolonnen viser KUN ekte verkstedtimer — en serviceavtale havner aldri der.
+  const serviceKolonneHtml = `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:10px;">🔧 Service (${data.service.length + data.planlagtService.length})</div>
+      ${(data.service.length === 0 && data.planlagtService.length === 0) ? `<div class="empty-note">Ingen kommende.</div>` : `
+      <ul class="dmg-simple-list">
+        ${data.service.map(x => `<li style="cursor:pointer;" data-goto-service="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`).join('')}
+        ${data.planlagtService.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-service="${t.vehicleId}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)}</span></li>`; }).join('')}
+      </ul>`}
     </div>`;
   return `
     <div class="backrow"><button class="backbtn" id="plan-back">← Tilbake</button></div>
@@ -7333,9 +7453,9 @@ function renderPlanlegging(){
     </div>
 
     <div class="planlegging-grid">
-      ${kolonneHtml('Service', '🔧', data.service, x => `<li style="cursor:pointer;" data-goto-service="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${serviceKolonneHtml}
       ${kolonneHtml('Dekk', '🛞', data.dekk, x => `<li style="cursor:pointer;" data-goto-dekk="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
-      ${kolonneHtml('Verksted', '🔧', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
+      ${kolonneHtml('Verksted', '🛠️', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
       ${kolonneHtml('Oppfølging', '📋', data.oppfolging, s => { const sv = sakVehicle(s); return `<li style="cursor:pointer;" data-goto-sak="${s.id}"><span class="dmg-simple-main">${sv ? esc(vehicleLabel(sv)) : 'Slettet kjøretøy'} · ${esc(sakKortOverskrift(s))} · ${fmt(s.followUpDate)}</span></li>`; })}
       ${kolonneHtml('EU-kontroll', '🚦', data.euKontroll, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
     </div>

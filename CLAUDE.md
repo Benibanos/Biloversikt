@@ -383,6 +383,118 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Prioritet 26.10 — Verifisering + Service lagt til i Historikk-huben
+
+Alle tre punkter i denne rundens oppgave ble grundig verifisert mot
+faktisk kode (ikke antatt) før noe ble endret:
+
+1. **Rediger/slett servicehistorikk** (Prioritet 26.8) — bekreftet
+   fullstendig implementert og korrekt koblet opp. Ingen feil funnet.
+2. **Serviceavtaler adskilt fra verkstedtimer** (Prioritet 26.9) —
+   bekreftet: `submitPlanlagtService()` skriver kun til
+   `planlagteServicer`, aldri `verkstedtimer`.
+3. **Proaktiv Planlegging uten registrering** — bekreftet:
+   `flatePlanleggingData()` sin `service`/`euKontroll` er allerede 100 %
+   terskelbasert (`vehicleServiceStatus()`/`vehicleEuKontrollStatus()`).
+
+**Ett reelt gap funnet og rettet:** `servicehistorikk` var IKKE en del av
+`HISTORIKK_TYPE_LABEL`/`HISTORIKK_TYPE_IKON`/`HISTORIKK_HUB_TYPER` eller
+`flateHistorikkTidslinje()` — i motsetning til Kontroll/Skade/Dekk/
+Kostnad/Verksted/Varsellamper, som alle er søkbare/filtrerbare i den
+samlede Historikk-huben. Service var kun synlig via den dedikerte
+Service-skjermen. Trolig roten til at "fungerer på samme måte som andre
+historikkobjekter" ikke opplevdes oppfylt.
+
+**Løsning:** `service` lagt til som sjuende type i Historikk-huben.
+Bevisst lagt til direkte i `flateHistorikkTidslinje()` (den flåtebrede
+huben), IKKE i `vehicleHistorikkTidslinje()` (som fortsatt brukes av
+Kjøretøyprofil sin "Historikk"-fane — Service skal fortsatt IKKE dukke
+opp der, siden Kjøretøyprofil bevisst er ren kjøretøyinformasjon uten
+Service-seksjon siden funksjonsbasert navigasjon ble innført). Ingen
+endring i selve servicehistorikk-datamodellen eller rediger/slett-
+logikken — kun lagt til som en ekstra, skrivebeskyttet visningskilde i
+huben (klikk på et service-element i Historikk-huben tar deg til
+Kjøretøyprofil, samme mønster som alle andre hub-elementer — vil du
+faktisk redigere/slette, går du videre derfra til Service-skjermen via
+Operativ status-lenken, uendret flyt).
+
+---
+
+# Prioritet 26.9 — Serviceavtaler og verkstedtimer fullstendig adskilt
+
+**Bakgrunn:** Prioritet 26.7 lagret planlagt service SOM en verkstedtime
+(`type: 'service'` på et vanlig `verkstedtimer`-objekt) for enkelhets
+skyld. Uønsket i praksis — en registrert serviceavtale skal ikke
+automatisk telle som/opptre som en verkstedtime noe sted i appen.
+
+**Løsning — full separasjon:**
+- Ny, egen liste `planlagteServicer` (`{id, vehicleId, dato, tidspunkt,
+  verksted, kommentar}`), egen lagringsnøkkel (`'planlagteservicer'`,
+  samme generiske Settings-mønster som `servicehistorikk` — **ingen ny
+  Airtable-tabell eller feltkartlegging nødvendig**, `storage_airtable.js`
+  er derfor UENDRET denne runden).
+- `submitPlanlagtService()` skriver nå til `planlagteServicer`/
+  `savePlanlagteServicer()` — aldri til `verkstedtimer`.
+- `renderServiceSkjerm()` sin liste over kommende planlagte servicer
+  (`vPlanlagteServicer`) leser fra den nye, adskilte arrayen.
+
+**Planlegging viser dem side om side, men henter dem separat**
+(`flatePlanleggingData()` returnerer nå `service` (km-varsler),
+`planlagtService` (avtaler) og `verksted` (ekte verkstedtimer) som tre
+uavhengige lister). "🔧 Service"-kolonnen slår sammen km-varsler og
+planlagte avtaler i samme visning (to adskilte datakilder, én liste) —
+"🛠️ Verksted"-kolonnen (ikon endret fra 🔧 til 🛠️ for tydeligere visuelt
+skille, som bedt om) viser nå KUN ekte verkstedtimer, aldri
+serviceavtaler.
+
+**Kjent, uendret vestigial rest:** `type`-feltet som ble lagt til
+`verkstedtimer`/`storage_airtable.js` i Prioritet 26.7 er nå ubrukt (alle
+nye poster har `type` udefinert igjen) — bevisst IKKE fjernet fra
+`storage_airtable.js`, siden et alltid-tomt registrert felt er helt
+harmløst og en fjerning kun ville krevd unødvendig ny opplasting av den
+filen uten noen funksjonell gevinst.
+
+**Bevisst utenfor denne rundens omfang:** Dashboard sitt "📅 Kommer
+snart"-kort (Prioritet 26.2) henter fortsatt kun fra `verkstedtimer` —
+planlagte serviceavtaler vises derfor ikke der. Oppgaven spesifiserte
+kun Planlegging ("Planlegging skal kunne vise..."), ikke Dashboard.
+
+---
+
+# Prioritet 26.8 — Rediger/slett servicehistorikk
+
+**Rotårsak (samme klasse feil som Prioritet 26.7 sin oppdagelse for
+kontroller):** servicehistorikk ble bygget i Prioritet 26.3 med kun
+registrering og en enkel, ren visningsliste (`<ul><li>...</li></ul>`) —
+aldri med rediger/slett, i motsetning til verkstedtimer og
+kontrollhistorikk som begge har hatt dette mønsteret lenge.
+
+**Løsning — samme etablerte mønster som verkstedtimer (`vtCard()`/
+`toggleEditVT()`/`saveVTEdit()`/`deleteVT()`):** ny `serviceHistoryCard()`
+— hvert element er nå et klikkbart kort (`data-toggle-service`) som
+utvider til en redigeringsboks (`dmg-editbox`, samme CSS som
+verkstedtimer/skader) med Dato/Kilometerstand/Type/Verksted/Kommentar +
+[Lagre endringer] [Avbryt] [Slett]-knapper (`toggleEditService()`,
+`saveServiceEdit()`, `deleteService()` — `editingServiceId`, samme
+delt-state-mønster som `editingVTId`).
+
+**Ingen egen rekalkuleringskode nødvendig** for "siste service"/"neste
+service"/serviceindikator/Planlegging/Dashboard — alle er allerede LIVE
+beregnet fra `servicehistorikk` ved hvert `render()`
+(`vehicleSisteService()`/`vehicleNesteServiceKm()`/
+`vehicleServiceStatus()`), samme arkitekturprinsipp som resten av appen.
+Redigering/sletting av et element oppdaterer `servicehistorikk`-arrayet
+og kaller `render()` — resten følger automatisk.
+
+**Bevisst ikke gjort:** `v.km` (bilens nåværende kilometerstand)
+rekalkuleres IKKE ved redigering/sletting av en service, i motsetning til
+hvordan kontrollsletting ruller tilbake km. Dette var ikke en del av
+denne oppgavens krav (kun servicehistorikk/siste/neste
+service/serviceindikator/Planlegging/Dashboard ble spesifisert) — vurder
+om det bør legges til senere dersom det viser seg nødvendig i praksis.
+
+---
+
 # Prioritet 26.7 — Planlagt service og skjerpet servicevarsling
 
 ## 1. Planlagt service
