@@ -383,6 +383,64 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# Kritisk manglende funksjon — Visning av skadebilder
+
+## Kartlagt flyt
+
+**Hvor bildene lagres:** `window.storage.set('photo:'+key, dataUrl, true)`
+— generisk delt nøkkel/verdi (samme Settings-mekanisme som
+servicehistorikk/dekkhistorikk), permanent. **Bekreftet: lagres
+permanent** — ingen midlertidig/sesjonsbasert lagring.
+
+**Hvordan de kobles til saken — to ulike kilder, oppdaget under
+kartleggingen:**
+1. Admin-/Min Bil-registrert skade: ETT bilde, `damage:{id}`,
+   `damage.hasPhoto` (boolsk).
+2. Skade meldt via sjåførkontroll MED flere bilder: driftskoordinator
+   kunne **aldri se mer enn det første bildet**. Alle bildene lagres
+   riktig (`kontroll:{kontrollId}:0`, `:1`, `:2` ...,
+   `kontroll.skadeBilderCount`), men kun bilde nr. 0 kopieres til
+   `damage:{id}` (`submitKontroll()`, uendret i denne runden) — resten
+   var teknisk sett permanent lagret, men **utilgjengelig via dataene**
+   fra noe sted i UI. Dette var rotårsaken til at "flere bilder" aldri
+   kunne vises.
+
+**Løsning:** `damagePhotoKeys(d)` henter riktig bildesett fra riktig
+kilde (kontrollens fulle sett når skaden stammer derfra, ellers det ene
+`damage:{id}`-bildet) — uten å endre noe i selve lagringen.
+
+## Implementert
+
+- `bildeGalleriHtml()`/`attachBildeGalleriListeners()` — gjenbrukbar
+  miniatyrgrid-komponent, brukt to steder:
+  - `sakWizardSteg1Html()` — Aktive saker → åpne sak → 📷 Bilder (N),
+    synlig med én gang saken åpnes (samler bilder fra ALLE skader
+    koblet til saken via `sakSkadeDamages()`/`sakAvvikListe()`, dekker
+    både enkelt- og flerpunkts saker)
+  - `damageCard()` — badge "📷 N bilder" på selve skadekortet (alltid
+    synlig, ikke gjemt bak redigeringsmodus) + galleri rett under.
+    Samme komponent brukes i Kjøretøyprofil sin Historikk→Skader-fane
+    for BÅDE aktive og fikset/historiske skader
+    (`attachDamageCardListeners(vehicleDamages(currentVehicleId))`
+    dekker begge) — dekker "Historikk → Skade → Bilder"-kravet direkte,
+    ingen egen kode nødvendig for lukkede saker.
+- `openLightbox()`/`renderLightbox()` — global fullskjerm-visning (egen
+  container `#bilde-lightbox-modal` utenfor `#app`, samme mønster som
+  slettedialogen for kontroller), med forrige/neste-navigasjon
+  (`lightboxForrige()`/`lightboxNeste()`) når saken har flere bilder,
+  og tellevisning ("2 / 3"). Fungerer identisk på mobil og desktop —
+  ren CSS/DOM, ingen enhetsspesifikk kode.
+
+**Bevisst kjent, ikke rettet:** dersom en kontroll med flere skadebilder
+senere slettes (`performKontrollDeletion`), forsvinner de ekstra bildene
+sammen med kontrollens egne nøkler — skaden beholder fortsatt sitt ene
+`damage:{id}`-bilde (kopiert ved opprettelse), så ingenting knekker,
+men "flere bilder" reduseres til "ett bilde" i det tilfellet. Dette var
+allerede slik lagringen fungerte før denne runden — ikke en ny
+begrensning innført nå, kun dokumentert.
+
+---
+
 # Prioritet 26.10 — Verifisering + Service lagt til i Historikk-huben
 
 Alle tre punkter i denne rundens oppgave ble grundig verifisert mot

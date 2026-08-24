@@ -530,6 +530,17 @@
   .photo-input-area{border:1.5px dashed var(--line);border-radius:10px;padding:16px;text-align:center;background:var(--surface);}
   .photo-input-area input[type=file]{font-size:13px;}
   .photo-preview{max-width:100%;max-height:220px;border-radius:9px;margin-top:12px;display:block;margin-left:auto;margin-right:auto;}
+  /* Skadebilder — galleri + fullskjerm-lightbox (kritisk manglende funksjon) */
+  .bilde-galleri{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;margin-top:6px;}
+  .bilde-thumb{aspect-ratio:1;border-radius:9px;overflow:hidden;background:var(--bg);border:1.5px solid var(--line);cursor:pointer;}
+  .bilde-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .lightbox-overlay{position:fixed;inset:0;background:rgba(10,10,10,.92);z-index:500;display:flex;align-items:center;justify-content:center;}
+  .lightbox-img{max-width:92vw;max-height:85vh;object-fit:contain;border-radius:4px;}
+  .lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.16);color:#fff;border:none;width:44px;height:44px;border-radius:100px;font-size:19px;cursor:pointer;line-height:1;}
+  .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.16);color:#fff;border:none;width:48px;height:48px;border-radius:100px;font-size:26px;cursor:pointer;line-height:1;}
+  .lightbox-prev{left:14px;}
+  .lightbox-next{right:14px;}
+  .lightbox-counter{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;font-weight:600;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:100px;}
   .required-hint{font-size:12px;color:var(--muted);margin-top:4px;}
   .form-msg{font-size:13px;color:var(--red);margin-top:6px;}
 
@@ -757,6 +768,7 @@
 <!-- Optimalisering 3: smart slettedialog for kontroller. Samme mønster som drawer over
      (egen container utenfor #app), fylles av renderKontrollSlettModal(). -->
 <div id="kontroll-slett-modal"></div>
+<div id="bilde-lightbox-modal"></div>
 <div id="app">Laster inn...</div>
 
 <script>
@@ -835,6 +847,13 @@ const SCREEN_HISTORY_MAX = 30;
 let currentVehicleId = null;
 let pendingVehiclePhoto = null;
 let editingDamageId = null;
+// Kritisk manglende funksjon: visning av skadebilder. Global, enkel lightbox-tilstand
+// (samme mønster som andre globale modaler, f.eks. kontrollSlettDialog) — vises via en
+// egen container utenfor #app (se renderLightbox()), slik at den kan åpnes fra hvor som
+// helst i appen (Aktive Saker, Historikk, Skadehistorikk) uten spesialtilpasning per sted.
+let lightboxBilder = []; // array av photo-nøkler (se damagePhotoKeys())
+let lightboxIndex = 0;
+let lightboxOpen = false;
 let editingVTId = null;
 // Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som editingVTId
 // (verkstedtimer) rett over. "Skal fungere på samme måte som andre historikkobjekter."
@@ -2064,6 +2083,109 @@ async function getPhoto(key){
 }
 async function deletePhoto(key){
   try{ await window.storage.delete('photo:'+key, true); }catch(e){ /* ignore */ }
+}
+// ---- Skadebilder — kartlagt flyt (kritisk manglende funksjon) ----
+// Et bilde kan komme fra to ulike kilder avhengig av hvordan skaden ble registrert:
+// 1) Manuell/admin-registrert skade, eller skade meldt via "Min Bil": ETT bilde,
+//    lagret under 'damage:{id}' (damage.hasPhoto er en boolsk indikator).
+// 2) Skade meldt via sjåførkontroll MED flere bilder: driftskoordinator kunne tidligere
+//    aldri se mer enn det FØRSTE bildet (det eneste som ble kopiert til
+//    'damage:{id}') — resten lå utilgjengelig under kontrollens egne nøkler
+//    ('kontroll:{kontrollId}:0', ':1', ':2' ...). damagePhotoKeys() henter nå ALLE
+//    bilder fra riktig kilde, uten å endre hvordan noe lagres.
+function damagePhotoCount(d){
+  if(!d) return 0;
+  if(d.createdByControlId){
+    const k = kontroller.find(x => x.id === d.createdByControlId);
+    if(k && k.skadeBilderCount > 0) return k.skadeBilderCount;
+  }
+  return d.hasPhoto ? 1 : 0;
+}
+function damagePhotoKeys(d){
+  if(!d) return [];
+  if(d.createdByControlId){
+    const k = kontroller.find(x => x.id === d.createdByControlId);
+    if(k && k.skadeBilderCount > 0){
+      return Array.from({length: k.skadeBilderCount}, (_, i) => 'kontroll:' + k.id + ':' + i);
+    }
+  }
+  return d.hasPhoto ? ['damage:' + d.id] : [];
+}
+// En sak av caseType 'skade' peker til én eller flere skader via avvik[].sourceId
+// (sakAvvikListe() håndterer allerede både enkeltpunkts og flerpunkts saker likt).
+function sakSkadeDamages(s){
+  const ids = sakAvvikListe(s).filter(a => a.caseType === 'skade').map(a => a.sourceId);
+  return ids.map(id => damages.find(d => d.id === id)).filter(Boolean);
+}
+function sakBilderKeys(s){
+  let keys = [];
+  sakSkadeDamages(s).forEach(d => { keys = keys.concat(damagePhotoKeys(d)); });
+  return keys;
+}
+function bildeGalleriHtml(keys, contextId){
+  if(!keys || keys.length === 0) return '';
+  return `
+    <div class="field" style="margin-bottom:12px;">
+      <label>📷 Bilder (${keys.length})</label>
+      <div class="bilde-galleri">
+        ${keys.map((k, i) => `
+        <div class="bilde-thumb" id="bilde-thumb-${contextId}-${i}">
+          <img id="bilde-thumb-img-${contextId}-${i}" style="display:none;">
+        </div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+function attachBildeGalleriListeners(keys, contextId){
+  if(!keys) return;
+  keys.forEach((k, i) => {
+    const thumb = document.getElementById('bilde-thumb-'+contextId+'-'+i);
+    const img = document.getElementById('bilde-thumb-img-'+contextId+'-'+i);
+    if(img) getPhoto(k).then(url => { if(url){ img.src = url; img.style.display = 'block'; } });
+    if(thumb) thumb.addEventListener('click', () => openLightbox(keys, i));
+  });
+}
+function openLightbox(keys, startIndex){
+  if(!keys || keys.length === 0) return;
+  lightboxBilder = keys;
+  lightboxIndex = startIndex || 0;
+  lightboxOpen = true;
+  render();
+}
+function closeLightbox(){
+  lightboxOpen = false;
+  render();
+}
+function lightboxNeste(){
+  lightboxIndex = (lightboxIndex + 1) % lightboxBilder.length;
+  render();
+}
+function lightboxForrige(){
+  lightboxIndex = (lightboxIndex - 1 + lightboxBilder.length) % lightboxBilder.length;
+  render();
+}
+function renderLightbox(){
+  const container = document.getElementById('bilde-lightbox-modal');
+  if(!container) return;
+  if(!lightboxOpen || lightboxBilder.length === 0){ container.innerHTML = ''; return; }
+  const flertall = lightboxBilder.length > 1;
+  container.innerHTML = `
+    <div class="lightbox-overlay" id="lightbox-overlay">
+      <button type="button" class="lightbox-close" id="lightbox-close-btn">✕</button>
+      ${flertall ? `<button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev-btn">‹</button>` : ''}
+      <img class="lightbox-img" id="lightbox-img" alt="Skadebilde">
+      ${flertall ? `<button type="button" class="lightbox-nav lightbox-next" id="lightbox-next-btn">›</button>` : ''}
+      ${flertall ? `<div class="lightbox-counter">${lightboxIndex + 1} / ${lightboxBilder.length}</div>` : ''}
+    </div>
+  `;
+  const img = document.getElementById('lightbox-img');
+  getPhoto(lightboxBilder[lightboxIndex]).then(url => { if(img && url) img.src = url; });
+  document.getElementById('lightbox-close-btn').addEventListener('click', closeLightbox);
+  document.getElementById('lightbox-overlay').addEventListener('click', (e) => { if(e.target.id === 'lightbox-overlay') closeLightbox(); });
+  const prevBtn = document.getElementById('lightbox-prev-btn');
+  if(prevBtn) prevBtn.addEventListener('click', lightboxForrige);
+  const nextBtn = document.getElementById('lightbox-next-btn');
+  if(nextBtn) nextBtn.addEventListener('click', lightboxNeste);
 }
 
 // ================= Utils =================
@@ -4207,6 +4329,7 @@ function render(){
 
   renderDrawer();
   renderKontrollSlettModal();
+  renderLightbox();
   attachKontrollSlettModalListeners();
 
   if(screen === 'dashboard'){ if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); else attachDashboardListeners(); }
@@ -5237,6 +5360,7 @@ function galleryCard(v, erMinAktiveBil){
 function damageCard(d, showVehicle){
   const isEditing = editingDamageId === d.id;
   const v = dmgVehicle(d);
+  const bilderKeys = damagePhotoKeys(d);
   return `
     <div class="dmg-item ${d.status==='utbedret'?'utbedret':''}">
       <div class="dmg-top" data-toggle-edit="${d.id}">
@@ -5249,9 +5373,11 @@ function damageCard(d, showVehicle){
         <div class="dmg-badges">
           <span class="badge ${d.alvorlighet}">${ALVOR_LABEL[d.alvorlighet] || '—'}</span>
           <span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span>
+          ${bilderKeys.length > 0 ? `<span class="badge unset">📷 ${bilderKeys.length} bilde${bilderKeys.length===1?'':'r'}</span>` : ''}
           ${d.status !== 'utbedret' ? `<button class="btn small" data-mark-fikset="${d.id}">✅ Marker som fikset</button>` : ''}
         </div>
       </div>
+      ${bilderKeys.length > 0 ? `<div style="padding:0 16px 16px;">${bildeGalleriHtml(bilderKeys, 'skade-'+d.id)}</div>` : ''}
       ${isEditing ? `
       <div class="dmg-editbox">
         <div class="row2">
@@ -5278,10 +5404,10 @@ function damageCard(d, showVehicle){
         <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="e-sk-kommentar-${d.id}">${esc(d.kommentar||'')}</textarea></div>
         <div class="field" style="margin-bottom:10px;"><label>💰 Estimert kostnad</label><input id="e-sk-estimert-${d.id}" type="text" inputmode="numeric" placeholder="F.eks. 8000" value="${d.estimertKostnad !== undefined && d.estimertKostnad !== null ? d.estimertKostnad : ''}"></div>
         <div class="field" style="margin-bottom:10px;">
-          <label>Bilde</label>
+          <label>Erstatt bilde</label>
           <div class="photo-input-area">
-            ${d.hasPhoto ? `<img id="edit-photo-preview-${d.id}" class="photo-preview" style="display:none;">` : '<div class="required-hint">Ingen bilde lastet opp ennå</div>'}
             <input type="file" accept="image/*" id="e-sk-photo-${d.id}" style="margin-top:8px;">
+            <img id="edit-photo-preview-${d.id}" class="photo-preview" style="display:none;">
           </div>
         </div>
         <div class="panel-actions">
@@ -5297,6 +5423,7 @@ function attachDamageCardListeners(list){
   document.querySelectorAll('[data-toggle-edit]').forEach(el => el.addEventListener('click', () => toggleEditDamage(el.dataset.toggleEdit)));
   document.querySelectorAll('[data-mark-fikset]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markSkadeFikset(el.dataset.markFikset); }));
   list.forEach(d => {
+    attachBildeGalleriListeners(damagePhotoKeys(d), 'skade-'+d.id);
     const saveBtn = document.getElementById('e-sk-save-'+d.id);
     if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveDamageEdit(d.id); });
     const cancelBtn = document.getElementById('e-sk-cancel-'+d.id);
@@ -6976,6 +7103,8 @@ function sakWizardSteg1Html(s){
     </div>` : ''}
     `}
 
+    ${bildeGalleriHtml(sakBilderKeys(s), 'sak-'+s.id)}
+
     <button type="button" class="btn secondary small" id="swz-mer-toggle-${s.id}" style="justify-content:flex-start;margin-bottom:${sakWizardSteg1MerOpen ? '8px' : '12px'};">${sakWizardSteg1MerOpen ? '▲' : '▼'} Mer informasjon</button>
     ${sakWizardSteg1MerOpen ? `
     <div class="panel" style="margin-bottom:12px;">
@@ -7656,6 +7785,10 @@ function attachAktiveSakerListeners(){
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSak(s.id); });
     const reapneBtn = document.getElementById('swz-reapne-'+s.id);
     if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
+
+    // Kritisk manglende funksjon — skadebilder: kobles kun opp når saken faktisk er åpen
+    // (unngår unødvendige getPhoto()-kall for hver eneste sak på hvert render()).
+    if(editingSakId === s.id) attachBildeGalleriListeners(sakBilderKeys(s), 'sak-'+s.id);
 
     // Steg 1 — "Mer informasjon" (metadata skjult som standard, se Optimalisering 9)
     const merToggleBtn = document.getElementById('swz-mer-toggle-'+s.id);
