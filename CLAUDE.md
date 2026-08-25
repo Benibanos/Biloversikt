@@ -383,6 +383,53 @@ før, siden sidebaren er navigasjonen der).
 
 ---
 
+# KRITISK FEILRETTING — Skadebilder lagret ikke faktisk (viste "Skadebilde" uten bilde)
+
+**Rotårsak, bekreftet ved gjennomgang av `storage_airtable.js`:** bilder
+lagres i `Photos`-tabellen, `Value`-feltet er en Airtable "Long text"
+(`multilineText`)-kolonne — praktisk grense **~100 000 tegn per celle**.
+`resizeImage()` komprimerte tidligere til maks 1000px ved FAST
+JPEG-kvalitet 0,72, uavhengig av bildets kompleksitet — for et travelt/
+detaljert bilde kunne den resulterende base64-strengen lett overstige
+grensen. Når Airtable da avviste skrivingen, kastet
+`writeSettingsRow()` en feil som `savePhoto()` fanget **helt stille**
+(kun `console.error`, ingen varsling videre).
+
+**Den avgjørende, sammensatte feilen:** `hasPhoto`/`skadeBilderCount`
+ble satt basert på om sjåføren *valgte* et bilde — ikke på om lagringen
+faktisk lyktes. Systemet viste derfor "📷 Bilder (1)" og en gyldig
+`damage:{id}`-nøkkel i galleriet, men uten faktisk bildedata bak —
+nøyaktig symptomet som ble meldt ("Skadebilde"-plassholder, ingen bilde
+rendres).
+
+**To rettelser:**
+1. `resizeImage()` prøver nå gradvis lavere JPEG-kvalitet (fra 0,72 ned
+   mot 0,25) til resultatet er trygt under 85 000 tegn — garanterer at
+   det som faktisk lagres alltid får plass i Airtable-feltet, uansett
+   bildets kompleksitet.
+2. `savePhoto()` returnerer nå `true`/`false` i stedet for å svelge
+   feilen stille. **Alle fire steder** et skadebilde kan lagres
+   (`submitAddSkade`, `submitMinBilSkade`, `saveDamageEdit`,
+   `submitKontroll`) setter nå `hasPhoto`/`skadeBilderCount` KUN basert
+   på bekreftet vellykket lagring, og varsler brukeren (`alert()`)
+   dersom det faktisk feiler — i stedet for å late som alt gikk bra.
+
+**Ekstra presisjon i `submitKontroll()` (flerbilde-tilfellet):** bilder
+lagres nå under sammenhengende indekser blant kun de VELLYKKEDE bildene
+(ikke original posisjon i utvalget), slik at `damagePhotoKeys()` sin
+antakelse om en sammenhengende `0..count-1`-sekvens alltid stemmer, selv
+om ett bilde midt i en serie på flere skulle feile.
+
+**Fortsatt ikke løst av denne rettelsen (utenfor det jeg kan verifisere
+herfra):** dersom `Photos`-tabellen eller `Value`-feltet i den faktiske
+Airtable-basen er feilkonfigurert (f.eks. feil felttype, eller tabellen
+mangler helt), vil skriving fortsatt feile uavhengig av bildestørrelse —
+kjør "🔄 Synkroniser Airtable" i Innstillinger for å bekrefte/rette dette
+(EXPECTED_SCHEMA i `storage_airtable.js` inkluderer allerede `Photos`
+med riktig felttype, se linje 385/390).
+
+---
+
 # Kritisk manglende funksjon — Visning av skadebilder
 
 ## Kartlagt flyt

@@ -2074,8 +2074,8 @@ async function savePlanlagteServicer(){
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function savePhoto(key, dataUrl){
-  try{ await window.storage.set('photo:'+key, dataUrl, true); }
-  catch(e){ console.error('Kunne ikke lagre bilde', e); }
+  try{ await window.storage.set('photo:'+key, dataUrl, true); return true; }
+  catch(e){ console.error('Kunne ikke lagre bilde', key, e); return false; }
 }
 async function getPhoto(key){
   try{ const r = await window.storage.get('photo:'+key, true); return r ? r.value : null; }
@@ -2703,7 +2703,22 @@ function resizeImage(file){
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.72));
+        // KRITISK FEILRETTING: Airtable sin "Long text"-felttype (Photos-tabellen, se
+        // storage_airtable.js — kind:'json' → multilineText) har en praktisk grense på
+        // ca. 100 000 tegn per celle. Én fast JPEG-kvalitet (0,72) kunne lett overstige
+        // dette for travle/detaljerte bilder — skrivingen feilet da STILLE i savePhoto(),
+        // og resultatet var nøyaktig det rapporterte symptomet: "📷 Bilder (1)" vist, men
+        // ingen faktisk bildedata lagret ("Skadebilde"-plassholder ved åpning). Prøver nå
+        // gradvis lavere kvalitet til resultatet er trygt under grensen — garanterer at
+        // det som faktisk lagres alltid får plass, uansett bildets kompleksitet.
+        const MAKS_TEGN = 85000; // god margin under Airtables ~100 000
+        let kvalitet = 0.72;
+        let dataUrl = canvas.toDataURL('image/jpeg', kvalitet);
+        while(dataUrl.length > MAKS_TEGN && kvalitet > 0.25){
+          kvalitet = Math.round((kvalitet - 0.15) * 100) / 100;
+          dataUrl = canvas.toDataURL('image/jpeg', kvalitet);
+        }
+        resolve(dataUrl);
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -2995,14 +3010,25 @@ async function submitAddSkade(ev){
     return;
   }
   const id = uid();
+  let fotoLagretOk = true;
   damages.push({
     id, vehicleId, dato, beskrivelse, alvorlighet, kommentar, status, estimertKostnad,
-    registrertAv: loggedInRole || 'Ukjent', hasPhoto: !!pendingPhotoData,
+    registrertAv: loggedInRole || 'Ukjent', hasPhoto: false,
     createdByControlId: null
   });
   await saveDamages();
-  if(pendingPhotoData) await savePhoto('damage:'+id, pendingPhotoData);
+  if(pendingPhotoData){
+    fotoLagretOk = await savePhoto('damage:'+id, pendingPhotoData);
+    if(fotoLagretOk){
+      const d = damages.find(x => x.id === id);
+      if(d) d.hasPhoto = true;
+      await saveDamages();
+    }
+  }
   pendingPhotoData = null;
+  if(!fotoLagretOk){
+    alert('Skaden ble registrert, men bildet kunne ikke lagres (for stort eller nettverksfeil). Prøv å legge til bildet på nytt fra skadekortet.');
+  }
   registrerAvvikSomSak({
     vehicleId, caseType: 'skade', sourceId: id,
     tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
@@ -3027,10 +3053,18 @@ async function submitMinBilSkade(){
   damages.push({
     id, vehicleId: v.id, dato, beskrivelse, alvorlighet: minBilSkadeAlvorlighet,
     kommentar: minBilSkadeKommentar.trim(), status: 'registrert', estimertKostnad: null,
-    registrertAv: driverNavn || 'Ukjent', hasPhoto: !!pendingMinBilFoto, createdByControlId: null
+    registrertAv: driverNavn || 'Ukjent', hasPhoto: false, createdByControlId: null
   });
   await saveDamages();
-  if(pendingMinBilFoto) await savePhoto('damage:'+id, pendingMinBilFoto);
+  let fotoLagretOk = true;
+  if(pendingMinBilFoto){
+    fotoLagretOk = await savePhoto('damage:'+id, pendingMinBilFoto);
+    if(fotoLagretOk){
+      const d = damages.find(x => x.id === id);
+      if(d) d.hasPhoto = true;
+      await saveDamages();
+    }
+  }
   registrerAvvikSomSak({
     vehicleId: v.id, caseType: 'skade', sourceId: id,
     tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
@@ -3038,7 +3072,7 @@ async function submitMinBilSkade(){
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeAlvorlighet = 'middels'; pendingMinBilFoto = null;
-  alert('Skade registrert.');
+  alert(fotoLagretOk ? 'Skade registrert.' : 'Skade registrert, men bildet kunne ikke lagres (for stort eller nettverksfeil). Legg det til på nytt fra skadekortet.');
   render();
 }
 async function submitMinBilVarsel(){
@@ -3117,13 +3151,15 @@ async function saveDamageEdit(id){
   d.status = document.getElementById('e-sk-status-'+id).value;
   const estimertRaw = document.getElementById('e-sk-estimert-'+id).value.trim();
   d.estimertKostnad = estimertRaw ? Number(estimertRaw.replace(/\s/g,'').replace(',','.')) : null;
+  let fotoLagretOk = true;
   if(pendingPhotoData){
-    d.hasPhoto = true;
-    await savePhoto('damage:'+id, pendingPhotoData);
+    fotoLagretOk = await savePhoto('damage:'+id, pendingPhotoData);
+    if(fotoLagretOk) d.hasPhoto = true;
   }
   pendingPhotoData = null;
   await saveDamages();
   editingDamageId = null;
+  if(!fotoLagretOk) alert('Endringene ble lagret, men det nye bildet kunne ikke lagres (for stort eller nettverksfeil). Prøv igjen.');
   render();
 }
 async function deleteDamage(id){
@@ -3777,27 +3813,36 @@ async function submitKontroll(ev){
 
   try{
     let linkedDamageId = null;
+    // KRITISK FEILRETTING: lagre bildene FØRST og tell kun de som faktisk lyktes — et
+    // stort/detaljert bilde kan feile mot Airtables feltgrense (se resizeImage()) uten at
+    // det tidligere ble oppdaget. Lagres under sammenhengende indekser (0,1,2...) blant de
+    // VELLYKKEDE bildene (ikke original posisjon), slik at damagePhotoKeys() sin antakelse
+    // om en sammenhengende 0..count-1-sekvens alltid stemmer, uansett om ett bilde midt i
+    // rekken skulle feile.
+    let antallBilderLagret = 0;
+    for(let i = 0; i < pendingKontrollPhotos.length; i++){
+      const ok = await savePhoto('kontroll:'+id+':'+antallBilderLagret, pendingKontrollPhotos[i]);
+      if(ok) antallBilderLagret++;
+    }
     if(harNyeSkader){
       linkedDamageId = uid();
       damages.push({
         id: linkedDamageId, vehicleId, dato, beskrivelse: skadeBeskrivelse,
         alvorlighet: 'middels', kommentar: 'Meldt via sjåførkontroll' + (kommentar ? ' · ' + kommentar : ''),
-        status: 'registrert', registrertAv: sjafor, hasPhoto: pendingKontrollPhotos.length > 0,
+        status: 'registrert', registrertAv: sjafor, hasPhoto: antallBilderLagret > 0,
         createdByControlId: id
       });
       await saveDamages();
       console.log('[submitKontroll] Skade lagret', linkedDamageId);
-      if(pendingKontrollPhotos.length > 0) await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0]);
-    }
-
-    for(let i = 0; i < pendingKontrollPhotos.length; i++){
-      await savePhoto('kontroll:'+id+':'+i, pendingKontrollPhotos[i]);
+      // Ekstra fallback-kopi til damage:{id} (brukes kun dersom kontrollen selv senere
+      // slettes, se damagePhotoKeys()) — kun forsøkt dersom minst ett bilde faktisk lyktes.
+      if(antallBilderLagret > 0) await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0]);
     }
 
     kontroller.push({
       id, vehicleId, dato, tidspunkt, sjafor, km,
       varsellamper, annetTekst, harNyeSkader, skadeBeskrivelse,
-      skadeBilderCount: pendingKontrollPhotos.length, kommentar, linkedDamageId
+      skadeBilderCount: antallBilderLagret, kommentar, linkedDamageId
     });
     await saveKontroller();
     console.log('[submitKontroll] Kontroll lagret i kontroller-listen', id);
@@ -3864,14 +3909,19 @@ async function submitKontroll(ev){
     await saveVehicles();
     console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
 
-    pendingKontrollPhotos = [];
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
     kontrollFormAvvik = []; kontrollAvvikOpen = false;
     clearKontrollDraft();
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
-    alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
+    const antallValgteBilder = pendingKontrollPhotos.length;
+    pendingKontrollPhotos = [];
+    if(antallValgteBilder > 0 && antallBilderLagret < antallValgteBilder){
+      alert('Kontroll registrert for ' + vehicleLabel(v) + '. OBS: ' + (antallValgteBilder - antallBilderLagret) + ' av ' + antallValgteBilder + ' bilder kunne ikke lagres (for stort eller nettverksfeil).');
+    } else {
+      alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
+    }
     if(driverMode){
       // Kontrollen er unnagjort — start biløkten på denne bilen for denne sjåføren, og
       // send videre til Min Bil (sjåførens arbeidsflate resten av den operative dagen).
