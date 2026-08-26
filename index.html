@@ -880,6 +880,32 @@ function toggleRegisterGruppe(kat){
   else registerGrupperApne.add(kat);
   render();
 }
+// Prioritet 26.7 (punkt 3): samme gruppert dropdown-mønster på sjåførkontrollsidens
+// bilvalg som Biloversikt allerede bruker — lukket som standard, biler vises kun når
+// gruppen åpnes. Egen state (ikke gjenbruk av registerGrupperApne) siden Kontroll og
+// Biloversikt er to uavhengige skjermer som kan ha ulik åpen/lukket-tilstand samtidig.
+let kontrollGrupperApne = new Set();
+function toggleKontrollGruppe(kat){
+  if(kontrollGrupperApne.has(kat)) kontrollGrupperApne.delete(kat);
+  else kontrollGrupperApne.add(kat);
+  render();
+}
+// Felles bilvalg-logikk for kontrollskjemaet — brukes nå av den grupperte
+// bilvelgeren (erstatter tidligere <select id="kt-vehicle">.change-lytter, samme
+// oppførsel uendret, kun ny inngang).
+function velgKontrollBil(vehicleId){
+  kontrollFormKm = (document.getElementById('kt-km')||{}).value || kontrollFormKm;
+  kontrollFormVehicleId = vehicleId;
+  kontrollFormAnnet = false;
+  kontrollFormAnnetTekst = '';
+  if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
+  saveKontrollDraft();
+  if(driverMode && kontrollFormVehicleId && isKontrollertIdag(kontrollFormVehicleId)){
+    driverVelgBilId = kontrollFormVehicleId;
+    driverScreen = 'allerede-kontrollert';
+  }
+  render();
+}
 let showAddVehicleForm = false;
 
 let skadeFilterBil = '';
@@ -1649,6 +1675,27 @@ function vehicleAktivSjafor(vehicleId){
   if(!v || !v.aktivSjafor || !v.aktivSjaforSiden) return null;
   if(isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== todayISO()) return null;
   return v.aktivSjafor;
+}
+// Prioritet 26.7 (Aktiv sjåfør + gruppert bilvalg): "Aktiv sjåfør" i Operativ status skal
+// vise sist kjente sjåfør basert på ENTEN aktiv biløkt ELLER siste gjennomførte kontroll i
+// dag — ikke bare biløkt. Rotårsak til det meldte avviket: v.aktivSjafor settes KUN via
+// startBilokt(), som igjen kun kalles i driverMode (den separate, låste sjåfør-URL-en) —
+// se submitKontroll(). Kontroller registrert via hovedappens vanlige ✅ Kontroll-ikon
+// (den klart vanligste veien) oppdaterte derfor ALDRI "Aktiv sjåfør", uansett hvem som
+// nettopp gjennomførte kontrollen.
+//
+// Bevisst en EGEN funksjon, ikke en endring av vehicleAktivSjafor() selv —
+// vehicleAktivSjafor() brukes flere steder til å bety strengt "kjører akkurat nå" (biler
+// i drift-telling, Min bil-logikk, "har-aktiv-sjafor"-filteret) og skal IKKE inkludere en
+// bil som kun ble kontrollert i morges og nå står parkert. Kun selve informasjonsvisningen
+// (Operativ status/Biloversikt) bruker denne bredere kilden.
+function vehicleSisteSjafor(vehicleId){
+  const aktiv = vehicleAktivSjafor(vehicleId);
+  if(aktiv) return aktiv;
+  const kontrollerIdag = kontroller.filter(k => k.vehicleId === vehicleId && k.dato === todayISO());
+  if(kontrollerIdag.length === 0) return null;
+  const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
+  return siste.sjafor || null;
 }
 // Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
 // en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
@@ -3548,10 +3595,13 @@ async function saveServiceIntervall(id){
   serviceSaveConfirmedId = id;
   render();
 }
-// Registrerer en utført service — samme mønster som submitDekkskifte(). Oppdaterer også
-// bilens kilometerstand (v.km) dersom registrert km er høyere enn det som står fra før,
-// slik at "neste service"-beregningen og resten av appen (Kjøretøyprofil/Dashboard) alltid
-// reflekterer siste kjente km — samme prinsipp som km oppdateres ved kontrollregistrering.
+// KRITISK DATAINTEGRITETSRETTING: service-km og bilens nåværende kilometerstand (v.km)
+// er to fullstendig separate verdier — v.km er bilens FAKTISKE, nyeste kilometerstand
+// (autoritativ kilde: kontrollregistrering, se submitKontroll()), mens service.km er en
+// HISTORISK verdi som kun beskriver hvor langt bilen hadde gått DA en bestemt service ble
+// utført. Denne funksjonen skal ALDRI skrive til v.km — kun lese den, for validering.
+// Eget, utvetydig variabelnavn (serviceKm, ikke bare "km") brukt gjennomgående her for å
+// gjøre det vanskelig å introdusere samme forveksling igjen ved en fremtidig endring.
 async function submitService(ev){
   ev.preventDefault();
   const dato = readDateInput('sv-dato');
@@ -3560,19 +3610,33 @@ async function submitService(ev){
   const verksted = document.getElementById('sv-verksted').value;
   const kommentar = document.getElementById('sv-kommentar').value.trim();
   const msgEl = document.getElementById('sv-msg');
-  const km = kmRaw ? Number(kmRaw) : null;
-  if(!dato || !km || !type){
-    msgEl.textContent = 'Fyll ut dato (DD/MM/ÅÅÅÅ), kilometerstand og type service.';
+  if(!dato){ msgEl.textContent = 'Fyll ut gyldig dato (DD/MM/ÅÅÅÅ).'; return; }
+  if(!type){ msgEl.textContent = 'Fyll ut type service.'; return; }
+  if(kmRaw === ''){ msgEl.textContent = 'Fyll ut kilometerstand ved service.'; return; }
+  const serviceKm = Number(kmRaw);
+  if(!Number.isFinite(serviceKm) || serviceKm < 0){
+    msgEl.textContent = 'Kilometerstand ved service må være et gyldig, ikke-negativt tall.';
     return;
   }
   const v = vehicles.find(x => x.id === serviceValgtVehicleId);
   if(!v) return;
+  const currentVehicleKm = v.km ? Number(v.km) : null;
+  // Service-km LAVERE enn (eller lik) dagens km er den normale, forventede situasjonen
+  // ved registrering av en historisk service — tillates uten videre. Kun HØYERE enn
+  // dagens km krever eksplisitt bekreftelse, siden det kan bety en feilregistrering.
+  if(currentVehicleKm !== null && serviceKm > currentVehicleKm){
+    const bekreftet = confirm(
+      'Kilometerstanden ved service (' + serviceKm.toLocaleString('nb-NO') + ' km) er høyere enn bilens registrerte nåværende kilometerstand (' + currentVehicleKm.toLocaleString('nb-NO') + ' km).\n\n' +
+      'Dette lagres KUN som en historisk verdi på selve serviceoppføringen — bilens nåværende kilometerstand endres ikke.\n\nVil du fortsette?'
+    );
+    if(!bekreftet) return;
+  }
   const now = new Date().toISOString();
-  servicehistorikk.push({id: uid(), vehicleId: serviceValgtVehicleId, dato, km, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
+  servicehistorikk.push({id: uid(), vehicleId: serviceValgtVehicleId, dato, km: serviceKm, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
   await saveServicehistorikk();
-  if(!v.km || km > Number(v.km)) v.km = km;
-  await saveVehicles();
-  await reloadOne('vehicles');
+  // v.km røres BEVISST ALDRI her — se hovedregel i CLAUDE.md
+  // "Servicehistorikk vs. kjøretøyets kilometerstand". Ingen saveVehicles()/reloadOne()
+  // nødvendig siden vehicles-arrayet ikke er endret av denne funksjonen.
   showAddService = false;
   render();
 }
@@ -3695,12 +3759,18 @@ async function saveServiceEdit(id){
   const kmRaw = document.getElementById('e-sv-km-'+id).value.trim();
   const type = document.getElementById('e-sv-type-'+id).value.trim();
   if(!kmRaw || !type){ alert('Fyll ut kilometerstand og type service.'); return; }
+  const serviceKm = Number(kmRaw);
+  if(!Number.isFinite(serviceKm) || serviceKm < 0){
+    alert('Kilometerstand ved service må være et gyldig, ikke-negativt tall.');
+    return;
+  }
   s.dato = newDato;
-  s.km = Number(kmRaw);
+  s.km = serviceKm;
   s.type = type;
   s.verksted = document.getElementById('e-sv-verksted-'+id).value;
   s.kommentar = document.getElementById('e-sv-kommentar-'+id).value.trim();
   await saveServicehistorikk();
+  // v.km røres BEVISST ALDRI her — samme prinsipp som submitService().
   editingServiceId = null;
   render();
 }
@@ -3769,7 +3839,7 @@ function vehicleErReserveUnntatt(vehicleId){
 async function submitKontroll(ev){
   ev.preventDefault();
   const msgEl = document.getElementById('kt-msg');
-  const vehicleId = document.getElementById('kt-vehicle').value;
+  const vehicleId = kontrollFormVehicleId;
   const km = document.getElementById('kt-km').value;
   const sjaforNavn = (document.getElementById('kt-sjafornavn').value || '').trim();
   if(!vehicleId || !km || !sjaforNavn){
@@ -3905,6 +3975,13 @@ async function submitKontroll(ev){
       console.log('[submitKontroll] Aktive Saker oppdatert (Fase 2)');
     }
 
+    // v.km — DEN ENESTE autoritative, jevnlig oppdaterte kilden til bilens nåværende
+    // kilometerstand. Kun kontrollregistrering (denne funksjonen) skal skrive hit.
+    // Servicehistorikk (submitService()/saveServiceEdit()) har et HELT SEPARAT km-felt
+    // (service.km — historisk verdi, "km ved utført service") som ALDRI skal kobles til
+    // v.km, uansett hvor fristende en "oppdater km hvis høyere"-snarvei kan virke — se
+    // CLAUDE.md "Servicehistorikk vs. kjøretøyets kilometerstand" for en tidligere,
+    // rettet dataintegritetsfeil av nøyaktig denne typen.
     v.km = km;
     await saveVehicles();
     console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
@@ -5375,9 +5452,9 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // Optimalisering 8: samme vehicleAktivSjafor() som Dashboard/Kjøretøyprofil — ingen ny
-  // datakilde, kun lagt til visning her (manglet tidligere på selve Biloversikt-siden).
-  const aktivSjafor = vehicleAktivSjafor(v.id);
+  // Prioritet 26.7: vehicleSisteSjafor() i stedet for vehicleAktivSjafor() — viser sist
+  // kjente sjåfør (aktiv biløkt ELLER siste kontroll i dag), ikke bare aktiv biløkt.
+  const aktivSjafor = vehicleSisteSjafor(v.id);
   return `
     <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);border-width:2px;"' : ''}>
       <div class="gcard-head">
@@ -6198,7 +6275,7 @@ function renderBilkort(){
           <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
           <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
           <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
+          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleSisteSjafor(v.id) ? '👤 ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
         </div>
       </div>
       <div class="ov-split-col">
@@ -9761,19 +9838,51 @@ function renderKontroll(){
     <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
     ${kontrollDraftRestored ? `<div class="required-hint" style="margin-bottom:16px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
     <form class="panel" id="kontroll-form">
+      ${kontrollFormVehicleId && v ? `
       <div class="row2">
         <div class="field" style="margin-bottom:0;">
           <label>Kjøretøy</label>
-          <select id="kt-vehicle" required>
-            <option value="">Velg bil...</option>
-            ${vehicleOptions(kontrollFormVehicleId)}
-          </select>
+          <div class="kt-vehicle-chosen" id="kt-bytt-bil" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;min-height:44px;">
+            <span>${esc(vehicleLabel(v))}</span><span class="required-hint">Bytt bil ↺</span>
+          </div>
         </div>
         <div class="field" style="margin-bottom:0;">
           <label>Sjåførnavn</label>
           <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
         </div>
       </div>
+      ` : `
+      <div class="field" style="margin-bottom:16px;">
+        <label>Kjøretøy</label>
+        <div class="dash-group-grid" style="grid-template-columns:1fr;margin-top:6px;">
+          ${KATEGORI_ORDER.filter(k => vehicles.some(x => x.kategori === k)).map(k => {
+            const gruppeBiler = sortedVehicles(vehicles.filter(x => x.kategori === k));
+            const open = kontrollGrupperApne.has(k);
+            return `
+            <div class="panel dash-group-card" style="margin-bottom:0;">
+              <div class="group-card-head" data-toggle-kontroll-gruppe="${k}">
+                <div>
+                  <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+                  <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
+                </div>
+                <span class="chevron ${open?'open':''}">⌄</span>
+              </div>
+              <div class="vehicle-group-body ${open?'open':''}">
+                <div>
+                  <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+                    ${gruppeBiler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Sjåførnavn</label>
+        <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
+      </div>
+      `}
       ${v ? `
       <div class="kt-vehicle-card">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
@@ -9907,17 +10016,12 @@ function attachKontrollListeners(){
   });
   document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
 
-  document.getElementById('kt-vehicle').addEventListener('change', e => {
+  document.querySelectorAll('[data-toggle-kontroll-gruppe]').forEach(el => el.addEventListener('click', () => toggleKontrollGruppe(el.dataset.toggleKontrollGruppe)));
+  document.querySelectorAll('[data-velg-kontroll-bil]').forEach(el => el.addEventListener('click', () => velgKontrollBil(el.dataset.velgKontrollBil)));
+  const byttBilEl = document.getElementById('kt-bytt-bil');
+  if(byttBilEl) byttBilEl.addEventListener('click', () => {
     kontrollFormKm = (document.getElementById('kt-km')||{}).value || kontrollFormKm;
-    kontrollFormVehicleId = e.target.value;
-    kontrollFormAnnet = false;
-    kontrollFormAnnetTekst = '';
-    if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
-    saveKontrollDraft();
-    if(driverMode && kontrollFormVehicleId && isKontrollertIdag(kontrollFormVehicleId)){
-      driverVelgBilId = kontrollFormVehicleId;
-      driverScreen = 'allerede-kontrollert';
-    }
+    kontrollFormVehicleId = '';
     render();
   });
   const kmInput = document.getElementById('kt-km');

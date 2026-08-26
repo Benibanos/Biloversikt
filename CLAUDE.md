@@ -1,5 +1,106 @@
 # Bilpark App
 
+# KRITISK DATAINTEGRITETSFEIL — Servicehistorikk overskrev bilens nåværende km
+
+**Rotårsak, bekreftet ved kodegjennomgang:** `submitService()`
+inneholdt linjen `if(!v.km || km > Number(v.km)) v.km = km;` — enhver
+historisk service registrert med en km-verdi HØYERE enn bilens daværende
+`v.km` (eller registrert på en bil uten `v.km` satt ennå) overskrev
+bilens faktiske, nåværende kilometerstand med den historiske
+service-km-verdien. Muliggjort av at `v.km` (kjøretøyets nåværende km)
+og `servicehistorikk[].km` (km ved utført service — en HISTORISK verdi)
+begge het bare `km`, en tvetydighet som gjorde feilen lett å introdusere
+og vanskelig å oppdage ved lesing av koden.
+
+**Verifisert IKKE påvirket:** `saveServiceEdit()` (redigering) og
+`deleteService()` (sletting) har ALDRI rørt `v.km` — kun opprettelse
+(`submitService()`) hadde feilen. "Siste service"-regelen
+(`vehicleServiceHistorikk()`, sortert på høyeste `km` med `dato` som
+tiebreaker — IKKE `createdAt`) var allerede korrekt implementert.
+Kjøretøyprofil viste allerede "Kilometerstand" og "Siste service" som
+separate, korrekt merkede felt.
+
+**Rettelser:**
+1. Linjen som skrev til `v.km` er fjernet fra `submitService()` i sin
+   helhet — `saveVehicles()`/`reloadOne('vehicles')` er samtidig fjernet
+   derfra (unødvendig når `vehicles`-arrayet ikke lenger endres).
+2. Lokal variabel omdøpt fra tvetydig `km` til `serviceKm` gjennom hele
+   `submitService()`/`saveServiceEdit()`, for å gjøre koden selvforklarende
+   og vanskeligere å feilbruke i fremtidige endringer. Selve det lagrede
+   feltnavnet (`servicehistorikk[].km`) er UENDRET (bakoverkompatibelt).
+3. Validering lagt til (registrering og redigering): tom/negativ/
+   ikke-numerisk kilometerstand stoppes med tydelig feilmelding.
+4. Er service-km høyere enn `v.km`: eksplisitt `confirm()`-dialog med
+   nøytral forklaring ("lagres kun som historisk verdi, bilens
+   kilometerstand endres ikke") må godkjennes før lagring. Er service-km
+   lavere enn eller lik `v.km` (det normale ved historisk registrering):
+   godtas direkte, ingen ekstra steg.
+5. Beskyttende arkitekturkommentar lagt til ved `submitKontroll()` sin
+   `v.km = km;` — den ENESTE gjenværende, legitime skrivingen til
+   `v.km` i hele appen — som eksplisitt advarer mot å gjenintrodusere
+   denne sammenblandingen.
+
+**Berørte funksjoner:** `submitService()`, `saveServiceEdit()`,
+kommentar ved `submitKontroll()`. **Endret fil:** kun `index.html`.
+
+**Eksisterende data som bør kontrolleres manuelt:** Claude har ikke
+tilgang til den faktiske, kjørende Airtable-basen (kun kildekoden) og
+kan derfor ikke selv identifisere hvilke konkrete kjøretøy som kan ha
+fått `v.km` feilaktig overskrevet historisk. Sjekk manuelt: kjøretøy der
+`v.km` er lavere enn forventet ut fra kjente kontrollregistreringer, og
+sammenlign mot `servicehistorikk`-oppføringer registrert i samme
+tidsrom — spesielt der en historisk service ble registrert med høyere
+km enn det som var reelt "nåværende" km på registreringstidspunktet.
+Ingen automatisk korrigering er gjort, per eksplisitt instruks.
+
+---
+
+
+
+# Prioritet 26.7 — Aktiv sjåfør + gruppert bilvalg
+
+## Punkt 1 og 2 — Aktiv sjåfør "forsvant"
+
+**Rotårsak, bekreftet ved kodegjennomgang:** `v.aktivSjafor` settes KUN via
+`startBilokt()`, som igjen KUN kalles i `driverMode` (den separate,
+låste sjåfør-URL-en `?sjafor=1`/`kontroll.html`) — se `submitKontroll()`.
+Kontroller registrert via hovedappens vanlige ✅ Kontroll-ikon (den klart
+vanligste veien inn) oppdaterte derfor ALDRI "Aktiv sjåfør", uansett hvem
+som nettopp gjennomførte kontrollen. Ikke et tilfelle av at data
+"forsvinner" — feltet ble aldri satt i utgangspunktet fra denne flyten.
+
+**Løsning:** ny funksjon `vehicleSisteSjafor(vehicleId)` — viser aktiv
+biløkt hvis den finnes, ellers siste gjennomførte kontroll i dag
+(`kontroller`-arrayet, filtrert på `dato === todayISO()`, nyeste
+`tidspunkt`). Brukt i Operativ status og Biloversikt sitt kort
+(`galleryCard()`).
+
+**Bevisst IKKE endret:** `vehicleAktivSjafor()` selv — den brukes flere
+steder til å bety strengt "kjører akkurat nå" (biler i drift-telling,
+`egenAktiveBil()`/Min bil-logikk, "har-aktiv-sjafor"-filteret) og skal
+IKKE inkludere en bil som kun ble kontrollert i morges og nå står
+parkert. Kun selve informasjonsvisningen bruker den bredere kilden.
+
+## Punkt 3 — Gruppert bilvalg på Kontroll-siden
+
+`<select id="kt-vehicle">` erstattet med samme gruppert dropdown-mønster
+som Biloversikt (`registerGrupperApne`/`toggleRegisterGruppe`) — ny,
+uavhengig state `kontrollGrupperApne`/`toggleKontrollGruppe()` (egen
+tilstand siden Kontroll og Biloversikt er to uavhengige skjermer).
+Kollapser til en kompakt "[bil] · Bytt bil ↺"-rad når en bil er valgt,
+matcher den opprinnelige to-kolonners layouten med Sjåførnavn. Ny delt
+funksjon `velgKontrollBil(vehicleId)` erstatter den gamle
+`change`-lytteren med identisk oppførsel (kladd-lagring, nullstilling av
+Annet-felt, driverMode sin "allerede kontrollert i dag"-omdirigering).
+
+`submitKontroll()` leser nå `kontrollFormVehicleId` direkte i stedet for
+`document.getElementById('kt-vehicle').value` (elementet finnes ikke
+lenger).
+
+---
+
+
+
 # KRITISK FEILSØKING — "🚚 Biler i drift nå" opplevd avvik mot bilgruppe
 
 **Melding:** driftskoordinator opplevde at tallet kun så ut til å telle
