@@ -1,5 +1,45 @@
 # Bilpark App
 
+# KRITISK FEILSØKING — "🚚 Biler i drift nå" opplevd avvik mot bilgruppe
+
+**Melding:** driftskoordinator opplevde at tallet kun så ut til å telle
+biler fra "Bil 1–11", ikke Lastebil/Montering/Reserve.
+
+**Kodegjennomgang, uttømmende (to runder):** `hDriftCount`/
+`bilerIDriftCount` (`vehicles.filter(v => !!vehicleAktivSjafor(v.id))`),
+`vehicleAktivSjafor()`, `startBilokt()`, `ryddOppBiloktDagskille()` og
+`isoDateForOperationalDay()` er ALLE 100 % kategori-agnostiske — ingen
+referanse til `v.kategori` finnes noe sted i denne kjeden, verken på
+lese- eller skrivesiden. Kun ÉN funksjon (`startBilokt()`) skriver et
+faktisk `aktivSjafor`-verdi, og den behandler enhver `vehicleId` likt.
+
+**Konklusjon:** ingen kodebug funnet. Siden Claude ikke har tilgang til
+den faktiske, kjørende Airtable-basen (kun kildekoden), kan ikke et
+eventuelt datavik i selve dataene verifiseres herfra.
+
+**Løsning — diagnoseverktøy lagt til i appen:** ny seksjon i
+Innstillinger, "🚚 Biler i drift — diagnose"
+(`driftDiagnoseBody`/`settingsAccordionRow('driftdiagnose', ...)`), rent
+lesende/beregnet (ingen skriving, ingen påvirkning på selve tellingen).
+Viser:
+- Full liste over alle biler som faktisk teller med akkurat nå (navn,
+  kategori, sjåførnavn, tidspunkt for biløkt-start)
+- Per kjøretøygruppe: antall i gruppen, antall med
+  `aktivSjafor`+`aktivSjaforSiden` satt (rått), og antall som faktisk
+  teller med (etter datosjekk) — et avvik mellom disse to siste
+  kolonnene ville bekreftet hypotesen om at datosjekken feiler for
+  enkelte grupper
+- Egen liste over eventuelle biler som HAR et registrert `aktivSjafor`,
+  men som feiler datosjekken (viser nøyaktig hvilken operativ dag
+  `aktivSjaforSiden` tolkes som, til sammenligning med dagens dato)
+
+Gir driftskoordinator et faktisk vindu inn i de levende dataene, slik at
+et eventuelt datanivå-avvik (i motsetning til et kodenivå-avvik) kan
+identifiseres presist og rapporteres tilbake.
+
+---
+
+
 ## Prosjektformål
 
 Bilpark App er et operativt styringssystem for Bring Larvik.

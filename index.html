@@ -9535,6 +9535,60 @@ function renderInnstillinger(){
     </div>
   `;
 
+  // Diagnoseverktøy — "Biler i drift nå" vs. virkeligheten. Lagt til fordi kildekoden
+  // (vehicleAktivSjafor()/hDriftCount) er verifisert 100 % kategori-agnostisk, men
+  // driftskoordinator opplevde likevel et avvik — dette gir et vindu inn i de FAKTISKE,
+  // levende dataene direkte i appen, i stedet for kun kildekode-analyse. Rent
+  // lesende/beregnet — ingen skriving, ingen påvirkning på selve tellingen.
+  const driftDiagnoseBody = (() => {
+    const naa = new Date();
+    const idagStr = todayISO();
+    const perKategori = KATEGORI_ORDER.map(kat => {
+      const gruppeBiler = vehicles.filter(v => v.kategori === kat);
+      const harRaaFelt = gruppeBiler.filter(v => v.aktivSjafor && v.aktivSjaforSiden);
+      const tellerMed = gruppeBiler.filter(v => !!vehicleAktivSjafor(v.id));
+      return {kat, antallGruppe: gruppeBiler.length, antallRaaFelt: harRaaFelt.length, antallTellerMed: tellerMed.length};
+    });
+    const aktiveBiler = sortedVehicles(vehicles.filter(v => !!vehicleAktivSjafor(v.id)));
+    // Biler med RÅ felt satt, men som likevel IKKE teller med — dette er nøyaktig
+    // tilfellet du spurte om: aktivSjafor finnes, men datosjekken (aktivSjaforSiden vs.
+    // todayISO()) feiler.
+    const feilerPaaDato = vehicles.filter(v => v.aktivSjafor && v.aktivSjaforSiden && !vehicleAktivSjafor(v.id));
+    return `
+      <div class="required-hint" style="margin-bottom:14px;">Live, rå data — beregnet på nytt hver gang denne seksjonen åpnes. I dag (operativ dag): <b>${idagStr}</b>. Nettleserens klokke akkurat nå: <b>${naa.toLocaleString('nb-NO')}</b>.</div>
+
+      <div class="ov-label" style="margin-bottom:8px;">🚚 Biler i drift nå (${aktiveBiler.length})</div>
+      ${aktiveBiler.length === 0 ? `<div class="empty-note" style="margin-bottom:16px;">Ingen biler har aktiv biløkt akkurat nå.</div>` : `
+      <ul class="dmg-simple-list" style="margin-bottom:16px;">
+        ${aktiveBiler.map(v => `<li><span class="dmg-simple-main">${esc(vehicleLabel(v))} (${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}) — Aktiv sjåfør: ${esc(v.aktivSjafor)} · siden ${v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden).toLocaleString('nb-NO') : '–'}</span></li>`).join('')}
+      </ul>`}
+
+      <div class="ov-label" style="margin-bottom:8px;">Per kjøretøygruppe</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
+          <th style="padding:6px 8px;">Gruppe</th>
+          <th style="padding:6px 8px;">Antall i gruppen</th>
+          <th style="padding:6px 8px;">Har aktivSjafor+Siden satt</th>
+          <th style="padding:6px 8px;">Teller i "i drift nå"</th>
+        </tr></thead>
+        <tbody>
+          ${perKategori.map(r => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 8px;">${GRUPPE_IKON[r.kat]} ${KATEGORI_GROUP_LABEL[r.kat]}</td>
+            <td style="padding:6px 8px;">${r.antallGruppe}</td>
+            <td style="padding:6px 8px;">${r.antallRaaFelt}</td>
+            <td style="padding:6px 8px;font-weight:700;${r.antallRaaFelt !== r.antallTellerMed ? 'color:var(--red);' : ''}">${r.antallTellerMed}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+
+      ${feilerPaaDato.length > 0 ? `
+      <div class="required-hint" style="margin-bottom:8px;color:var(--red);font-weight:600;">⚠️ ${feilerPaaDato.length} bil${feilerPaaDato.length===1?'':'er'} har aktivSjafor registrert, men feiler datosjekken (telles derfor IKKE med):</div>
+      <ul class="dmg-simple-list">
+        ${feilerPaaDato.map(v => `<li><span class="dmg-simple-main">${esc(vehicleLabel(v))} (${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}) — aktivSjafor: "${esc(v.aktivSjafor)}", aktivSjaforSiden: ${esc(v.aktivSjaforSiden)} (tolkes som operativ dag ${isoDateForOperationalDay(new Date(v.aktivSjaforSiden))}, ikke dagens ${idagStr})</span></li>`).join('')}
+      </ul>` : `<div class="required-hint">Ingen biler har et registrert aktivSjafor-felt som feiler datosjekken akkurat nå.</div>`}
+    `;
+  })();
+
   const databaseBody = (() => {
     if(!dbStatusReport){
       return `
@@ -9594,6 +9648,7 @@ function renderInnstillinger(){
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
       ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
+      ${settingsAccordionRow('driftdiagnose', '🚚 Biler i drift — diagnose', null, driftDiagnoseBody)}
     </div>
   `;
 }
