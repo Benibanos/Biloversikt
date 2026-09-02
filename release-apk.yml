@@ -1,0 +1,82 @@
+name: Lag APK-utgivelse (Release)
+
+# Bygger en signert APK og publiserer den som en nedlastbar fil under
+# GitHub Releases. Trigges av å pushe en versjons-tag (f.eks. "v1.0.1"),
+# eller manuelt fra Actions-fanen ("Run workflow") med et valgfritt
+# versjonsnummer.
+#
+# Slik lager du en ny utgivelse fra kommandolinjen:
+#   git tag v1.0.1
+#   git push origin v1.0.1
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versjonsnavn (f.eks. 1.0.1)"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/googlechromelabs/bubblewrap:latest
+
+    env:
+      BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+    steps:
+      - name: Sjekk ut kode
+        uses: actions/checkout@v4
+
+      - name: Fastsett versjonsnavn
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "$DISPATCH_VERSION" ]; then
+            VERSION="$DISPATCH_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Gjenopprett signeringsnøkkel fra secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secreten KEYSTORE_BASE64 er ikke satt. Se SETUP-ANDROID-TWA.md."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android.keystore
+
+      - name: Oppdater versjon og regenerer Android-prosjektet
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: bubblewrap update --skipPwaValidation --appVersionName="$APP_VERSION"
+
+      - name: Bygg og signer APK
+        run: bubblewrap build --skipPwaValidation
+
+      - name: Gi APK-filen et lesbart navn
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: cp app-release-signed.apk "Bilpark-${APP_VERSION}.apk"
+
+      - name: Publiser GitHub Release med APK
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Bilpark v${{ steps.version.outputs.value }}"
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: Bilpark-${{ steps.version.outputs.value }}.apk
+          generate_release_notes: true

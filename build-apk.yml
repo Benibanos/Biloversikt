@@ -1,0 +1,60 @@
+name: Bygg Bilpark APK
+
+# Bygger en signert Android APK (TWA/Bubblewrap-wrapper rundt Bilpark PWA-en)
+# automatisk ved hver push til main, og laster den opp som en nedlastbar
+# byggeartefakt (30 dagers levetid) under kjøringens "Artifacts"-seksjon.
+#
+# NB: APK-en laster selve appen live fra GitHub Pages (start_url), så en
+# ny APK er kun strengt nødvendig når twa-manifest.json endres (ikoner,
+# navn, farger, package-id) — ikke ved hver index.html-endring. Denne
+# workflowen kjører likevel på enhver push til main, per eksplisitt ønske.
+#
+# For en faktisk NEDLASTBAR GITHUB RELEASE, se release-apk.yml — den
+# trigges av en versjons-tag (f.eks. "v1.0.1") i stedet.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Offisielt Bubblewrap-image: har CLI + JDK + Android SDK ferdig
+    # installert, slik at bygget kan kjøre 100% non-interaktivt i CI
+    # (unngår de kjente interaktive JDK/SDK-installasjonsspørsmålene
+    # bubblewrap ellers stiller ved første kjøring).
+    container:
+      image: ghcr.io/googlechromelabs/bubblewrap:latest
+
+    env:
+      BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+    steps:
+      - name: Sjekk ut kode
+        uses: actions/checkout@v4
+
+      - name: Gjenopprett signeringsnøkkel fra secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secreten KEYSTORE_BASE64 er ikke satt. Se SETUP-ANDROID-TWA.md for hvordan du genererer og legger inn signeringsnøkkelen."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android.keystore
+
+      - name: Generer/oppdater Android-prosjektet fra twa-manifest.json
+        run: bubblewrap update --skipPwaValidation
+
+      - name: Bygg og signer APK
+        run: bubblewrap build --skipPwaValidation
+
+      - name: Last opp APK som byggeartefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: bilpark-apk-${{ github.sha }}
+          path: app-release-signed.apk
+          retention-days: 30
+          if-no-files-found: error
