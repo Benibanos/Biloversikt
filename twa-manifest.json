@@ -1,0 +1,33 @@
+{
+  "packageId": "no.benibanos.bilpark",
+  "host": "benibanos.github.io",
+  "name": "Bilpark",
+  "launcherName": "Bilpark",
+  "display": "standalone",
+  "themeColor": "#1C2024",
+  "themeColorDark": "#1C2024",
+  "navigationColor": "#1C2024",
+  "navigationColorDark": "#1C2024",
+  "navigationDividerColor": "#1C2024",
+  "navigationDividerColorDark": "#1C2024",
+  "backgroundColor": "#EEF0F0",
+  "enableNotifications": false,
+  "startUrl": "/Biloversikt/?sjafor=1",
+  "iconUrl": "https://benibanos.github.io/Biloversikt/icons/icon-512.png",
+  "maskableIconUrl": "https://benibanos.github.io/Biloversikt/icons/icon-512-maskable.png",
+  "webManifestUrl": "https://benibanos.github.io/Biloversikt/manifest-sjafor.json",
+  "splashScreenFadeOutDuration": 300,
+  "orientation": "portrait-primary",
+  "fallbackType": "customtabs",
+  "minSdkVersion": 21,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "bilpark"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "generatorApp": "bubblewrap-cli",
+  "fingerprints": [],
+  "shortcuts": [],
+  "features": {}
+}
