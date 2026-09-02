@@ -1,5 +1,72 @@
 # Bilpark App
 
+# Ny funksjon — Rapporthub + Kilometerstandsrapport
+
+**Mål:** ett samlet sted for alle rapporter (desktop og mobil), med
+Kilometerstandsrapport som første og eneste fullt utbygde rapport i
+denne runden.
+
+## Rapporthub
+
+`renderRapporterOversikt()` restrukturert — Kilometerstandsrapport vist
+fremhevet øverst (egen full-bredde-kort), deretter Saksrapport
+(gjenbruker eksisterende `rapportType='avvik'`, ingen ny logikk) og
+Kostnadsrapport (gjenbruker `rapportType='kostnad'`) side om side,
+deretter fire "Kommer snart"-kort (Service/Dekk/EU-kontroll/
+Skaderapport — `RAPPORT_KOMMER_SNART`, ingen ny rapportlogikk bygget for
+disse ennå, kun oppført i huben). **Alle tidligere eksisterende
+rapporter er bevart** under en egen "Andre rapporter"-seksjon
+(Kontrollrapport/Bilparkrapport/Verkstedrapport/Bilhelserapport/
+Månedsrapport) — ingenting fjernet fra det som fungerte fra før.
+
+## Kilometerstandsrapport
+
+`rapportKilometerstandRader()` bruker **utelukkende `v.km`** som
+kilometerkilde — ingen servicehistorikk, verkstedhistorikk eller
+kontrollhistorikk-km brukt som kilde (samme prinsipp som den kritiske
+dataintegritetsrettingen for servicehistorikk fra forrige runde).
+Kontrolldata (Sist kontrollert/Kontrollert av) er egne, atskilte
+kolonner hentet fra `lastKontrollForVehicle()` — ikke en kilometerkilde.
+
+**Datakvalitetsstatus** (`vehicleDatakvalitetStatus()`, fem nivåer):
+🟢 Oppdatert i dag (kontrollert i dag) / 🟢 Oppdatert nylig (kontrollert
+innen `DATAKVALITET_NYLIG_GRENSE_DAGER` = 7 dager) / 🟡 Kilometerstand
+bør kontrolleres (kontrollert, men over 7 dager siden) / 🔴
+Kilometerstand mangler (`v.km` ikke satt) / 🔴 Aldri kontrollert (`v.km`
+satt, men ingen kontrollhistorikk finnes).
+
+**Filtrering:** gjenbruker de generiske Bil-/Bilgruppe-filtrene alle
+rapporter allerede deler (`rapportFilterBil`/`rapportFilterGruppe`),
+pluss et nytt, rapport-spesifikt Datakvalitet-filter
+(`rapportKmFilterDatakvalitet`, kun vist i filterpanelet når
+`rapportType === 'kilometerstand'`).
+
+**Excel-eksport** (`exportRapportExcel()`, egen gren for
+`rapportType === 'kilometerstand'`, SheetJS/xlsx.full 0.18.5):
+- Frosset overskriftsrad (`ws['!freeze']`)
+- Tusenskilletegn på Kilometerstand-kolonnen (Excel-nummerformat
+  `#,##0` satt direkte på cellene, ikke bare visuelt i appen)
+- DD.MM.YYYY-datoformat via ny, dedikert `fmtExcelDato()` — bevisst
+  IKKE en endring av appens vanlige `fmt()` (som fortsatt bruker
+  skråstrek DD/MM/ÅÅÅÅ resten av appen)
+- Automatisk kolonnebredde beregnet fra faktisk celleinnhold per
+  kolonne (inkl. overskrift), med et lite pusterom, maks 45 tegn
+
+## Navigasjon
+
+**Desktop:** "📊 Rapporter" lagt til som eget sekundært
+hovedmenypunkt i sidebaren (`renderDesktopSidebarHtml()`), atskilt fra
+"📈 Analyse" — disse to var tidligere slått sammen til én knapp
+(`analyseAktiv`), nå to uavhengige innganger som bedt om.
+
+**Mobil:** "Rapporter" fantes allerede i ☰ Meny (`drawerItemHtml`) —
+ikke lagt til som eget hjemmeskjerm-ikon, som eksplisitt ikke ønsket.
+Kun ikonet oppdatert til 📊 for visuell konsistens med desktop.
+
+---
+
+
+
 # KRITISK DATAINTEGRITETSFEIL — Servicehistorikk overskrev bilens nåværende km
 
 **Rotårsak, bekreftet ved kodegjennomgang:** `submitService()`
