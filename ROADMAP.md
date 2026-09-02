@@ -724,3 +724,27 @@ med statuslenker inn til de nye arbeidsflatene. Planleggings Service/
 Dekk-kolonner oppdatert til å peke dit i stedet for Kjøretøyprofil. Den
 midlertidige `mobilBilvalgMaal`-mekanismen fra forrige runde er fjernet.
 
+────────────────────────────
+
+✅ Ny funksjon — Rapporthub + Kilometerstandsrapport
+Nytt hovedmenypunkt "📊 Rapporter" (desktop-sidebar, atskilt fra
+Analyse; allerede i mobilens ☰ Meny fra før). Kilometerstandsrapport
+bygget som første fullstendige rapport: bruker utelukkende v.km,
+Overskrift→Filtre→Forhåndsvisning→Excel-eksport (frosset overskrift,
+tusenskilletegn, DD.MM.YYYY, automatisk kolonnebredde). Femnivås
+datakvalitetsstatus. Alle eksisterende rapporter bevart.
+
+────────────────────────────
+
+✅ Rapporthub 2.0 — alle rapporter standardisert
+Kilometerstandsrapport flyttet inn i samme flate, likeverdige rutenett
+som resten (ingen spesialbehandling). Fire nye rapporter ferdigstilt
+etter samme mal og delt infrastruktur (`rapportTabellHtml()`/
+`rapportEksporterExcel()`/delt statusfilter): Servicerapport,
+Dekkrapport, EU-kontrollrapport, Skaderapport — alle gjenbruker
+eksisterende beregningsfunksjoner uendret (ingen ny forretningslogikk).
+Skaderapport viser bildeteller (📷 N) per skade. Eksisterende rapporter
+(Saksrapport/Kostnadsrapport/Bilpark/Verksted/Bilhelse/Måned/Kontroll)
+uendret innhold, kun inkludert i samme rutenett. Ingen nye
+Airtable-tabeller, ingen ny rapportmotor.
+

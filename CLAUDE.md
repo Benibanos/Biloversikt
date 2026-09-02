@@ -1,5 +1,69 @@
 # Bilpark App
 
+# Rapporthub 2.0 — alle rapporter standardisert
+
+**Visuell opprydding:** Kilometerstandsrapport flyttet inn i samme flate
+rutenett (`dash-group-card`) som alle andre rapporter — ingen egen stor
+knapp, ingen spesialbehandling. `RAPPORT_ORDER` inneholder nå alle 12
+rapporter i den rekkefølgen som ble spesifisert; kun Månedsrapport
+beholder full bredde (2×2-nøkkeltallskort passer dårlig i en smal
+kolonne).
+
+**Delt rapportinfrastruktur** (ny, brukt av alle fem detaljerte
+rapportene): `rapportTabellHtml(header, rader)` — samme tabell-HTML for
+alle. `rapportEksporterExcel(header, rows, arkNavn, filnavn,
+tallKolonner)` — samme Excel-eksport (frosset overskrift,
+tusenskilletegn på angitte kolonner, automatisk kolonnebredde) for alle,
+bokstavelig samme kode, ikke bare samme visuelle stil. `rapportStatusFilter`
+— ETT delt statusfilter-felt, gjenbrukt av alle fem
+(`RAPPORT_STATUS_FILTER_OPTIONS` styrer hvilke alternativer som vises
+per rapporttype). Alle fem følger identisk struktur: Overskrift → Filtre
+(`rapportHeaderHtml()`, uendret) → Forhåndsvisning (`rapportTabellHtml`)
+→ Excel-eksport.
+
+**Fire nye rapporter, alle ferdigstilt:**
+- **Servicerapport** (`rapportServiceRader()`/`renderRapportService()`/
+  `eksporterRapportService()`) — gjenbruker `vehicleServiceStatus()`/
+  `vehicleSisteService()`/`vehicleNesteServiceKm()` uendret, ingen ny
+  serviceberegning.
+- **Dekkrapport** (`rapportDekkRader()`/`renderRapportDekk()`/
+  `eksporterRapportDekk()`) — gjeldende monterte dekk (`v.dekk` +
+  tilhørende DOT-kode), gjenbruker `dekkAlderStatus()` uendret. Siste
+  dekkskifte fra `dekkhistorikk`.
+- **EU-kontrollrapport** (`rapportEuKontrollRader()`/
+  `renderRapportEuKontroll()`/`eksporterRapportEuKontroll()`) —
+  gjenbruker `vehicleEuKontrollStatus()` uendret (samme fire nivåer:
+  >90/<90/<30/utløpt).
+- **Skaderapport** (`rapportSkadeRader()`/`renderRapportSkade()`/
+  `eksporterRapportSkade()`) — per skade (ikke per bil), gjenbruker
+  `damagePhotoCount()` for bildeteller-kolonnen. "Ansvarlig oppfølging"
+  hentes fra tilknyttet Aktiv Sak sitt `nextAction`-felt, via
+  `sakAvvikListe()` (samme kobling som skadebilde-galleriet allerede
+  bruker).
+
+**Kilometerstandsrapport** refaktorert til å bruke samme delte
+infrastruktur (`eksporterRapportKilometerstand()` erstatter den
+tidligere innebygde eksport-koden i `exportRapportExcel()`) — ingen
+funksjonell endring, kun konsolidert til felles mønster.
+
+**Eksisterende rapporter uendret:** Saksrapport (tidligere
+"Avviksrapport", kun relabelt), Kostnadsrapport, Bilparkrapport,
+Verkstedrapport, Bilhelserapport, Månedsrapport, Kontrollrapport —
+ingen av disse er bygget om denne runden (bevisst utenfor omfang, kun
+inkludert i det flate rutenettet visuelt).
+
+**Ferdigstilte rapporter (full Overskrift→Filtre→Forhåndsvisning→
+Excel-mal):** Kilometerstandsrapport, Servicerapport, Dekkrapport,
+EU-kontrollrapport, Skaderapport.
+
+**Bevisst IKKE gjort:** ingen nye Airtable-tabeller, ingen ny
+rapportmotor, ingen dashboard-aktig kompleksitet inni rapportene (kun
+tabellvisning + filter + eksport, som instruert).
+
+---
+
+
+
 # Ny funksjon — Rapporthub + Kilometerstandsrapport
 
 **Mål:** ett samlet sted for alle rapporter (desktop og mobil), med

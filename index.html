@@ -945,7 +945,9 @@ let rapportFilterBil = '';
 let rapportFilterGruppe = '';
 // Ny funksjon: Rapporthub + Kilometerstandsrapport — eget datakvalitetsfilter (i tillegg
 // til de generiske Bil/Bilgruppe-filtrene alle rapporter allerede deler).
-let rapportKmFilterDatakvalitet = '';
+// Rapporthub 2.0: ETT delt statusfilter, gjenbrukt av alle fem detaljerte rapportene
+// (kilometerstand/service/dekk/eukontroll/skade) — se RAPPORT_STATUS_FILTER_OPTIONS.
+let rapportStatusFilter = '';
 
 // ---- Fase 9 (Analyse og Prediktiv Oppfølging) ----
 let analyseType = ''; // '' (kortoversikt) | 'gjentakende' | 'bilanalyse' | 'verkstedtrender' | 'sakstyper' | 'behandlingstid' | 'utvikling'
@@ -8440,9 +8442,9 @@ function kostCardHtml(icon, label, verdi, storFont){
 // Viktig prinsipp: rapportene er rene VISNINGER av eksisterende data (Aktive Saker,
 // Kontroller, Verksted, Skader, Kostnader, Bilstatus) — ingen egne rapporttabeller,
 // ingen parallelle datastrukturer, og det operative Dashboardet er urørt.
-const RAPPORT_ORDER = ['kilometerstand', 'kontroll', 'bilpark', 'verksted', 'avvik', 'bilhelse', 'kostnad'];
-const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', kontroll:'Kontrollrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', avvik:'Avviksrapport', bilhelse:'Bilhelserapport', kostnad:'Kostnadsrapport', maned:'Månedsrapport'};
-const RAPPORT_IKON = {kilometerstand:'🚚', kontroll:'📋', bilpark:'🚗', verksted:'🔧', avvik:'🚨', bilhelse:'📈', kostnad:'💰', maned:'🗓️'};
+const RAPPORT_ORDER = ['kilometerstand', 'service', 'dekk', 'eukontroll', 'skade', 'avvik', 'kostnad', 'bilpark', 'verksted', 'bilhelse', 'maned', 'kontroll'];
+const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', service:'Servicerapport', dekk:'Dekkrapport', eukontroll:'EU-kontrollrapport', skade:'Skaderapport', avvik:'Saksrapport', kostnad:'Kostnadsrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', bilhelse:'Bilhelserapport', maned:'Månedsrapport', kontroll:'Kontrollrapport'};
+const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', skade:'🚨', avvik:'📋', kostnad:'💰', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
 const RAPPORT_PERIODE_LABEL = {'':'Alle', 'denne-maned':'Denne måneden', 'forrige-maned':'Forrige måned', 'dette-aret':'Dette året'};
 
 function goToRapport(type){
@@ -8480,11 +8482,63 @@ function rapportVehicleMatch(vehicleId){
 }
 function rapportRelevanteBiler(){ return vehicles.filter(v => rapportVehicleMatch(v.id)); }
 
-// ---- Ny funksjon: Rapporthub + Kilometerstandsrapport ----
-// Kilometerstandsrapport bruker UTELUKKENDE v.km som autoritativ kilometerkilde — aldri
-// servicehistorikk, verkstedhistorikk eller kontrollhistorikk sin km (samme prinsipp som
-// den kritiske dataintegritetsrettingen for servicehistorikk). Kontroll-relatert data
-// (Sist kontrollert/Kontrollert av) er egne, atskilte kolonner — ikke en kilometerkilde.
+// ================= Rapportstandard (Rapporthub 2.0) =================
+// Alle detaljerte rapporter (Kilometerstand/Service/Dekk/EU-kontroll/Skade) bygges etter
+// samme mal: Overskrift → Filtre → Forhåndsvisning → Excel-eksport. Delt tabell-HTML og
+// delt Excel-eksport her sikrer at "samme layout/samme design/samme Excel-eksport" er
+// bokstavelig sant (samme kode), ikke bare visuelt like implementasjoner.
+function rapportTabellHtml(header, rader){
+  return `
+    <div class="panel" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;">
+        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
+          ${header.map(h => `<th style="padding:8px 10px;">${esc(h)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${rader.length === 0 ? `<tr><td colspan="${header.length}" style="padding:16px 10px;"><div class="empty-note">Ingen data matcher gjeldende filter.</div></td></tr>` : rader.map(r => `
+          <tr style="border-bottom:1px solid var(--line);${r.vehicleId ? 'cursor:pointer;' : ''}" ${r.vehicleId ? `data-goto-bilkort="${r.vehicleId}"` : ''}>
+            ${r.cells.map(c => `<td style="padding:8px 10px;">${c}</td>`).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+// Delt Excel-eksport — frosset overskriftsrad, tusenskilletegn på angitte tallkolonner,
+// automatisk kolonnebredde fra faktisk innhold. Samme kode for alle rapporter, ikke bare
+// samme visuelle stil.
+function rapportEksporterExcel(header, aoRows, arkNavn, filnavn, tallKolonner){
+  const ws = XLSX.utils.aoa_to_sheet([header, ...aoRows]);
+  (tallKolonner || []).forEach(ci => {
+    for(let i = 0; i < aoRows.length; i++){
+      const celle = ws[XLSX.utils.encode_cell({r: i+1, c: ci})];
+      if(celle) celle.z = '#,##0';
+    }
+  });
+  ws['!freeze'] = {xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen'};
+  ws['!cols'] = header.map((h, ci) => {
+    const lengder = [String(h).length, ...aoRows.map(r => String(r[ci] === null || r[ci] === undefined ? '' : r[ci]).length)];
+    return {wch: Math.min(Math.max(...lengder) + 2, 45)};
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, arkNavn);
+  XLSX.writeFile(wb, filnavn);
+}
+// Generisk statusfilter — ETT delt state-felt, gjenbrukt av alle fem detaljerte
+// rapportene (betydningen av verdiene avhenger av rapportType). "Samme filterlinje" for
+// alle, i stedet for ett eget filterfelt per rapport.
+const RAPPORT_STATUS_FILTER_OPTIONS = {
+  kilometerstand: {'':'Alle', idag:'🟢 Oppdatert i dag', nylig:'🟢 Oppdatert nylig', 'bor-kontrolleres':'🟡 Bør kontrolleres', mangler:'🔴 Kilometerstand mangler', aldri:'🔴 Aldri kontrollert'},
+  service: {'':'Alle', ok:'🟢 OK', 'snart-gul':'🟡 Nærmer seg', 'snart-rod':'🔴 Snart forfall', forfalt:'🔴 Forfalt', ukjent:'⚪ Intervall ikke satt'},
+  dekk: {'':'Alle', ok:'🟢 Under 3 år', aldring:'🟡 3–5 år', gammel:'🔴 Over 5 år', ukjent:'⚪ DOT ikke registrert'},
+  eukontroll: {'':'Alle', ok:'🟢 Mer enn 90 dager', 'snart-gul':'🟡 Under 90 dager', 'snart-rod':'🔴 Under 30 dager', forfalt:'🔴 Utløpt', ukjent:'⚪ Ikke registrert'},
+  skade: {'':'Alle', registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'}
+};
+
+// ---- Kilometerstandsrapport ----
+// Bruker UTELUKKENDE v.km som autoritativ kilometerkilde — aldri servicehistorikk,
+// verkstedhistorikk eller kontrollhistorikk sin km. Kontroll-relatert data (Sist
+// kontrollert/Kontrollert av) er egne, atskilte kolonner — ikke en kilometerkilde.
 const DATAKVALITET_NYLIG_GRENSE_DAGER = 7; // "oppdatert nylig"-terskel: innen 7 dager
 function vehicleDatakvalitetStatus(v){
   if(!v.km) return {status:'mangler', ikon:'🔴', tekst:'Kilometerstand mangler'};
@@ -8500,59 +8554,204 @@ function rapportKilometerstandRader(){
     .map(v => {
       const sisteKontroll = lastKontrollForVehicle(v.id);
       return {
-        v,
-        bilnummer: v.bilnummer || '',
-        regnr: v.regnr || '',
-        kategori: v.kategori,
-        km: v.km || null,
+        v, bilnummer: v.bilnummer || '', regnr: v.regnr || '', kategori: v.kategori, km: v.km || null,
         datoSisteKmRegistrering: sisteKontroll ? sisteKontroll.dato : null, // v.km oppdateres kun via kontroll — se submitKontroll()
         sistKontrollert: sisteKontroll ? sisteKontroll.dato : null,
         kontrollertAv: sisteKontroll ? sisteKontroll.sjafor : '',
-        aktivSjafor: vehicleSisteSjafor(v.id),
-        operativStatus: vehicleHovedstatus(v.id),
+        aktivSjafor: vehicleSisteSjafor(v.id), operativStatus: vehicleHovedstatus(v.id),
         datakvalitet: vehicleDatakvalitetStatus(v)
       };
     })
-    .filter(r => !rapportKmFilterDatakvalitet || r.datakvalitet.status === rapportKmFilterDatakvalitet);
+    .filter(r => !rapportStatusFilter || r.datakvalitet.status === rapportStatusFilter);
 }
 function renderRapportKilometerstand(){
   const rader = rapportKilometerstandRader();
+  const header = ['Bilnummer', 'Reg.nr', 'Bilgruppe', 'Kilometerstand', 'Sist km-registrering', 'Sist kontrollert', 'Kontrollert av', 'Aktiv sjåfør', 'Operativ status', 'Datakvalitet'];
   return `
     ${rapportHeaderHtml()}
     <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy. Kilometerstand hentes utelukkende fra kjøretøyets registrerte km (v.km) — ikke fra service- eller verkstedhistorikk.</div>
-    <div class="panel" style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;">
-        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
-          <th style="padding:8px 10px;">Bilnummer</th>
-          <th style="padding:8px 10px;">Reg.nr</th>
-          <th style="padding:8px 10px;">Bilgruppe</th>
-          <th style="padding:8px 10px;">Kilometerstand</th>
-          <th style="padding:8px 10px;">Sist km-registrering</th>
-          <th style="padding:8px 10px;">Sist kontrollert</th>
-          <th style="padding:8px 10px;">Kontrollert av</th>
-          <th style="padding:8px 10px;">Aktiv sjåfør</th>
-          <th style="padding:8px 10px;">Operativ status</th>
-          <th style="padding:8px 10px;">Datakvalitet</th>
-        </tr></thead>
-        <tbody>
-          ${rader.length === 0 ? `<tr><td colspan="10" style="padding:16px 10px;"><div class="empty-note">Ingen kjøretøy matcher gjeldende filter.</div></td></tr>` : rader.map(r => `
-          <tr style="border-bottom:1px solid var(--line);cursor:pointer;" data-goto-bilkort="${r.v.id}">
-            <td style="padding:8px 10px;">${esc(r.bilnummer)}</td>
-            <td style="padding:8px 10px;">${esc(r.regnr)}</td>
-            <td style="padding:8px 10px;">${GRUPPE_IKON[r.kategori]||''} ${KATEGORI_GROUP_LABEL[r.kategori]||r.kategori}</td>
-            <td style="padding:8px 10px;font-weight:700;">${r.km ? Number(r.km).toLocaleString('nb-NO') + ' km' : '–'}</td>
-            <td style="padding:8px 10px;">${r.datoSisteKmRegistrering ? fmt(r.datoSisteKmRegistrering) : '–'}</td>
-            <td style="padding:8px 10px;">${r.sistKontrollert ? fmt(r.sistKontrollert) : '–'}</td>
-            <td style="padding:8px 10px;">${esc(r.kontrollertAv || '–')}</td>
-            <td style="padding:8px 10px;">${r.aktivSjafor ? esc(r.aktivSjafor) : '–'}</td>
-            <td style="padding:8px 10px;">${HOVEDSTATUS_IKON[r.operativStatus]||''} ${HOVEDSTATUS_LABEL[r.operativStatus]||r.operativStatus}</td>
-            <td style="padding:8px 10px;">${r.datakvalitet.ikon} ${r.datakvalitet.tekst}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
+      esc(r.bilnummer), esc(r.regnr), (GRUPPE_IKON[r.kategori]||'') + ' ' + (KATEGORI_GROUP_LABEL[r.kategori]||r.kategori),
+      `<b>${r.km ? Number(r.km).toLocaleString('nb-NO') + ' km' : '–'}</b>`,
+      r.datoSisteKmRegistrering ? fmt(r.datoSisteKmRegistrering) : '–', r.sistKontrollert ? fmt(r.sistKontrollert) : '–',
+      esc(r.kontrollertAv || '–'), r.aktivSjafor ? esc(r.aktivSjafor) : '–',
+      (HOVEDSTATUS_IKON[r.operativStatus]||'') + ' ' + (HOVEDSTATUS_LABEL[r.operativStatus]||r.operativStatus),
+      r.datakvalitet.ikon + ' ' + r.datakvalitet.tekst
+    ]}))) }
   `;
 }
+function eksporterRapportKilometerstand(){
+  const rader = rapportKilometerstandRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'Bilgruppe', 'Kilometerstand', 'Dato for siste kilometerregistrering', 'Sist kontrollert', 'Kontrollert av', 'Aktiv sjåfør', 'Operativ status', 'Datakvalitetsstatus'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, KATEGORI_GROUP_LABEL[r.kategori] || r.kategori, r.km || 0,
+    fmtExcelDato(r.datoSisteKmRegistrering), fmtExcelDato(r.sistKontrollert), r.kontrollertAv || '', r.aktivSjafor || '',
+    HOVEDSTATUS_LABEL[r.operativStatus] || r.operativStatus, r.datakvalitet.ikon + ' ' + r.datakvalitet.tekst
+  ]);
+  rapportEksporterExcel(header, rows, 'Kilometerstandsrapport', 'Kilometerstandsrapport_Eksport.xlsx', [3]);
+}
+
+// ---- Servicerapport ----
+// Datakilde: servicehistorikk (siste service) + v.serviceIntervallKm + v.km. Samme
+// vehicleServiceStatus()/vehicleSisteService()/vehicleNesteServiceKm() som resten av
+// appen (Operativ status/Planlegging/Dashboard) — ingen ny serviceberegning.
+function rapportServiceRader(){
+  return sortedVehicles(rapportRelevanteBiler())
+    .map(v => {
+      const siste = vehicleSisteService(v.id);
+      const status = vehicleServiceStatus(v);
+      return {
+        v, bilnummer: v.bilnummer || '', regnr: v.regnr || '',
+        sisteServiceDato: siste ? siste.dato : null, sisteServiceKm: siste ? siste.km : null,
+        intervall: v.serviceIntervallKm || null, nesteKm: vehicleNesteServiceKm(v.id, v),
+        status, verksted: siste ? siste.verksted : '', kommentar: siste ? siste.kommentar : ''
+      };
+    })
+    .filter(r => !rapportStatusFilter || r.status.status === rapportStatusFilter);
+}
+function renderRapportService(){
+  const rader = rapportServiceRader();
+  const header = ['Bilnummer', 'Reg.nr', 'Siste service', 'Serviceintervall', 'Neste service', 'Km igjen', 'Serviceindikator', 'Verksted', 'Kommentar'];
+  return `
+    ${rapportHeaderHtml()}
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy.</div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
+      esc(r.bilnummer), esc(r.regnr),
+      r.sisteServiceDato ? fmt(r.sisteServiceDato) + ' — ' + Number(r.sisteServiceKm).toLocaleString('nb-NO') + ' km' : 'Ingen registrert',
+      r.intervall ? Number(r.intervall).toLocaleString('nb-NO') + ' km' : 'Ikke satt',
+      r.nesteKm !== null ? Number(r.nesteKm).toLocaleString('nb-NO') + ' km' : '–',
+      r.status.gjenstaende !== undefined && r.status.gjenstaende !== null ? Number(r.status.gjenstaende).toLocaleString('nb-NO') + ' km' : '–',
+      r.status.ikon + ' ' + r.status.tekst, esc(r.verksted || '–'), esc(r.kommentar || '–')
+    ]}))) }
+  `;
+}
+function eksporterRapportService(){
+  const rader = rapportServiceRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'Siste service dato', 'Siste service km', 'Serviceintervall', 'Neste service', 'Km igjen', 'Serviceindikator', 'Verksted', 'Kommentar'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, fmtExcelDato(r.sisteServiceDato), r.sisteServiceKm || 0, r.intervall || 0,
+    r.nesteKm || 0, (r.status.gjenstaende !== undefined && r.status.gjenstaende !== null) ? r.status.gjenstaende : 0,
+    r.status.ikon + ' ' + r.status.tekst, r.verksted || '', r.kommentar || ''
+  ]);
+  rapportEksporterExcel(header, rows, 'Servicerapport', 'Servicerapport_Eksport.xlsx', [3,4,5,6]);
+}
+
+// ---- Dekkrapport ----
+// Datakilde: gjeldende monterte dekk (v.dekk + sommerdekkDot/vinterdekkDot) og
+// dekkhistorikk (siste skifte). Samme dekkAlderStatus() som Kjøretøyprofil/Dekk-skjermen.
+function rapportDekkRader(){
+  return sortedVehicles(rapportRelevanteBiler())
+    .map(v => {
+      const sesong = v.dekk === 'vinter' ? 'vinter' : (v.dekk === 'sommer' ? 'sommer' : null);
+      const dot = sesong === 'vinter' ? v.vinterdekkDot : (sesong === 'sommer' ? v.sommerdekkDot : null);
+      const status = dot ? dekkAlderStatus(dot) : null;
+      const sisteSkifte = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato))[0] || null;
+      let datakvalitet;
+      if(!v.dekk) datakvalitet = {status:'ukjent', ikon:'🔴', tekst:'Dekktype ikke satt'};
+      else if(!dot) datakvalitet = {status:'ukjent', ikon:'🟡', tekst:'DOT-kode mangler'};
+      else datakvalitet = {status: status.status, ikon:'🟢', tekst:'Registrert'};
+      return {
+        v, bilnummer: v.bilnummer || '', regnr: v.regnr || '', dekktype: DEKK_LABEL[v.dekk] || 'Ikke satt',
+        sisteSkifteDato: sisteSkifte ? sisteSkifte.dato : null, status, datakvalitet
+      };
+    })
+    .filter(r => !rapportStatusFilter || (r.status ? r.status.status === rapportStatusFilter : rapportStatusFilter === 'ukjent'));
+}
+function renderRapportDekk(){
+  const rader = rapportDekkRader();
+  const header = ['Bilnummer', 'Reg.nr', 'Dekktype', 'Siste dekkskifte', 'Dekkstatus', 'Alder', 'Datakvalitet'];
+  return `
+    ${rapportHeaderHtml()}
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy.</div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
+      esc(r.bilnummer), esc(r.regnr), esc(r.dekktype), r.sisteSkifteDato ? fmt(r.sisteSkifteDato) : 'Ingen registrert',
+      r.status ? r.status.ikon + ' ' + r.status.tekst : '⚪ Ukjent', r.status ? r.status.tekst : '–',
+      r.datakvalitet.ikon + ' ' + r.datakvalitet.tekst
+    ]}))) }
+  `;
+}
+function eksporterRapportDekk(){
+  const rader = rapportDekkRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'Dekktype', 'Siste dekkskifte', 'Dekkstatus', 'Alder', 'Datakvalitet'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, r.dekktype, fmtExcelDato(r.sisteSkifteDato),
+    r.status ? r.status.ikon + ' ' + r.status.tekst : 'Ukjent', r.status ? r.status.tekst : '–',
+    r.datakvalitet.ikon + ' ' + r.datakvalitet.tekst
+  ]);
+  rapportEksporterExcel(header, rows, 'Dekkrapport', 'Dekkrapport_Eksport.xlsx', []);
+}
+
+// ---- EU-kontrollrapport ----
+// Samme vehicleEuKontrollStatus() (fire nivåer) som Operativ status/Planlegging.
+function rapportEuKontrollRader(){
+  return sortedVehicles(rapportRelevanteBiler())
+    .map(v => ({v, bilnummer: v.bilnummer || '', regnr: v.regnr || '', euGodkjentTil: v.euGodkjentTil || null, status: vehicleEuKontrollStatus(v)}))
+    .filter(r => !rapportStatusFilter || r.status.status === rapportStatusFilter);
+}
+function renderRapportEuKontroll(){
+  const rader = rapportEuKontrollRader();
+  const header = ['Bilnummer', 'Reg.nr', 'EU-godkjent til', 'Dager igjen', 'Status'];
+  return `
+    ${rapportHeaderHtml()}
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy.</div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
+      esc(r.bilnummer), esc(r.regnr), r.euGodkjentTil ? fmt(r.euGodkjentTil) : 'Mangler registrering',
+      r.status.gjenstaende !== undefined && r.status.gjenstaende !== null ? r.status.gjenstaende + ' dager' : '–',
+      r.status.ikon + ' ' + r.status.tekst
+    ]}))) }
+  `;
+}
+function eksporterRapportEuKontroll(){
+  const rader = rapportEuKontrollRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'EU-godkjent til', 'Dager igjen', 'Status'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, fmtExcelDato(r.euGodkjentTil),
+    (r.status.gjenstaende !== undefined && r.status.gjenstaende !== null) ? r.status.gjenstaende : '',
+    r.status.ikon + ' ' + r.status.tekst
+  ]);
+  rapportEksporterExcel(header, rows, 'EU-kontrollrapport', 'EU-kontrollrapport_Eksport.xlsx', [3]);
+}
+
+// ---- Skaderapport ----
+// Datakilde: damages (per skade, ikke per bil). "Ansvarlig oppfølging" hentes fra den
+// tilknyttede Aktive Sak sitt nextAction-felt, når en slik sak finnes (samme kobling som
+// sakAvvikListe()/sakSkadeDamages() allerede bruker for skadebilder — se Historikk-huben).
+function rapportSkadeRader(){
+  let liste = damages.filter(d => rapportVehicleMatch(d.vehicleId));
+  if(rapportStatusFilter) liste = liste.filter(d => d.status === rapportStatusFilter);
+  return liste.slice().sort((a,b) => (b.dato||'').localeCompare(a.dato||'')).map(d => {
+    const v = vehicles.find(x => x.id === d.vehicleId);
+    const sak = aktiveSaker.find(s => sakAvvikListe(s).some(a => a.caseType === 'skade' && a.sourceId === d.id));
+    return {
+      d, v, bilnummer: v ? v.bilnummer : '', regnr: v ? v.regnr : '',
+      skadetype: d.beskrivelse, dato: d.dato, status: d.status, alvorlighet: d.alvorlighet,
+      bilderCount: damagePhotoCount(d), ansvarlig: sak ? (sak.nextAction || '') : ''
+    };
+  });
+}
+function renderRapportSkade(){
+  const rader = rapportSkadeRader();
+  const header = ['Bilnummer', 'Reg.nr', 'Skadetype', 'Registrert dato', 'Status', 'Prioritet', 'Bilder', 'Ansvarlig oppfølging'];
+  return `
+    ${rapportHeaderHtml()}
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} skader.</div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v ? r.v.id : null, cells: [
+      esc(r.bilnummer), esc(r.regnr), esc(r.skadetype), r.dato ? fmt(r.dato) : '–',
+      SKADE_STATUS_LABEL[r.status] || r.status, ALVOR_LABEL[r.alvorlighet] || '–',
+      r.bilderCount > 0 ? '📷 ' + r.bilderCount : '–', esc(r.ansvarlig || '–')
+    ]}))) }
+  `;
+}
+function eksporterRapportSkade(){
+  const rader = rapportSkadeRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'Skadetype', 'Registrert dato', 'Status', 'Prioritet', 'Antall bilder', 'Ansvarlig oppfølging'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, r.skadetype, fmtExcelDato(r.dato), SKADE_STATUS_LABEL[r.status] || r.status,
+    ALVOR_LABEL[r.alvorlighet] || '', r.bilderCount, r.ansvarlig || ''
+  ]);
+  rapportEksporterExcel(header, rows, 'Skaderapport', 'Skaderapport_Eksport.xlsx', [6]);
+}
+
 
 function rapportKontrollData(){
   const range = rapportPeriodeRange(rapportFilterPeriode);
@@ -8659,37 +8858,11 @@ function rapportTabellRad(label, verdi){
 }
 function exportRapportExcel(){
   let header, rows, arkNavn, filnavn;
-  if(rapportType === 'kilometerstand'){
-    const rader = rapportKilometerstandRader();
-    header = ['Bilnummer', 'Registreringsnummer', 'Bilgruppe', 'Kilometerstand', 'Dato for siste kilometerregistrering', 'Sist kontrollert', 'Kontrollert av', 'Aktiv sjåfør', 'Operativ status', 'Datakvalitetsstatus'];
-    rows = rader.map(r => [
-      r.bilnummer, r.regnr, KATEGORI_GROUP_LABEL[r.kategori] || r.kategori,
-      r.km || 0, fmtExcelDato(r.datoSisteKmRegistrering), fmtExcelDato(r.sistKontrollert),
-      r.kontrollertAv || '', r.aktivSjafor || '', HOVEDSTATUS_LABEL[r.operativStatus] || r.operativStatus,
-      r.datakvalitet.ikon + ' ' + r.datakvalitet.tekst
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    // Tusenskilletegn på Kilometerstand-kolonnen (D, indeks 3) — nummerformat med
-    // mellomrom som tusenskille (norsk format), samme visuelle stil som resten av appen
-    // (Number(...).toLocaleString('nb-NO')).
-    for(let i = 0; i < rows.length; i++){
-      const celle = ws[XLSX.utils.encode_cell({r: i+1, c: 3})];
-      if(celle) celle.z = '#,##0';
-    }
-    // Frosset overskriftsrad (SheetJS CE, xlsx.full 0.18.x) — rad 1 forblir synlig ved
-    // scrolling. Automatisk kolonnebredde beregnet fra faktisk innhold i hver kolonne
-    // (inkl. overskriften), med et lite pusterom — "profesjonelt og enkelt", ingen
-    // overflødig styling utover det som faktisk gir lesbarhet (Less Is More).
-    ws['!freeze'] = {xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen'};
-    ws['!cols'] = header.map((h, ci) => {
-      const lengder = [String(h).length, ...rows.map(r => String(r[ci] === null || r[ci] === undefined ? '' : r[ci]).length)];
-      return {wch: Math.min(Math.max(...lengder) + 2, 45)};
-    });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Kilometerstandsrapport');
-    XLSX.writeFile(wb, 'Kilometerstandsrapport_Eksport.xlsx');
-    return;
-  }
+  if(rapportType === 'kilometerstand'){ eksporterRapportKilometerstand(); return; }
+  if(rapportType === 'service'){ eksporterRapportService(); return; }
+  if(rapportType === 'dekk'){ eksporterRapportDekk(); return; }
+  if(rapportType === 'eukontroll'){ eksporterRapportEuKontroll(); return; }
+  if(rapportType === 'skade'){ eksporterRapportSkade(); return; }
   if(rapportType === 'kontroll'){
     const d = rapportKontrollData();
     header = ['Bil', 'Antall kontroller'];
@@ -8754,7 +8927,7 @@ function exportRapportExcel(){
 }
 
 function rapportFilterPanelHtml(){
-  const DATAKVALITET_FILTER_LABEL = {'':'Alle', idag:'🟢 Oppdatert i dag', nylig:'🟢 Oppdatert nylig', 'bor-kontrolleres':'🟡 Bør kontrolleres', mangler:'🔴 Kilometerstand mangler', aldri:'🔴 Aldri kontrollert'};
+  const statusAlternativer = RAPPORT_STATUS_FILTER_OPTIONS[rapportType];
   return `
     <div class="panel" style="margin-bottom:16px;">
       <div class="row3">
@@ -8776,11 +8949,11 @@ function rapportFilterPanelHtml(){
           </select>
         </div>
       </div>
-      ${rapportType === 'kilometerstand' ? `
+      ${statusAlternativer ? `
       <div class="row3" style="margin-top:12px;">
-        <div class="field"><label>Datakvalitet</label>
-          <select id="rapport-f-datakvalitet">
-            ${Object.keys(DATAKVALITET_FILTER_LABEL).map(k => `<option value="${k}" ${rapportKmFilterDatakvalitet===k?'selected':''}>${DATAKVALITET_FILTER_LABEL[k]}</option>`).join('')}
+        <div class="field"><label>Status</label>
+          <select id="rapport-f-status">
+            ${Object.keys(statusAlternativer).map(k => `<option value="${k}" ${rapportStatusFilter===k?'selected':''}>${statusAlternativer[k]}</option>`).join('')}
           </select>
         </div>
       </div>` : ''}
@@ -8788,7 +8961,7 @@ function rapportFilterPanelHtml(){
   `;
 }
 function rapportHeaderHtml(){
-  const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (rapportType === 'kilometerstand' && rapportKmFilterDatakvalitet ? 1 : 0);
+  const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (RAPPORT_STATUS_FILTER_OPTIONS[rapportType] && rapportStatusFilter ? 1 : 0);
   return `
     <div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
@@ -9004,43 +9177,16 @@ function attachKostnadsoversiktListeners(){
 }
 
 // ================= scrRapporter (Fase 8) =================
-// Ny funksjon: Rapporthub — plasseringer som IKKE har egen full rapport ennå ("Andre
-// fremtidige rapporter"). Underliggende data (service/dekk/EU-kontroll/skader) finnes
-// allerede i appen (se Service-/Dekk-skjermene, Historikk-huben, Skadehistorikk) — dette
-// er bevisst KUN ekstra innganger i selve rapporthuben, ingen ny rapportlogikk bygget nå.
-const RAPPORT_KOMMER_SNART = [
-  {ikon:'🔧', tittel:'Servicerapport'},
-  {ikon:'🛞', tittel:'Dekkrapport'},
-  {ikon:'📅', tittel:'EU-kontrollrapport'},
-  {ikon:'🚨', tittel:'Skaderapport'}
-];
+// Rapporthub 2.0: alle rapporter er likeverdige i ETT flatt rutenett — ingen
+// spesialbehandling, ingen egen stor knapp, ingen "kommer snart"-skille. Månedsrapport
+// beholder sin fulle-bredde-visning (2×2-nøkkeltallskort passer dårlig i en smal kolonne),
+// ellers identisk kortstil for samtlige.
 function renderRapporterOversikt(){
   return `
     ${rapportHeaderHtml()}
     <div class="required-hint" style="margin-bottom:16px;">Rapportene er visninger av samme data som resten av appen — ingen egne rapporttabeller. Den operative hverdagen på Dashboard, Aktive Saker og Verkstedoversikt er uendret.</div>
-
-    <div class="panel dash-group-card" style="cursor:pointer;margin-bottom:16px;border-color:var(--chrome-bg);" data-goto-rapport="kilometerstand">
-      <div class="group-card-title">${RAPPORT_IKON.kilometerstand} ${RAPPORT_LABEL.kilometerstand}</div>
-      <div class="group-card-sub">Nåværende kilometerstand for hele flåten, med datakvalitetsstatus — klar til Excel-eksport</div>
-    </div>
-
-    <div class="dash-group-grid" style="margin-bottom:8px;">
-      <div class="panel dash-group-card" style="cursor:pointer;" data-goto-rapport="avvik">
-        <div class="group-card-title">📋 Saksrapport</div>
-      </div>
-      <div class="panel dash-group-card" style="cursor:pointer;" data-goto-rapport="kostnad">
-        <div class="group-card-title">${RAPPORT_IKON.kostnad} ${RAPPORT_LABEL.kostnad}</div>
-      </div>
-      ${RAPPORT_KOMMER_SNART.map(r => `
-      <div class="panel dash-group-card" style="opacity:.55;">
-        <div class="group-card-title">${r.ikon} ${r.tittel}</div>
-        <div class="group-card-sub">Kommer snart</div>
-      </div>`).join('')}
-    </div>
-
-    <div class="ov-label" style="margin:20px 0 10px;">Andre rapporter</div>
     <div class="dash-group-grid">
-      ${['kontroll','bilpark','verksted','bilhelse'].map(t => `
+      ${RAPPORT_ORDER.filter(t => t !== 'maned').map(t => `
       <div class="panel dash-group-card" style="cursor:pointer;" data-goto-rapport="${t}">
         <div class="group-card-title">${RAPPORT_IKON[t]} ${RAPPORT_LABEL[t]}</div>
       </div>`).join('')}
@@ -9178,6 +9324,10 @@ function renderRapportManed(){
 }
 function renderRapporter(){
   if(rapportType === 'kilometerstand') return renderRapportKilometerstand();
+  if(rapportType === 'service') return renderRapportService();
+  if(rapportType === 'dekk') return renderRapportDekk();
+  if(rapportType === 'eukontroll') return renderRapportEuKontroll();
+  if(rapportType === 'skade') return renderRapportSkade();
   if(rapportType === 'kontroll') return renderRapportKontroll();
   if(rapportType === 'bilpark') return renderRapportBilpark();
   if(rapportType === 'verksted') return renderRapportVerksted();
@@ -9204,8 +9354,8 @@ function attachRapporterListeners(){
   if(fBil) fBil.addEventListener('change', e => { rapportFilterBil = e.target.value; render(); });
   const fGruppe = document.getElementById('rapport-f-gruppe');
   if(fGruppe) fGruppe.addEventListener('change', e => { rapportFilterGruppe = e.target.value; render(); });
-  const fDatakvalitet = document.getElementById('rapport-f-datakvalitet');
-  if(fDatakvalitet) fDatakvalitet.addEventListener('change', e => { rapportKmFilterDatakvalitet = e.target.value; render(); });
+  const fStatus = document.getElementById('rapport-f-status');
+  if(fStatus) fStatus.addEventListener('change', e => { rapportStatusFilter = e.target.value; render(); });
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
 }
 

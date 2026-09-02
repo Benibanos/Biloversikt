@@ -289,6 +289,30 @@ Regler:
 
 ---
 
+# Rapporthub
+
+Ett samlet sted for alle rapporter — desktop og mobil.
+
+Alle rapporter er likeverdige.
+
+Ingen spesialbehandling, ingen egen stor knapp.
+
+Hver rapport svarer på ett spørsmål:
+
+"Hva er status på dette området akkurat nå?"
+
+Ikke analyse.
+
+Ikke historikkmotor.
+
+Ikke et eget dashboard inni rapporten.
+
+Alle rapporter følger samme oppskrift:
+
+Overskrift → Filtre → Forhåndsvisning → Excel-eksport.
+
+---
+
 # Teknologi
 
 Frontend:
