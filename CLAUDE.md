@@ -1,5 +1,76 @@
 # Bilpark App
 
+# Prioritet 27.4 — Dypere feilsøking: Driftslag + Database status
+
+## Funn — går utover "lagringskoden ser riktig ut"
+
+**Nøkkelinnsikt:** Airtable **avviser hele skrivingen** med en feil
+dersom et sendt feltnavn ikke finnes som kolonne i tabellen — feltet
+blir IKKE stille ignorert på Airtable-siden. Dette betyr: hadde
+`Driftslag`-kolonnen faktisk manglet i Airtable mens den oppdaterte
+`storage_airtable.js` var i bruk, ville HELE bil-lagringen feilet
+synlig (ikke bare Driftslag) — noe som ikke er rapportert.
+
+**Mest sannsynlige rotårsak, gitt dette:** den kjørende appen bruker
+fortsatt en ELDRE versjon av `storage_airtable.js`, uten
+`driftslag`-mappingen. Dette forklarer BEGGE symptomene med én enkelt
+årsak:
+1. Feltet sendes aldri til Airtable (gammel fil kjenner ikke
+   `driftslag` i det hele tatt) — ingen feil, bare stille tap, samme
+   mønster som Service/EU-kontroll-feilen tidligere.
+2. Database status kan umulig varsle om et felt den ikke vet skal
+   finnes — `EXPECTED_SCHEMA` bygges automatisk fra SAMME, utdaterte
+   `LIST_TABLES`-objekt.
+
+**Mulig medvirkende årsak, ikke verifiserbar herfra:** appen har en
+service worker ("Oppdater app" i Systeminnstillinger nevner eksplisitt
+at den styrer nettopp dette). Dersom `storage_airtable.js` inngår i
+service workerens cache, kan en ny opplasting til serveren likevel bli
+overstyrt av en gammel, cachet kopi i nettleseren helt til enten
+CACHE_VERSION økes i `sw.js` (ikke en del av Claudes prosjektfiler) eller
+brukeren eksplisitt kjører "Oppdater app".
+
+## Løsning — filversjonsmarkør (ny, konkret diagnostikk)
+
+`storage_airtable.js` eksponerer nå `window.storageAirtableInfo =
+{versjon, vehiclesFelt}` rett ved siden av `window.storage`. Database
+status viser dette FØRST, øverst av alt: versjonsstreng + eksplisitt
+🟢/🔴 på "Driftslag-felt kjent av filen?" — et umiddelbart, utvetydig
+svar på om riktig fil faktisk kjører, uten å måtte gjette eller sjekke
+opplastingstidspunkt manuelt. Vises rødt med tydelig forklaring og
+konkret handling ("last opp på nytt + kjør Oppdater app") dersom feltet
+mangler.
+
+## Full svarrekke (som etterspurt)
+
+1. **Finnes Driftslag-kolonnen i Airtable?** Ikke verifiserbart uten
+   direkte databasetilgang — men sannsynligvis irrelevant, se punkt 4.
+2. **Sendes Driftslag i payload?** Eksakt feltnavn sendt:
+   `Driftslag` (fra `toAirtableFields()`, `out['Driftslag'] =
+   item.driftslag`) — MEN kun hvis den kjørende filen faktisk har denne
+   mappingen. Bekreft med det nye versjonsmerket.
+3. **Leses Driftslag tilbake?** Eksakt feltnavn lest: `record.fields
+   ['Driftslag']` (fra `fromAirtableFields()`) — samme forbehold som over.
+4. **Hvorfor varsler ikke Database status?** Fordi `EXPECTED_SCHEMA`
+   bygges FRA `LIST_TABLES` i den SAMME filen som (trolig) mangler
+   `driftslag`-oppføringen — den kan ikke varsle om noe den selv ikke
+   vet skal finnes.
+5. **N/A** — punkt 5 forutsetter at Airtable har kolonnen, som ikke er
+   den sannsynlige situasjonen her.
+
+**Konklusjon om hvor problemet ligger:** mest sannsynlig **Synkronisering**
+(feil/utdatert kjørende fil), ikke Airtable, ikke selve mappingen i den
+KORREKTE filen (verifisert riktig igjen denne runden), og ikke en feil i
+Database status sin logikk (den fungerer korrekt ut fra hva den kjørende
+filen forteller den — problemet er hvilken fil som faktisk kjører).
+
+**Berørte filer:** `storage_airtable.js` (versjonsmarkør lagt til),
+`index.html` (viser markøren i Database status).
+
+---
+
+
+
 # Prioritet 27.3 — Faktisk synkroniseringsstatus i Database status
 
 **Feilsøking, konklusjon:** "Database status" har ALDRI vist

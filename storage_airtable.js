@@ -329,6 +329,14 @@
   }
 
   window.storage = { get, set, delete: del, list };
+  // Versjonsmarkør — gjør det mulig å bekrefte DIREKTE I APPEN (Innstillinger →
+  // Database status) om filen som faktisk kjører er den oppdaterte versjonen, i stedet
+  // for å gjette om opplastingen faktisk slo gjennom (og om en eventuell service worker-
+  // cache serverer en gammel kopi av denne filen — se "Oppdater app" i Innstillinger).
+  window.storageAirtableInfo = {
+    versjon: '2026-09-03 — Driftslag-felt inkludert',
+    vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
+  };
 
   // ---- Tilnærmet sanntidsoppdatering: periodisk oppfrisking ----
   // Airtables vanlige REST-API har INGEN push/sanntids-abonnement slik Firestore

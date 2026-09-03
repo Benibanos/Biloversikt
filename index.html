@@ -10093,8 +10093,25 @@ function renderInnstillinger(){
         <div class="required-hint" style="margin-top:10px;">Dette er reelle, mislykkede lagringsforsøk — appen viste en feilmelding med én gang dette skjedde. Registreringen ble ikke lagret til Airtable og bør gjøres på nytt.</div>` : `<div class="required-hint" style="margin-top:10px;">Ingen mislykkede lagringsforsøk registrert denne økten.</div>`}
       </div>
     `;
+    // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
+    // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
+    // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
+    const info = window.storageAirtableInfo;
+    const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
+    const versjonHtml = `
+      <div class="panel" style="margin-bottom:16px;${!info || !harDriftslagFelt ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
+        <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage_airtable.js)</div>
+        ${!info ? `<div class="required-hint" style="color:var(--red);font-weight:600;">🔴 Kunne ikke lese versjonsinformasjon — svært gammel filversjon kjører fortsatt.</div>` : `
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Versjon</span><span class="ov-value">${esc(info.versjon)}</span></div>
+          <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei — gammel fil kjører fortsatt'}</span></div>
+        </div>
+        ${!harDriftslagFelt ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører fortsatt en eldre versjon av storage_airtable.js som ikke vet om Driftslag-feltet. Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
+        `}
+      </div>
+    `;
     if(!dbStatusReport){
-      return synkStatusHtml + `
+      return versjonHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;">
           Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
           lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
@@ -10104,7 +10121,7 @@ function renderInnstillinger(){
       `;
     }
     if(!dbStatusReport.ok){
-      return synkStatusHtml + `
+      return versjonHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
           ⚠️ ${esc(dbStatusReport.error)}
         </div>
@@ -10114,7 +10131,7 @@ function renderInnstillinger(){
     const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
     const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
     const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
-    return synkStatusHtml + `
+    return versjonHtml + synkStatusHtml + `
       <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
       <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
         ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
