@@ -103,7 +103,10 @@
       uteAvDriftArsak: ['UteAvDriftArsak'],
       uteAvDriftDato: ['UteAvDriftDato'],
       uteAvDriftKommentar: ['UteAvDriftKommentar'],
-      statusHistorikk: ['StatusHistorikk', 'json']
+      statusHistorikk: ['StatusHistorikk', 'json'],
+      // Prioritet 27.1 (Driftslag i Sjåførkontroll) — fritekstfelt, styrer kun gruppering
+      // av bilvalg på Kontroll-skjermen, ingen annen betydning i appen for øvrig.
+      driftslag: ['Driftslag']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -113,7 +116,12 @@
     verkstedtimer: { table: 'WorkshopAppointments', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
       beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
-      sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon']
+      sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon'],
+      // Lagt til i Prioritet 26.7 (Planlagt service) — samme lærdom som ServiceIntervallKm/
+      // EuGodkjentTil tidligere: et nytt JS-felt som IKKE registreres her forsvinner stille
+      // ved neste henting fra Airtable. 'type' skiller planlagt service ('service') fra
+      // ordinære verkstedtimer (tom/udefinert).
+      type: ['Type']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -321,6 +329,18 @@
   }
 
   window.storage = { get, set, delete: del, list };
+  // Versjonsmarkør — gjør det mulig å bekrefte DIREKTE I APPEN (Innstillinger →
+  // Database status) om filen som faktisk kjører er den oppdaterte versjonen, i stedet
+  // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom. VIKTIG:
+  // øk STORAGE_AIRTABLE_VERSION ved HVER fremtidige endring i denne filen (også i
+  // script-taggens ?v=-parameter i index.html, se <head>) — det er selve
+  // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
+  // hente en fersk kopi i stedet for en cachet, gammel en.
+  window.storageAirtableInfo = {
+    versjon: 'v2.7.0',
+    bygget: '03.09.2026 11:20',
+    vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
+  };
 
   // ---- Tilnærmet sanntidsoppdatering: periodisk oppfrisking ----
   // Airtables vanlige REST-API har INGEN push/sanntids-abonnement slik Firestore
