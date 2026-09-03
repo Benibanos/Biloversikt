@@ -1,5 +1,57 @@
 # Bilpark App
 
+# Prioritet 27.6 — Sjåførkontroll brukte fortsatt ikke Driftslag ved visning
+
+## Funn — to separate bilvalg-skjermer, kun én av dem var fikset
+
+Prioritet 27.1 innførte `kontrollDriftslagGrupper()` og la den inn i
+`renderKontroll()` sitt EGNE, interne bilvalg-fallback (vises kun hvis
+`kontroll`-skjermen nås uten at `kontrollFormVehicleId` allerede er satt).
+Men i faktisk Sjåførmodus (`driverMode`) er det `renderDriverShell()` som
+styrer hvilket skjermbilde som vises først — og der er standardgrenen
+(`else body = renderDriverVelgBil()`) det virkelige inngangspunktet
+sjåføren møter. Denne funksjonen hadde sin EGEN, uavhengige rendering
+som brukte `sortedVehicles(vehicles)` flatt (sortert etter
+`KATEGORI_ORDER` → Bil 1–11, Lastebil, Montering, Reserve) — helt
+uberørt av Prioritet 27.1. Dermed så sjåføren nettopp symptomet som ble
+meldt: "Bil 1, Bil 2 … Lastebil 1, Lastebil 2, Montering 1, Montering 2"
+i stedet for driftslag-grupper, mens den (i praksis ubrukte) fallback-
+listen inne i `renderKontroll()` var korrekt hele tiden.
+
+**Konklusjon om hvor problemet lå:** verken i selve driftslag-mappingen
+(`v.driftslag` leses/skrives korrekt, bekreftet i Prioritet 27.4/27.5),
+ei heller i `kontrollDriftslagGrupper()` sin logikk (uendret, allerede
+riktig) — men i at ett av to bilvalg-steder i sjåførflyten aldri ble
+koblet til den delte funksjonen.
+
+## Fiks
+
+`renderDriverVelgBil()` bygger nå listen sin fra
+`kontrollDriftslagGrupper()` i stedet for `sortedVehicles(vehicles)`.
+Samme mønster som allerede brukt i `renderKontroll()`: én alltid-åpen
+`.panel` per driftslag-gruppe (ikke dropdown, ikke accordion — ingen
+chevron/toggle-tilstand involvert), med `${gruppe.ikon}
+${gruppe.navn.toUpperCase()}` som overskrift. All eksisterende
+per-bil-informasjon (kontrollert-badge, aktiv sjåfør-visning,
+`data-velg-bil`-klikkhåndtering) er uendret — kun grupperingen er lagt
+til rundt de samme bil-kortene. `attachDriverVelgBilListeners()` krevde
+ingen endring (leser fortsatt `[data-velg-bil]` uavhengig av nesting).
+
+**Liten tilleggsjustering:** Curbside sitt ikon i `DRIFTSLAG_IKON`
+endret fra 🔵 til 🔷 — delte tidligere eksakt samme blå sirkel som
+LAG 3, som ikke skiller de to gruppene visuelt fra hverandre slik
+fargespesifikasjonen (Grønn/Rød/Blå/Gul + egen "mørkeblå" for Curbside)
+forutsetter.
+
+**Berørte filer:** `index.html` (`renderDriverVelgBil()`,
+`DRIFTSLAG_IKON`). Ingen nye felt, ingen endring i
+`kontrollDriftslagGrupper()`/`vehicleDriftslagGruppe()` selv, ingen
+databaseendring.
+
+---
+
+
+
 # Prioritet 27.5 — Forklart sammenheng + faktisk fiks (cache-busting)
 
 ## Hvorfor alle tre observasjonene stemmer samtidig — ingen motsigelse

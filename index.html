@@ -1904,7 +1904,7 @@ const KATEGORI_ORDER = ['bil','lastebil','montering','reserve'];
 // et ukjent/egendefinert driftslag får fortsatt sin egen gruppe (nøytral farge), ikke
 // forkastet.
 const DRIFTSLAG_ORDER = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Curbside', 'Montering', 'Lastebil'];
-const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔵', 'Montering':'🟣', 'Lastebil':'🟠'};
+const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔷', 'Montering':'🟣', 'Lastebil':'🟠'};
 // "Pick Up Point Larvik" skal ALDRI vises ved bilvalg i Sjåførkontroll — uansett om det
 // står skrevet med andre mellomrom/store-små bokstaver, sammenlignes normalisert.
 const DRIFTSLAG_SKJULT_I_KONTROLL = ['pick up point larvik'];
@@ -4751,21 +4751,27 @@ function renderDriverVelgBil(){
       <input id="db-navn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(driverNavn)}" required>
     </div>
     <div id="db-navn-msg" class="form-msg"></div>
-    <div class="acc-list">
-      ${sortedVehicles(vehicles).map(v => {
-        const kontrollert = isKontrollertIdag(v.id);
-        const aktivSjafor = vehicleAktivSjafor(v.id);
-        return `
-        <div class="panel" style="cursor:pointer;margin-bottom:10px;padding:16px;" data-velg-bil="${v.id}">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <div>
-              <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
-              <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
-            </div>
-            <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      ${kontrollDriftslagGrupper().map(gruppe => `
+        <div class="panel" style="margin-bottom:0;padding:14px 16px;">
+          <div class="group-card-title" style="margin-bottom:10px;">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
+          <div class="acc-list" style="margin-bottom:0;">
+            ${gruppe.biler.map(v => {
+              const kontrollert = isKontrollertIdag(v.id);
+              const aktivSjafor = vehicleAktivSjafor(v.id);
+              return `
+              <div class="panel" style="cursor:pointer;margin-bottom:0;padding:14px 16px;background:var(--bg);" data-velg-bil="${v.id}">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                  <div>
+                    <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
+                    <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
+                  </div>
+                  <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
+                </div>
+              </div>`;
+            }).join('')}
           </div>
-        </div>`;
-      }).join('')}
+        </div>`).join('')}
     </div>
   `;
 }
