@@ -886,6 +886,10 @@ function toggleRegisterGruppe(kat){
 function velgKontrollBil(vehicleId){
   kontrollFormKm = (document.getElementById('kt-km')||{}).value || kontrollFormKm;
   kontrollFormVehicleId = vehicleId;
+  // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
+  // gruppe åpnes automatisk neste gang (gjelder også "Bytt bil"-fallbacken).
+  const valgtBil = vehicles.find(x => x.id === vehicleId);
+  if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
   kontrollFormAnnet = false;
   kontrollFormAnnetTekst = '';
   if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
@@ -1904,7 +1908,7 @@ const KATEGORI_ORDER = ['bil','lastebil','montering','reserve'];
 // et ukjent/egendefinert driftslag får fortsatt sin egen gruppe (nøytral farge), ikke
 // forkastet.
 const DRIFTSLAG_ORDER = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Curbside', 'Montering', 'Lastebil'];
-const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔷', 'Montering':'🟣', 'Lastebil':'🟠'};
+const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔵', 'Montering':'🟣', 'Lastebil':'🟠'};
 // "Pick Up Point Larvik" skal ALDRI vises ved bilvalg i Sjåførkontroll — uansett om det
 // står skrevet med andre mellomrom/store-små bokstaver, sammenlignes normalisert.
 const DRIFTSLAG_SKJULT_I_KONTROLL = ['pick up point larvik'];
@@ -1927,6 +1931,75 @@ function kontrollDriftslagGrupper(){
   const ukjente = Object.keys(grupper).filter(g => !DRIFTSLAG_ORDER.includes(g) && g !== 'Ikke satt').sort((a,b) => a.localeCompare(b, 'nb'));
   const rekkefolge = [...kjenteForst, ...ukjente, ...(grupper['Ikke satt'] ? ['Ikke satt'] : [])];
   return rekkefolge.map(g => ({navn: g, ikon: DRIFTSLAG_IKON[g] || '⚪', biler: sortedVehicles(grupper[g])}));
+}
+// Prioritet 27.7 (Driftslag-akkordion) — kun ÉN driftslag-gruppe åpen om gangen i
+// Sjåførkontroll sitt bilvalg. Gjelder KUN Sjåførkontroll (begge steder komponenten
+// brukes: første bilvalg i renderDriverVelgBil, og "Bytt bil"-fallbacken i
+// renderKontroll) — Biloversikt/Historikk/Planlegging/Rapporter er urørt, de bruker
+// fortsatt sin egen, separate KATEGORI_ORDER-akkordion. Sist valgte driftslag huskes
+// lokalt (localStorage, per enhet) og åpnes automatisk neste gang — huskes KUN når en
+// bil faktisk velges, ikke ved ren utforsking/åpning av en gruppe.
+const KONTROLL_SIST_DRIFTSLAG_KEY = 'bilpark_sjaforkontroll_sist_driftslag';
+function lastSistDriftslag(){
+  try{ return localStorage.getItem(KONTROLL_SIST_DRIFTSLAG_KEY) || null; }catch(e){ return null; }
+}
+function lagreSistDriftslag(gruppenavn){
+  try{ if(gruppenavn) localStorage.setItem(KONTROLL_SIST_DRIFTSLAG_KEY, gruppenavn); }catch(e){}
+}
+// Åpen gruppe akkurat nå — starter som sist brukte lag (finnes ingen tidligere valg,
+// f.eks. første gangs bruk av appen, er alle grupper lukket siden ingen gruppenavn i
+// dagens data vil matche null).
+let kontrollApenDriftslag = lastSistDriftslag();
+// Delt komponent — bilvalg gruppert etter driftslag som akkordion, brukt BÅDE ved
+// første bilvalg (renderDriverVelgBil) og ved "Bytt bil" (renderKontroll sin interne
+// fallback). Gjenbruker samme .dash-group-card/.group-card-head/.vehicle-group-body-
+// mønster som Biloversikt sin akkordion (se render av Biloversikt), kun med
+// gruppenavnet + antall biler i selve overskriften i stedet for en egen undertekst.
+// velgAttr er navnet på data-attributtet som skal settes på hvert bilkort, slik at de
+// to kallstedene kan koble på sine egne, allerede eksisterende klikk-håndterere
+// uendret (data-velg-bil vs. data-velg-kontroll-bil).
+function renderDriftslagGruppertBilvalg(velgAttr){
+  return kontrollDriftslagGrupper().map(gruppe => {
+    const open = gruppe.navn === kontrollApenDriftslag;
+    return `
+    <div class="panel dash-group-card">
+      <div class="group-card-head" data-toggle-driftslag-gruppe="${esc(gruppe.navn)}">
+        <div class="group-card-title">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())} (${gruppe.biler.length})</div>
+        <span class="chevron ${open?'open':''}">⌄</span>
+      </div>
+      <div class="vehicle-group-body ${open?'open':''}">
+        <div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:2px;">
+            ${gruppe.biler.map(v => {
+              const kontrollert = isKontrollertIdag(v.id);
+              const aktivSjafor = vehicleAktivSjafor(v.id);
+              return `
+              <div style="cursor:pointer;padding:14px 16px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);" ${velgAttr}="${v.id}">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                  <div>
+                    <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
+                    <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
+                  </div>
+                  <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+// Felles toggle-håndterer for akkordion-headerne over — kun ÉN gruppe åpen om
+// gangen (klikk på en allerede åpen gruppe lukker den igjen). Trygg å kalle fra
+// begge kallstedene uansett hvilken av de to som faktisk er rendret akkurat nå,
+// siden querySelectorAll rett og slett gir en tom liste når selectoren ikke finnes.
+function attachDriftslagGruppeListeners(){
+  document.querySelectorAll('[data-toggle-driftslag-gruppe]').forEach(el => el.addEventListener('click', () => {
+    const gruppenavn = el.dataset.toggleDriftslagGruppe;
+    kontrollApenDriftslag = (kontrollApenDriftslag === gruppenavn) ? null : gruppenavn;
+    render();
+  }));
 }
 const SKADE_STATUS_LABEL = {registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'};
 const ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'};
@@ -4752,30 +4825,12 @@ function renderDriverVelgBil(){
     </div>
     <div id="db-navn-msg" class="form-msg"></div>
     <div style="display:flex;flex-direction:column;gap:14px;">
-      ${kontrollDriftslagGrupper().map(gruppe => `
-        <div class="panel" style="margin-bottom:0;padding:14px 16px;">
-          <div class="group-card-title" style="margin-bottom:10px;">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
-          <div class="acc-list" style="margin-bottom:0;">
-            ${gruppe.biler.map(v => {
-              const kontrollert = isKontrollertIdag(v.id);
-              const aktivSjafor = vehicleAktivSjafor(v.id);
-              return `
-              <div class="panel" style="cursor:pointer;margin-bottom:0;padding:14px 16px;background:var(--bg);" data-velg-bil="${v.id}">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-                  <div>
-                    <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
-                    <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
-                  </div>
-                  <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`).join('')}
+      ${renderDriftslagGruppertBilvalg('data-velg-bil')}
     </div>
   `;
 }
 function attachDriverVelgBilListeners(){
+  attachDriftslagGruppeListeners();
   document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
     const navnInput = document.getElementById('db-navn');
     const navn = ((navnInput ? navnInput.value : driverNavn) || '').trim();
@@ -4787,6 +4842,10 @@ function attachDriverVelgBilListeners(){
     }
     driverNavn = navn;
     driverVelgBilId = el.dataset.velgBil;
+    // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
+    // gruppe åpnes automatisk neste gang sjåførkontrollen åpnes på denne enheten.
+    const valgtBil = vehicles.find(x => x.id === driverVelgBilId);
+    if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
     if(isKontrollertIdag(driverVelgBilId)){
       driverScreen = 'allerede-kontrollert';
     } else {
@@ -10314,13 +10373,7 @@ function renderKontroll(){
       <div class="field" style="margin-bottom:16px;">
         <label>Velg bil — gruppert etter driftslag</label>
         <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;">
-          ${kontrollDriftslagGrupper().map(gruppe => `
-            <div class="panel" style="margin-bottom:0;padding:14px 16px;">
-              <div class="group-card-title" style="margin-bottom:10px;">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                ${gruppe.biler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
-              </div>
-            </div>`).join('')}
+          ${renderDriftslagGruppertBilvalg('data-velg-kontroll-bil')}
         </div>
       </div>
       <div class="field" style="margin-bottom:0;">
@@ -10442,6 +10495,7 @@ function renderKontroll(){
   `;
 }
 function attachKontrollListeners(){
+  attachDriftslagGruppeListeners();
   const varsellamperHead = document.querySelector('[data-toggle-kt-varsellamper]');
   if(varsellamperHead) varsellamperHead.addEventListener('click', () => { kontrollVarsellamperOpen = !kontrollVarsellamperOpen; render(); });
   const avvikHead = document.querySelector('[data-toggle-kt-avvik]');

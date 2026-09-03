@@ -1,5 +1,65 @@
 # Bilpark App
 
+# Prioritet 27.7 — Driftslag-akkordion i Sjåførkontroll (kun ett lag åpent)
+
+## Bakgrunn
+
+Etter Prioritet 27.6 grupperte Sjåførkontroll sitt bilvalg korrekt etter
+Driftslag, men viste alle grupper OG alle biler samtidig — ikke
+skalerbart nok på mobil med mange lag. Ønsket: kun gruppeoverskriftene
+synlige ved åpning, én gruppe om gangen kan åpnes (klikk på en åpen
+gruppe lukker den), og sist valgte lag huskes lokalt på enheten slik at
+sjåføren ser sitt eget lag automatisk neste gang.
+
+## Løsning
+
+**Delt komponent** — `renderDriftslagGruppertBilvalg(velgAttr)` (ny),
+sammen med `attachDriftslagGruppeListeners()` (ny) og et lite
+localStorage-lag (`lastSistDriftslag()`/`lagreSistDriftslag()`, ny).
+Bygget som gjenbruk av det EKSISTERENDE `.dash-group-card`/
+`.group-card-head`/`.vehicle-group-body`-akkordionmønsteret som allerede
+brukes i Biloversikt (samme CSS, samme myke åpne/lukke-animasjon via
+CSS grid — ingen ny CSS lagt til), kun med gruppenavn + antall biler
+samlet i selve overskriften (`🟢 LAG 1 (2)`) i stedet for en egen
+undertekst-linje.
+
+`velgAttr`-parameteret gjør komponenten gjenbrukbar på begge steder den
+brukes — samme mønster brukes nå BÅDE av `renderDriverVelgBil()`
+(sjåførens første bilvalg) OG av `renderKontroll()` sin interne "Bytt
+bil"-fallback (samme skjermelement som en sjåfør faktisk møter igjen
+ved å trykke "← Bytt bil" midt i kontrollskjemaet, og som en
+administrator møter ved å registrere en kontroll uten forhåndsvalgt
+bil) — begge var identisk kode fra før og er nå slått sammen til én
+funksjon, uten atferdsendring for noen av de to kallstedene utover selve
+akkordion-oppførselen.
+
+**Kun ÉN gruppe åpen om gangen:** styrt av modulnivå-variabelen
+`kontrollApenDriftslag` — settes til `null` (alt lukket) ved klikk på en
+allerede åpen gruppe, ellers til den nye gruppens navn.
+
+**Husk sist brukte lag:** lagres i `localStorage`
+(`bilpark_sjaforkontroll_sist_driftslag`) KUN når en bil faktisk velges
+(i `attachDriverVelgBilListeners()` sin klikk-håndterer og i
+`velgKontrollBil()`) — ikke ved ren utforsking/åpning av en gruppe uten
+å velge bil. `kontrollApenDriftslag` initialiseres fra denne lagrede
+verdien ved sideinnlasting; finnes ingen lagret verdi (første gangs
+bruk), forblir alt lukket siden ingen gruppenavn i dagens data vil
+matche `null`.
+
+**Uendret:** Biloversikt, Historikk, Planlegging og Rapporter bruker
+fortsatt sin egen, separate `KATEGORI_ORDER`-akkordion — helt urørt.
+`kontrollDriftslagGrupper()`/`vehicleDriftslagGruppe()` selv er også
+uendret, kun konsumert av den nye delte komponenten.
+
+**Berørte filer:** `index.html` (`renderDriverVelgBil()`,
+`renderKontroll()`, `velgKontrollBil()`, `attachKontrollListeners()`, +
+tre nye, delte funksjoner). Ingen nye Airtable-felt, ingen
+databaseendring.
+
+---
+
+
+
 # Prioritet 27.6 — Sjåførkontroll brukte fortsatt ikke Driftslag ved visning
 
 ## Funn — to separate bilvalg-skjermer, kun én av dem var fikset
