@@ -331,10 +331,14 @@
   window.storage = { get, set, delete: del, list };
   // Versjonsmarkør — gjør det mulig å bekrefte DIREKTE I APPEN (Innstillinger →
   // Database status) om filen som faktisk kjører er den oppdaterte versjonen, i stedet
-  // for å gjette om opplastingen faktisk slo gjennom (og om en eventuell service worker-
-  // cache serverer en gammel kopi av denne filen — se "Oppdater app" i Innstillinger).
+  // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom. VIKTIG:
+  // øk STORAGE_AIRTABLE_VERSION ved HVER fremtidige endring i denne filen (også i
+  // script-taggens ?v=-parameter i index.html, se <head>) — det er selve
+  // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
+  // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: '2026-09-03 — Driftslag-felt inkludert',
+    versjon: 'v2.7.0',
+    bygget: '03.09.2026 11:20',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 

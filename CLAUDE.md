@@ -1,5 +1,65 @@
 # Bilpark App
 
+# Prioritet 27.5 — Forklart sammenheng + faktisk fiks (cache-busting)
+
+## Hvorfor alle tre observasjonene stemmer samtidig — ingen motsigelse
+
+`checkAirtableSchema()` og `window.storageAirtableInfo` kommer fra
+**samme fil**. Når den gamle filen kjører:
+- Den bygger `EXPECTED_SCHEMA` fra sin egen, gamle `LIST_TABLES` — som
+  aldri har hørt om Driftslag. Den kan derfor umulig rapportere feltet
+  som manglende → "✅ Felt OK" er sant *ut fra filens eget, utdaterte
+  grunnlag*.
+- Synkroniseringssporingen (🟢 Synkronisert, Prioritet 27.3) sporer om
+  selve nettverkskallene lykkes. Den gamle filen prøver aldri å sende
+  Driftslag i utgangspunktet — Airtable ser aldri et ukjent felt, så
+  ingen skriving feiler.
+- Versjonsmerket manglet fordi `window.storageAirtableInfo` bokstavelig
+  talt ikke fantes i den gamle filen.
+
+**Alle tre bygger dermed på nøyaktig samme faktum sett fra tre vinkler:
+den gamle filen kjører fortsatt.**
+
+## Full Driftslag-dokumentasjon (som etterspurt)
+
+- **Sendes Driftslag til Airtable?** Ja, i den KORREKTE filen —
+  `toAirtableFields()` sender feltnavnet `Driftslag`. I den GAMLE filen:
+  nei, feltet finnes ikke i dens `LIST_TABLES` og blir aldri inkludert.
+- **Leses Driftslag fra Airtable?** Ja, i den korrekte filen —
+  `fromAirtableFields()` leser `record.fields['Driftslag']`. I den
+  gamle filen: nei, samme årsak.
+- **Eksisterer kolonnen i selve Airtable-basen?** Ikke verifiserbart av
+  Claude uten direkte databasetilgang — men sannsynligvis irrelevant nå:
+  siden den gamle filen aldri sender feltet, ville selv en eksisterende
+  kolonne ikke hjulpet.
+- **Hvilken verdi returneres etter refresh?** Alltid tom/udefinert, av
+  den gamle filen — uavhengig av hva som er skrevet inn, siden den
+  aldri leser noe `Driftslag`-felt fra Airtable-svaret i det hele tatt.
+
+## Faktisk fiks — ikke bare bedre diagnostikk
+
+**Cache-busting lagt til på script-taggen** (`index.html`, `<head>`):
+`<script src="storage.airtable.js?v=2.7.0"></script>` — tvinger
+nettleser/service worker til å hente en fersk kopi ved hver fremtidig
+versjonsøkning, i stedet for å stole på at en vanlig opplasting alene
+gjør det. **Viktig fremover:** øk `?v=`-tallet i `index.html` OG
+`versjon`-verdien i `storage_airtable.js` samtidig ved enhver fremtidig
+endring i `storage_airtable.js` — dokumentert som kommentar i selve
+filen for å hindre at dette glemmes.
+
+**Database status sin versjonsvisning oppgradert** til eksakt det
+formatet som ble bedt om: "Storage Airtable: v2.7.0 / Bygget:
+03.09.2026 11:20", pluss "Appen forventer: v2.7.0" side om side — et
+umiddelbart, tallfestet avvik synlig ved neste feilsynkronisering,
+ikke bare et generisk "gammel fil"-varsel.
+
+**Berørte filer:** `index.html` (script-tag + visning),
+`storage_airtable.js` (versjonsobjekt).
+
+---
+
+
+
 # Prioritet 27.4 — Dypere feilsøking: Driftslag + Database status
 
 ## Funn — går utover "lagringskoden ser riktig ut"
