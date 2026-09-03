@@ -103,7 +103,10 @@
       uteAvDriftArsak: ['UteAvDriftArsak'],
       uteAvDriftDato: ['UteAvDriftDato'],
       uteAvDriftKommentar: ['UteAvDriftKommentar'],
-      statusHistorikk: ['StatusHistorikk', 'json']
+      statusHistorikk: ['StatusHistorikk', 'json'],
+      // Prioritet 27.1 (Driftslag i Sjåførkontroll) — fritekstfelt, styrer kun gruppering
+      // av bilvalg på Kontroll-skjermen, ingen annen betydning i appen for øvrig.
+      driftslag: ['Driftslag']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],

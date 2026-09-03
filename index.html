@@ -1874,6 +1874,40 @@ const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdek
 const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
 const KATEGORI_GROUP_LABEL = {bil:'Bil 1–11', lastebil:'Lastebiler', montering:'Monteringsbiler', reserve:'Reserve'};
 const KATEGORI_ORDER = ['bil','lastebil','montering','reserve'];
+// Prioritet 27.1 (Driftslag i Sjåførkontroll) — gjelder KUN bilvalget i Kontroll-skjermen,
+// ikke Biloversikt/Historikk/Rapporter/Planlegging (disse grupperer fortsatt uendret etter
+// KATEGORI_ORDER over). v.driftslag er et nytt, fritekstbasert felt på kjøretøyet — bevisst
+// IKKE en fast, hardkodet liste bilene tvinges inn i: grupperingen bygges dynamisk fra
+// hvilke driftslag-verdier som FAKTISK finnes i dataene (se kontrollDriftslagGrupper()),
+// slik at et nytt lag (f.eks. ved neste turnusendring) dukker opp automatisk uten
+// kodeendring. Rekkefølge/farge under er kun brukt for de KJENTE, forventede lagene —
+// et ukjent/egendefinert driftslag får fortsatt sin egen gruppe (nøytral farge), ikke
+// forkastet.
+const DRIFTSLAG_ORDER = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Curbside', 'Montering', 'Lastebil'];
+const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔵', 'Montering':'🟣', 'Lastebil':'🟠'};
+// "Pick Up Point Larvik" skal ALDRI vises ved bilvalg i Sjåførkontroll — uansett om det
+// står skrevet med andre mellomrom/store-små bokstaver, sammenlignes normalisert.
+const DRIFTSLAG_SKJULT_I_KONTROLL = ['pick up point larvik'];
+function vehicleDriftslagGruppe(v){
+  return (v.driftslag && v.driftslag.trim()) ? v.driftslag.trim() : 'Ikke satt';
+}
+// Bygger driftslag-gruppene som faktisk skal vises i Sjåførkontroll sitt bilvalg — kjente
+// lag først (i DRIFTSLAG_ORDER sin rekkefølge), deretter ukjente/egendefinerte lag
+// alfabetisk, deretter "Ikke satt" (biler uten driftslag registrert ennå — vises fortsatt,
+// for operativ kontinuitet, i stedet for å bli usynlige/utilgjengelige for kontroll).
+function kontrollDriftslagGrupper(){
+  const grupper = {};
+  vehicles.forEach(v => {
+    const gruppe = vehicleDriftslagGruppe(v);
+    if(DRIFTSLAG_SKJULT_I_KONTROLL.includes(gruppe.trim().toLowerCase())) return; // Pick Up Point Larvik
+    if(!grupper[gruppe]) grupper[gruppe] = [];
+    grupper[gruppe].push(v);
+  });
+  const kjenteForst = DRIFTSLAG_ORDER.filter(g => grupper[g]);
+  const ukjente = Object.keys(grupper).filter(g => !DRIFTSLAG_ORDER.includes(g) && g !== 'Ikke satt').sort((a,b) => a.localeCompare(b, 'nb'));
+  const rekkefolge = [...kjenteForst, ...ukjente, ...(grupper['Ikke satt'] ? ['Ikke satt'] : [])];
+  return rekkefolge.map(g => ({navn: g, ikon: DRIFTSLAG_IKON[g] || '⚪', biler: sortedVehicles(grupper[g])}));
+}
 const SKADE_STATUS_LABEL = {registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'};
 const ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'};
 const VARSELLAMPE_LABEL = {
@@ -2977,6 +3011,7 @@ async function saveVehicleForm(id){
   v.km = document.getElementById('f-km').value;
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
   v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
+  v.driftslag = document.getElementById('f-driftslag').value.trim();
   await saveVehicles();
   if(pendingVehiclePhoto){
     v.hasPhoto = true;
@@ -6418,6 +6453,12 @@ function renderBilkort(){
     </div>
     <div class="field" style="margin-bottom:10px;"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
     <div class="field" style="margin-bottom:10px;"><label>EU-godkjent til</label><input id="f-eu-godkjent-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${v.euGodkjentTil ? fmt(v.euGodkjentTil) : ''}"></div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Driftslag</label>
+      <input id="f-driftslag" type="text" placeholder="F.eks. Lag 1, Curbside, Montering, Lastebil..." value="${esc(v.driftslag||'')}" list="driftslag-forslag">
+      <datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
+      <div class="required-hint" style="margin-top:4px;">Styrer kun gruppering av bilvalg i Sjåførkontroll — påvirker ikke Biloversikt/Historikk/Rapporter/Planlegging.</div>
+    </div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
@@ -10165,24 +10206,23 @@ function renderKontroll(){
       </div>
       ` : `
       <div class="field" style="margin-bottom:16px;">
-        <label>Kjøretøy</label>
+        <label>Velg gruppe</label>
         <div class="dash-group-grid" style="grid-template-columns:1fr;margin-top:6px;">
-          ${KATEGORI_ORDER.filter(k => vehicles.some(x => x.kategori === k)).map(k => {
-            const gruppeBiler = sortedVehicles(vehicles.filter(x => x.kategori === k));
-            const open = kontrollGrupperApne.has(k);
+          ${kontrollDriftslagGrupper().map(gruppe => {
+            const open = kontrollGrupperApne.has(gruppe.navn);
             return `
             <div class="panel dash-group-card" style="margin-bottom:0;">
-              <div class="group-card-head" data-toggle-kontroll-gruppe="${k}">
+              <div class="group-card-head" data-toggle-kontroll-gruppe="${esc(gruppe.navn)}">
                 <div>
-                  <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
-                  <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
+                  <div class="group-card-title">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
+                  <div class="group-card-sub">${gruppe.biler.length} ${gruppe.biler.length===1?'bil':'biler'}</div>
                 </div>
                 <span class="chevron ${open?'open':''}">⌄</span>
               </div>
               <div class="vehicle-group-body ${open?'open':''}">
                 <div>
                   <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-                    ${gruppeBiler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
+                    ${gruppe.biler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
                   </div>
                 </div>
               </div>

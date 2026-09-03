@@ -65,7 +65,13 @@ statusmotoren, se `vehicleHovedstatus()` i `index.html`), `UteAvDriftArsak`
 (text), `UteAvDriftKommentar` (long text), `UteAvDriftDato` (text,
 DD/MM/ÅÅÅÅ — dato for siste "ute av drift"-markering), `StatusHistorikk`
 (long text/JSON — logg over hver ute av drift/tilbake i drift-hendelse:
-`{dato, handling, arsak, kommentar, av}`; slettes aldri, kun lagt til i)
+`{dato, handling, arsak, kommentar, av}`; slettes aldri, kun lagt til i).
+Lagt til i "Prioritet 27.1 — Driftslag i Sjåførkontroll": `Driftslag`
+(text — fritekst, styrer kun gruppering av bilvalg i Sjåførkontroll,
+ingen annen betydning). **Allerede lagt til i `storage_airtable.js` sin
+`LIST_TABLES`** samtidig som denne dokumentasjonen — husk fortsatt å
+opprette selve `Driftslag`-kolonnen i Airtable-basen (eller kjør "🔄
+Synkroniser Airtable" i Innstillinger).
 
 **⚠️ Manuelt steg gjenstår:** `storage.airtable.js` (feltmappingen mellom
 appens kjøretøy-objekt og Airtable-kolonnene for Vehicles-tabellen) var ikke

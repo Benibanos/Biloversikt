@@ -1,5 +1,53 @@
 # Bilpark App
 
+# Prioritet 27.1 — Driftslag i Sjåførkontroll
+
+**Omfang, bevisst begrenset:** gjelder KUN bilvalget i Kontroll-skjermen
+(`renderKontroll()`). Biloversikt, Historikk, Rapporter og Planlegging
+grupperer fortsatt uendret etter `KATEGORI_ORDER`/`v.kategori` — ingen
+av disse er rørt.
+
+**Nytt felt:** `v.driftslag` — fritekst (ikke låst dropdown, med
+`<datalist>` for autofullføring av kjente lag), redigeres i
+Bilinformasjon. Styrer KUN gruppering i Sjåførkontroll, ingen annen
+betydning i appen. Lagt til i `storage_airtable.js` sin `LIST_TABLES`
+samtidig som denne dokumentasjonen (samme lærdom som
+ServiceIntervallKm/EuGodkjentTil/AktivSjafor tidligere — et
+uregistrert felt forsvinner stille).
+
+**Dynamisk gruppering, ikke hardkodet:** `kontrollDriftslagGrupper()`
+bygger gruppene fra hvilke `driftslag`-verdier som FAKTISK finnes i
+dataene — et nytt lag (f.eks. ved neste turnusendring) dukker opp
+automatisk uten kodeendring. `DRIFTSLAG_ORDER`/`DRIFTSLAG_IKON` gir kun
+rekkefølge og farge til de SPESIFIKT navngitte, kjente lagene (Lag 1–4,
+Curbside, Montering, Lastebil per fargekoden som ble spesifisert); et
+ukjent/egendefinert driftslag får fortsatt sin egen gruppe (nøytral
+⚪-farge, alfabetisk etter de kjente), ikke forkastet.
+
+**"Pick Up Point Larvik" skjules helt** fra Sjåførkontroll sitt bilvalg
+(`DRIFTSLAG_SKJULT_I_KONTROLL`, normalisert sammenligning — store/små
+bokstaver og mellomrom spiller ingen rolle). Biler herfra er fortsatt
+fullt synlige og fungerende overalt ellers i appen (Biloversikt,
+Historikk, Rapporter, Planlegging, Service, Dekk) — kun bortfiltrert fra
+denne ene bilvelgeren.
+
+**Biler uten driftslag registrert ennå** (alle biler, inntil en admin
+har satt feltet manuelt) havner i en egen "⚪ Ikke satt"-gruppe — vises
+fortsatt, ikke usynliggjort. Dette var et bevisst valg for operativ
+kontinuitet: uten denne fallback-gruppen ville HELE flåten vært
+utilgjengelig for sjåførkontroll helt til noen rakk å konfigurere
+driftslag på alle 16 biler.
+
+**Gjenbrukt UI-mønster, ikke ny komponent:** samme
+`dash-group-card`/`group-card-head`/`chevron`/`vehicle-group-body`-
+mønster som allerede brukes for gruppert bilvalg andre steder i appen
+(Biloversikt) — kun datakilden for selve grupperingen er byttet fra
+`v.kategori` til `v.driftslag`, ren visningsendring.
+
+---
+
+
+
 # Rapporthub 2.0 — alle rapporter standardisert
 
 **Visuell opprydding:** Kilometerstandsrapport flyttet inn i samme flate
