@@ -880,16 +880,6 @@ function toggleRegisterGruppe(kat){
   else registerGrupperApne.add(kat);
   render();
 }
-// Prioritet 26.7 (punkt 3): samme gruppert dropdown-mønster på sjåførkontrollsidens
-// bilvalg som Biloversikt allerede bruker — lukket som standard, biler vises kun når
-// gruppen åpnes. Egen state (ikke gjenbruk av registerGrupperApne) siden Kontroll og
-// Biloversikt er to uavhengige skjermer som kan ha ulik åpen/lukket-tilstand samtidig.
-let kontrollGrupperApne = new Set();
-function toggleKontrollGruppe(kat){
-  if(kontrollGrupperApne.has(kat)) kontrollGrupperApne.delete(kat);
-  else kontrollGrupperApne.add(kat);
-  render();
-}
 // Felles bilvalg-logikk for kontrollskjemaet — brukes nå av den grupperte
 // bilvelgeren (erstatter tidligere <select id="kt-vehicle">.change-lytter, samme
 // oppførsel uendret, kun ny inngang).
@@ -10019,6 +10009,34 @@ function renderInnstillinger(){
     `;
   })();
 
+  // Diagnoseverktøy — Driftslag. Lagt til fordi verdien ble meldt "forsvunnet" etter
+  // refresh. Viser den RÅ v.driftslag-verdien direkte fra det faktiske vehicles-
+  // arrayet appen har lastet inn — last siden på nytt og se på denne listen igjen for å
+  // bekrefte om verdien faktisk overlevde til neste henting fra Airtable eller ikke,
+  // uten å måtte gjette. Rent lesende — ingen skriving.
+  const driftslagDiagnoseBody = (() => {
+    const satt = vehicles.filter(v => v.driftslag && v.driftslag.trim());
+    const ikkeSatt = vehicles.filter(v => !v.driftslag || !v.driftslag.trim());
+    return `
+      <div class="required-hint" style="margin-bottom:14px;">Live, rå data fra <code>v.driftslag</code> — beregnet på nytt hver gang denne seksjonen åpnes. Last siden på nytt (F5) og åpne denne seksjonen igjen for å se om verdiene under er de samme som du nettopp lagret.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
+          <th style="padding:6px 8px;">Bil</th>
+          <th style="padding:6px 8px;">Kategori</th>
+          <th style="padding:6px 8px;">v.driftslag (rå verdi)</th>
+        </tr></thead>
+        <tbody>
+          ${sortedVehicles(vehicles).map(v => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 8px;">${esc(vehicleLabel(v))}</td>
+            <td style="padding:6px 8px;">${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}</td>
+            <td style="padding:6px 8px;${v.driftslag ? 'font-weight:700;' : 'color:var(--red);'}">${v.driftslag ? esc(v.driftslag) : '(tom — ikke satt)'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="required-hint">${satt.length} av ${vehicles.length} biler har driftslag registrert. ${ikkeSatt.length > 0 ? ikkeSatt.length + ' mangler ennå (havner i "Ikke satt"-gruppen i Sjåførkontroll).' : ''}</div>
+    `;
+  })();
+
   const databaseBody = (() => {
     if(!dbStatusReport){
       return `
@@ -10079,6 +10097,7 @@ function renderInnstillinger(){
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
       ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
       ${settingsAccordionRow('driftdiagnose', '🚚 Biler i drift — diagnose', null, driftDiagnoseBody)}
+      ${settingsAccordionRow('driftslagdiagnose', '🏷️ Driftslag — diagnose', null, driftslagDiagnoseBody)}
     </div>
   `;
 }
@@ -10206,28 +10225,15 @@ function renderKontroll(){
       </div>
       ` : `
       <div class="field" style="margin-bottom:16px;">
-        <label>Velg gruppe</label>
-        <div class="dash-group-grid" style="grid-template-columns:1fr;margin-top:6px;">
-          ${kontrollDriftslagGrupper().map(gruppe => {
-            const open = kontrollGrupperApne.has(gruppe.navn);
-            return `
-            <div class="panel dash-group-card" style="margin-bottom:0;">
-              <div class="group-card-head" data-toggle-kontroll-gruppe="${esc(gruppe.navn)}">
-                <div>
-                  <div class="group-card-title">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
-                  <div class="group-card-sub">${gruppe.biler.length} ${gruppe.biler.length===1?'bil':'biler'}</div>
-                </div>
-                <span class="chevron ${open?'open':''}">⌄</span>
+        <label>Velg bil — gruppert etter driftslag</label>
+        <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;">
+          ${kontrollDriftslagGrupper().map(gruppe => `
+            <div class="panel" style="margin-bottom:0;padding:14px 16px;">
+              <div class="group-card-title" style="margin-bottom:10px;">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())}</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                ${gruppe.biler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
               </div>
-              <div class="vehicle-group-body ${open?'open':''}">
-                <div>
-                  <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-                    ${gruppe.biler.map(bv => `<button type="button" class="btn secondary small" style="width:100%;justify-content:flex-start;min-height:44px;" data-velg-kontroll-bil="${bv.id}">${esc(vehicleLabel(bv))}</button>`).join('')}
-                  </div>
-                </div>
-              </div>
-            </div>`;
-          }).join('')}
+            </div>`).join('')}
         </div>
       </div>
       <div class="field" style="margin-bottom:0;">
@@ -10368,7 +10374,6 @@ function attachKontrollListeners(){
   });
   document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
 
-  document.querySelectorAll('[data-toggle-kontroll-gruppe]').forEach(el => el.addEventListener('click', () => toggleKontrollGruppe(el.dataset.toggleKontrollGruppe)));
   document.querySelectorAll('[data-velg-kontroll-bil]').forEach(el => el.addEventListener('click', () => velgKontrollBil(el.dataset.velgKontrollBil)));
   const byttBilEl = document.getElementById('kt-bytt-bil');
   if(byttBilEl) byttBilEl.addEventListener('click', () => {

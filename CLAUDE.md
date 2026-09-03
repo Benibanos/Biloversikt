@@ -1,5 +1,54 @@
 # Bilpark App
 
+# Prioritet 27.2 — Driftslag forsvant etter refresh + permanent åpne grupper
+
+## Feilsøking (oppgave 1)
+
+**Kodegjennomgang, bekreftet:** `saveVehicleForm()` leser og lagrer
+`v.driftslag` korrekt (`document.getElementById('f-driftslag')` →
+`v.driftslag` → `saveVehicles()` → `reloadOne('vehicles')`).
+`storage_airtable.js` sin `LIST_TABLES.vehicles.fields.driftslag =
+['Driftslag']` var allerede korrekt lagt til i forrige runde (Prioritet
+27.1). Begge deler av koden er verifisert riktige og konsistente med
+hverandre.
+
+**Konklusjon:** ingen kodefeil funnet ved denne gjennomgangen. De to
+mest sannsynlige forklaringene, utenfor det Claude kan verifisere uten
+tilgang til den faktiske, kjørende Airtable-basen:
+1. Den oppdaterte `storage_airtable.js`-filen fra forrige runde er ikke
+   lastet opp til den kjørende appen ennå.
+2. Selve `Driftslag`-kolonnen finnes ikke i Airtable-basen ennå (må
+   opprettes manuelt, eller via "🔄 Synkroniser Airtable" i
+   Innstillinger — `EXPECTED_SCHEMA` bygges automatisk fra
+   `LIST_TABLES`, så `Driftslag` er allerede med der).
+
+**Diagnoseverktøy lagt til** (samme mønster som "Biler i drift —
+diagnose" fra en tidligere feilsøkingsrunde): ny seksjon i
+Innstillinger, "🏷️ Driftslag — diagnose"
+(`driftslagDiagnoseBody`/`settingsAccordionRow('driftslagdiagnose',
+...)`) — viser den RÅ `v.driftslag`-verdien direkte fra det faktiske
+`vehicles`-arrayet for hver bil. Last siden på nytt og åpne seksjonen
+igjen for å bekrefte konkret om verdien overlevde til neste henting fra
+Airtable, i stedet for å gjette.
+
+## Permanent åpne grupper (oppgave 3)
+
+Kontroll-skjermens driftslag-grupper viser nå bilene direkte under hver
+gruppeoverskrift, uten noe "åpne gruppe"-steg — matcher ASCII-layouten
+som ble spesifisert (Lag/farge-overskrift, bilene rett under, ingen
+chevron/klikk-for-å-utvide). Den nå ubrukte
+`kontrollGrupperApne`/`toggleKontrollGruppe()`-tilstanden fra forrige
+runde er fjernet.
+
+**Uendret fra forrige runde:** dynamisk gruppering fra faktiske
+`v.driftslag`-verdier (ikke hardkodet), "Pick Up Point Larvik" skjult,
+fallback-gruppe for biler uten driftslag registrert ennå, fargekoding
+per lag.
+
+---
+
+
+
 # Prioritet 27.1 — Driftslag i Sjåførkontroll
 
 **Omfang, bevisst begrenset:** gjelder KUN bilvalget i Kontroll-skjermen
