@@ -1,5 +1,44 @@
 # Bilpark App
 
+# Prioritet 27.3 — Faktisk synkroniseringsstatus i Database status
+
+**Feilsøking, konklusjon:** "Database status" har ALDRI vist
+ventende/feilede/kølagrede endringer — kun skjema-validering
+(`checkAirtableSchema()`, tabell-/feltstruktur mot Airtable). Ikke en
+regresjon — funksjonen fantes aldri. Arkitekturen har heller ingen
+lokal skrive-kø: hver `saveX()`-funksjon skriver direkte og umiddelbart
+til Airtable, med `alert()` med én gang ved feil.
+
+**Ny, ekte funksjon bygget** (`instrumenterStorageForSynkStatus()`,
+kjører rett etter `const app = ...`): pakker `window.storage.set`/
+`.delete` på det LAVESTE nivået appen faktisk lagrer gjennom — dermed
+spores samtlige ~40 eksisterende `saveX()`-funksjoner automatisk, uten
+å måtte endre hver enkelt av dem. Sporer:
+- `pagaendeSkrivinger` — antall lagringer i gang akkurat nå
+- `synkFeilLogg` — de 20 siste faktiske, mislykkede lagringsforsøkene
+  (tidspunkt, hvilken nøkkel, feilmelding)
+- `sisteVellykkedeSynkTidspunkt` — tidspunkt for siste vellykkede
+  lagring, uansett hvilken funksjon som utførte den
+
+**Ny visning i Database status** (øverst, over den uendrede
+skjema-seksjonen): 🟢 Synkronisert / 🟡 Synkronisering pågår (N) / 🔴
+Manglende synkronisering — pluss "Feilede lagringer: N" og "Sist
+synkronisert: DD.MM.ÅÅÅÅ TT:MM", med liste over de faktiske feilede
+forsøkene når det finnes noen.
+
+**Viktig presisering, gitt arkitekturen:** siden det ikke finnes noen
+retry-kø, betyr "feilet lagring" at brukeren allerede fikk en
+feilmelding med én gang det skjedde, og at registreringen ikke ble
+lagret — denne visningen er et samlet OVERBLIKK for feilsøking i
+etterkant, ikke en kø som automatisk tar seg av forsinkede lagringer.
+Dette er tydelig forklart i selve UI-teksten.
+
+**Berørt fil:** kun `index.html`. Ingen endring i `storage_airtable.js`.
+
+---
+
+
+
 # Prioritet 27.2 — Driftslag forsvant etter refresh + permanent åpne grupper
 
 ## Feilsøking (oppgave 1)

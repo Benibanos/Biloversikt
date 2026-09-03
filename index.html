@@ -1859,6 +1859,36 @@ function logout(){
 
 const app = document.getElementById('app');
 
+// ================= Synkroniseringssporing (Database status) =================
+// KRITISK FUNKSJONSGAP FUNNET OG RETTET: "Database status" viste tidligere KUN
+// skjema-validering (finnes tabeller/felt i Airtable) — aldri faktisk skrivestatus.
+// Denne pakker window.storage.set/delete på det LAVESTE nivået (der ALLE ~40
+// eksisterende saveX()-funksjoner i app til slutt går via), slik at hvert eneste
+// lagringsforsøk spores automatisk — uten å måtte endre hver enkelt saveX()-funksjon.
+let pagaendeSkrivinger = 0;
+let synkFeilLogg = []; // {tidspunkt, nokkel, feilmelding} — nyeste først, maks 20
+let sisteVellykkedeSynkTidspunkt = null;
+(function instrumenterStorageForSynkStatus(){
+  if(!window.storage || !window.storage.set || !window.storage.delete) return;
+  const originalSet = window.storage.set.bind(window.storage);
+  const originalDelete = window.storage.delete.bind(window.storage);
+  const sporet = (fn, key) => async (...args) => {
+    pagaendeSkrivinger++;
+    try{
+      const res = await fn(...args);
+      sisteVellykkedeSynkTidspunkt = new Date().toISOString();
+      return res;
+    }catch(e){
+      synkFeilLogg = [{tidspunkt: new Date().toISOString(), nokkel: key(args), feilmelding: (e && e.message) ? e.message : String(e)}, ...synkFeilLogg].slice(0, 20);
+      throw e;
+    }finally{
+      pagaendeSkrivinger--;
+    }
+  };
+  window.storage.set = sporet(originalSet, args => args[0]);
+  window.storage.delete = sporet(originalDelete, args => args[0]);
+})();
+
 const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
 const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
 const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
@@ -10038,8 +10068,33 @@ function renderInnstillinger(){
   })();
 
   const databaseBody = (() => {
+    // Faktisk synkroniseringsstatus — NY (se instrumenterStorageForSynkStatus() over).
+    // Skiller seg bevisst fra skjema-sjekken under: dette er øyeblikksbilde av ekte
+    // lagringsforsøk (lyktes/feilet/pågår akkurat nå), ikke Airtable-strukturen.
+    const harFeil = synkFeilLogg.length > 0;
+    const status = pagaendeSkrivinger > 0 ? 'pagar' : (harFeil ? 'feil' : 'ok');
+    const statusHtml = {
+      ok: `<span style="color:var(--green);">🟢 Synkronisert</span>`,
+      pagar: `<span style="color:var(--amber);">🟡 Synkronisering pågår (${pagaendeSkrivinger})</span>`,
+      feil: `<span style="color:var(--red);">🔴 Manglende synkronisering</span>`
+    }[status];
+    const synkStatusHtml = `
+      <div class="panel" style="margin-bottom:16px;${status==='feil' ? 'border-color:var(--red);background:var(--red-soft);' : (status==='pagar' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+        <div class="ov-label" style="margin-bottom:8px;font-size:15px;">${statusHtml}</div>
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Feilede lagringer</span><span class="ov-value">${synkFeilLogg.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Sist synkronisert</span><span class="ov-value">${sisteVellykkedeSynkTidspunkt ? new Date(sisteVellykkedeSynkTidspunkt).toLocaleString('nb-NO') : 'Ingen vellykket lagring registrert ennå denne økten'}</span></div>
+        </div>
+        ${harFeil ? `
+        <div class="ov-label" style="margin:14px 0 8px;">Feilede lagringer (nyeste først)</div>
+        <ul class="dmg-simple-list">
+          ${synkFeilLogg.map(f => `<li><span class="dmg-simple-main">${new Date(f.tidspunkt).toLocaleString('nb-NO')} — ${esc(f.nokkel)}: ${esc(f.feilmelding)}</span></li>`).join('')}
+        </ul>
+        <div class="required-hint" style="margin-top:10px;">Dette er reelle, mislykkede lagringsforsøk — appen viste en feilmelding med én gang dette skjedde. Registreringen ble ikke lagret til Airtable og bør gjøres på nytt.</div>` : `<div class="required-hint" style="margin-top:10px;">Ingen mislykkede lagringsforsøk registrert denne økten.</div>`}
+      </div>
+    `;
     if(!dbStatusReport){
-      return `
+      return synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;">
           Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
           lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
@@ -10049,7 +10104,7 @@ function renderInnstillinger(){
       `;
     }
     if(!dbStatusReport.ok){
-      return `
+      return synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
           ⚠️ ${esc(dbStatusReport.error)}
         </div>
@@ -10059,7 +10114,8 @@ function renderInnstillinger(){
     const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
     const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
     const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
-    return `
+    return synkStatusHtml + `
+      <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
       <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
         ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
         &nbsp;·&nbsp;
