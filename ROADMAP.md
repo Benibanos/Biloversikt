@@ -1,7 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Prioritet 30 — Utfør arbeid direkte fra
-Planlegging), basert på faktisk kjørende kode i `Benibanos/Biloversikt`.
+Sist konsolidert: 2026-09-04 (Mobilitetsavtale på kjøretøy), basert på
+faktisk kjørende kode i `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
 alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart
@@ -137,6 +137,20 @@ kontroll).
 ✅ Implementert og verifisert — restrukturert til seks seksjoner (Prioritet
 26.3), fire faste felt (Registreringsnummer/Kilometerstand/Siste
 service/EU-godkjent til).
+
+## Mobilitetsavtale på kjøretøy
+
+✅ **Ny funksjon (2026-09-04):** nytt boolsk felt `v.mobilitetsavtale`
+(Airtable-kolonne `Mobilitetsavtale`, registrert i `LIST_TABLES`) — ren
+kjøretøyinformasjon, atskilt fra service-/verksted-/sakshistorikk. Vises som
+✅/❌ Mobilitetsavtale nederst til høyre i bilkort-hodet, redigeres manuelt
+("☑ Aktiv mobilitetsavtale") i Bilinformasjon på samme måte som de andre
+kjøretøyfeltene. `storage.airtable.js` økt til `v2.8.0`, `sw.js`
+`CACHE_VERSION` økt til `bilpark-v27`.
+
+📋 **Fremtidig, bevisst ikke bygget:** tilby "☑ Aktiver mobilitetsavtale" som
+et forslag ved serviceregistrering, med fortsatt mulighet for manuell
+overstyring. Ikke marker dette som implementert før det faktisk er bygget.
 
 ## Historikk-hub
 

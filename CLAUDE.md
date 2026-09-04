@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 30 —
-Utfør arbeid direkte fra Planlegging, se ROADMAP.md). **Ved avvik mellom
-denne filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Mobilitetsavtale
+på kjøretøy, se ROADMAP.md). **Ved avvik mellom denne filen og koden er koden
+alltid sannheten.**
 
 ---
 
@@ -17,7 +17,7 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.7.0). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.8.0). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
@@ -80,12 +80,12 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v26'`, økt i Prioritet 30 fordi
-  `index.html` ble endret). To separate
+  offline-fallback (`CACHE_VERSION = 'bilpark-v27'`, økt fordi `index.html`
+  og `storage.airtable.js` ble endret for Mobilitetsavtale-feltet). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.7.0`, cache-bustet via `?v=2.7.0` på script-taggen i `index.html`).
+  `v2.8.0`, cache-bustet via `?v=2.8.0` på script-taggen i `index.html`).
   Dette er den ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
   `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
@@ -149,6 +149,30 @@ Skal kun vise (fire faste felt):
 All annen operativ informasjon ligger i Operativ status. Profilen er
 restrukturert til seks seksjoner — verifiser fortsatt seksjonsinndeling
 direkte i koden ved videre endringer.
+
+## Mobilitetsavtale (2026-09-04)
+
+- Nytt felt på kjøretøyet: `v.mobilitetsavtale` (boolsk, Airtable-kolonne
+  `Mobilitetsavtale`, registrert i `LIST_TABLES`).
+- Ren kjøretøyinformasjon — følger bilen, IKKE service-/verksted-/
+  sakshistorikk. Ingen egen historikkmotor, ingen kobling mot
+  `servicehistorikk`/`verkstedtimer`/`aktiveSaker`.
+- Manuelt av/på-felt: redigeres som en vanlig avkrysningsboks ("☑ Aktiv
+  mobilitetsavtale") i Bilinformasjon (`renderBilkort()` → `infoBody`),
+  lagres sammen med resten av kjøretøyfeltene via `saveVehicleForm()`/
+  "Lagre" — samme mønster som Løyvenummer/Driftslag, ingen egen
+  umiddelbar-lagre-knapp (i motsetning til "Ute av drift", som er en
+  Faresone-handling).
+- Vises i bilkort-hodet (`.bilkort-head`, nederst til høyre) som
+  ✅/❌ Mobilitetsavtale-merke.
+- **Ikke bygget ennå (bevisst utsatt, "Fremtidig støtte"):** forslag om å
+  tilby "☑ Aktiver mobilitetsavtale" ved serviceregistrering. Feltet skal
+  fortsatt kunne overstyres manuelt selv om dette bygges senere — ikke la
+  en fremtidig auto-utfylling fjerne den manuelle bryteren.
+- Kjøretøyprofil-toppanelet (de fire faste feltene over) er bevisst IKKE
+  utvidet med dette feltet — kun Bilkort-hodet og Bilinformasjon viser det i
+  dag, jf. brukerens egen prioritering ("Kjøretøyprofil" markert valgfritt/
+  senere).
 
 ## Sjåførkontroll
 

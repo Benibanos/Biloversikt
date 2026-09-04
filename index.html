@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.7.0"></script>
+<script src="storage.airtable.js?v=2.8.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -3069,6 +3069,7 @@ async function saveVehicleForm(id){
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
   v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
   v.driftslag = document.getElementById('f-driftslag').value.trim();
+  v.mobilitetsavtale = document.getElementById('f-mobilitetsavtale').checked;
   await saveVehicles();
   if(pendingVehiclePhoto){
     v.hasPhoto = true;
@@ -6609,6 +6610,10 @@ function renderBilkort(){
       <datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
       <div class="required-hint" style="margin-top:4px;">Styrer kun gruppering av bilvalg i Sjåførkontroll — påvirker ikke Biloversikt/Historikk/Rapporter/Planlegging.</div>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13.5px;font-weight:600;cursor:pointer;">
+      <input type="checkbox" id="f-mobilitetsavtale" style="width:20px;height:20px;flex-shrink:0;" ${v.mobilitetsavtale?'checked':''}>
+      ☑ Aktiv mobilitetsavtale
+    </label>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
@@ -6719,6 +6724,9 @@ function renderBilkort(){
           <div class="model">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
           <span class="badge ${HOVEDSTATUS_BADGE_KLASSE[hovedstatus] || 'unset'}">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span>
         </div>
+      </div>
+      <div style="margin-left:auto;align-self:flex-end;">
+        <span class="badge ${v.mobilitetsavtale ? 'ok' : 'unset'}">${v.mobilitetsavtale ? '✅' : '❌'} Mobilitetsavtale</span>
       </div>
     </div>
 
