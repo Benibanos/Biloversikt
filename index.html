@@ -4474,14 +4474,20 @@ function render(){
     const hbp = {operativ:0, oppfolging:0, verksted:0, kritisk:0};
     vehicles.forEach(v => { const st = vehicleHovedstatus(v.id); if(hbp[st] !== undefined) hbp[st]++; });
     const hDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
+    // Prioritet 29 (Desktop Dashboard 3.0): statuslinjen forenklet til nøyaktig de fire
+    // kategoriene spesifikasjonen definerer (Operative/Oppfølging/Kritisk/Biler i drift) —
+    // "Verksted"-chippen er fjernet HERFRA (tallet finnes fortsatt i Biloversikt/Operativ
+    // status, ingen data er fjernet). "Kritisk" ruter nå til Aktive saker filtrert på
+    // kritisk prioritet (gjenbruker goToAktiveSakerFiltered(), samme funksjon "Se alle
+    // saker" på selve Dashboardet allerede bruker) i stedet for Biloversikt, jf. kravet
+    // "Kritiske → Aktive saker filtrert på kritiske".
     dashHeaderStatusHtml = `
     <div class="shell-top-status">
       <span class="shell-top-status-label">Bilparkhelse Status</span>
       <span class="shell-top-status-item" data-goto-biloversikt-filter="operativ">🟢 ${hbp.operativ} Operative</span>
       <span class="shell-top-status-item" data-goto-biloversikt-filter="oppfolging">🟡 ${hbp.oppfolging} Oppfølging</span>
-      <span class="shell-top-status-item" data-goto-biloversikt-filter="verksted">🟠 ${hbp.verksted} Verksted</span>
-      <span class="shell-top-status-item" data-goto-biloversikt-filter="kritisk">🔴 ${hbp.kritisk} Kritiske</span>
-      <span class="shell-top-drift" data-goto-biloversikt-filter="har-aktiv-sjafor">🚚 ${hDriftCount} biler i drift nå</span>
+      <span class="shell-top-status-item" data-goto-aktivesaker-filter="kritisk">🔴 ${hbp.kritisk} Kritisk</span>
+      <span class="shell-top-drift" data-goto-biloversikt-filter="har-aktiv-sjafor">🚚 ${hDriftCount} i drift</span>
     </div>`;
   }
   // Prioritet 27 (Design 2.0) — desktop sidebar. Regel 1/4: fem primære punkter
@@ -5146,8 +5152,29 @@ function renderDashboard(){
   const kommerSnartOppfolging = aktiveSaker.filter(s => sakOppfolgingStatus(s) === 'snart')
     .map(s => ({sortDato: s.followUpDate, ikon:'📋', vehicleId:s.vehicleId, sakId:s.id,
       linje1: sakKortOverskrift(s), linje2: `Oppfølging ${fmt(s.followUpDate)}`}));
+  // Prioritet 29 (Desktop Dashboard 3.0): "Kommer snart" skal også vise kommende Service
+  // og EU-kontroll ("Service om 1800 km" / "EU-kontroll om 56 dager") — ingen ny
+  // prognoselogikk, kun de samme, allerede eksisterende status-funksjonene
+  // (vehicleServiceStatus()/vehicleEuKontrollStatus()) som Planlegging/Operativ status
+  // allerede bruker. KUN "snart"-nivåene (snart-gul/snart-rod) tas med her — forfalt
+  // Service/EU-kontroll vises allerede i "Krever handling nå" over, og skal ikke også
+  // dukke opp her (samme unngå-dobbeltinformasjon-prinsipp som resten av kortet).
+  const kommerSnartService = vehicles
+    .map(v => ({v, st: vehicleServiceStatus(v)}))
+    .filter(x => x.st.status === 'snart-gul' || x.st.status === 'snart-rod')
+    .map(x => ({rod: x.st.status === 'snart-rod', ikon: x.st.ikon, vehicleId: x.v.id,
+      linje1: `Service om ${x.st.gjenstaende.toLocaleString('nb-NO')} km`, linje2: ''}));
+  const kommerSnartEu = vehicles
+    .map(v => ({v, st: vehicleEuKontrollStatus(v)}))
+    .filter(x => x.st.status === 'snart-gul' || x.st.status === 'snart-rod')
+    .map(x => ({rod: x.st.status === 'snart-rod', ikon: x.st.ikon, vehicleId: x.v.id,
+      linje1: `EU-kontroll om ${x.st.gjenstaende} dag${x.st.gjenstaende===1?'':'er'}`, linje2: ''}));
+  // Datobaserte elementer (Verksted/Oppfølging) sorteres kronologisk seg imellom først —
+  // deretter Service/EU-kontroll, mest presserende (rød) før mindre presserende (gul).
+  // Ingen ny sorteringsmotor — kun rekkefølgen elementene slås sammen i.
   const kommerSnartListe = kommerSnartVT.concat(kommerSnartOppfolging)
     .sort((a,b) => a.sortDato.localeCompare(b.sortDato))
+    .concat(kommerSnartService.concat(kommerSnartEu).sort((a,b) => (a.rod === b.rod) ? 0 : (a.rod ? -1 : 1)))
     .slice(0, 5);
 
   // ---- Prioritet 26.2 — Kort 3: "Prioriterte biler" ----
@@ -5192,7 +5219,8 @@ function renderDashboard(){
       ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
-    <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);background:var(--red-soft);' : (dashTotalHandlinger > 0 ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+    <div class="dash-row-2">
+    <div class="panel" id="dash-krever-handling-card" style="margin:0;${krHarKritisk ? 'border-color:var(--red);background:var(--red-soft);' : (dashTotalHandlinger > 0 ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
       <div class="ov-label" style="${krHarKritisk ? 'color:var(--red);' : (dashTotalHandlinger > 0 ? 'color:var(--amber);' : '')}margin-bottom:10px;">${krHarKritisk ? '🔴' : (dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
       ${dashKreverListe.length === 0 ? `
       <div style="color:var(--green);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
@@ -5219,16 +5247,16 @@ function renderDashboard(){
       `}
     </div>
 
-    <div class="panel" id="dash-kommer-snart-card" style="margin-bottom:16px;">
+    <div class="panel" id="dash-kommer-snart-card" style="margin:0;">
       <div class="ov-label" style="margin-bottom:10px;">📅 Kommer snart</div>
       ${kommerSnartListe.length === 0 ? `
-      <div class="empty-note">Ingen verkstedtimer eller oppfølginger de neste 7 dagene.</div>
+      <div class="empty-note">Ingen verkstedtimer, service, EU-kontroller eller oppfølginger de neste 7 dagene.</div>
       ` : `
       <div class="vt-list">
         ${kommerSnartListe.map(item => {
           const v = vehicles.find(x => x.id === item.vehicleId);
           return `
-          <div class="vt-card unset" style="cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-vt="${item.vtId}"`}>
+          <div class="vt-card unset" style="cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : (item.vtId ? `data-goto-vt="${item.vtId}"` : `data-goto-bilkort="${item.vehicleId}"`)}>
             <div class="vt-top">
               <div class="vt-main">
                 <div class="vt-vehicle">${item.ikon} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
@@ -5240,26 +5268,37 @@ function renderDashboard(){
       </div>
       `}
     </div>
+    </div>
 
-    <div class="panel" id="dash-prioriterte-biler-card" style="margin-bottom:16px;">
+    <div class="panel" id="dash-prioriterte-biler-card" style="margin-bottom:16px;overflow-x:auto;">
       <div class="ov-label" style="margin-bottom:10px;">🎯 Prioriterte biler</div>
       ${prioriterteBilerListe.length === 0 ? `
       <div style="color:var(--green);font-weight:600;font-size:14px;">Ingen biler krever prioritering nå.</div>
       ` : `
-      <div class="vt-list">
-        ${prioriterteBilerListe.map(item => {
-          const v = vehicles.find(x => x.id === item.vehicleId);
-          return `
-          <div class="vt-card unset" style="cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
-            <div class="vt-top">
-              <div class="vt-main">
-                <div class="vt-vehicle">${item.ikon} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-                <div class="required-hint" style="margin-top:1px;">${esc(item.linje1)}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
+          <th style="padding:8px 10px;width:64px;">Prioritet</th>
+          <th style="padding:8px 10px;">Bil</th>
+          <th style="padding:8px 10px;">Årsak</th>
+          <th style="padding:8px 10px;">Status</th>
+          <th style="padding:8px 10px;">Neste handling</th>
+        </tr></thead>
+        <tbody>
+          ${prioriterteBilerListe.map((item, idx) => {
+            const v = vehicles.find(x => x.id === item.vehicleId);
+            const prioritetFarge = item.prioritet === 'Kritisk' ? 'var(--red)' : (item.prioritet === 'Høy' ? 'var(--orange)' : 'var(--amber)');
+            const prioritetIkon = item.prioritet === 'Kritisk' ? '🔴' : (item.prioritet === 'Høy' ? '🟠' : '🟡');
+            return `
+            <tr style="border-bottom:1px solid var(--line);cursor:pointer;" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
+              <td style="padding:8px 10px;font-weight:700;color:var(--muted);">#${idx+1}</td>
+              <td style="padding:8px 10px;font-weight:700;white-space:nowrap;">${item.ikon} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</td>
+              <td style="padding:8px 10px;">${esc(item.linje1)}</td>
+              <td style="padding:8px 10px;font-weight:600;color:${prioritetFarge};white-space:nowrap;">${prioritetIkon} ${item.prioritet}</td>
+              <td style="padding:8px 10px;">${esc(item.aksjon || '–')}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
       `}
     </div>
 

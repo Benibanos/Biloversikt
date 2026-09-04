@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 28 —
-Total Less Is More). **Ved avvik mellom denne filen og koden er koden alltid
-sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 29 —
+Desktop Dashboard 3.0, se ROADMAP.md). **Ved avvik mellom denne filen og
+koden er koden alltid sannheten.**
 
 ---
 
@@ -80,7 +80,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v24'`, økt i Prioritet 28 fordi
+  offline-fallback (`CACHE_VERSION = 'bilpark-v25'`, økt i Prioritet 29 fordi
   `index.html` ble endret). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
@@ -103,7 +103,15 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
 Adaptivt layout med sidebar-navigasjon (`renderDesktopSidebarHtml()`):
 
 - Dashboard — svarer kun på: hva må jeg gjøre nå / hva kommer snart / hvilken
-  bil starter jeg med. Alt annet hører hjemme andre steder.
+  bil starter jeg med. Alt annet hører hjemme andre steder. **Prioritet 29
+  (Desktop Dashboard 3.0):** nøyaktig fire områder — 1) kompakt, klikkbar
+  statuslinje i toppfeltet (`renderDashboard`/hovedrenderen — 🟢 Operative /
+  🟡 Oppfølging / 🔴 Kritisk → Aktive saker / 🚚 i drift), 2)+3) "Krever
+  handling nå" og "Kommer snart" side om side (`.dash-row-2`, inkl. kommende
+  Service/EU-kontroll i "Kommer snart" — kun `snart`-nivåene, ikke forfalt),
+  4) "Prioriterte biler" som bred tabell (Prioritet/Bil/Årsak/Status/Neste
+  handling) under. Kun desktop — mobilforsiden (`renderMobilHjem()`) er
+  ikke rørt.
 - Aktive saker
 - Historikk (samlet hub for kontroll-/service-/dekk-/skadehistorikk)
 - Planlegging

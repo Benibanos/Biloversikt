@@ -83,11 +83,31 @@ funnet — se merknad under Dashboard-optimaliseringer).
 svarer kun på tre spørsmål (hva må gjøres nå / hva kommer snart / hvilken
 bil starte med), lesbart på under 5 sekunder.
 
-🔧 **Kjent, dokumentert avvik fra tidligere spesifikasjon:** en tidligere
-spesifikasjon forutsatte at service-/kontrollprognoser og en "Operativ
-Belastning"-indikator allerede fantes fra "Prioritet 18–24" — dette ble
-avkreftet direkte i koden under Prioritet 26.2-arbeidet og er bevisst IKKE
-bygget. Ikke marker dette som implementert uten å bygge det først.
+✅ **Prioritet 29 — Desktop Dashboard 3.0 (2026-09-04):** Dashboard (kun
+desktop — mobilforsiden `renderMobilHjem()` er urørt) restrukturert til
+nøyaktig fire områder: 1) kompakt, klikkbar statuslinje i toppfeltet (🟢
+Operative / 🟡 Oppfølging / 🔴 Kritisk / 🚚 i drift — "Verksted"-chippen
+fjernet fra raden, "Kritisk" ruter nå til Aktive saker filtrert på kritisk
+prioritet i stedet for Biloversikt), 2) "Krever handling nå" og 3) "Kommer
+snart" side om side (`.dash-row-2`), 4) "Prioriterte biler" som en bred
+tabell (Prioritet/Bil/Årsak/Status/Neste handling) under. Ingen seksjoner
+fjernet fra Biloversikt/Historikk/Rapporter/Analyse — kun Dashboardets egen
+presentasjon endret, jf. "Endre minst mulig".
+
+✅ **Del av Prioritet 29:** "Kommer snart" viser nå også kommende Service
+og EU-kontroll ("Service om 1800 km" / "EU-kontroll om 56 dager"), avgrenset
+til "snart"-nivåene (`vehicleServiceStatus()`/`vehicleEuKontrollStatus()`
+sine eksisterende `snart-gul`/`snart-rod`-statuser — forfalt vises fortsatt
+kun i "Krever handling nå" for å unngå dobbeltinformasjon). Dette var
+tidligere eksplisitt IKKE bygget (se historisk merknad under) — nå bygget
+med de samme, allerede eksisterende status-funksjonene, ingen ny
+prognoselogikk.
+
+🔧 **Fortsatt IKKE bygget (uendret fra tidligere vurdering):** en egen,
+navngitt "Operativ Belastning"-indikator er ikke del av Prioritet 29 og
+finnes fortsatt ikke i koden — kun de spesifikke Service-/EU-kontroll-
+"kommer snart"-varslene beskrevet over er bygget. Ikke marker en bredere
+"Operativ Belastning"-indikator som implementert uten å bygge den først.
 
 ## Kontrollsletting og Full Cleanup
 
