@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 29 —
-Desktop Dashboard 3.0, se ROADMAP.md). **Ved avvik mellom denne filen og
-koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 30 —
+Utfør arbeid direkte fra Planlegging, se ROADMAP.md). **Ved avvik mellom
+denne filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -80,7 +80,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v25'`, økt i Prioritet 29 fordi
+  offline-fallback (`CACHE_VERSION = 'bilpark-v26'`, økt i Prioritet 30 fordi
   `index.html` ble endret). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
@@ -232,6 +232,55 @@ direkte i koden ved videre endringer.
   service for ALLE kjøretøy over ALLE år ligger i ÉN Airtable-celle — vær
   oppmerksom på Airtables praktiske feltgrense ved videre vekst. Se
   AIRTABLE_MIGRATION.md.
+
+## Planlegging — Utfør arbeid direkte (Prioritet 30)
+
+Formål: eliminere dobbeltregistrering. Ny arbeidsflyt overalt: Planlegging →
+Utført arbeid → historikk opprettes automatisk → planlagt hendelse fjernes
+(IKKE: Planlegg → Utfør → Registrer på nytt → Historikk).
+
+- **Planlagt service:** "✔ Utført arbeid" på en rad i `planlagteServicer`
+  åpner et inline skjema (`fullforPlanlagtService()`). Oppretter en
+  `servicehistorikk`-oppføring (`type: 'Planlagt service'`), fjerner
+  planen fra `planlagteServicer`, og fjerner en eventuell tilhørende
+  service-verkstedtime med samme dato. Km ved service lagres KUN på
+  servicehistorikk-oppføringen — `v.km` overskrives aldri (samme
+  bekreftelsesdialog-mønster som `submitService()` ved avvik, se
+  "Kilometerregel"/"Service" over).
+- **Planlagt verkstedtime:** "✔ Utført arbeid" på en kommende
+  (`upcoming`) `vtCard()` åpner et inline skjema
+  (`fullforVerkstedtime()`). Bevisst INGEN nye felt/tabeller: gjenbruker
+  `t.dato` (utført dato — faller dermed automatisk ut av
+  "kommende"-filteret), `t.pris` (kostnad) og `t.beskrivelse`/`t.notater`
+  (arbeid utført/kommentar). Verkstedtimen ER historikken; det opprettes
+  ingen egen, parallell verkstedhistorikk-oppføring. Trigger den
+  eksisterende `oppdaterVerkstedStatuser()`-kaskaden for en eventuelt
+  tilknyttet sak, akkurat som ved vanlig redigering.
+- **Planlagt dekkskifte:** Planleggings "Dekk"-kolonne er et LIVE
+  DOT-alder-varsel (`dekkAlderStatus()`), ikke en egen planlagt-enhet —
+  derfor ingen ny entitet innført. Den eksisterende "Registrer
+  dekkskifte"-knappen i `renderDekkSkjerm()` er omdøpt til "✔ Utført
+  dekkskifte" (samme felt/logikk/`submitDekkskifte()` som før). Klikk på
+  en Planlegging-dekkrad (`data-goto-dekk` i `attachPlanleggingListeners()`)
+  åpner skjemaet automatisk (`showAddDekkskifte = true`). NB: selve
+  DOT-alder-varselet fjernes fortsatt kun via det separate "Lagre
+  dekkinfo"/DOT-kode-skjemaet på samme skjerm — dette er eksisterende,
+  ikke ny, atferd.
+- **Oppfølginger:** "✔ Utført oppfølging" i saks-wizardens steg 3
+  (`sakWizardSteg3Html()`), vist kun når `s.followUpDate` er satt, åpner et
+  eget skjema (`submitSakWizardOppfolgingUtfort()`) atskilt fra "📅 Legg
+  til oppfølging" (som setter en NY dato, ikke markerer utført). Oppretter
+  en `s.historikk`-oppføring og nullstiller `s.followUpDate` — fraværet av
+  gyldig oppfølgingsdato er nok til at saken automatisk faller ut av
+  Planleggings oppfølgingskolonne (`sakOppfolgingStatus()`).
+- **Dataintegritet:** service/verksted/dekk/oppfølging forblir fire
+  atskilte historikktyper — ingen datamodeller er slått sammen.
+- **Dashboard/Planlegging:** alle fire flytene kaller `render()` etter
+  lagring — ingen egen "oppdater Dashboard"-kode trengs, samme prinsipp som
+  resten av appen (LIVE-beregnet ved hvert render()).
+- Gjelder både desktop og mobil (Service/Dekk/Planlegging/Aktive saker
+  finnes på begge — se "Mobil Design 2.0"). Dashboard-restrukturen fra
+  Prioritet 29 er IKKE rørt av Prioritet 30.
 
 ## EU-kontroll
 

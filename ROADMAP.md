@@ -1,12 +1,12 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Prioritet 28 — Total Less Is More), basert på
-faktisk kjørende kode i `Benibanos/Biloversikt`. Status er verifisert mot
-koden i `index.html`/`storage.airtable.js`, ikke antatt fra tidligere
-bestilling. Den fulle, kronologiske historikken over alle tidligere
-"Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart som egen fil i
-produksjonsprosjektet — den ligger i git-commit `cae279d` (prosjektets
-tilstand før den første store konsolideringen).
+Sist konsolidert: 2026-09-04 (Prioritet 30 — Utfør arbeid direkte fra
+Planlegging), basert på faktisk kjørende kode i `Benibanos/Biloversikt`.
+Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
+antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
+alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart
+som egen fil i produksjonsprosjektet — den ligger i git-commit `cae279d`
+(prosjektets tilstand før den første store konsolideringen).
 
 Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 🔧 Må feilrettes · 📋 Planlagt
@@ -153,6 +153,29 @@ skadehistorikk, Service lagt til (Prioritet 26.10).
 ✅ Implementert og verifisert — planlagt service atskilt fra ordinære
 verkstedtimer (`WorkshopAppointments.Type`), EU-kontroll og service vist i
 Planlegging.
+
+✅ **Prioritet 30 — Utfør arbeid direkte fra Planlegging (2026-09-04):**
+eliminerer dobbeltregistrering (Planlegg → Utfør → Registrer på nytt →
+Historikk). Ny, felles arbeidsflyt for alle fire planlagte hendelsestyper:
+Planlegging → Utført arbeid → historikk opprettes automatisk → planlagt
+hendelse fjernes umiddelbart.
+
+- Planlagt service: "✔ Utført arbeid" → `fullforPlanlagtService()`.
+- Planlagt verkstedtime: "✔ Utført arbeid" → `fullforVerkstedtime()`
+  (gjenbruker eksisterende felt på verkstedtimen — ingen nye
+  felt/tabeller).
+- Planlagt dekkskifte: eksisterende "Registrer dekkskifte" omdøpt til "✔
+  Utført dekkskifte" (samme skjema/logikk), auto-åpnes ved navigasjon fra
+  Planlegging.
+- Oppfølging: "✔ Utført oppfølging" i saks-wizardens steg 3 →
+  `submitSakWizardOppfolgingUtfort()`, atskilt fra "Legg til oppfølging".
+
+Ingen datamodeller slått sammen (service/verksted/dekk/oppfølging forblir
+fire atskilte historikktyper), `v.km` fortsatt aldri overskrevet av
+historisk service-km, Dashboard/Planlegging oppdateres uten refresh (samme
+`render()`-prinsipp som resten av appen). Verifisert med Playwright
+(automatisert smoke-test av alle fire flyter, desktop + mobil) — se
+CLAUDE.md for detaljer om hvilke felt som gjenbrukes per flyt.
 
 ## Operativ beslutningsstøtte
 

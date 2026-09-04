@@ -838,6 +838,10 @@ let lightboxBilder = []; // array av photo-nøkler (se damagePhotoKeys())
 let lightboxIndex = 0;
 let lightboxOpen = false;
 let editingVTId = null;
+// Prioritet 30 (Utfør arbeid direkte fra Planlegging): id på verkstedtimen som for
+// øyeblikket viser sitt inline "✔ Utført arbeid"-skjema (kun én om gangen, gjensidig
+// utelukkende med editingVTId — se toggleFullforVT()/toggleEditVT()).
+let fullforVTId = null;
 // Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som editingVTId
 // (verkstedtimer) rett over. "Skal fungere på samme måte som andre historikkobjekter."
 let editingServiceId = null;
@@ -948,6 +952,10 @@ let sakWizardSaving = false; // dobbeltlagringsvern — låser lagreknapper mens
 let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i steg 3
 let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
 let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
+// Prioritet 30 (Utfør arbeid direkte fra Planlegging, punkt 4): viser inline "✔ Utført
+// oppfølging"-skjema i steg 3 — kun aktuelt når saken faktisk har en oppfølgingsdato satt
+// (s.followUpDate), og gjensidig utelukkende med de tre boksene over.
+let sakWizardOppfolgingUtfortOpen = false;
 // Optimalisering 9 (Steg 1-sjekkliste): metadata (saksnummer/registrert av/dato/kilde/
 // sist oppdatert/historikk) er som standard skjult bak "▼ Mer informasjon" i Steg 1 —
 // samme "kun ett åpent om gangen, nullstilt ved sakbytte"-mønster som de tre over.
@@ -1138,8 +1146,14 @@ let dekkSaveConfirmedId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
 // Prioritet 26.7 (punkt 1): planlagt service — egen registreringsflyt, atskilt fra
-// "Registrer service" (allerede utført). Lagres som verkstedtimer med type='service'.
+// "Registrer service" (allerede utført). Lagres i planlagteServicer (se over), IKKE som
+// en verkstedtime — kommentaren over nevnte tidligere feilaktig type='service' på
+// verkstedtimer; rettet i Prioritet 30 (se fullforPlanlagtService()).
 let showPlanleggService = false;
+// Prioritet 30 (Utfør arbeid direkte fra Planlegging): id på den planlagte
+// serviceavtalen som for øyeblikket viser sitt inline "✔ Utført arbeid"-skjema i
+// Service-skjermen (kun én om gangen, samme mønster som showAddService/editingServiceId).
+let fullforPlanlagtServiceId = null;
 // Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
 // (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
 // Kontroll (kontrollFormVehicleId) og Registrer avvik (sakPrefillVehicleId) — inline
@@ -2907,10 +2921,10 @@ function goTo(scr, vehicleId, _isBack){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; fullforVTId = null; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; sakWizardOppfolgingUtfortOpen = false; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -2920,7 +2934,7 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
     kontrollFormSjaforNavn = '';
   }
-  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
+  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; fullforPlanlagtServiceId = null; }
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; }
   render();
 }
@@ -3463,6 +3477,30 @@ async function submitSakWizardOppfolging(id){
   sakWizardOppfolgingOpen = false;
   render();
 }
+// ================= Prioritet 30 — Utfør arbeid direkte fra Planlegging (punkt 4) =================
+// Markerer en planlagt oppfølging som utført: oppretter en historikkoppføring på saken
+// (samme s.historikk-mønster som submitSakWizardKommentar/submitSakWizardOppfolging) og
+// fjerner s.followUpDate — det er nettopp fraværet av en gyldig oppfølgingsdato som gjør at
+// saken automatisk faller ut av Planleggings oppfølgingskolonne (se sakOppfolgingStatus()/
+// renderPlanlegging()), så ingen egen "fjern fra Planlegging"-logikk trengs.
+async function submitSakWizardOppfolgingUtfort(id){
+  if(sakWizardSaving) return;
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  const msgEl = document.getElementById('swz-oppfutfort-msg-'+id);
+  const dato = readDateInput('swz-oppfutfort-dato-'+id);
+  if(!dato){ if(msgEl) msgEl.textContent = 'Fyll ut gyldig dato (DD/MM/ÅÅÅÅ).'; return; }
+  const kommentar = document.getElementById('swz-oppfutfort-kommentar-'+id).value.trim();
+  sakWizardSaving = true; render();
+  if(!Array.isArray(s.historikk)) s.historikk = [];
+  s.historikk.push({dato, tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: kommentar || 'Oppfølging utført'});
+  s.followUpDate = null;
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  sakWizardSaving = false;
+  sakWizardOppfolgingUtfortOpen = false;
+  render();
+}
 async function submitSakWizardKommentar(id){
   if(sakWizardSaving) return;
   const s = aktiveSaker.find(x => x.id === id);
@@ -3735,6 +3773,62 @@ async function submitPlanlagtService(ev){
   showPlanleggService = false;
   render();
 }
+// ================= Prioritet 30 — Utfør arbeid direkte fra Planlegging =================
+// "Fullfør service": tar en eksisterende planlagt serviceavtale (planlagteServicer) og
+// fullfører den i ett steg — oppretter servicehistorikk (samme datastruktur/funksjon som
+// submitService() bruker, ingen ny sannhet), og fjerner deretter selve serviceavtalen, slik
+// at den forsvinner fra Planlegging automatisk (Dashboard/Kommer snart oppdateres likeledes
+// automatisk ved neste render() — alt beregnes LIVE fra servicehistorikk/planlagteServicer,
+// ingen egen rekalkulering nødvendig). v.km røres ALDRI her, samme regel som submitService().
+// "type" har ingen egen inputfelt i denne fullfør-dialogen (kravspesifikasjonen lister kun
+// dato/km/verksted/kommentar) — settes derfor til en fast, tydelig verdi.
+async function fullforPlanlagtService(planId){
+  const plan = planlagteServicer.find(p => p.id === planId);
+  if(!plan) return;
+  const msgEl = document.getElementById('fs-msg-'+planId);
+  const dato = readDateInput('fs-dato-'+planId);
+  if(!dato){ if(msgEl) msgEl.textContent = 'Fyll ut gyldig utført dato (DD/MM/ÅÅÅÅ).'; return; }
+  const kmRaw = document.getElementById('fs-km-'+planId).value.trim();
+  const km = Number(kmRaw);
+  if(kmRaw === '' || !Number.isFinite(km) || km < 0){
+    if(msgEl) msgEl.textContent = 'Fyll ut en gyldig kilometerstand ved service.';
+    return;
+  }
+  const verksted = document.getElementById('fs-verksted-'+planId).value;
+  const kommentar = document.getElementById('fs-kommentar-'+planId).value.trim();
+  const v = vehicles.find(x => x.id === plan.vehicleId);
+  if(!v) return;
+  const currentVehicleKm = v.km ? Number(v.km) : null;
+  // Samme bekreftelsesregel som submitService() — km høyere enn bilens nåværende km
+  // krever eksplisitt bekreftelse, lagres uansett kun som historisk verdi.
+  if(currentVehicleKm !== null && km > currentVehicleKm){
+    const bekreftet = confirm(
+      'Kilometerstanden ved service (' + km.toLocaleString('nb-NO') + ' km) er høyere enn bilens registrerte nåværende kilometerstand (' + currentVehicleKm.toLocaleString('nb-NO') + ' km).\n\n' +
+      'Dette lagres KUN som en historisk verdi på selve serviceoppføringen — bilens nåværende kilometerstand endres ikke.\n\nVil du fortsette?'
+    );
+    if(!bekreftet) return;
+  }
+  const now = new Date().toISOString();
+  servicehistorikk.push({id: uid(), vehicleId: plan.vehicleId, dato, km, type: 'Planlagt service', verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
+  await saveServicehistorikk();
+  // v.km røres BEVISST ALDRI her — se hovedregel i CLAUDE.md.
+  planlagteServicer = planlagteServicer.filter(p => p.id !== planId);
+  await savePlanlagteServicer();
+  // Defensiv opprydding, jf. kravet "fjern eventuell tilhørende service-relatert
+  // verkstedhendelse": planlagteServicer og verkstedtimer er i dagens kode bevisst
+  // adskilte datakilder uten noen kobling mellom dem (se kommentaren ved
+  // planlagteServicer-deklarasjonen) — normalt er det derfor ingenting å fjerne her. Denne
+  // filtreringen er et rent sikkerhetsnett for det tenkte, dokumenterte (men i praksis
+  // ubrukte) type='service'-merket på WorkshopAppointments, og rører ALDRI andre
+  // verkstedtimer på samme bil.
+  const forbundneVT = verkstedtimer.filter(t => t.vehicleId === plan.vehicleId && t.type === 'service' && t.dato === plan.dato);
+  if(forbundneVT.length > 0){
+    verkstedtimer = verkstedtimer.filter(t => !forbundneVT.includes(t));
+    await saveVerkstedtimer();
+  }
+  fullforPlanlagtServiceId = null;
+  render();
+}
 async function submitAddVT(ev){
   ev.preventDefault();
   const vehicleId = document.getElementById('vt-vehicle').value;
@@ -3811,6 +3905,38 @@ async function deleteVT(id){
   verkstedtimer = verkstedtimer.filter(t => t.id !== id);
   await saveVerkstedtimer();
   editingVTId = null;
+  render();
+}
+// ================= Prioritet 30 — Utfør arbeid direkte fra Planlegging (punkt 2) =================
+// Fullfører en PLANLAGT (kommende) verkstedtime direkte, uten dobbeltregistrering.
+// Bevisst ingen nye felt/tabeller (FELTREGEL): gjenbruker eksisterende t.dato (utført dato —
+// dette gjør at timen automatisk faller ut av "kommende"-filteret i Planlegging/renderVerksted,
+// flipper egen visning til "(utført arbeid)", og trigger den eksisterende
+// oppdaterVerkstedStatuser()-kaskaden for tilknyttet sak), t.pris (kostnad) og t.beskrivelse/
+// t.notater (arbeid utført + kommentar) — verkstedtimen ER historikken, det opprettes ingen
+// separat verkstedhistorikk-oppføring.
+function toggleFullforVT(id){
+  fullforVTId = fullforVTId === id ? null : id;
+  if(fullforVTId) editingVTId = null;
+  render();
+}
+async function fullforVerkstedtime(id){
+  const t = verkstedtimer.find(x => x.id === id);
+  if(!t) return;
+  const msgEl = document.getElementById('fv-msg-'+id);
+  const dato = readDateInput('fv-dato-'+id);
+  if(!dato){ if(msgEl) msgEl.textContent = 'Fyll ut gyldig utført dato (DD/MM/ÅÅÅÅ).'; return; }
+  const kostnadRaw = document.getElementById('fv-kostnad-'+id).value.trim();
+  const arbeid = document.getElementById('fv-arbeid-'+id).value.trim();
+  const kommentar = document.getElementById('fv-kommentar-'+id).value.trim();
+  if(!arbeid){ if(msgEl) msgEl.textContent = 'Fyll ut hva som ble gjort (arbeid utført).'; return; }
+  t.dato = dato;
+  t.pris = kostnadRaw ? Number(kostnadRaw.replace(/\s/g,'').replace(',','.')) : (t.pris !== undefined ? t.pris : null);
+  t.beskrivelse = arbeid;
+  t.notater = [t.notater, kommentar].filter(Boolean).join(' · ');
+  await saveVerkstedtimer();
+  if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
+  fullforVTId = null;
   render();
 }
 // Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som toggleEditVT/
@@ -6769,9 +6895,8 @@ function renderServiceSkjerm(){
     const vServiceHistorikk = vehicleServiceHistorikk(v.id);
     const vSisteService = vehicleSisteService(v.id);
     const vServiceStatus = vehicleServiceStatus(v);
-    // Prioritet 26.7 (punkt 1): planlagte serviceavtaler er verkstedtimer med type='service'
-    // — samme datastruktur/tabell som vanlige verkstedtimer ("på samme måte som
-    // verkstedtime"), kun kategorisert. Ingen ny datamodell.
+    // Planlagte serviceavtaler lagres i sin egen liste (planlagteServicer), bevisst
+    // adskilt fra verkstedtimer — se kommentaren ved planlagteServicer-deklarasjonen.
     const vPlanlagteServicer = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
       .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
     const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
@@ -6799,7 +6924,30 @@ function renderServiceSkjerm(){
         <div class="ov-label" style="margin-bottom:10px;">📅 Planlagt service</div>
         ${vPlanlagteServicer.length === 0 ? `<div class="empty-note" style="margin-bottom:14px;">Ingen planlagte serviceavtaler.</div>` : `
         <ul class="dmg-simple-list" style="margin-bottom:14px;">
-          ${vPlanlagteServicer.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span></li>`).join('')}
+          ${vPlanlagteServicer.map(t => `
+          <li style="${fullforPlanlagtServiceId === t.id ? 'flex-direction:column;align-items:stretch;' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span>
+              <button type="button" class="btn small" data-fullfor-planlagt-service="${t.id}">${fullforPlanlagtServiceId === t.id ? 'Avbryt' : '✔ Utført arbeid'}</button>
+            </div>
+            ${fullforPlanlagtServiceId === t.id ? `
+            <form class="panel" id="fullfor-ps-form-${t.id}" style="margin-top:10px;">
+              <div class="required-hint" style="margin-bottom:10px;">Fullfører denne serviceavtalen — oppretter servicehistorikk og fjerner den fra Planlegging. Ingen ny registrering andre steder nødvendig.</div>
+              <div class="row2">
+                <div class="field"><label>Utført dato</label><input id="fs-dato-${t.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+                <div class="field"><label>Km ved service</label><input id="fs-km-${t.id}" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
+              </div>
+              <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+                <select id="fs-verksted-${t.id}">
+                  <option value="">Ikke satt / internt</option>
+                  ${verkstedSelectOptions(t.verksted)}
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="fs-kommentar-${t.id}" type="text" placeholder="Valgfritt" value="${esc(t.kommentar || '')}"></div>
+              <div class="form-msg" id="fs-msg-${t.id}"></div>
+              <div class="panel-actions"><button class="btn" type="submit">Fullfør service</button></div>
+            </form>` : ''}
+          </li>`).join('')}
         </ul>`}
         <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
         ${showPlanleggService ? `
@@ -6865,7 +7013,7 @@ function renderServiceSkjerm(){
 }
 function attachServiceSkjermListeners(){
   document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; render(); });
+  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; fullforPlanlagtServiceId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
   if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
   const serviceBtn = document.getElementById('ny-service-btn');
@@ -6876,6 +7024,17 @@ function attachServiceSkjermListeners(){
   if(planleggBtn) planleggBtn.addEventListener('click', () => { showPlanleggService = !showPlanleggService; render(); });
   const planleggForm = document.getElementById('planlegg-service-form');
   if(planleggForm) planleggForm.addEventListener('submit', submitPlanlagtService);
+  // Prioritet 30 — "✔ Utført arbeid" på en planlagt serviceavtale.
+  document.querySelectorAll('[data-fullfor-planlagt-service]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.fullforPlanlagtService;
+    fullforPlanlagtServiceId = fullforPlanlagtServiceId === id ? null : id;
+    render();
+  }));
+  planlagteServicer.filter(p => p.vehicleId === serviceValgtVehicleId).forEach(p => {
+    const form = document.getElementById('fullfor-ps-form-'+p.id);
+    if(form) form.addEventListener('submit', (e) => { e.preventDefault(); fullforPlanlagtService(p.id); });
+  });
   document.querySelectorAll('[data-toggle-service]').forEach(el => el.addEventListener('click', () => toggleEditService(el.dataset.toggleService)));
   servicehistorikk.filter(s => s.vehicleId === serviceValgtVehicleId).forEach(s => {
     const saveBtn = document.getElementById('sv-save-'+s.id);
@@ -6931,7 +7090,7 @@ function renderDekkSkjerm(){
         <div class="ov-label" style="margin-bottom:10px;">Dekkskiftehistorikk</div>
         <div class="toolbar" style="margin-bottom:14px;">
           <div class="count">${naaverendeDekkLabel}</div>
-          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
+          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '✔ Utført dekkskifte'}</button>
         </div>
         ${showAddDekkskifte ? `
         <form class="panel" id="add-dekkskifte-form">
@@ -6946,7 +7105,7 @@ function renderDekkSkjerm(){
           </div>
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="dk-msg"></div>
-          <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
+          <div class="panel-actions"><button class="btn" type="submit">Fullfør dekkskifte</button></div>
         </form>` : ''}
         ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
         <ul class="dmg-simple-list">
@@ -7454,6 +7613,17 @@ function sakWizardSteg3Html(s){
         <div class="panel-actions"><button type="button" class="btn small" id="swz-oppf-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre</button></div>
       </div>` : ''}
 
+      ${s.followUpDate ? `
+      <button type="button" class="btn secondary" id="swz-oppfutfort-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">✔ Utført oppfølging</button>
+      ${sakWizardOppfolgingUtfortOpen ? `
+      <div class="panel">
+        <div class="required-hint" style="margin-bottom:10px;">Fullfører oppfølgingen — oppretter en historikkoppføring og fjerner den fra Planlegging.</div>
+        <div class="field" style="margin-bottom:10px;"><label>Dato</label><input id="swz-oppfutfort-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}"></div>
+        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="swz-oppfutfort-kommentar-${s.id}" placeholder="Valgfritt"></textarea></div>
+        <div class="form-msg" id="swz-oppfutfort-msg-${s.id}"></div>
+        <div class="panel-actions"><button type="button" class="btn small" id="swz-oppfutfort-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Fullfør</button></div>
+      </div>` : ''}` : ''}
+
       <button type="button" class="btn secondary" id="swz-kommentar-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">💬 Legg til kommentar</button>
       ${sakWizardKommentarOpen ? `
       <div class="panel">
@@ -7802,7 +7972,9 @@ function attachPlanleggingListeners(){
   document.getElementById('plan-periode').addEventListener('change', e => { planleggingPeriodeDager = Number(e.target.value); render(); });
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
-  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+  // Prioritet 30 (punkt 3): fra Planlegging skal "Utfør arbeid" gå rett i gang — åpner
+  // "✔ Utført dekkskifte"-skjemaet automatisk (samme skjema/felt som før, se renderDekkSkjerm()).
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; showAddDekkskifte = true; goTo('dekk'); }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
@@ -7974,7 +8146,7 @@ function attachAktiveSakerListeners(){
     e.stopPropagation();
     const [sakId, steg] = el.dataset.gotoWizardSteg.split(':');
     sakWizardStep = Number(steg);
-    sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+    sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardOppfolgingUtfortOpen = false;
     render();
   }));
   // Prioritet 12 — Steg 1: "Marker utført" på ett enkelt avvik i en flerpunkts sak, uten
@@ -8014,7 +8186,7 @@ function attachAktiveSakerListeners(){
     if(vtBtn) vtBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       sakWizardVtOpen = !sakWizardVtOpen;
-      sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+      sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardOppfolgingUtfortOpen = false;
       vtPrefillSakId = s.id;
       render();
     });
@@ -8022,16 +8194,26 @@ function attachAktiveSakerListeners(){
     if(oppfBtn) oppfBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       sakWizardOppfolgingOpen = !sakWizardOppfolgingOpen;
-      sakWizardVtOpen = false; sakWizardKommentarOpen = false;
+      sakWizardVtOpen = false; sakWizardKommentarOpen = false; sakWizardOppfolgingUtfortOpen = false;
       render();
     });
     const oppfLagreBtn = document.getElementById('swz-oppf-lagre-'+s.id);
     if(oppfLagreBtn) oppfLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardOppfolging(s.id); });
+    // Prioritet 30 (punkt 4): "✔ Utført oppfølging"
+    const oppfUtfortBtn = document.getElementById('swz-oppfutfort-btn-'+s.id);
+    if(oppfUtfortBtn) oppfUtfortBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sakWizardOppfolgingUtfortOpen = !sakWizardOppfolgingUtfortOpen;
+      sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
+      render();
+    });
+    const oppfUtfortLagreBtn = document.getElementById('swz-oppfutfort-lagre-'+s.id);
+    if(oppfUtfortLagreBtn) oppfUtfortLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardOppfolgingUtfort(s.id); });
     const kommentarBtn = document.getElementById('swz-kommentar-btn-'+s.id);
     if(kommentarBtn) kommentarBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       sakWizardKommentarOpen = !sakWizardKommentarOpen;
-      sakWizardVtOpen = false; sakWizardOppfolgingOpen = false;
+      sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardOppfolgingUtfortOpen = false;
       render();
     });
     const kommentarLagreBtn = document.getElementById('swz-kommentar-lagre-'+s.id);
@@ -8297,6 +8479,10 @@ function renderVerksted(){
 function vtCard(t, upcoming, isNext){
   const v = vtVehicle(t);
   const editing = editingVTId === t.id;
+  // Prioritet 30 (Utfør arbeid direkte fra Planlegging, punkt 2): inline "fullfør
+  // verkstedbesøk"-skjema, kun aktuelt for kommende (upcoming) verkstedtimer, og
+  // gjensidig utelukkende med redigeringsboksen (samme mønster som fullforPlanlagtServiceId).
+  const fullforOpen = upcoming && fullforVTId === t.id;
   const within7 = upcoming && vtWithinWeek(t.dato);
   const linkedSak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
   return `
@@ -8316,6 +8502,24 @@ function vtCard(t, upcoming, isNext){
           ${within7 && !isNext ? `<span class="badge soon">Innen 7 dager</span>` : ''}
         </div>
       </div>
+      ${upcoming ? `
+      <div style="padding:0 14px 12px;display:flex;justify-content:flex-end;">
+        <button type="button" class="btn small" data-fullfor-vt="${t.id}">${fullforOpen ? 'Avbryt' : '✔ Utført arbeid'}</button>
+      </div>` : ''}
+      ${fullforOpen ? `
+      <div class="dmg-editbox">
+        <div class="required-hint" style="margin-bottom:10px;">Fullfører denne verkstedtimen — oppretter verkstedhistorikk og fjerner den fra Planlegging. Ingen ny registrering andre steder nødvendig.</div>
+        <div class="row2">
+          <div class="field"><label>Utført dato</label><input id="fv-dato-${t.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+          <div class="field"><label>💰 Kostnad</label><input id="fv-kostnad-${t.id}" type="text" inputmode="numeric" placeholder="F.eks. 4850" value="${t.pris !== undefined && t.pris !== null ? t.pris : ''}"></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Arbeid utført</label><textarea id="fv-arbeid-${t.id}" placeholder="Hva ble gjort?">${esc(t.beskrivelse||'')}</textarea></div>
+        <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><input id="fv-kommentar-${t.id}" type="text" placeholder="Valgfritt"></div>
+        <div class="form-msg" id="fv-msg-${t.id}"></div>
+        <div class="panel-actions">
+          <button class="btn small" id="fv-submit-${t.id}">Fullfør verkstedbesøk</button>
+        </div>
+      </div>` : ''}
       ${editing ? `
       <div class="dmg-editbox">
         <div class="row2">
@@ -8386,7 +8590,14 @@ function attachVerkstedListeners(){
     if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingVTId = null; render(); });
     const delBtn = document.getElementById('vt-delete-'+t.id);
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteVT(t.id); });
+    // Prioritet 30 (punkt 2): "✔ Utført arbeid"-knapp + inline fullfør-skjema
+    const fullforBtn = document.getElementById('fv-submit-'+t.id);
+    if(fullforBtn) fullforBtn.addEventListener('click', (e) => { e.stopPropagation(); fullforVerkstedtime(t.id); });
   });
+  document.querySelectorAll('[data-fullfor-vt]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFullforVT(el.dataset.fullforVt);
+  }));
 }
 
 // ================= scrKostnadsoversikt (Fase 4) =================
