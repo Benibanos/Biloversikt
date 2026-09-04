@@ -1,7 +1,7 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist konsolidert: 2026-09-04 (Mobilitetsavtale-felt). Kilde:
-faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.8.0),
+Sist konsolidert: 2026-09-04 (Prioritet 31 — km-felt på dekkhistorikk). Kilde:
+faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.9.0),
 kryssjekket mot faktiske feltreferanser i `index.html`. Den tidligere,
 separate oppsettsguiden for Firebase→Airtable-migreringen er ikke lenger
 bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
@@ -19,8 +19,8 @@ kategorier — ingen av dem er Airtable-kolonner.
 ## 1. Autoritativ storage-fil og versjon
 
 - **Fil:** `storage.airtable.js` (eneste Airtable-storage-fil i prosjektet)
-- **Versjon:** `v2.8.0` (`window.storageAirtableInfo.versjon`)
-- **Cache-busting:** `<script src="storage.airtable.js?v=2.8.0">` i
+- **Versjon:** `v2.9.0` (`window.storageAirtableInfo.versjon`)
+- **Cache-busting:** `<script src="storage.airtable.js?v=2.9.0">` i
   `index.html`
 - **Regel:** øk BÅDE `?v=`-tallet i `index.html` OG `versjon`-verdien i
   `storage.airtable.js` samtidig ved enhver fremtidig endring i filen.
@@ -144,7 +144,16 @@ kategorier — ingen av dem er Airtable-kolonner.
 | vehicleId | VehicleId | tekst |
 | dato | Dato | tekst |
 | retning | Retning | tekst |
+| km | KM | tall |
 | kommentar | Kommentar | tekst |
+
+`retning` er, siden Prioritet 31, en av seks type-koder (ikke bare
+"sommer-vinter"/"vinter-sommer") — se `DEKK_TYPE_OPTIONS` i `index.html`.
+`km` er nytt (Prioritet 31, 2026-09-04): km ved dekkskifte, kun for
+oppføringer opprettet via den nye "✔ Utført dekkskifte"-fullfør-flyten
+(`fullforDekkskifttime()`) — historikk fra den eksisterende ad-hoc-
+registreringen (`submitDekkskifte()`) har fortsatt ingen km. Endrer ALDRI
+`v.km` (se Kilometerregel i CLAUDE.md).
 
 ### TireCosts (app-nøkkel: `dekkkostnader`)
 
@@ -217,6 +226,9 @@ separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
 - `verksteder` — liste over verksteder (JSON i én Settings-rad)
 - `planlagteservicer` — planlagte servicer (lagres via `window.storage.set`,
   samme Settings-mønster)
+- `dekkskifttimer` — planlagte dekkskifttimer (Prioritet 31, 2026-09-04),
+  samme Settings-mønster som `planlagteservicer` — IKKE en egen
+  `LIST_TABLES`-tabell.
 - `servicehistorikk` — **dokumentasjonsrettelse (Prioritet 28):** all
   servicehistorikk for ALLE kjøretøy lagres som én samlet JSON-blob i én
   Settings-rad (`window.storage.get('servicehistorikk')`/`.set(...)`), IKKE
@@ -256,13 +268,17 @@ Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
 ## 6. Nye felt siden forrige dokumenterte migrering
 
-`Mobilitetsavtale` (Vehicles, boolsk) er det nyeste feltet — lagt til
-2026-09-04 som ren kjøretøyinformasjon (følger bilen, ikke service-/
-verksted-/sakshistorikk), manuelt av/på-felt vist på Bilkort og redigerbart i
-Bilinformasjon. Korrekt registrert i `LIST_TABLES` i nåværende
-`storage.airtable.js` (`v2.8.0`) — sendes og leses korrekt. `Driftslag`
-(Vehicles) forblir det nest nyeste feltet, lagt til i Prioritet 27.1. Ingen
-navneendringer på eksisterende felt er gjort.
+`KM` (TireChanges/`dekkhistorikk`, tall) er det nyeste feltet — lagt til
+2026-09-04 (Prioritet 31) som km ved dekkskifte, kun fylt ut av den nye
+"✔ Utført dekkskifte"-fullfør-flyten (`fullforDekkskifttime()`), aldri av
+den eksisterende ad-hoc-registreringen. Korrekt registrert i `LIST_TABLES` i
+nåværende `storage.airtable.js` (`v2.9.0`) — sendes og leses korrekt.
+Endrer aldri `v.km` (se Kilometerregel). `Mobilitetsavtale` (Vehicles,
+boolsk, lagt til 2026-09-04 samme dag, tidligere) forblir det nest nyeste
+feltet, deretter `Driftslag` (Vehicles, Prioritet 27.1). Ingen
+navneendringer på eksisterende felt er gjort. Merk også: `dekkskifttimer`
+(planlagte dekkskifttimer, Prioritet 31) er IKKE et nytt Airtable-felt —
+det er en ny Settings-blob-nøkkel, se seksjon 3.
 
 ## 7. Felt-kandidater — kun skrevet, aldri lest (Prioritet 28-felterevisjon)
 

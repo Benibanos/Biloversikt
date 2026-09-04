@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.8.0"></script>
+<script src="storage.airtable.js?v=2.9.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -1140,9 +1140,24 @@ let servicehistorikk = []; // logg over utførte servicer per bil, se saveServic
 // nødvendig, se saveServicehistorikk()). Kan vises side om side med Verksted i
 // Planlegging, men lagres og behandles fullstendig separat.
 let planlagteServicer = []; // {id, vehicleId, dato, tidspunkt, verksted, kommentar}
+// Prioritet 31 (Dekkskifttime + Fullfør arbeid direkte fra Planlegging): planlagte
+// dekkskifttimer, SAMME lagringsprinsipp som planlagteServicer over (egen liste, egen
+// Settings-nøkkel, ingen egen Airtable-tabell/feltkartlegging nødvendig — se
+// saveDekkskifttimer()) — bevisst adskilt fra dekkhistorikk (faktisk UTFØRT arbeid, egen
+// Airtable-tabell TireChanges). En dekkskifttime blir ALDRI historikk før den eksplisitt
+// fullføres (se fullforDekkskifttime()), som oppretter en dekkhistorikk-oppføring og
+// fjerner selve timen — nøyaktig samme mønster som planlagteServicer/fullforPlanlagtService().
+let dekkskifttimer = []; // {id, vehicleId, dato, tidspunkt, verksted, type, kommentar}
 let aktiveSaker = []; // "Aktive Saker" — grunnmur for avviksoppfølging (Fase 1), se saveAktiveSaker()
 let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
+// Prioritet 31: "🛞 Registrer dekkskifttime" — egen registreringsflyt for FREMTIDIGE
+// dekkskifter, atskilt fra "🛞 Registrer dekkskifte" (showAddDekkskifte over, som logger et
+// dekkskifte som allerede har skjedd, uten en forutgående plan). Lagres i dekkskifttimer.
+let showAddDekkskifttime = false;
+// Prioritet 31: id på den planlagte dekkskifttimen som for øyeblikket viser sitt inline
+// "✔ Utført dekkskifte"-skjema (kun én om gangen, samme mønster som fullforPlanlagtServiceId).
+let fullforDekkskifttimeId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
 // Prioritet 26.7 (punkt 1): planlagt service — egen registreringsflyt, atskilt fra
@@ -2038,6 +2053,8 @@ async function loadAll(){
   catch(e){ servicehistorikk = []; }
   try{ const ps = await window.storage.get('planlagteservicer', true); planlagteServicer = ps && ps.value ? JSON.parse(ps.value) : []; }
   catch(e){ planlagteServicer = []; }
+  try{ const dt = await window.storage.get('dekkskifttimer', true); dekkskifttimer = dt && dt.value ? JSON.parse(dt.value) : []; }
+  catch(e){ dekkskifttimer = []; }
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
@@ -2221,6 +2238,10 @@ async function saveServicehistorikk(){
 }
 async function savePlanlagteServicer(){
   try{ await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveDekkskifttimer(){
+  try{ await window.storage.set('dekkskifttimer', JSON.stringify(dekkskifttimer), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function savePhoto(key, dataUrl){
@@ -2935,7 +2956,7 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormSjaforNavn = '';
   }
   if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; fullforPlanlagtServiceId = null; }
-  if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; }
+  if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; dekkSaveConfirmedId = null; showAddDekkskifttime = false; fullforDekkskifttimeId = null; }
   render();
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
@@ -3677,7 +3698,7 @@ async function submitDekkskifte(ev){
   const kommentar = document.getElementById('dk-kommentar').value.trim();
   const msgEl = document.getElementById('dk-msg');
   if(!retning || !dato){
-    msgEl.textContent = 'Velg retning og fyll ut dato (DD/MM/ÅÅÅÅ).';
+    msgEl.textContent = 'Velg type dekkskifte og fyll ut dato (DD/MM/ÅÅÅÅ).';
     return;
   }
   const v = vehicles.find(x => x.id === dekkValgtVehicleId);
@@ -3685,11 +3706,86 @@ async function submitDekkskifte(ev){
   dekkhistorikk.push({id: uid(), vehicleId: dekkValgtVehicleId, dato, retning, kommentar});
   await saveDekkhistorikk();
   // Oppdaterer også hvilke dekk som er montert på bilen akkurat nå, slik at
-  // Dekkoversikt/Dashboard-statusen stemmer med det siste registrerte skiftet.
-  v.dekk = retning === 'sommer-vinter' ? 'vinter' : 'sommer';
+  // Dekkoversikt/Dashboard-statusen stemmer med det siste registrerte skiftet. Kun de fire
+  // sesongskifte-/nydekk-typene representerer et fullstendig skifte (se DEKK_TYPE_TIL_SESONG
+  // over) — "Enkelthjul"/"Annet" lar v.dekk stå urørt.
+  if(DEKK_TYPE_TIL_SESONG[retning]) v.dekk = DEKK_TYPE_TIL_SESONG[retning];
   await saveVehicles();
   await reloadOne('vehicles');
   showAddDekkskifte = false;
+  render();
+}
+// ================= Prioritet 31 — Dekkskifttime + Fullfør arbeid direkte fra Planlegging =================
+// "Registrer dekkskifttime": egen registreringsflyt for en FREMTIDIG dekkskiftavtale,
+// atskilt fra ovenstående submitDekkskifte() (som logger noe som allerede har skjedd).
+// Samme mønster som submitPlanlagtService() — egen liste (dekkskifttimer), egen
+// lagringsnøkkel, ingen kobling mot verkstedtimer eller dekkhistorikk før den fullføres.
+async function submitDekkskifttime(ev){
+  ev.preventDefault();
+  const dato = readDateInput('dt-dato');
+  const tidspunkt = readTimeInput('dt-tid');
+  const verksted = document.getElementById('dt-verksted').value;
+  const type = document.getElementById('dt-type').value;
+  const kommentar = document.getElementById('dt-kommentar').value.trim();
+  const msgEl = document.getElementById('dt-msg');
+  if(!dato || !verksted){
+    msgEl.textContent = 'Fyll ut dato (DD/MM/ÅÅÅÅ) og dekkverksted.';
+    return;
+  }
+  const v = vehicles.find(x => x.id === dekkValgtVehicleId);
+  if(!v) return;
+  dekkskifttimer.push({
+    id: uid(), vehicleId: dekkValgtVehicleId, verksted, dato, tidspunkt, type, kommentar
+  });
+  await saveDekkskifttimer();
+  showAddDekkskifttime = false;
+  render();
+}
+function toggleFullforDekkskifttime(id){
+  fullforDekkskifttimeId = fullforDekkskifttimeId === id ? null : id;
+  render();
+}
+// "Fullfør dekkskifte": tar en eksisterende planlagt dekkskifttime (dekkskifttimer) og
+// fullfører den i ett steg — oppretter en dekkhistorikk-oppføring (samme datastruktur/
+// tabell som submitDekkskifte() bruker, ingen ny sannhet), oppdaterer v.dekk (samme
+// DEKK_TYPE_TIL_SESONG-mapping som submitDekkskifte()), og fjerner deretter selve
+// dekkskifttimen, slik at den forsvinner fra Planlegging automatisk (Dashboard/
+// Kjøretøyhistorikk oppdateres likeledes automatisk ved neste render() — alt beregnes
+// LIVE fra dekkhistorikk/dekkskifttimer, ingen egen rekalkulering nødvendig). Samme
+// kilometerregel-bekreftelse som fullforPlanlagtService()/submitService(): km ved
+// dekkskifte lagres KUN på selve historikkoppføringen, v.km røres ALDRI her.
+async function fullforDekkskifttime(planId){
+  const plan = dekkskifttimer.find(p => p.id === planId);
+  if(!plan) return;
+  const msgEl = document.getElementById('fdt-msg-'+planId);
+  const dato = readDateInput('fdt-dato-'+planId);
+  if(!dato){ if(msgEl) msgEl.textContent = 'Fyll ut gyldig utført dato (DD/MM/ÅÅÅÅ).'; return; }
+  const kmRaw = document.getElementById('fdt-km-'+planId).value.trim();
+  const km = Number(kmRaw);
+  if(kmRaw === '' || !Number.isFinite(km) || km < 0){
+    if(msgEl) msgEl.textContent = 'Fyll ut en gyldig kilometerstand ved dekkskifte.';
+    return;
+  }
+  const type = document.getElementById('fdt-type-'+planId).value;
+  const kommentar = document.getElementById('fdt-kommentar-'+planId).value.trim();
+  const v = vehicles.find(x => x.id === plan.vehicleId);
+  if(!v) return;
+  const currentVehicleKm = v.km ? Number(v.km) : null;
+  if(currentVehicleKm !== null && km > currentVehicleKm){
+    const bekreftet = confirm(
+      'Kilometerstanden ved dekkskifte (' + km.toLocaleString('nb-NO') + ' km) er høyere enn bilens registrerte nåværende kilometerstand (' + currentVehicleKm.toLocaleString('nb-NO') + ' km).\n\n' +
+      'Dette lagres KUN som en historisk verdi på selve dekkhistorikk-oppføringen — bilens nåværende kilometerstand endres ikke.\n\nVil du fortsette?'
+    );
+    if(!bekreftet) return;
+  }
+  dekkhistorikk.push({id: uid(), vehicleId: plan.vehicleId, dato, retning: type, km, kommentar});
+  await saveDekkhistorikk();
+  if(DEKK_TYPE_TIL_SESONG[type]) v.dekk = DEKK_TYPE_TIL_SESONG[type];
+  await saveVehicles();
+  await reloadOne('vehicles');
+  dekkskifttimer = dekkskifttimer.filter(p => p.id !== planId);
+  await saveDekkskifttimer();
+  fullforDekkskifttimeId = null;
   render();
 }
 // Service — km-basert serviceintervall (ny funksjonalitet). Samme lagre-mønster som
@@ -6294,7 +6390,27 @@ function attachVarslerOversiktListeners(){
 }
 
 // ================= scrBilkort =================
-const DEKK_RETNING_LABEL = {'sommer-vinter':'Sommer → Vinter', 'vinter-sommer':'Vinter → Sommer'};
+// Prioritet 31: "Type dekkskifte" — utvidet fra to (sommer/vinter-retning) til seks valg,
+// brukt BÅDE ved ad-hoc registrering (submitDekkskifte()), planlegging av dekkskifttime
+// (submitDekkskifttime()) og fullføring (fullforDekkskifttime()) — én felles liste, ingen
+// parallelle typevokabularer. Verdiene lagres uendret i dekkhistorikk[].retning (gjenbruker
+// eksisterende felt/kolonne — ingen ny databasekolonne for selve typen).
+const DEKK_TYPE_OPTIONS = [
+  {value:'sommer-vinter', label:'Sommer → Vinter'},
+  {value:'vinter-sommer', label:'Vinter → Sommer'},
+  {value:'nye-sommerdekk', label:'Nye sommerdekk'},
+  {value:'nye-vinterdekk', label:'Nye vinterdekk'},
+  {value:'enkelthjul', label:'Enkelthjul'},
+  {value:'annet', label:'Annet'}
+];
+const DEKK_RETNING_LABEL = Object.fromEntries(DEKK_TYPE_OPTIONS.map(o => [o.value, o.label]));
+function dekkTypeSelectOptions(selected){
+  return DEKK_TYPE_OPTIONS.map(o => `<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+// Hvilken sesong som er montert etter et fullført dekkskifte — kun de fire retnings-/
+// nydekk-typene representerer et FULLSTENDIG sesongskifte; "Enkelthjul"/"Annet" endrer
+// ikke hvilken sesong som er montert, og rører derfor bevisst ikke v.dekk.
+const DEKK_TYPE_TIL_SESONG = {'sommer-vinter':'vinter', 'vinter-sommer':'sommer', 'nye-sommerdekk':'sommer', 'nye-vinterdekk':'vinter'};
 const HISTORIKK_TYPE_ORDER = ['kontroll', 'skade', 'varsellampe', 'sak', 'verksted', 'dekk', 'kostnad', 'statusendring'];
 const HISTORIKK_TYPE_LABEL = {kontroll:'Kontroller', skade:'Skader', varsellampe:'Varsellamper', sak:'Aktive saker', verksted:'Verksted', dekk:'Dekk', kostnad:'Kostnader', statusendring:'Statusendringer', service:'Service'};
 const HISTORIKK_TYPE_IKON = {kontroll:'✅', skade:'⚠️', varsellampe:'🚨', sak:'🗂️', verksted:'🔧', dekk:'🛞', kostnad:'💰', statusendring:'⛔', service:'🔧'};
@@ -6330,7 +6446,7 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
     if(t.pris) hendelser.push({dato: t.dato, tid: '', type: 'kostnad', tekst: 'Verkstedkostnad registrert: ' + fmtKr(t.pris), av: ''});
   });
   dekkhistorikk.filter(d => d.vehicleId === vehicleId).forEach(d => {
-    hendelser.push({dato: d.dato, tid: '', type: 'dekk', tekst: 'Dekkskifte: ' + (DEKK_RETNING_LABEL[d.retning] || d.retning), av: ''});
+    hendelser.push({dato: d.dato, tid: '', type: 'dekk', tekst: 'Dekkskifte: ' + (DEKK_RETNING_LABEL[d.retning] || d.retning) + (d.km ? ' · ' + Number(d.km).toLocaleString('nb-NO') + ' km' : ''), av: ''});
   });
   dekkkostnader.filter(dk => dk.vehicleId === vehicleId).forEach(dk => {
     hendelser.push({dato: dk.dato, tid: '', type: 'dekk', tekst: 'Nye dekk registrert' + (dk.kommentar ? ': ' + dk.kommentar : ''), av: ''});
@@ -7080,6 +7196,10 @@ function renderDekkSkjerm(){
     };
     const vDekkHistorikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
     const naaverendeDekkLabel = {sommer:'☀️ Sommerdekk montert', vinter:'❄️ Vinterdekk montert', helars:'🔄 Helårsdekk montert'}[v.dekk] || 'Ikke satt';
+    // Prioritet 31 — planlagte dekkskifttimer lagres i sin egen liste (dekkskifttimer),
+    // etter samme prinsipp som planlagteServicer (Settings-blob, se kommentar ved deklarasjonen).
+    const vDekkskifttimer = dekkskifttimer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
+      .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
     vehicleCardHtml = `
       <div class="kt-vehicle-card" style="margin-bottom:16px;">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
@@ -7094,30 +7214,76 @@ function renderDekkSkjerm(){
         <div class="panel-actions" style="margin-top:16px;"><button class="btn" id="save-dekk-btn">Lagre dekkinfo</button></div>
         ${dekkSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
       </div>
+
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="ov-label" style="margin-bottom:10px;">📅 Planlagte dekkskifttimer</div>
+        ${vDekkskifttimer.length === 0 ? `<div class="empty-note" style="margin-bottom:14px;">Ingen planlagte dekkskifttimer.</div>` : `
+        <ul class="dmg-simple-list" style="margin-bottom:14px;">
+          ${vDekkskifttimer.map(t => `
+          <li style="${fullforDekkskifttimeId === t.id ? 'flex-direction:column;align-items:stretch;' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)} · ${DEKK_RETNING_LABEL[t.type] || t.type}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span>
+              <button type="button" class="btn small" data-fullfor-dekkskifttime="${t.id}">${fullforDekkskifttimeId === t.id ? 'Avbryt' : '✔ Utført dekkskifte'}</button>
+            </div>
+            ${fullforDekkskifttimeId === t.id ? `
+            <form class="panel" id="fullfor-dt-form-${t.id}" style="margin-top:10px;">
+              <div class="required-hint" style="margin-bottom:10px;">Fullfører denne dekkskifttimen — oppretter dekkhistorikk og fjerner den fra Planlegging. Ingen ny registrering andre steder nødvendig.</div>
+              <div class="row2">
+                <div class="field"><label>Utført dato</label><input id="fdt-dato-${t.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+                <div class="field"><label>Km ved dekkskifte</label><input id="fdt-km-${t.id}" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
+              </div>
+              <div class="field" style="margin-bottom:10px;"><label>Dekktype</label>
+                <select id="fdt-type-${t.id}">${dekkTypeSelectOptions(t.type)}</select>
+              </div>
+              <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="fdt-kommentar-${t.id}" type="text" placeholder="Valgfritt" value="${esc(t.kommentar || '')}"></div>
+              <div class="form-msg" id="fdt-msg-${t.id}"></div>
+              <div class="panel-actions"><button class="btn" type="submit">Fullfør</button></div>
+            </form>` : ''}
+          </li>`).join('')}
+        </ul>`}
+        <button class="btn small" id="ny-dekkskifttime-btn">${showAddDekkskifttime ? 'Avbryt' : '🛞 Registrer dekkskifttime'}</button>
+        ${showAddDekkskifttime ? `
+        <form class="panel" id="add-dekkskifttime-form" style="margin-top:14px;">
+          <div class="row2">
+            <div class="field"><label>Dato</label><input id="dt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+            <div class="field"><label>Klokkeslett</label><input id="dt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;"><label>Dekkverksted</label>
+            <select id="dt-verksted" required>
+              <option value="">Velg verksted...</option>
+              ${verkstedSelectOptions('')}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:10px;"><label>Type dekkskifte</label>
+            <select id="dt-type">${dekkTypeSelectOptions('')}</select>
+          </div>
+          <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dt-kommentar" type="text" placeholder="Valgfritt"></div>
+          <div class="form-msg" id="dt-msg"></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+        </form>` : ''}
+      </div>
+
       <div class="panel" style="margin-bottom:16px;">
         <div class="ov-label" style="margin-bottom:10px;">Dekkskiftehistorikk</div>
         <div class="toolbar" style="margin-bottom:14px;">
           <div class="count">${naaverendeDekkLabel}</div>
-          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '✔ Utført dekkskifte'}</button>
+          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
         </div>
         ${showAddDekkskifte ? `
         <form class="panel" id="add-dekkskifte-form">
           <div class="row2">
-            <div class="field"><label>Retning</label>
-              <select id="dk-retning" required>
-                <option value="sommer-vinter">Sommer → Vinter</option>
-                <option value="vinter-sommer">Vinter → Sommer</option>
-              </select>
+            <div class="field"><label>Type dekkskifte</label>
+              <select id="dk-retning" required>${dekkTypeSelectOptions('')}</select>
             </div>
             <div class="field"><label>Dato</label><input id="dk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
           </div>
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="dk-msg"></div>
-          <div class="panel-actions"><button class="btn" type="submit">Fullfør dekkskifte</button></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
         </form>` : ''}
         ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
         <ul class="dmg-simple-list">
-          ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
+          ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.km ? ' · ' + Number(d.km).toLocaleString('nb-NO') + ' km' : ''}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
         </ul>`}
       </div>`;
   }
@@ -7140,13 +7306,28 @@ function renderDekkSkjerm(){
 }
 function attachDekkSkjermListeners(){
   document.getElementById('dekk-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('dekk-vehicle').addEventListener('change', e => { dekkValgtVehicleId = e.target.value; showAddDekkskifte = false; dekkSaveConfirmedId = null; render(); });
+  document.getElementById('dekk-vehicle').addEventListener('change', e => { dekkValgtVehicleId = e.target.value; showAddDekkskifte = false; dekkSaveConfirmedId = null; showAddDekkskifttime = false; fullforDekkskifttimeId = null; render(); });
   const saveDekkBtn = document.getElementById('save-dekk-btn');
   if(saveDekkBtn) saveDekkBtn.addEventListener('click', () => saveDekkInfo(dekkValgtVehicleId));
   const dekkskifteBtn = document.getElementById('ny-dekkskifte-btn');
   if(dekkskifteBtn) dekkskifteBtn.addEventListener('click', () => { showAddDekkskifte = !showAddDekkskifte; render(); });
   const dekkskifteForm = document.getElementById('add-dekkskifte-form');
   if(dekkskifteForm) dekkskifteForm.addEventListener('submit', submitDekkskifte);
+  const dekkskifttimeBtn = document.getElementById('ny-dekkskifttime-btn');
+  if(dekkskifttimeBtn) dekkskifttimeBtn.addEventListener('click', () => { showAddDekkskifttime = !showAddDekkskifttime; render(); });
+  const dekkskifttimeForm = document.getElementById('add-dekkskifttime-form');
+  if(dekkskifttimeForm) dekkskifttimeForm.addEventListener('submit', submitDekkskifttime);
+  // Prioritet 31 — "✔ Utført dekkskifte" på en planlagt dekkskifttime.
+  document.querySelectorAll('[data-fullfor-dekkskifttime]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.fullforDekkskifttime;
+    fullforDekkskifttimeId = fullforDekkskifttimeId === id ? null : id;
+    render();
+  }));
+  dekkskifttimer.filter(p => p.vehicleId === dekkValgtVehicleId).forEach(p => {
+    const form = document.getElementById('fullfor-dt-form-'+p.id);
+    if(form) form.addEventListener('submit', (e) => { e.preventDefault(); fullforDekkskifttime(p.id); });
+  });
 }
 
 // ================= scrSkader =================
@@ -7922,6 +8103,10 @@ function flatePlanleggingData(periodeDager){
     return {v, status: st};
   }).filter(x => x.status && (x.status.status === 'aldring' || x.status.status === 'gammel'))
     .sort((a,b) => (a.status.status === 'gammel' ? 0 : 1) - (b.status.status === 'gammel' ? 0 : 1));
+  // Prioritet 31 — planlagte dekkskifttimer er en egen datakilde (dekkskifttimer),
+  // adskilt fra alders-signalet over, samme prinsipp som planlagtService vs. service.
+  const planlagtDekkskifte = dekkskifttimer.filter(t => t.dato >= todayISO() && t.dato <= grense)
+    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
   const verksted = verkstedtimer.filter(t => t.dato >= todayISO() && t.dato <= grense)
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
   const oppfolging = aktiveSaker.filter(s => sakOppfolgingStatus(s) === 'snart' && s.followUpDate <= grense)
@@ -7930,11 +8115,11 @@ function flatePlanleggingData(periodeDager){
   // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
   const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
-  return {service, planlagtService, dekk, verksted, oppfolging, euKontroll};
+  return {service, planlagtService, dekk, planlagtDekkskifte, verksted, oppfolging, euKontroll};
 }
 function renderPlanlegging(){
   const data = flatePlanleggingData(planleggingPeriodeDager);
-  const totalt = data.service.length + data.planlagtService.length + data.dekk.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
+  const totalt = data.service.length + data.planlagtService.length + data.dekk.length + data.planlagtDekkskifte.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
   const kolonneHtml = (tittel, ikon, liste, radHtml) => `
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">${ikon} ${tittel} (${liste.length})</div>
@@ -7953,6 +8138,19 @@ function renderPlanlegging(){
         ${data.planlagtService.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-service="${t.vehicleId}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)}</span></li>`; }).join('')}
       </ul>`}
     </div>`;
+  // Prioritet 31 — Dekk-kolonnen viser to adskilte datakilder side om side, samme mønster
+  // som Service-kolonnen over: alders-signal (dekkAlderStatus) og planlagte dekkskifttimer
+  // (dekkskifttimer). En planlagt dekkskifttime-rad går rett til fullfør-skjemaet for den
+  // spesifikke timen (data-goto-dekkskifttime), ikke bare til bilen.
+  const dekkKolonneHtml = `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="ov-label" style="margin-bottom:10px;">🛞 Dekk (${data.dekk.length + data.planlagtDekkskifte.length})</div>
+      ${(data.dekk.length === 0 && data.planlagtDekkskifte.length === 0) ? `<div class="empty-note">Ingen kommende.</div>` : `
+      <ul class="dmg-simple-list">
+        ${data.dekk.map(x => `<li style="cursor:pointer;" data-goto-dekk="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`).join('')}
+        ${data.planlagtDekkskifte.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-dekkskifttime="${t.id}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)}</span></li>`; }).join('')}
+      </ul>`}
+    </div>`;
   return `
     <div class="backrow"><button class="backbtn" id="plan-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">📅 Planlegging</h2>
@@ -7968,7 +8166,7 @@ function renderPlanlegging(){
 
     <div class="planlegging-grid">
       ${serviceKolonneHtml}
-      ${kolonneHtml('Dekk', '🛞', data.dekk, x => `<li style="cursor:pointer;" data-goto-dekk="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
+      ${dekkKolonneHtml}
       ${kolonneHtml('Verksted', '🛠️', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
       ${kolonneHtml('Oppfølging', '📋', data.oppfolging, s => { const sv = sakVehicle(s); return `<li style="cursor:pointer;" data-goto-sak="${s.id}"><span class="dmg-simple-main">${sv ? esc(vehicleLabel(sv)) : 'Slettet kjøretøy'} · ${esc(sakKortOverskrift(s))} · ${fmt(s.followUpDate)}</span></li>`; })}
       ${kolonneHtml('EU-kontroll', '🚦', data.euKontroll, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
@@ -7983,6 +8181,16 @@ function attachPlanleggingListeners(){
   // Prioritet 30 (punkt 3): fra Planlegging skal "Utfør arbeid" gå rett i gang — åpner
   // "✔ Utført dekkskifte"-skjemaet automatisk (samme skjema/felt som før, se renderDekkSkjerm()).
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; showAddDekkskifte = true; goTo('dekk'); }));
+  // Prioritet 31 — fra Planlegging skal en planlagt dekkskifttime gå rett til fullfør-
+  // skjemaet for DEN spesifikke timen (ikke bare til bilen), samme mål som punkt 3 over.
+  document.querySelectorAll('[data-goto-dekkskifttime]').forEach(el => el.addEventListener('click', () => {
+    const plan = dekkskifttimer.find(p => p.id === el.dataset.gotoDekkskifttime);
+    if(!plan) return;
+    dekkValgtVehicleId = plan.vehicleId;
+    fullforDekkskifttimeId = plan.id;
+    showAddDekkskifttime = false;
+    goTo('dekk');
+  }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);

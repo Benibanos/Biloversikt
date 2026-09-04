@@ -1,6 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Mobilitetsavtale på kjøretøy), basert på
+Sist konsolidert: 2026-09-04 (Prioritet 31 — Dekkskifttime + Fullfør arbeid
+direkte fra Planlegging), basert på
 faktisk kjørende kode i `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
@@ -178,9 +179,9 @@ hendelse fjernes umiddelbart.
 - Planlagt verkstedtime: "✔ Utført arbeid" → `fullforVerkstedtime()`
   (gjenbruker eksisterende felt på verkstedtimen — ingen nye
   felt/tabeller).
-- Planlagt dekkskifte: eksisterende "Registrer dekkskifte" omdøpt til "✔
-  Utført dekkskifte" (samme skjema/logikk), auto-åpnes ved navigasjon fra
-  Planlegging.
+- Planlagt dekkskifte: eksisterende "Registrer dekkskifte" **midlertidig**
+  omdøpt til "✔ Utført dekkskifte" (samme skjema/logikk), auto-åpnes ved
+  navigasjon fra Planlegging. **Erstattet av Prioritet 31 under** — se der.
 - Oppfølging: "✔ Utført oppfølging" i saks-wizardens steg 3 →
   `submitSakWizardOppfolgingUtfort()`, atskilt fra "Legg til oppfølging".
 
@@ -190,6 +191,49 @@ historisk service-km, Dashboard/Planlegging oppdateres uten refresh (samme
 `render()`-prinsipp som resten av appen). Verifisert med Playwright
 (automatisert smoke-test av alle fire flyter, desktop + mobil) — se
 CLAUDE.md for detaljer om hvilke felt som gjenbrukes per flyt.
+
+✅ **Prioritet 31 — Dekkskifttime + Fullfør arbeid direkte fra Planlegging
+(2026-09-04):** utvider Dekk-modulen til samme "Planlegg → Utfør →
+Historikk automatisk"-filosofi. Ny, egen planlagt-enhet `dekkskifttimer`
+(Settings-blob, samme prinsipp som `planlagteservicer` — ingen ny
+Airtable-tabell).
+
+- 🛞 Registrer dekkskifttime: dato, klokkeslett, dekkverksted, type
+  dekkskifte (Sommer→Vinter / Vinter→Sommer / Nye sommerdekk / Nye
+  vinterdekk / Enkelthjul / Annet), kommentar → `submitDekkskifttime()`.
+- Vises i Planlegging under "🛞 Dekk" (slått sammen med det eksisterende
+  DOT-alder-varselet i samme kolonne — to adskilte datakilder, én kolonne,
+  samme mønster som Service-kolonnen).
+- Klikk på en planlagt dekkskifttime-rad i Planlegging går rett til
+  fullfør-skjemaet for DEN spesifikke timen (`data-goto-dekkskifttime`) —
+  ikke bare til bilen (en forbedring utover det eksisterende
+  `data-goto-dekk`/`data-goto-service`-mønsteret).
+- ✔ Utført dekkskifte (inline skjema, `fullforDekkskifttime()`): utført
+  dato, km ved dekkskifte (**nytt felt**, se under), dekktype
+  (forhåndsutfylt), kommentar. Oppretter dekkhistorikk, oppdaterer `v.dekk`
+  (kun ved faktisk sesongskifte-type), oppdaterer kjøretøyhistorikk og
+  Dashboard automatisk, fjerner dekkskifttimen — ingen dobbeltregistrering.
+- **Nytt Airtable-felt:** `KM` (tall) på `TireChanges` (dekkhistorikk) —
+  eneste genuine unntak fra "ikke lag nye databasefelt" i denne
+  leveransen, siden ingen eksisterende struktur dekket "km ved
+  dekkskifte". `v.km` overskrives fortsatt ALDRI (samme
+  bekreftelsesdialog-mønster som service ved avvik).
+- Den midlertidige "✔ Utført dekkskifte"-omdøpingen fra Prioritet 30 er
+  reversert — ad-hoc-knappen heter igjen "🛞 Registrer dekkskifte" (uten
+  km), og fungerer uendret og uavhengig av den nye planlagte flyten — to
+  parallelle registreringsveier til samme historikk-tabell, akkurat som
+  service.
+- Verksted/Oppfølging/Service er allerede dekket av Prioritet 30.
+  **EU-kontroll har IKKE fått en "Utført kontroll"-flyt i denne
+  leveransen** — spesifikasjonen nevnte det kun som en fremtidig
+  hjemkategori i Planlegging 2.0-visjonen, uten konkrete felt/dialog. Ikke
+  marker dette som implementert før det faktisk er spesifisert og bygget.
+- Verifisert med Playwright (automatisert smoke-test: registrer
+  dekkskifttime → vises i Planlegging → klikk åpner riktig fullfør-skjema
+  → fullføring oppretter dekkhistorikk med km, fjerner planen, oppdaterer
+  `v.dekk`, `v.km` uendret → kjøretøyhistorikk viser ny oppføring med km →
+  ad-hoc "Registrer dekkskifte" fortsatt uavhengig fungerende), desktop +
+  mobil. Se CLAUDE.md for full teknisk detalj.
 
 ## Operativ beslutningsstøtte
 

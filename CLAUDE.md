@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Mobilitetsavtale
-på kjøretøy, se ROADMAP.md). **Ved avvik mellom denne filen og koden er koden
-alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 31 —
+Dekkskifttime + Fullfør arbeid direkte fra Planlegging, se ROADMAP.md). **Ved
+avvik mellom denne filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -17,7 +17,7 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.8.0). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.9.0). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
@@ -80,12 +80,12 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v27'`, økt fordi `index.html`
-  og `storage.airtable.js` ble endret for Mobilitetsavtale-feltet). To separate
-  manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
+  offline-fallback (`CACHE_VERSION = 'bilpark-v28'`, økt fordi `index.html`
+  og `storage.airtable.js` ble endret for Prioritet 31 (dekkskifttime)). To
+  separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.8.0`, cache-bustet via `?v=2.8.0` på script-taggen i `index.html`).
+  `v2.9.0`, cache-bustet via `?v=2.9.0` på script-taggen i `index.html`).
   Dette er den ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
   `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
@@ -280,16 +280,14 @@ Utført arbeid → historikk opprettes automatisk → planlagt hendelse fjernes
   ingen egen, parallell verkstedhistorikk-oppføring. Trigger den
   eksisterende `oppdaterVerkstedStatuser()`-kaskaden for en eventuelt
   tilknyttet sak, akkurat som ved vanlig redigering.
-- **Planlagt dekkskifte:** Planleggings "Dekk"-kolonne er et LIVE
-  DOT-alder-varsel (`dekkAlderStatus()`), ikke en egen planlagt-enhet —
-  derfor ingen ny entitet innført. Den eksisterende "Registrer
-  dekkskifte"-knappen i `renderDekkSkjerm()` er omdøpt til "✔ Utført
-  dekkskifte" (samme felt/logikk/`submitDekkskifte()` som før). Klikk på
-  en Planlegging-dekkrad (`data-goto-dekk` i `attachPlanleggingListeners()`)
-  åpner skjemaet automatisk (`showAddDekkskifte = true`). NB: selve
-  DOT-alder-varselet fjernes fortsatt kun via det separate "Lagre
-  dekkinfo"/DOT-kode-skjemaet på samme skjerm — dette er eksisterende,
-  ikke ny, atferd.
+- **Planlagt dekkskifte (DOT-alder-varsel):** Planleggings "Dekk"-kolonne
+  viser fortsatt et LIVE DOT-alder-varsel (`dekkAlderStatus()`) — ikke en
+  planlagt-enhet, ingen ny entitet. **NB (Prioritet 31, se egen seksjon
+  under):** den midlertidige omdøpingen av "Registrer dekkskifte" til "✔
+  Utført dekkskifte" fra Prioritet 30 er reversert — knappen heter igjen
+  "🛞 Registrer dekkskifte" (ad-hoc registrering, uten km), siden Prioritet
+  31 innfører en egen, fullverdig "Planlegg → Utfør → Historikk"-flyt for
+  dekk (`dekkskifttimer`), parallell med service sin.
 - **Oppfølginger:** "✔ Utført oppfølging" i saks-wizardens steg 3
   (`sakWizardSteg3Html()`), vist kun når `s.followUpDate` er satt, åpner et
   eget skjema (`submitSakWizardOppfolgingUtfort()`) atskilt fra "📅 Legg
@@ -305,6 +303,70 @@ Utført arbeid → historikk opprettes automatisk → planlagt hendelse fjernes
 - Gjelder både desktop og mobil (Service/Dekk/Planlegging/Aktive saker
   finnes på begge — se "Mobil Design 2.0"). Dashboard-restrukturen fra
   Prioritet 29 er IKKE rørt av Prioritet 30.
+
+## Dekkskifttime — Planlegg → Utfør → Historikk (Prioritet 31, 2026-09-04)
+
+Utvider Dekk-modulen til samme "Planlegg → Utfør → Historikk automatisk"-
+filosofi som Prioritet 30 innførte for service/verksted/oppfølging. Ny,
+egen planlagt-enhet: `dekkskifttimer` (array av
+`{id, vehicleId, dato, tidspunkt, verksted, type, kommentar}`), lagret som
+Settings-blob under nøkkelen `'dekkskifttimer'` — **samme prinsipp som
+`planlagteservicer`** (se Settings/Key-Value-mønsteret under "Service"
+over), IKKE en egen `LIST_TABLES`-tabell. Ingen nye databasefelt utover ett
+genuint nødvendig unntak (km, se under).
+
+- **Registrer dekkskifttime** (`renderDekkSkjerm()`, "🛞 Registrer
+  dekkskifttime"-knapp → `submitDekkskifttime()`): dato, klokkeslett,
+  dekkverksted (gjenbruker `verkstedSelectOptions()` — samme
+  verkstedregister som service/verksted, ingen ny liste), type dekkskifte
+  og kommentar. Vises i Planlegging under en egen "🛞 Dekk"-rad (slått
+  sammen med det eksisterende DOT-alder-varselet i samme kolonne, se
+  under).
+- **Type dekkskifte** (nytt, felles konsept): seks valg — Sommer → Vinter,
+  Vinter → Sommer, Nye sommerdekk, Nye vinterdekk, Enkelthjul, Annet.
+  Definert i `DEKK_TYPE_OPTIONS`/`dekkTypeSelectOptions()`; gjenbruker det
+  **eksisterende `retning`-feltet** på dekkhistorikk-oppføringer (utvidet
+  verdidomene — samme kolonne som før, ingen ny kolonne). `v.dekk`
+  (sommer/vinter) oppdateres kun for de fire typene som faktisk
+  representerer et sesongskifte (`DEKK_TYPE_TIL_SESONG`) — Enkelthjul og
+  Annet endrer ikke `v.dekk`.
+- **Utfør dekkskifte** (inline "✔ Utført dekkskifte"-skjema per rad,
+  `fullforDekkskifttime()`): utført dato, km ved dekkskifte (**nytt felt**,
+  se under), dekktype (forhåndsutfylt fra planen, overstyrbar), kommentar.
+  Ved fullføring: oppretter `dekkhistorikk`-oppføring, oppdaterer `v.dekk`
+  (kun ved sesongskifte-type), fjerner planen fra `dekkskifttimer` — étt
+  klikk, ingen dobbeltregistrering. Dashboard/kjøretøyhistorikk/Planlegging
+  oppdateres automatisk (LIVE-beregnet ved `render()`, samme prinsipp som
+  Prioritet 30 — ingen egen oppdateringskode).
+- **Nytt felt: `km` på dekkhistorikk** (Airtable-kolonne `KM`, tall). Eneste
+  genuine unntak fra "ikke lag nye databasefelt" i denne leveransen — ingen
+  eksisterende struktur kunne dekke "km ved dekkskifte". Registrert i
+  `LIST_TABLES.dekkhistorikk.fields` i `storage.airtable.js` (FELTREGEL
+  fulgt). Km lagres KUN på selve dekkhistorikk-oppføringen — `v.km`
+  (eneste autoritative nåværende kilometerstand) overskrives ALDRI, samme
+  bekreftelsesdialog-mønster som service ved avvik (se "Kilometerregel").
+- **Ad-hoc "🛞 Registrer dekkskifte" er uendret og uavhengig** (kun
+  omdøpingen fra Prioritet 30 er reversert, se punktet over) — fortsatt
+  uten km-felt, fortsatt separat fra den nye planlagte flyten. To
+  parallelle registreringsveier for samme historikk-tabell, akkurat som
+  service sin "🔧 Registrer service" (ad-hoc) vs. "📅 Planlegg service" +
+  fullfør-flyt.
+- **Planlegging 2.0:** "Dekk"-kolonnen (`dekkKolonneHtml` i
+  `renderPlanlegging()`) viser nå to adskilte datakilder side om side —
+  DOT-alder-varsel og planlagte dekkskifttimer — samme mønster som
+  Service-kolonnen. Klikk på en planlagt dekkskifttime-rad
+  (`data-goto-dekkskifttime`) går RETT til fullfør-skjemaet for DEN
+  spesifikke timen (ikke bare til bilen) — en bevisst forbedring
+  sammenlignet med hvordan `data-goto-service`/`data-goto-dekk` i dag kun
+  navigerer til bilen.
+- **Verksted/Oppfølging/Service/EU-kontroll er IKKE endret i denne
+  leveransen.** Spesifikasjonens "Planlegging 2.0"-visjon nevner disse som
+  fremtidige hjemkategorier under samme arbeidsflyt-prinsipp, men kun Dekk
+  hadde konkrete felt/skjemaer spesifisert. Service/Verksted/Oppfølging har
+  allerede "Planlegg → Utfør → Historikk" fra Prioritet 30. EU-kontroll har
+  det IKKE ennå — ingen "Utført kontroll"-dialog er bygget, siden ingen
+  felt ble spesifisert. Ikke marker dette som implementert før det faktisk
+  er bygget.
 
 ## EU-kontroll
 
