@@ -1,7 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Prioritet 31 — Dekkskifttime + Fullfør arbeid
-direkte fra Planlegging), basert på
+Sist konsolidert: 2026-09-04 (Prioritet 32 — Hurtighandlinger på Desktop
+Dashboard), basert på
 faktisk kjørende kode i `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
@@ -109,6 +109,38 @@ navngitt "Operativ Belastning"-indikator er ikke del av Prioritet 29 og
 finnes fortsatt ikke i koden — kun de spesifikke Service-/EU-kontroll-
 "kommer snart"-varslene beskrevet over er bygget. Ikke marker en bredere
 "Operativ Belastning"-indikator som implementert uten å bygge den først.
+
+✅ **Prioritet 32 — Hurtighandlinger på Desktop Dashboard (2026-09-04):** ny
+"⚡ Hurtighandlinger"-seksjon rett under statuslinjen, KUN desktop (mobilens
+`renderMobilHjem()` er urørt, som spesifisert).
+
+- 📅 Bestill time: ett felles hurtigskjema (type + bil + dato + klokkeslett
+  + kommentar) som ruter til riktig eksisterende planlagt-liste — Service
+  → `planlagteServicer`, Dekkskift → `dekkskifttimer`, Verksted →
+  `verkstedtimer` (alle tre gjenbrukt uendret, ingen ny lagringslogikk).
+  Nytt for EU-kontroll: en minimal, egen liste `euKontrollTimer` (samme
+  Settings-blob-prinsipp som de andre) — ingen nye Airtable-felt/tabeller i
+  det hele tatt denne runden.
+- 🚨 Registrer avvik og 📋 Opprett sak: begge ruter til den eksisterende
+  sak-opprettelsesflyten (`goToRegisterSak('')`), samme mål som mobilens
+  allerede eksisterende "Registrer avvik"-ikon.
+- 🚐 Åpne biloversikt: `goTo('register')`.
+- Alle fire bestillingstypene havner automatisk i riktig kategori i
+  Planlegging (EU-kontroll-kolonnen slår nå sammen frist-varsel og bestilte
+  timer, samme mønster som Service/Dekk fra Prioritet 30/31).
+- Bonus-korrigering (ikke mobilvisning): `reloadOne()` sin sanntids-
+  oppfriskingsliste manglet en gren for `dekkskifttimer` siden Prioritet
+  31 — rettet sammen med den nye `eukontrolltimer`-grenen.
+- Kjent, bevisst ikke rettet begrensning: mobilens egen
+  Planlegging-badge-telling (`renderMobilHjem()`) er fortsatt upresis (den
+  manglet allerede `planlagtDekkskifte` fra Prioritet 31, mangler nå også
+  `euKontrollBestilt`) — latt urørt fordi spesifikasjonen eksplisitt ba om
+  at mobilvisningen ikke skulle røres. Selve Planlegging-skjermen viser
+  fortsatt korrekt innhold og korrekt totaltall på begge flater.
+- Verifisert med Playwright (alle fire bestillingstyper, validering,
+  navigasjon, Planlegging-visning, og en egen sjekk av at
+  Hurtighandlinger-seksjonen IKKE finnes på mobil). Se CLAUDE.md for full
+  teknisk detalj.
 
 ## Kontrollsletting og Full Cleanup
 

@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 31 —
-Dekkskifttime + Fullfør arbeid direkte fra Planlegging, se ROADMAP.md). **Ved
-avvik mellom denne filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 32 —
+Hurtighandlinger på Desktop Dashboard, se ROADMAP.md). **Ved avvik mellom
+denne filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -80,10 +80,12 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v28'`, økt fordi `index.html`
-  og `storage.airtable.js` ble endret for Prioritet 31 (dekkskifttime)). To
-  separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
-  (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
+  offline-fallback (`CACHE_VERSION = 'bilpark-v29'`, økt fordi `index.html`
+  ble endret for Prioritet 32 (Hurtighandlinger) — kun app-shell-filen selv,
+  `storage.airtable.js` er UENDRET denne runden, ingen nye Airtable-felt).
+  To separate manifester: `manifest.json` (hovedapp) og
+  `manifest-sjafor.json` (sjåfør-snarvei via `kontroll.html`, `start_url`
+  med `?sjafor=1`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
   `v2.9.0`, cache-bustet via `?v=2.9.0` på script-taggen i `index.html`).
   Dette er den ENESTE Airtable-storage-filen i prosjektet — ingen
@@ -368,6 +370,77 @@ genuint nødvendig unntak (km, se under).
   felt ble spesifisert. Ikke marker dette som implementert før det faktisk
   er bygget.
 
+## Hurtighandlinger på Desktop Dashboard (Prioritet 32, 2026-09-04)
+
+Formål: færre tastetrykk til de daglige handlingene. Ny "⚡
+Hurtighandlinger"-seksjon rett under statuslinjen (greeting-card) på Desktop
+Dashboard (`renderDashboard()`), **KUN desktop** — mobil (`renderMobilHjem()`)
+er bevisst ikke rørt, siden mobil allerede har sin egen ikon-basert
+hjemmeskjerm (se "Mobil Design 2.0"/`MOBIL_HJEM_IKONER`) og spesifikasjonen
+eksplisitt ba om at mobilvisningen ikke skulle røres.
+
+Fire knapper:
+
+- **📅 Bestill time:** åpner ETT felles inline-skjema
+  (`submitHurtigBestillTime()`) — radiovalg (Service/Dekkskift/Verksted/
+  EU-kontroll) + bil + dato + klokkeslett + kommentar + Lagre. Ruter til
+  riktig EKSISTERENDE planlagt-liste avhengig av type, INGEN ny
+  forretningslogikk for tre av de fire: Service → `planlagteServicer`
+  (samme struktur som `submitPlanlagtService()`), Dekkskift →
+  `dekkskifttimer` (samme struktur som `submitDekkskifttime()`, med
+  dekktype defaultet til `DEKK_TYPE_OPTIONS[0]` siden hurtigskjemaet ikke
+  spør om type), Verksted → `verkstedtimer` (samme struktur som
+  `submitVT()`, `beskrivelse` fylt fra kommentarfeltet). Feltet "verksted"
+  er bevisst UTELATT fra dette hurtigskjemaet (kun de feltene
+  spesifikasjonen listet — bil/dato/klokkeslett/kommentar) — lagres tomt,
+  kan fylles inn senere via de fulle skjemaene i Service/Dekk/Verksted,
+  akkurat som andre valgfrie felt der.
+- **🚨 Registrer avvik** og **📋 Opprett sak:** begge ruter til
+  `goToRegisterSak('')` — nøyaktig samme mål som mobilens allerede
+  eksisterende "🚨 Registrer avvik"-ikon (`MOBIL_HJEM_IKONER`, key
+  `'avvik'`). Appen har kun ÉN sak-opprettelsesflyt (Aktive Saker sitt
+  "+ Ny sak"-skjema, hvor "avvik" er én av flere sakstyper) — de to
+  knappene er derfor bevisst identiske i mål, ikke to parallelle løsninger.
+- **🚐 Åpne biloversikt:** `goTo('register')` — samme mål som mobilens
+  `'biloversikt'`-ikon.
+
+**Nytt: EU-kontroll-bestilling (`euKontrollTimer`).** EU-kontroll har,
+i motsetning til Service/Dekk/Verksted, INGEN eksisterende planlagt-liste
+fra før (kun det permanente frist-feltet `v.euGodkjentTil`) — derfor én
+minimal ny liste, `euKontrollTimer` (`{id, vehicleId, dato, tidspunkt,
+kommentar}`), lagret som Settings-blob under nøkkelen `'eukontrolltimer'`,
+etter NØYAKTIG samme prinsipp som `planlagteServicer`/`dekkskifttimer`
+(ingen egen Airtable-tabell). Bevisst IKKE lagt inn i `verkstedtimer` med
+en type-kode (selv om feltet `type` finnes der og allerede er registrert i
+`LIST_TABLES` for akkurat dette formålet, opprinnelig fra Prioritet 26.7)
+— `verkstedtimer` telles inn i Rapporter/Analyse sin verkstedstatistikk på
+mange steder (kostnad, "flest verkstedbesøk", månedsoversikt m.fl.), og en
+EU-kontroll-bestilling er ikke et faktisk verkstedbesøk; å blande dem inn
+der ville gitt feil tall i rapportene. `storage.airtable.js` er derfor
+UENDRET i denne leveransen — ingen nye Airtable-felt/tabeller i det hele
+tatt.
+
+EU-kontroll-bestillinger har INGEN fullfør-/"Utført kontroll"-flyt ennå
+(ikke spesifisert i denne leveransen) — de vises kun i Planlegging som en
+kommende hendelse, og klikk går til bilkortet (samme mål som det
+eksisterende frist-varselet).
+
+**Bevisst IKKE fikset i denne leveransen (mobil, se over):**
+`renderMobilHjem()` sin Planlegging-badge-telling
+(`badgePlanlegging` i `renderMobilHjem()`) summerer fortsatt kun
+`service+dekk+verksted+oppfolging+euKontroll` — den manglet allerede
+`planlagtDekkskifte` fra Prioritet 31, og mangler nå også
+`euKontrollBestilt`. Siden spesifikasjonen eksplisitt ba om å ikke røre
+mobilvisningen, er denne badge-unøyaktigheten latt stå — tallet kan vise
+for lavt på mobil sitt hjem-ikon, selv om selve Planlegging-skjermen (delt
+mellom mobil og desktop) viser riktig innhold og riktig totaltall.
+
+**Rettet i samme leveranse (ikke mobilvisning, ren datakorrekthet):**
+`reloadOne()` (den periodiske sanntids-oppfriskingen) manglet en gren for
+`'dekkskifttimer'` siden Prioritet 31 — lagt til sammen med den nye
+`'eukontrolltimer'`-grenen, slik at endringer fra andre sesjoner faktisk
+slår igjennom for begge uten en full sideoppdatering.
+
 ## EU-kontroll
 
 - Permanent felt på kjøretøyet: `v.euGodkjentTil` (Airtable-felt
@@ -375,7 +448,8 @@ genuint nødvendig unntak (km, se under).
 - Varslingsnivåer (`vehicleEuKontrollStatus()`): fire nivåer — over 90 dager
   igjen / under 90 / under 30 / utløpt.
 - Vises i Kjøretøyprofil (ett av de fire faste feltene), Operativ status, og
-  Planlegging.
+  Planlegging (nå slått sammen med bestilte EU-kontroll-timer, se
+  "Hurtighandlinger på Desktop Dashboard" over).
 
 ## Rapporter
 
