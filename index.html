@@ -10445,7 +10445,7 @@ function renderInnstillinger(){
     // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    const FORVENTET_VERSJON = 'v2.7.0'; // hold denne i sync med versjon-verdien i storage_airtable.js
+    const FORVENTET_VERSJON = 'v2.9.0'; // hold denne i sync med versjon-verdien i storage_airtable.js
     const info = window.storageAirtableInfo;
     const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
     const riktigVersjonKjorer = !!(info && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
