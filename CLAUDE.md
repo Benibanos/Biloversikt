@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 32 —
-Hurtighandlinger på Desktop Dashboard, se ROADMAP.md). **Ved avvik mellom
-denne filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Dashboard 3.1 —
+Less Is More, se ROADMAP.md). **Ved avvik mellom denne filen og koden er
+koden alltid sannheten.**
 
 ---
 
@@ -80,8 +80,8 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v29'`, økt fordi `index.html`
-  ble endret for Prioritet 32 (Hurtighandlinger) — kun app-shell-filen selv,
+  offline-fallback (`CACHE_VERSION = 'bilpark-v30'`, økt fordi `index.html`
+  ble endret for Dashboard 3.1 (Less Is More) — kun app-shell-filen selv,
   `storage.airtable.js` er UENDRET denne runden, ingen nye Airtable-felt).
   To separate manifester: `manifest.json` (hovedapp) og
   `manifest-sjafor.json` (sjåfør-snarvei via `kontroll.html`, `start_url`
@@ -440,6 +440,67 @@ mellom mobil og desktop) viser riktig innhold og riktig totaltall.
 `'dekkskifttimer'` siden Prioritet 31 — lagt til sammen med den nye
 `'eukontrolltimer'`-grenen, slik at endringer fra andre sesjoner faktisk
 slår igjennom for begge uten en full sideoppdatering.
+
+## Dashboard 3.1 — Less Is More (2026-09-04)
+
+Formål: rendyrke Desktop Dashboard til kun det som krever operativ
+handling, jf. designprinsippet "Dashboard skal forstås på under 5
+sekunder". Superseder store deler av den visuelle presentasjonen fra
+Prioritet 32 (over) — selve lagrings-/rutingslogikken for "Bestill time"
+(`submitHurtigBestillTime()`, `euKontrollTimer`) er UENDRET, kun flyttet og
+forenklet i UI. **KUN Desktop Dashboard** — mobil (`renderMobilHjem()`),
+Airtable-struktur, Aktive saker, Historikk, service- og EU-logikk er
+bevisst ikke rørt.
+
+Endringer i `renderDashboard()` (`index.html`):
+
+- **God morgen-kortet fjernet helt** (hilsen, dato/klokkeslett, "Neste
+  verkstedtime", snarveiene ✅/🔧) — vurdert å ikke gi operativ verdi.
+  De tilhørende lokale variablene (`upcomingVT`/`nearestVT`/
+  `nearestWithin7`/`g`/`displayNavn`/`loggedInUser`/`displayTittel`) er
+  fjernet fra `renderDashboard()` siden de var eksklusivt brukt av det
+  fjernede markupet. Selve `greetingInfo()`-funksjonen er bevisst latt stå
+  urørt (delt/navngitt hjelpefunksjon, ingen andre kjente kallsteder
+  fjernet i denne runden).
+- **"⚡ Hurtighandlinger"-seksjonen (Prioritet 32) fjernet helt**, inkl.
+  knappene "🚨 Registrer avvik" og "📋 Opprett sak" (begge rutet til
+  `goToRegisterSak('')` — denne funksjonaliteten finnes fortsatt uendret
+  via Aktive Saker sitt "+ Ny sak"-skjema, kun denne ene snarveien er
+  fjernet fra Dashboard).
+- **To nye store hovedknapper** rett under Bilparkhelse-statuslinjen:
+  `#dash-bestill-btn` ("📅 BESTILL TIME") og `#dash-biloversikt-btn`
+  ("🚐 BILOVERSIKT"), CSS-klasse `.dash-main-actions`/`.dash-main-btn`.
+  "Bestill time" åpner NØYAKTIG samme inline-skjema som Prioritet 32
+  bygde (type/bil/dato/klokkeslett/kommentar → `submitHurtigBestillTime()`
+  → riktig planlagt-liste → synlig i Planlegging under riktig kategori) —
+  kun trigger-knappen er flyttet og forstørret, ingen endring i selve
+  lagringslogikken. "Biloversikt" ruter til `goTo('register')`, identisk
+  mål som den fjernede "🚐 Åpne biloversikt"-knappen.
+- **Værstatus flyttet til header.** `brandBlockHtml()` tar nå en valgfri
+  parameter `showWeather` (default falsy/uendret oppførsel for alle andre
+  kallsteder). Kun ett kallsted — selve `shell-top`-headeren i `render()`
+  — sender `screen === 'dashboard' && uiExp === 'desktop'`, slik at
+  `☀️ 14° · Lett regn`-linjen (`.brand-weather`) vises rett under
+  "Kontroller • Registrer • Reager" KUN på Desktop Dashboard. Sidebarens
+  egen logo-blokk og alle andre skjermer/mobil er uendret siden de kaller
+  `brandBlockHtml()` uten parameter. Det fantes tidligere et eget
+  værfelt inne i God morgen-kortet (`.greeting-weather`) — det er borte
+  sammen med resten av kortet; `.brand-weather` er den nye, eneste
+  værvisningen på desktop.
+- **"Biloversikt" fjernet fra venstre sidebar-meny**
+  (`DESKTOP_NAV_PRIMARY`, nå 4 punkter: Dashboard/Aktive saker/Historikk/
+  Planlegging) — siden Dashboard nå har sin egen hovedknapp dit, og
+  dobbel navigasjon til samme skjerm er unødvendig støy. Skjermen
+  `'register'` (Biloversikt) er fortsatt fullt ut tilgjengelig og uendret
+  (Dashboard-knappen, Bilparkhelse-statuslinjens klikkbare chips, samt
+  den delte ☰ Meny-skuffen som IKKE er rørt i denne leveransen og
+  fortsatt lister Biloversikt der — kun `DESKTOP_NAV_PRIMARY`-sidebaren er
+  endret).
+
+`.greeting-*` CSS-reglene er bevisst latt stå selv om de ikke lenger
+brukes av noe markup (ren CSS, ingen JS-kobling, i tråd med "endre minst
+mulig" — fjerning er kosmetisk opprydding, ikke en funksjonell
+nødvendighet).
 
 ## EU-kontroll
 

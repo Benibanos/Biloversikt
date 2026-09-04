@@ -1,7 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Prioritet 32 — Hurtighandlinger på Desktop
-Dashboard), basert på
+Sist konsolidert: 2026-09-04 (Dashboard 3.1 — Less Is More), basert på
 faktisk kjørende kode i `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
@@ -141,6 +140,34 @@ finnes fortsatt ikke i koden — kun de spesifikke Service-/EU-kontroll-
   navigasjon, Planlegging-visning, og en egen sjekk av at
   Hurtighandlinger-seksjonen IKKE finnes på mobil). Se CLAUDE.md for full
   teknisk detalj.
+
+✅ **Dashboard 3.1 — Less Is More (2026-09-04):** rendyrker Desktop
+Dashboard videre, KUN desktop (mobil, Airtable-struktur, Aktive saker,
+Historikk, service-/EU-logikk uendret). Superseder mye av Prioritet 32
+sin visuelle presentasjon — selve "Bestill time"-lagringslogikken
+(`submitHurtigBestillTime()`, `euKontrollTimer`) er uendret.
+
+- God morgen-kortet (hilsen, dato/klokkeslett, "Neste verkstedtime",
+  ✅/🔧-snarveier) fjernet helt — vurdert uten operativ verdi.
+- "⚡ Hurtighandlinger"-seksjonen fjernet helt, inkl. "🚨 Registrer avvik"
+  og "📋 Opprett sak" (fortsatt tilgjengelig uendret via Aktive Saker sitt
+  "+ Ny sak"-skjema).
+- To nye, store hovedknapper rett under Bilparkhelse-statuslinjen: "📅
+  BESTILL TIME" (samme skjema/flyt som Prioritet 32) og "🚐 BILOVERSIKT".
+- Værstatus flyttet fra det fjernede God morgen-kortet til selve headeren
+  (`☀️ 14° · Lett regn` under "Kontroller • Registrer • Reager"), KUN
+  synlig på Desktop Dashboard — ikke på andre skjermer, ikke på mobil.
+- "Biloversikt" fjernet fra venstre sidebar-meny (nå kun Dashboard/Aktive
+  saker/Historikk/Planlegging) — Dashboard har nå sin egen hovedknapp dit,
+  og skjermen selv er uendret og fortsatt nåbar derfra samt via
+  Bilparkhelse-statuslinjens chips.
+- Verifisert med Playwright: alle fire bestillingstyper (Service/Dekkskift/
+  Verksted/EU-kontroll) fungerer uendret via de nye knappene, Biloversikt-
+  knapp navigerer riktig, sidebar viser nøyaktig fire punkter uten
+  Biloversikt, værstatus vises kun i header på Desktop Dashboard og
+  forsvinner på andre skjermer, og en full mobil-visningskontroll
+  (`.dash-main-actions`/`.brand-weather` fraværende, ingen visuell/DOM-
+  endring på mobil). Se CLAUDE.md for full teknisk detalj.
 
 ## Kontrollsletting og Full Cleanup
 

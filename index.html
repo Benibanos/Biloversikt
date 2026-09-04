@@ -96,6 +96,7 @@
   .brand-block{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
   .brand{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;letter-spacing:0.01em;text-transform:uppercase;display:flex;align-items:center;gap:9px;}
   .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
+  .brand-weather{font-size:11.5px;color:var(--ink);font-weight:600;margin-top:1px;}
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
   .header-action-btn{
     background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
@@ -305,6 +306,10 @@
   .backbtn:hover{border-color:var(--ink);}
 
   /* ---- Dashboard ---- */
+  /* Dashboard 3.1 (Less Is More): to store, tydelige hovedknapper rett under
+     statuslinjen — erstatter God morgen-kortet og Hurtighandlinger-seksjonen. */
+  .dash-main-actions{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+  .dash-main-btn{width:100%;min-height:56px;font-size:16px;letter-spacing:.02em;border-radius:12px;}
   .greeting-card{
     background:var(--surface);border:1.5px solid var(--line);border-left:5px solid var(--line);
     border-radius:var(--radius);padding:18px;margin-bottom:20px;
@@ -4654,12 +4659,16 @@ async function deleteAdminUser(id){
 // Regel 1/4: fem primære navigasjonspunkter (Kontrollsenter), sekundære lenker
 // (Analyse, Innstillinger, manuell overstyring) nederst — atskilt fra primærnavigasjon
 // for å holde de fem hovedpunktene rene, jf. Regel 8 (Less is More).
+// Dashboard 3.1 (Less Is More): "Biloversikt" er fjernet herfra — Dashboard fikk sin egen
+// "🚐 BILOVERSIKT"-hovedknapp (se renderDashboard()), og dobbel navigasjon til samme
+// skjerm er unødvendig støy i sidebaren. Skjermen 'register' finnes fortsatt uendret og
+// er fortsatt nåbar (Dashboard-knappen, Bilparkhelse-statuslinjens chips, m.fl.) — kun
+// denne ene snarveien i sidebaren er fjernet.
 const DESKTOP_NAV_PRIMARY = [
   {scr:'dashboard', ikon:'🏠', label:'Dashboard'},
   {scr:'aktivesaker', ikon:'🗂️', label:'Aktive saker'},
   {scr:'historikk', ikon:'🕐', label:'Historikk'},
-  {scr:'planlegging', ikon:'📅', label:'Planlegging'},
-  {scr:'register', ikon:'🚐', label:'Biloversikt'}
+  {scr:'planlegging', ikon:'📅', label:'Planlegging'}
 ];
 function renderDesktopSidebarHtml(){
   return `
@@ -4701,7 +4710,11 @@ function attachMobilOverrideListener(){
   const btn = document.getElementById('mobil-override-btn');
   if(btn) btn.addEventListener('click', () => { deviceOverride = 'desktop'; render(); });
 }
-function brandBlockHtml(){
+// Dashboard 3.1: showWeather (default false) legger værstatus rett under
+// "Kontroller • Registrer • Reager" — kun brukt av selve toppfeltets brand-block
+// (render()), og KUN når screen==='dashboard' && uiExp==='desktop' (se der). Sidebarens
+// egen brand-block (og alle andre kall) sender ingen parameter, altså uendret uten vær.
+function brandBlockHtml(showWeather){
   return `
     <div class="brand-block">
       <div class="brand">
@@ -4711,6 +4724,7 @@ function brandBlockHtml(){
         Bilpark
       </div>
       <div class="brand-sub">Kontroller • Registrer • Reager</div>
+      ${showWeather && weatherData ? `<div class="brand-weather">${weatherData.ikon} ${weatherData.temp}° · ${esc(weatherData.tekst)}</div>` : ''}
     </div>
   `;
 }
@@ -4791,7 +4805,7 @@ function render(){
       ${desktopSidebarHtml}
       <div class="app-shell-main">
         <div class="shell-top">
-          ${brandBlockHtml()}
+          ${brandBlockHtml(screen === 'dashboard' && uiExp === 'desktop')}
           <div class="shell-top-right">
             <div class="menu-wrap">
               <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
@@ -5356,9 +5370,6 @@ function renderDashboard(){
   const totalVehicles = vehicles.length;
 
   const today = todayISO();
-  const upcomingVT = verkstedtimer.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const nearestVT = upcomingVT[0] || null;
-  const nearestWithin7 = nearestVT ? vtWithinWeek(nearestVT.dato) : false;
 
   const kontrollertIdagCount = vehicles.filter(v => isKontrollertIdag(v.id)).length;
   // Optimalisering 14: reservebiler som ikke er tatt i bruk ennå i dag telles verken som
@@ -5474,69 +5485,37 @@ function renderDashboard(){
   dashKreverListe.forEach(item => { if(!prioriterteBilerMap.has(item.vehicleId)) prioriterteBilerMap.set(item.vehicleId, item); });
   const prioriterteBilerListe = Array.from(prioriterteBilerMap.values()).slice(0, 5);
 
-  const g = greetingInfo();
-  const displayNavn = loggedInRole || '';
-  const loggedInUser = adminUsers.find(u => u.rolle === loggedInRole);
-  const displayTittel = loggedInUser && loggedInUser.tittel ? loggedInUser.tittel : '';
-
   return `
-    <div class="greeting-card ${g.klasse}" style="position:relative;">
-      <div class="greeting-actions" style="position:absolute;top:16px;right:18px;display:flex;gap:4px;">
-        <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-kontroll-btn" title="Registrer kontroll">✅</button>
-        <button style="background:var(--surface);border:none;padding:2px 4px;border-radius:5px;font-size:18px;line-height:1;cursor:pointer;" id="greet-vt-btn" title="Registrer verkstedtime">🔧</button>
-      </div>
-      <div class="greeting-grid">
-        <div class="greeting-left">
-          <div class="greeting-title">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
-          ${displayTittel ? `<div class="greeting-role">${esc(displayTittel)}</div>` : ''}
-          <div class="greeting-sub">${g.sub}</div>
-          <div class="greeting-datetime">${fmtDateTime(todayISO(), nowTimeOslo())}</div>
-          ${weatherData ? `<div class="greeting-weather">${weatherData.ikon} ${weatherData.temp}°C i Larvik · ${esc(weatherData.tekst)}</div>` : ''}
-        </div>
-        <div class="greeting-right">
-          <div class="panel" style="cursor:pointer;padding:12px 16px;text-align:right;margin:0;" ${nearestVT ? `data-goto-vt-vehicle="${nearestVT.vehicleId}"` : `data-stat-nav="kommende-vt"`}>
-            <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;">⭐ Neste verkstedtime</div>
-            <div style="font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;">${nearestVT ? fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'}</div>
-          </div>
-        </div>
-      </div>
+    <div class="dash-main-actions">
+      <button type="button" class="btn dash-main-btn" id="dash-bestill-btn">${showHurtigBestillTime ? 'Avbryt' : '📅 BESTILL TIME'}</button>
+      <button type="button" class="btn dash-main-btn secondary" id="dash-biloversikt-btn">🚐 BILOVERSIKT</button>
     </div>
-
-    <div class="panel" id="dash-hurtig-card" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:10px;">⚡ Hurtighandlinger</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button type="button" class="btn secondary" id="hb-bestill-btn">${showHurtigBestillTime ? 'Avbryt' : '📅 Bestill time'}</button>
-        <button type="button" class="btn secondary" id="hb-avvik-btn">🚨 Registrer avvik</button>
-        <button type="button" class="btn secondary" id="hb-sak-btn">📋 Opprett sak</button>
-        <button type="button" class="btn secondary" id="hb-biloversikt-btn">🚐 Åpne biloversikt</button>
+    ${showHurtigBestillTime ? `
+    <form class="panel" id="hurtig-bestill-form" style="margin-bottom:16px;">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Hva ønsker du å bestille?</label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13.5px;font-weight:600;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="service" checked> 🔧 Service</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="dekk"> 🛞 Dekkskift</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="verksted"> 🛠️ Verksted</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="eu-kontroll"> 🚦 EU-kontroll</label>
+        </div>
       </div>
-      ${showHurtigBestillTime ? `
-      <form class="panel" id="hurtig-bestill-form" style="margin-top:14px;">
-        <div class="field" style="margin-bottom:10px;">
-          <label>Hva ønsker du å bestille?</label>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13.5px;font-weight:600;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="service" checked> 🔧 Service</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="dekk"> 🛞 Dekkskift</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="verksted"> 🛠️ Verksted</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;"><input type="radio" name="hb-type" value="eu-kontroll"> 🚦 EU-kontroll</label>
-          </div>
-        </div>
-        <div class="field" style="margin-bottom:10px;">
-          <label>Velg bil</label>
-          <select id="hb-vehicle" required>
-            <option value="">Velg bil...</option>
-            ${vehicleOptions('')}
-          </select>
-        </div>
-        <div class="row2">
-          <div class="field"><label>Dato</label><input id="hb-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-          <div class="field"><label>Klokkeslett</label><input id="hb-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
-        </div>
-        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="hb-kommentar" type="text" placeholder="Valgfritt"></div>
-        <div class="form-msg" id="hb-msg"></div>
-        <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
-      </form>` : ''}
-    </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Velg bil</label>
+        <select id="hb-vehicle" required>
+          <option value="">Velg bil...</option>
+          ${vehicleOptions('')}
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Dato</label><input id="hb-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+        <div class="field"><label>Klokkeslett</label><input id="hb-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
+      </div>
+      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="hb-kommentar" type="text" placeholder="Valgfritt"></div>
+      <div class="form-msg" id="hb-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+    </form>` : ''}
 
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:10px;font-weight:600;color:var(--ink);cursor:pointer;">
@@ -5632,18 +5611,14 @@ function renderDashboard(){
 
 
 function attachDashboardListeners(){
-  document.getElementById('greet-kontroll-btn').addEventListener('click', () => goToRegisterKontroll(''));
-  document.getElementById('greet-vt-btn').addEventListener('click', () => goToRegisterVT(''));
   document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
-  // Prioritet 32 — Hurtighandlinger på Desktop Dashboard.
-  const hbBestillBtn = document.getElementById('hb-bestill-btn');
-  if(hbBestillBtn) hbBestillBtn.addEventListener('click', () => { showHurtigBestillTime = !showHurtigBestillTime; render(); });
-  const hbAvvikBtn = document.getElementById('hb-avvik-btn');
-  if(hbAvvikBtn) hbAvvikBtn.addEventListener('click', () => goToRegisterSak(''));
-  const hbSakBtn = document.getElementById('hb-sak-btn');
-  if(hbSakBtn) hbSakBtn.addEventListener('click', () => goToRegisterSak(''));
-  const hbBiloversiktBtn = document.getElementById('hb-biloversikt-btn');
-  if(hbBiloversiktBtn) hbBiloversiktBtn.addEventListener('click', () => goTo('register'));
+  // Dashboard 3.1 (Less Is More) — to hovedknapper rett under statuslinjen, erstatter
+  // God morgen-kortet og Hurtighandlinger-seksjonen (Prioritet 32). "Bestill time" beholder
+  // nøyaktig samme skjema/lagringslogikk (submitHurtigBestillTime()) som før, kun flyttet.
+  const dashBestillBtn = document.getElementById('dash-bestill-btn');
+  if(dashBestillBtn) dashBestillBtn.addEventListener('click', () => { showHurtigBestillTime = !showHurtigBestillTime; render(); });
+  const dashBiloversiktBtn = document.getElementById('dash-biloversikt-btn');
+  if(dashBiloversiktBtn) dashBiloversiktBtn.addEventListener('click', () => goTo('register'));
   const hurtigBestillForm = document.getElementById('hurtig-bestill-form');
   if(hurtigBestillForm) hurtigBestillForm.addEventListener('submit', submitHurtigBestillTime);
   // Prioritet 17 (Del 2): Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive
