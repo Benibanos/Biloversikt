@@ -159,15 +159,6 @@
   /* Prioritet 16 (Morgenvisning Compact, Del 1): to nøkkeltall side ved side per rad i
      stedet for fem separate bokser i et grid — halverer den vertikale plassen "Dagens
      situasjon" tok fra før. */
-  .morgen-compact-grid{display:flex;flex-direction:column;gap:8px;}
-  .morgen-compact-row{
-    display:flex;align-items:center;gap:10px;
-    border:1.5px solid var(--line);border-radius:10px;padding:11px 14px;
-    font-weight:700;font-size:14px;
-  }
-  .morgen-compact-item{cursor:pointer;display:inline-flex;align-items:center;gap:5px;flex:1;min-width:0;}
-  .morgen-compact-sep{color:var(--line);font-weight:400;}
-  .morgen-compact-row-alert{border-color:var(--red);background:var(--red-soft);color:var(--red);}
   .datepicker-popup{
     position:absolute;width:min(300px,92vw);background:var(--surface);border:1.5px solid var(--line);
     border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:12px;z-index:300;
@@ -247,7 +238,6 @@
   .drawer-item .drawer-icon{font-size:19px;width:24px;text-align:center;flex-shrink:0;}
   .drawer-item.active{background:var(--amber-soft);font-weight:700;}
   .drawer-dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
-  .drawer-toggle-ikon{margin-left:auto;font-size:13px;color:var(--muted);flex-shrink:0;}
   .drawer-item.sub{padding-left:30px;font-size:14px;min-height:48px;}
   .drawer-item.sub .drawer-icon{font-size:17px;}
   .drawer-divider{height:1.5px;background:var(--line);margin:10px 14px;flex-shrink:0;}
@@ -276,7 +266,6 @@
     padding:12px 14px;margin-bottom:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);
   }
   .modal-btn-big .modal-btn-sub{font-size:11.5px;font-weight:600;color:var(--muted);}
-  .modal-btn-big.primary{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
   .modal-btn-big.danger{background:var(--red-soft);color:var(--red);border-color:var(--red);}
   .modal-btn-big:disabled{opacity:.45;cursor:not-allowed;}
   @media (min-width:641px){
@@ -349,12 +338,7 @@
   .stat-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);border-color:var(--muted);}
   .stat-card:active{transform:scale(0.97);}
   .stat-num{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;line-height:1;}
-  .stat-label{color:var(--muted);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-top:8px;}
-  .stat-card.accent-red .stat-num{color:var(--red);}
-  .stat-card.accent-amber .stat-num{color:var(--amber);}
-  .stat-card.accent-blue .stat-num{color:var(--blue);}
 
-  .section-title{font-size:14px;font-weight:700;margin-bottom:12px;}
   .group-count{background:var(--line);color:var(--muted);font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:100px;}
   .dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:26px;}
   .dash-row-2 .stat-grid{margin-bottom:0;}
@@ -647,7 +631,6 @@
 
     /* Header-knappene "Registrer kontroll"/"Registrer verkstedtime" får kortere
        tekst på smal skjerm, slik at begge fortsatt har plass ved siden av "☰ Meny". */
-    .btn-label-full{display:none;}
     .btn-label-short{display:inline;}
 
     /* Skjemaer og info-rader: alltid én kolonne på mobil */
@@ -1224,15 +1207,6 @@ function sakKreverHandling(s){
 function sakKreverHandlingSamletMaster(s){
   return sakErApen(s) && (s.priority === 'kritisk' || sakKreverHandling(s));
 }
-// Saker som skal vises i "Oppfølging i dag" på Dashboard: oppfølgingsdato er i dag,
-// eller en verkstedtime har passert uten at saken er bekreftet ferdig.
-function sakerOppfolgingIdag(){
-  return aktiveSaker.filter(s => sakErApen(s) && (sakOppfolgingStatus(s) === 'idag' || s.status === 'utfort-venter-bekreftelse'));
-}
-// Saker som skal vises i "Forfalte saker" på Dashboard.
-function sakerForfalt(){
-  return aktiveSaker.filter(s => sakErApen(s) && sakOppfolgingStatus(s) === 'forfalt');
-}
 // Prioritet 27 (Design 2.0): delt tellefunksjon for "krever handling nå"-totalen —
 // gjenbrukt av både Dashboard (desktop, se renderDashboard) og mobilens ikonrutenett-
 // badges (se renderMobilHjem), slik at tallet aldri kan divergere mellom de to
@@ -1279,10 +1253,6 @@ function vehicleEldsteApneSak(vehicleId){
   if(apne.length === 0) return null;
   return apne.slice().sort((a,b) => (a.reportedAt||'').localeCompare(b.reportedAt||''))[0];
 }
-// En bil regnes som "kritisk" når den har minst én åpen sak med Kritisk prioritet
-// (samme kriterium som gir 🔴 i vehicleSakStatus).
-function vehicleErKritisk(vehicleId){ return vehicleSakStatus(vehicleId) === 'rod'; }
-
 // ---- Fase 7 (Bilstatus 2.0): én sentral, prioritert statusmotor som ALLE sider bruker
 // (Dashboard, Biloversikt, Kjøretøyprofil) — kun én hovedstatus vises per bil.
 // Prioritet: Ute av drift > Kritisk > Verksted bestilt > Under oppfølging > Reservebil
@@ -1316,18 +1286,6 @@ const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', kritisk:'overdue', v
 // Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
 // bilen klar for drift akkurat nå", uavhengig av lavere-prioriterte forhold som
 // "under oppfølging". Prioritet: kritisk sak > mangler kontroll > verksted i dag > klar.
-function vehicleDagensStatus(vehicleId){
-  if(vehicleAktiveSaker(vehicleId).some(s => s.priority === 'kritisk')) return 'kritisk';
-  if(!isKontrollertIdag(vehicleId)){
-    // Optimalisering 14: vises distinkt (ikke stille som "klar") slik at en administrator
-    // som skanner Biloversikt forstår HVORFOR ingen kontroll er forventet i dag, i stedet
-    // for å lure på om noe er glemt.
-    if(vehicleErReserveUnntatt(vehicleId)) return 'reserve';
-    return 'mangler-kontroll';
-  }
-  if(verkstedtimer.some(t => t.vehicleId === vehicleId && t.dato === todayISO())) return 'verksted-idag';
-  return 'klar';
-}
 const DAGENS_STATUS_IKON = {klar:'✅', 'mangler-kontroll':'⚪', 'verksted-idag':'🔧', kritisk:'🚨', reserve:'🚐'};
 const DAGENS_STATUS_LABEL = {klar:'Klar for drift', 'mangler-kontroll':'Mangler kontroll', 'verksted-idag':'Verksted i dag', kritisk:'Kritisk sak', reserve:'Reservebil'};
 const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verksted-idag':'today', kritisk:'alert', reserve:'reserve'};
@@ -1459,7 +1417,6 @@ function sakAvvikListe(s){
   }];
 }
 function sakAvvikAktive(s){ return sakAvvikListe(s).filter(a => a.status === 'aktiv'); }
-function sakAvvikUtforte(s){ return sakAvvikListe(s).filter(a => a.status !== 'aktiv'); }
 // Finner en ÅPEN sak på bilen som allerede har dette spesifikke avviket AKTIVT — enten
 // som ett element i en flerpunkts sak sitt avvik[], eller (eldre data/skade/manuell) i
 // sakens egne toppnivåfelt. Brukt av BÅDE registrerAvvikSomSak (Min Bil/skade) OG
@@ -2428,13 +2385,6 @@ function fmtExcelDato(iso){
 function fmtKr(n){
   if(n === undefined || n === null || n === '') return '';
   return Number(n).toLocaleString('nb-NO') + ' kr';
-}
-// Kompakt dato uten årstall (DD/MM) — brukt i statuschips der plass er knapp.
-function fmtShort(iso){
-  if(!iso) return '—';
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if(!m) return '—';
-  return `${m[3]}/${m[2]}`;
 }
 function fmtDateTime(iso, tid){
   const datePart = fmt(iso);
@@ -3655,26 +3605,6 @@ function goToRegisterSak(vehicleId){
   sakFilterBil = '';
   goTo('aktivesaker');
 }
-function goToAktiveSakerKreverHandling(){
-  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = true; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
-  showSakFilterMeny = true;
-  goTo('aktivesaker');
-}
-// Fase 5: naviger til Aktive Saker med et av de nye oppfølgingsfiltrene forhåndsvalgt.
-function goToAktiveSakerOppfolging(type){
-  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
-  sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = type;
-  showSakFilterMeny = true;
-  goTo('aktivesaker');
-}
-function goToKostnadsoversiktAvsettinger(){
-  kostFilterBil = ''; kostFilterGruppe = ''; kostFilterType = ''; kostFilterManed = ''; kostFilterAr = '';
-  kostFilterKilde = ''; kostFilterSakStatus = '';
-  kostFilterKunAvsettinger = true;
-  showKostFilterMeny = true;
-  goTo('kostnadsoversikt');
-}
 function goToSakDetalj(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
   if(!s) return;
@@ -3925,17 +3855,6 @@ async function deleteService(id){
 function goToRegisterVT(vehicleId){
   vtPrefillVehicleId = vehicleId;
   vtPrefillSakId = '';
-  showAddVT = true;
-  vtFilterBil = '';
-  goTo('verksted');
-}
-// Fase 3: "Registrer verkstedtime" direkte fra en Aktiv Sak — bil, sakstype,
-// beskrivelse og registreringsdato hentes automatisk fra saken (se submitAddVT).
-function goToRegisterVTFraSak(sakId){
-  const s = aktiveSaker.find(x => x.id === sakId);
-  if(!s) return;
-  vtPrefillVehicleId = s.vehicleId;
-  vtPrefillSakId = sakId;
   showAddVT = true;
   vtFilterBil = '';
   goTo('verksted');
@@ -5089,10 +5008,6 @@ function vehicleReasons(v){
   if(v.status === 'verksted') reasons.push('På verksted');
   return reasons;
 }
-function isFlagged(v){
-  const openCount = damages.filter(d => d.vehicleId === v.id && skadeIsOpen(d)).length;
-  return vehicleReasons(v).length > 0 || openCount > 0;
-}
 
 // ================= Prioritet 27 (Design 2.0) — Mobil hjemskjerm =================
 // Regel 3: "Mobil Dashboard skal ikke eksistere som Desktop Dashboard." Ikonbasert,
@@ -5243,10 +5158,6 @@ function renderDashboard(){
   const prioriterteBilerMap = new Map();
   dashKreverListe.forEach(item => { if(!prioriterteBilerMap.has(item.vehicleId)) prioriterteBilerMap.set(item.vehicleId, item); });
   const prioriterteBilerListe = Array.from(prioriterteBilerMap.values()).slice(0, 5);
-
-  // Ny funksjon: Aktiv Biløkt — antall biler med en aktiv sjåfør akkurat nå (kun tallet
-  // vises på Dashboard, i toppfeltet — detaljene finnes i Biloversikt, se Svar 4).
-  const bilerIDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
 
   const g = greetingInfo();
   const displayNavn = loggedInRole || '';
@@ -5988,17 +5899,6 @@ function attachDekkoversiktListeners(){
 function isoDaysAgo(n){
   const d = new Date(todayISO() + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0,10);
-}
-function isoMonthsAgo(n){
-  const d = new Date(todayISO() + 'T00:00:00Z');
-  d.setUTCMonth(d.getUTCMonth() - n);
-  return d.toISOString().slice(0,10);
-}
-function mondayOfWeek(iso){
-  const d = new Date(iso + 'T00:00:00Z');
-  const day = d.getUTCDay(); // 0=søndag, 1=mandag, ...
-  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
   return d.toISOString().slice(0,10);
 }
 
@@ -10050,88 +9950,6 @@ function renderInnstillinger(){
     </div>
   `;
 
-  // Diagnoseverktøy — "Biler i drift nå" vs. virkeligheten. Lagt til fordi kildekoden
-  // (vehicleAktivSjafor()/hDriftCount) er verifisert 100 % kategori-agnostisk, men
-  // driftskoordinator opplevde likevel et avvik — dette gir et vindu inn i de FAKTISKE,
-  // levende dataene direkte i appen, i stedet for kun kildekode-analyse. Rent
-  // lesende/beregnet — ingen skriving, ingen påvirkning på selve tellingen.
-  const driftDiagnoseBody = (() => {
-    const naa = new Date();
-    const idagStr = todayISO();
-    const perKategori = KATEGORI_ORDER.map(kat => {
-      const gruppeBiler = vehicles.filter(v => v.kategori === kat);
-      const harRaaFelt = gruppeBiler.filter(v => v.aktivSjafor && v.aktivSjaforSiden);
-      const tellerMed = gruppeBiler.filter(v => !!vehicleAktivSjafor(v.id));
-      return {kat, antallGruppe: gruppeBiler.length, antallRaaFelt: harRaaFelt.length, antallTellerMed: tellerMed.length};
-    });
-    const aktiveBiler = sortedVehicles(vehicles.filter(v => !!vehicleAktivSjafor(v.id)));
-    // Biler med RÅ felt satt, men som likevel IKKE teller med — dette er nøyaktig
-    // tilfellet du spurte om: aktivSjafor finnes, men datosjekken (aktivSjaforSiden vs.
-    // todayISO()) feiler.
-    const feilerPaaDato = vehicles.filter(v => v.aktivSjafor && v.aktivSjaforSiden && !vehicleAktivSjafor(v.id));
-    return `
-      <div class="required-hint" style="margin-bottom:14px;">Live, rå data — beregnet på nytt hver gang denne seksjonen åpnes. I dag (operativ dag): <b>${idagStr}</b>. Nettleserens klokke akkurat nå: <b>${naa.toLocaleString('nb-NO')}</b>.</div>
-
-      <div class="ov-label" style="margin-bottom:8px;">🚚 Biler i drift nå (${aktiveBiler.length})</div>
-      ${aktiveBiler.length === 0 ? `<div class="empty-note" style="margin-bottom:16px;">Ingen biler har aktiv biløkt akkurat nå.</div>` : `
-      <ul class="dmg-simple-list" style="margin-bottom:16px;">
-        ${aktiveBiler.map(v => `<li><span class="dmg-simple-main">${esc(vehicleLabel(v))} (${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}) — Aktiv sjåfør: ${esc(v.aktivSjafor)} · siden ${v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden).toLocaleString('nb-NO') : '–'}</span></li>`).join('')}
-      </ul>`}
-
-      <div class="ov-label" style="margin-bottom:8px;">Per kjøretøygruppe</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
-        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
-          <th style="padding:6px 8px;">Gruppe</th>
-          <th style="padding:6px 8px;">Antall i gruppen</th>
-          <th style="padding:6px 8px;">Har aktivSjafor+Siden satt</th>
-          <th style="padding:6px 8px;">Teller i "i drift nå"</th>
-        </tr></thead>
-        <tbody>
-          ${perKategori.map(r => `<tr style="border-bottom:1px solid var(--line);">
-            <td style="padding:6px 8px;">${GRUPPE_IKON[r.kat]} ${KATEGORI_GROUP_LABEL[r.kat]}</td>
-            <td style="padding:6px 8px;">${r.antallGruppe}</td>
-            <td style="padding:6px 8px;">${r.antallRaaFelt}</td>
-            <td style="padding:6px 8px;font-weight:700;${r.antallRaaFelt !== r.antallTellerMed ? 'color:var(--red);' : ''}">${r.antallTellerMed}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-
-      ${feilerPaaDato.length > 0 ? `
-      <div class="required-hint" style="margin-bottom:8px;color:var(--red);font-weight:600;">⚠️ ${feilerPaaDato.length} bil${feilerPaaDato.length===1?'':'er'} har aktivSjafor registrert, men feiler datosjekken (telles derfor IKKE med):</div>
-      <ul class="dmg-simple-list">
-        ${feilerPaaDato.map(v => `<li><span class="dmg-simple-main">${esc(vehicleLabel(v))} (${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}) — aktivSjafor: "${esc(v.aktivSjafor)}", aktivSjaforSiden: ${esc(v.aktivSjaforSiden)} (tolkes som operativ dag ${isoDateForOperationalDay(new Date(v.aktivSjaforSiden))}, ikke dagens ${idagStr})</span></li>`).join('')}
-      </ul>` : `<div class="required-hint">Ingen biler har et registrert aktivSjafor-felt som feiler datosjekken akkurat nå.</div>`}
-    `;
-  })();
-
-  // Diagnoseverktøy — Driftslag. Lagt til fordi verdien ble meldt "forsvunnet" etter
-  // refresh. Viser den RÅ v.driftslag-verdien direkte fra det faktiske vehicles-
-  // arrayet appen har lastet inn — last siden på nytt og se på denne listen igjen for å
-  // bekrefte om verdien faktisk overlevde til neste henting fra Airtable eller ikke,
-  // uten å måtte gjette. Rent lesende — ingen skriving.
-  const driftslagDiagnoseBody = (() => {
-    const satt = vehicles.filter(v => v.driftslag && v.driftslag.trim());
-    const ikkeSatt = vehicles.filter(v => !v.driftslag || !v.driftslag.trim());
-    return `
-      <div class="required-hint" style="margin-bottom:14px;">Live, rå data fra <code>v.driftslag</code> — beregnet på nytt hver gang denne seksjonen åpnes. Last siden på nytt (F5) og åpne denne seksjonen igjen for å se om verdiene under er de samme som du nettopp lagret.</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
-        <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);">
-          <th style="padding:6px 8px;">Bil</th>
-          <th style="padding:6px 8px;">Kategori</th>
-          <th style="padding:6px 8px;">v.driftslag (rå verdi)</th>
-        </tr></thead>
-        <tbody>
-          ${sortedVehicles(vehicles).map(v => `<tr style="border-bottom:1px solid var(--line);">
-            <td style="padding:6px 8px;">${esc(vehicleLabel(v))}</td>
-            <td style="padding:6px 8px;">${KATEGORI_GROUP_LABEL[v.kategori] || v.kategori}</td>
-            <td style="padding:6px 8px;${v.driftslag ? 'font-weight:700;' : 'color:var(--red);'}">${v.driftslag ? esc(v.driftslag) : '(tom — ikke satt)'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-      <div class="required-hint">${satt.length} av ${vehicles.length} biler har driftslag registrert. ${ikkeSatt.length > 0 ? ikkeSatt.length + ' mangler ennå (havner i "Ikke satt"-gruppen i Sjåførkontroll).' : ''}</div>
-    `;
-  })();
-
   const databaseBody = (() => {
     // Faktisk synkroniseringsstatus — NY (se instrumenterStorageForSynkStatus() over).
     // Skiller seg bevisst fra skjema-sjekken under: dette er øyeblikksbilde av ekte
@@ -10242,8 +10060,6 @@ function renderInnstillinger(){
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
       ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
-      ${settingsAccordionRow('driftdiagnose', '🚚 Biler i drift — diagnose', null, driftDiagnoseBody)}
-      ${settingsAccordionRow('driftslagdiagnose', '🏷️ Driftslag — diagnose', null, driftslagDiagnoseBody)}
     </div>
   `;
 }

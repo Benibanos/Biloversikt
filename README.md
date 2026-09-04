@@ -3,356 +3,113 @@
 
 ---
 
-# Visjon
-
-Bilpark App er ikke et bilregister.
-
-Bilpark App er et operativt styringssystem utviklet for å gi driftskoordinator full kontroll over bilparken til enhver tid.
-
-Målet er ikke å lagre informasjon.
-
-Målet er å sørge for at riktig informasjon fører til riktig handling.
-
----
-
-# Problemet systemet løser
-
-Driftskoordinator er ansvarlig for:
-
-- 16+ biler
-- 40+ ansatte
-- Daglige kontroller
-- Skader
-- Verkstedoppfølging
-- Varsellamper
-- Dekk
-- Avvik
-- Historikk
-- Oppfølging
-
-Tradisjonelt ligger mye av denne kunnskapen i hodet på én eller få personer.
-
-Det skaper risiko for:
-
-- Glemte saker
-- Manglende oppfølging
-- Manglende oversikt
-- Unødvendig administrasjon
-
-Bilpark App skal eliminere denne risikoen.
-
----
-
-# Kjernefilosofi
-
-Hvis brukeren må huske noe selv:
-
-Da mangler systemet funksjonalitet.
-
-Systemet skal fortelle brukeren:
-
-- Hva som krever handling
-- Hvilke biler som har avvik
-- Hvilke biler som mangler kontroll
-- Hva som må følges opp
-- Hva som er ferdig behandlet
-
----
-
-# Hovedmål
-
-✅ 100 % dokumenterte kontroller
-
-✅ Full sporbarhet
-
-✅ Ingen glemte saker
-
-✅ Tydelig verkstedoppfølging
-
-✅ Operativ kontroll på under 10 sekunder
-
-✅ Redusere administrasjonstid
-
----
-
-# Brukere
-
-## Driftskoordinator
-
-Ansvar:
-
-- Bilparkoversikt
-- Aktive saker
-- Verkstedoppfølging
-- Bilstatus
-- Oppfølging
-- Rapportering
-
-Driftskoordinator er primærbruker.
-
-Alle beslutninger i systemet skal støtte denne rollen først.
-
----
-
-## Sjåfør
-
-Ansvar:
-
-- Daglig kontroll
-- Registrere varsellamper
-- Registrere skader
-- Registrere avvik
-
-Sjåføren skal ha en enkel arbeidsflate.
-
-Så få klikk som mulig.
-
----
-
-# Operativ Prioritet
-
-Systemet prioriterer:
-
-1. Drift
-2. Kontroll
-3. Oppfølging
-4. Verksted
-5. Historikk
-6. Rapportering
-7. Kostnader
-
-Kostnader er viktige.
-
-Men drift kommer først.
-
----
-
-# Daglig Drift
-
-Systemet skal gi svar på:
-
-- Hvilke biler er klare?
-- Hvilke biler mangler kontroll?
-- Hvilke biler er på verksted?
-- Hvilke saker krever handling?
-- Hvilke saker er kritiske?
-- Hvem bruker bilen akkurat nå?
-
----
-
-# Reservebiler
-
-Reservebiler skal ikke skape unødvendige varsler når de står parkert.
-
-Ingen krav om daglig kontroll så lenge bilen ikke er tatt i bruk.
-
-Tas bilen i bruk:
-
-Vanlige regler gjelder resten av dagen.
-
-Ved dagskille:
-
-Bilen går automatisk tilbake til reservestatus.
-
----
-
-# Aktiv Biløkt
-
-Kontrollen tilhører bilen.
-
-Ikke sjåføren.
-
-Hvis bilen allerede er kontrollert:
-
-Ny kontroll er ikke nødvendig.
-
-Neste sjåfør skal kunne gå direkte til:
-
-Min Bil
-
-Derfra kan sjåføren:
-
-- Registrere skade
-- Registrere varsellampe
-- Registrere avvik
-- Kontakte driftskoordinator
-- Sjekke ut bil
-
-Driftskoordinator skal på Dashboard raskt se:
-
-- Hvilke biler som er i drift akkurat nå, og hvem som kjører dem
-  (via Biloversikt — tallet vises i toppfeltet på Dashboard)
-
----
-
-# Dagskille
-
-Operativt dagskille er:
-
-04:00
-
-Grunn:
-
-Sjåfører kan arbeide til langt etter midnatt.
-
-Klokken 04:00:
-
-- Aktive biløkter avsluttes
-- Aktive sjåfører fjernes
-- Kontrollstatus nullstilles
-- Ny kontroll kreves
-
----
-
-# Aktive Saker
-
-Ingen registrerte feil skal kunne bli glemt.
-
-Én kontroll med flere avvik gir én samlet sak per bil.
-
-Ikke én sak per avvik.
-
-Sakslivssyklus:
-
-Registrert
-↓
-Vurderes
-↓
-Tiltak planlagt
-↓
-Verksted bestilt
-↓
-Delvis utført (flere avvik, ikke alle ferdig ennå)
-↓
-Utført
-↓
-Lukket
-
----
-
-# Bilstatus
-
-Hver bil skal til enhver tid ha én tydelig status.
-
-Prioritet:
-
-1. Ute av drift
-2. Kritisk
-3. Verksted bestilt
-4. Under oppfølging
-5. Ikke kontrollert
-6. Operativ
-
----
-
-# Dashboard
-
-Dashboardet er systemets kontrollrom.
-
-Brukeren skal forstå bilparken på under 5 sekunder (Prioritet 26.2 —
-Dashboard Nullstilling).
-
-Dashboardet skal kun svare på:
-
-- Hva må jeg gjøre nå?
-- Hva kommer snart?
-- Hvilken bil skal jeg starte med?
-
-Alt annet (historikk, detaljer, lange oversikter) hører hjemme andre
-steder i appen — ikke på Dashboard.
-
-Bilparkhelse og biler i drift nå vises i toppfeltet.
-
-Synlig uten scrolling.
-
-Manglende kontroll er ikke kritisk.
-
-Rødt er forbeholdt kritiske saker, ute av drift, og alvorlige varsler.
-
----
-
-# Designprinsipp
-
-Mobil først.
-
-Alle funksjoner skal fungere optimalt på:
-
-- iPhone
-- Android
-
-Regler:
-
-- Ingen horisontal scrolling
-- Store trykkflater
-- Lite støy
-- Få klikk
-
----
-
-# Rapporthub
-
-Ett samlet sted for alle rapporter — desktop og mobil.
-
-Alle rapporter er likeverdige.
-
-Ingen spesialbehandling, ingen egen stor knapp.
-
-Hver rapport svarer på ett spørsmål:
-
-"Hva er status på dette området akkurat nå?"
-
-Ikke analyse.
-
-Ikke historikkmotor.
-
-Ikke et eget dashboard inni rapporten.
-
-Alle rapporter følger samme oppskrift:
-
-Overskrift → Filtre → Forhåndsvisning → Excel-eksport.
-
----
-
-# Teknologi
-
-Frontend:
-
-- HTML
-- CSS
-- JavaScript
-
-Database:
-
-- Airtable
-
-Hosting:
-
-- GitHub Pages
-
----
-
-# Dokumentasjon
-
-CLAUDE.md
-
-Beskriver hvordan systemet skal fungere.
-
-AIRTABLE_MIGRATION.md
-
-Beskriver databasearkitektur og databaseendringer.
-
-ROADMAP.md
-
-Beskriver implementerte og planlagte funksjoner.
-
-README.md
-
-Beskriver systemets visjon og filosofi.
-
----
-
-# Sluttregel
-
-Bilpark App er ikke bygget for å registrere problemer.
-
-Bilpark App er bygget for å sørge for at problemer blir oppdaget, fulgt opp og løst.
+## Formål
+
+Bilpark App er et operativt styringssystem, ikke et bilregister. Målet er
+ikke å lagre informasjon, men å sørge for at riktig informasjon fører til
+riktig handling — ingen glemte saker, full sporbarhet, operativ kontroll på
+under 10 sekunder.
+
+## Brukere
+
+- **Driftskoordinator** (primærbruker) — bilparkoversikt, aktive saker,
+  verkstedoppfølging, bilstatus, rapportering.
+- **Sjåfør** — daglig kontroll, registrere varsellamper/skader/avvik, enkel
+  arbeidsflate med få klikk.
+
+## Kjernefunksjoner
+
+- Dashboard — svarer på tre spørsmål på under 5 sekunder: hva må gjøres nå,
+  hva kommer snart, hvilken bil skal jeg starte med.
+- Aktive saker — én samlet sak per kontroll, flere avvikspunkter, full
+  livssyklus fra Ny til Lukket.
+- Sjåførkontroll — daglig kontroll gruppert etter Driftslag, egen
+  sjåfør-URL (`kontroll.html`/`?sjafor=1`) uten innlogging.
+- Service — kilometerbasert serviceintervall per bil, service atskilt fra
+  ordinære verkstedtimer.
+- Dekk — dekkoversikt og dekkhistorikk slått sammen på kjøretøyprofilen.
+- EU-kontroll — fire varslingsnivåer basert på godkjenningsdato.
+- Rapporthub — 12 standardiserte rapporter (kilometerstand, service, dekk,
+  EU-kontroll, skade, sak, kostnad, bilpark, verksted, bilhelse, måned,
+  kontroll), alle med Excel-eksport.
+- Aktiv biløkt — kontrollen tilhører bilen, biløkten tilhører sjåføren,
+  automatisk avslutning ved operativt dagskille kl. 04:00.
+
+## Mobil og desktop
+
+Mobil først. Desktop har eget adaptivt sidebar-layout (Design 2.0, se
+CLAUDE.md) med Dashboard, Aktive saker, Historikk, Planlegging, Biloversikt,
+Rapporter, Analyse og Innstillinger som egne hovedseksjoner. Mobil har
+sveipenavigasjon mellom hovedskjermene og rapporttilgang via ☰ Meny.
+
+## Teknologi
+
+- **Frontend:** HTML, CSS og JavaScript i ett samlet dokument (`index.html`)
+  — ingen rammeverk, ingen byggsteg. Publiseres på **GitHub Pages**.
+- **Database:** Airtable, via direkte REST-API-kall fra nettleseren (ingen
+  backend). Se AIRTABLE_MIGRATION.md for fullt skjema.
+- **PWA:** `manifest.json` (hovedapp) + `manifest-sjafor.json`
+  (sjåfør-snarvei), service worker (`sw.js`) for offline app-shell-caching.
+
+GitHub Pages + Airtable er de eneste plattformene prosjektet bruker. Ingen
+Android-app, APK, TWA eller alternativ hosting (Netlify/Vercel) er del av
+prosjektet eller planlagt.
+
+## Filoversikt
+
+Prosjektet består av 13 filer:
+
+**Runtime (kreves for at appen skal kjøre):**
+- `index.html` — app-shell, all UI og forretningslogikk
+- `kontroll.html` — fast inngangsdør for sjåførmodus
+- `storage.airtable.js` — autoritativ Airtable-integrasjon
+- `airtable-config.js` — Base ID + Personal Access Token (se "Sikkerhet" i
+  CLAUDE.md)
+- `sw.js` — service worker (offline app-shell-cache)
+- `manifest.json` / `manifest-sjafor.json` — PWA-manifester
+- `icons/icon-192.png`, `icon-512.png`, `icon-512-maskable.png` — app-ikoner
+
+**Dokumentasjon:**
+- `README.md` — denne filen
+- `CLAUDE.md` — kilde til sannhet: produktvisjon, arkitektur, regler,
+  utviklings- og testkrav
+- `ROADMAP.md` — implementert / delvis implementert / kjente feil / neste
+  arbeid
+- `AIRTABLE_MIGRATION.md` — full databasemodell
+
+## Installasjon og oppsett
+
+1. Klon repoet.
+2. Opprett din egen Airtable-base og Personal Access Token — se
+   AIRTABLE_MIGRATION.md for full fremgangsmåte.
+3. Fyll inn din egen `baseId` og `token` i `airtable-config.js` (bruk en
+   trygg placeholder-versjon uten ekte verdier ved deling av kildekoden).
+   **Aldri commit ekte tokens til et offentlig repo** — se "Sikkerhet" i
+   CLAUDE.md for risikoen ved denne arkitekturen (ingen backend betyr at
+   tokenet ligger åpent i nettleseren).
+4. Publiser mappen på GitHub Pages.
+
+## Hvordan appen oppdateres
+
+1. Gjør kodeendringen, øk `?v=`-tallet på `storage.airtable.js`-script-taggen
+   i `index.html` OG `versjon`-verdien inne i `storage.airtable.js` samtidig
+   (kun nødvendig ved endringer i selve `storage.airtable.js`).
+2. Øk `CACHE_VERSION` i `sw.js` hvis `index.html` eller andre filer i
+   `APP_SHELL` er endret.
+3. Publiser til GitHub Pages.
+4. Kjør "Oppdater app" i Systeminnstillinger i appen for å tvinge en frisk
+   kopi forbi en eventuell gammel service worker-cache.
+
+## Hvordan riktig storage-versjon kontrolleres
+
+Åpne Innstillinger → Database status. Øverst vises kjørende fil-versjon
+(`storage.airtable.js`) sammenlignet med versjonen `index.html` forventer.
+Et rødt avvik betyr at en gammel, cachet kopi av `storage.airtable.js`
+fortsatt kjører — last opp filen på nytt og kjør "Oppdater app".
+
+## Hvordan Database status brukes
+
+Database status (Innstillinger) viser, i rekkefølge: 1) filversjonssjekk (se
+over), 2) synkroniseringsstatus (pågående/feilede lagringer, sist
+synkronisert), 3) skjemasjekk mot faktisk Airtable-struktur. Se
+AIRTABLE_MIGRATION.md for full forklaring.
