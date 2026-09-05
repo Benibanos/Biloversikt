@@ -1,329 +1,425 @@
-# AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
+# Bilpark → Airtable: arkitekturplan og oppsettsguide
 
-Sist konsolidert: 2026-09-04 (Prioritet 31 — km-felt på dekkhistorikk). Kilde:
-faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.9.0),
-kryssjekket mot faktiske feltreferanser i `index.html`. Den tidligere,
-separate oppsettsguiden for Firebase→Airtable-migreringen er ikke lenger
-bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
-`cae279d`. Denne filen beskriver DAGENS FAKTISKE skjema, og seksjon 8 under
-gjengir den fortsatt gyldige oppsettsprosedyren direkte.
+Dette dokumentet beskriver hvordan Bilpark bruker **Airtable** som sentral
+database i stedet for lokal lagring (`localStorage`/`sessionStorage`) —
+appen selv er **ikke** bygget om, kun lagringslaget bak den.
 
-**Prinsipp fulgt i denne filen:** kun felt som faktisk finnes i
-`LIST_TABLES` (og dermed faktisk sendes til/leses fra Airtable) er
-dokumentert som Airtable-felt. Data lagret via Settings-mønsteret, live-
-beregnede verdier og lokale brukerpreferanser er tydelig merket som separate
-kategorier — ingen av dem er Airtable-kolonner.
+## 0. Viktig forbehold — les dette først
 
----
+Airtable har **ikke** noe innebygd system for å begrense hva en API-nøkkel
+kan gjøre basert på hvem som spør (slik Firebase Firestore-regler kan). En
+nøkkel med tilgang til basen gir **full lese- og skrivetilgang til alt** i
+den, og siden dette er en ren, statisk nettside uten egen server, ligger
+nøkkelen **synlig i nettleseren** for alle som besøker siden. Se
+`airtable-config.js` for samme forbehold i klartekst, med forslag til hvordan
+risikoen reduseres (Personal Access Token skalert til kun denne basen, del
+aldri lenken offentlig, osv.). Dette er en vesentlig svakere sikkerhetsmodell
+enn en ekte backend — vurder dette nøye før dere legger inn
+forretningskritiske eller sensitive data.
 
-## 1. Autoritativ storage-fil og versjon
+En annen praktisk konsekvens: Airtables gratisnivå tillater **5 kall i
+sekundet per base**. Med mange samtidige brukere kan dere støte på
+hastighetsbegrensninger — se punkt 6.
 
-- **Fil:** `storage.airtable.js` (eneste Airtable-storage-fil i prosjektet)
-- **Versjon:** `v2.9.0` (`window.storageAirtableInfo.versjon`)
-- **Cache-busting:** `<script src="storage.airtable.js?v=2.9.0">` i
-  `index.html`
-- **Regel:** øk BÅDE `?v=`-tallet i `index.html` OG `versjon`-verdien i
-  `storage.airtable.js` samtidig ved enhver fremtidig endring i filen.
+## 1. Hva som endres, i korte trekk
 
-## 2. Faktiske Airtable-tabeller og felt
+| I dag (lokalt/Firebase) | Nå (Airtable) |
+|---|---|
+| `localStorage`/Firestore | **Airtable** — én rad per oppføring i egne tabeller |
+| Firebase Authentication | Enkel brukernavn/passord-sjekk mot Airtable-tabellen **Users** (Airtable har ingen egen innloggingsfunksjon) |
+| `sessionStorage` (husket innlogging) | Ingen — sesjonen holdes kun i minnet. Laster du siden på nytt, må du logge inn igjen |
+| Firestore sanntidsoppdatering (`onSnapshot`) | **Periodisk oppfrisking** (hvert 20. sekund) — Airtables vanlige API har ingen sanntids-push, se punkt 5 |
 
-### Vehicles (app-nøkkel: `vehicles`)
+Grensesnittet appen bruker mot lagring (`window.storage.get/set/delete/list`)
+er **uendret**, så det aller meste av appens forretningslogikk er urørt.
 
-| App-felt | Airtable-kolonne | Type |
+## 2. Airtable-tabeller som opprettes
+
+| Tabell | Tilsvarer i appen | Én rad = |
 |---|---|---|
-| id | AppId | tekst |
-| bilnummer | Bilnummer | tekst |
-| regnr | Regnr | tekst |
-| merke | Merke | tekst |
-| modell | Modell | tekst |
-| arsmodell | Årsmodell | tekst |
-| kategori | Kategori | tekst |
-| status | Status | tekst |
-| dekk | Dekk | tekst |
-| km | KM | tall |
-| loyvenummer | Løyvenummer | tekst |
-| hasPhoto | HasPhoto | boolsk |
-| sommerdekkDot | SommerdekkDot | tekst |
-| sommerdekkKommentar | SommerdekkKommentar | tekst |
-| vinterdekkDot | VinterdekkDot | tekst |
-| vinterdekkKommentar | VinterdekkKommentar | tekst |
-| serviceIntervallKm | ServiceIntervallKm | tall |
-| euGodkjentTil | EuGodkjentTil | tekst |
-| aktivSjafor | AktivSjafor | tekst |
-| aktivSjaforSiden | AktivSjaforSiden | tekst |
-| uteAvDrift | UteAvDrift | boolsk |
-| uteAvDriftArsak | UteAvDriftArsak | tekst |
-| uteAvDriftDato | UteAvDriftDato | tekst |
-| uteAvDriftKommentar | UteAvDriftKommentar | tekst |
-| statusHistorikk | StatusHistorikk | JSON (tekst) |
-| driftslag | Driftslag | tekst |
-| **mobilitetsavtale** | **Mobilitetsavtale** | boolsk |
+| **Vehicles** | Bilregister + Løyvenummer | ett kjøretøy |
+| **DriverChecks** | Sjåførkontroller + Kontrollhistorikk | én innsendt kontroll |
+| **Damages** | Skader | én skade |
+| **WarningLights** | Varsellamper (aktive og kvitterte) | én varsellampe-hendelse |
+| **WorkshopAppointments** | Verkstedtimer | én verkstedavtale |
+| **TireCosts** | Dekkkostnader (Kostnadsoversikt) | én dekkregistrering med kostnad |
+| **AktiveSaker** | Aktive Saker | én sak/oppfølgingspunkt for et kjøretøy |
+| **Users** | Administratorbrukere | én administrator |
+| **Settings** | Systeminnstillinger (tema, verkstedregister) og bilder | én nøkkel/verdi-rad |
 
-### Damages (app-nøkkel: `damages`)
+Alle tabeller (unntatt Settings) trenger et tekstfelt **`AppId`** i tillegg
+til de vanlige feltene — det er appens egen, interne id (ikke Airtables eget
+rad-id), og brukes til å koble sammen data på tvers av tabeller (f.eks.
+hvilket kjøretøy en sjåførkontroll gjelder).
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| dato | Dato | tekst |
-| beskrivelse | Beskrivelse | tekst |
-| alvorlighet | Alvorlighet | tekst |
-| kommentar | Kommentar | tekst |
-| status | Status | tekst |
-| registrertAv | RegistrertAv | tekst |
-| hasPhoto | HasPhoto | boolsk |
-| createdByControlId | CreatedByControlId | tekst |
-| estimertKostnad | EstimertKostnad | tall |
+### Feltoversikt per tabell
 
-### WorkshopAppointments (app-nøkkel: `verkstedtimer`)
+**Vehicles**: `AppId` (text), `Bilnummer` (text), `Regnr` (text), `Merke`
+(text), `Modell` (text), `Årsmodell` (text), `Kategori` (text: bil/lastebil/
+montering), `Status` (text: ok/oppfolging/verksted), `Dekk` (text), `KM`
+(number), `Løyvenummer` (text), `HasPhoto` (checkbox). Lagt til i
+"Fase 7 — Bilstatus 2.0 og Komplett Kjøretøyhistorikk" (administratorfunksjonen
+«Marker ute av drift» / «Sett tilbake i drift» på Kjøretøyprofil):
+`UteAvDrift` (checkbox — overstyrer alt annet i den sentrale
+statusmotoren, se `vehicleHovedstatus()` i `index.html`), `UteAvDriftArsak`
+(text), `UteAvDriftKommentar` (long text), `UteAvDriftDato` (text,
+DD/MM/ÅÅÅÅ — dato for siste "ute av drift"-markering), `StatusHistorikk`
+(long text/JSON — logg over hver ute av drift/tilbake i drift-hendelse:
+`{dato, handling, arsak, kommentar, av}`; slettes aldri, kun lagt til i).
+Lagt til i "Prioritet 27.1 — Driftslag i Sjåførkontroll": `Driftslag`
+(text — fritekst, styrer kun gruppering av bilvalg i Sjåførkontroll,
+ingen annen betydning). **Allerede lagt til i `storage.airtable.js` sin
+`LIST_TABLES`** samtidig som denne dokumentasjonen — husk fortsatt å
+opprette selve `Driftslag`-kolonnen i Airtable-basen (eller kjør "🔄
+Synkroniser Airtable" i Innstillinger).
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| verksted | Verksted | tekst |
-| dato | Dato | tekst |
-| tidspunkt | Tidspunkt | tekst |
-| beskrivelse | Beskrivelse | tekst |
-| notater | Notater | tekst |
-| pris | Pris | tall |
-| sakId | SakId | tekst |
-| caseId | CaseId | tekst |
-| kontaktperson | Kontaktperson | tekst |
-| telefon | Telefon | tekst |
-| type | Type | tekst — skiller planlagt service (`'service'`) fra ordinære verkstedtimer |
+**⚠️ Manuelt steg gjenstår:** `storage.airtable.js` (feltmappingen mellom
+appens kjøretøy-objekt og Airtable-kolonnene for Vehicles-tabellen) var ikke
+tilgjengelig i dette prosjektet under denne økten, og kunne derfor ikke
+oppdateres automatisk. Legg til de 5 feltene over — `UteAvDrift`,
+`UteAvDriftArsak`, `UteAvDriftKommentar`, `UteAvDriftDato`, `StatusHistorikk`
+— i Vehicles-delen av `storage.airtable.js` sin `LIST_TABLES`-oppsett (samme
+mønster som de øvrige Vehicles-feltene), samt selve kolonnene i Airtable-
+basen. Uten dette lagres feltene kun lokalt i appens minne inntil siden
+lastes på nytt.
 
-### DriverChecks (app-nøkkel: `kontroller`)
+Lagt til i "Ny funksjon — Aktiv Biløkt / Min Bil" (kontrollen tilhører
+bilen, biløkten tilhører sjåføren): `AktivSjafor` (text — navnet på sjåføren
+som for øyeblikket er aktiv på bilen, tom = ingen aktiv biløkt/bilen er
+tilgjengelig), `AktivSjaforSiden` (text — ISO-tidsstempel for når biløkten
+startet, brukt til å avgjøre om biløkten hører til dagens operative dag, se
+`vehicleAktivSjafor()`). Samme forbehold om `storage.airtable.js` gjelder
+disse to feltene som feltene over.
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| dato | Dato | tekst |
-| tidspunkt | Tidspunkt | tekst |
-| sjafor | Sjafor | tekst |
-| km | KM | tall |
-| varsellamper | Varsellamper | JSON (tekst) |
-| annetTekst | AnnetTekst | tekst |
-| harNyeSkader | HarNyeSkader | boolsk |
-| skadeBeskrivelse | SkadeBeskrivelse | tekst |
-| skadeBilderCount | SkadeBilderCount | tall |
-| kommentar | Kommentar | tekst |
-| linkedDamageId | LinkedDamageId | tekst |
+Lagt til i "Prioritet 18 — Serviceintervall basert på kilometer"
+**(implementert)**: `ServiceIntervallKm` (number — serviceintervall i
+kilometer, per bil, redigerbart av administrator i Kjøretøyprofil sin
+Service-seksjon. Bevisst **ingen automatisk standardverdi** — feltet står
+tomt til en administrator faktisk bekrefter riktig intervall for den
+konkrete bilen, siden bilmerke alene ikke er nok til å fastsette korrekt
+intervall). Kilometerstanden som brukes i alle serviceberegninger er
+fortsatt kun det eksisterende `KM`-feltet over — det er IKKE opprettet noe
+parallelt kilometerfelt for service. Samme forbehold om
+`storage.airtable.js` gjelder dette feltet som feltene over: legg til
+`ServiceIntervallKm` i Vehicles-delen av `LIST_TABLES`, samt selve kolonnen
+i Airtable-basen.
 
-### WarningLights (app-nøkkel: `varsellys`)
+Lagt til i Prioritet 27 (Design 2.0 — Adaptiv Layout), samme mønster som
+`ServiceIntervallKm` over: `EuGodkjentTil` (dato — frist for periodisk
+kjøretøykontroll (EU-kontroll), per bil, redigerbart av administrator i
+Kjøretøyprofil sin Bilinformasjon-seksjon). Ny funksjonalitet — fantes
+ikke i appen fra før i noen form (verken felt, historikk eller sporing).
+Statusberegning er LIVE (`vehicleEuKontrollStatus()` i `index.html`, 60
+dagers varselgrense), ingen egen historikk-liste lagres — kun selve
+fristdatoen er relevant å spore, i motsetning til Service der hver utført
+service faktisk logges. Samme forbehold om `storage.airtable.js` gjelder:
+legg til `EuGodkjentTil` i Vehicles-delen av `LIST_TABLES`, samt selve
+kolonnen i Airtable-basen.
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| type | Type | tekst |
-| annetTekst | AnnetTekst | tekst |
-| status | Status | tekst |
-| registrertDato | RegistrertDato | tekst |
-| registrertAv | RegistrertAv | tekst |
-| kvittertDato | KvittertDato | tekst |
-| kvittertAv | KvittertAv | tekst |
-| createdByControlId | CreatedByControlId | tekst |
+Kontrollstatus (`isKontrollertIdag`) er UENDRET som konsept — ingen nye felt
+for dette — men selve "i dag"-grensen er flyttet fra midnatt til kl. 04:00
+(se `isoDateForOperationalDay()`/`todayISO()` i `index.html`), siden
+arbeidsdager hos oss kan vare til 02:00–03:00. Dette gjelder automatisk for
+HELE appens "i dag"-begrep (kontrollstatus, Dashboard, Morgenvisning,
+rapporter osv.), ikke bare biløkter.
 
-### Users (app-nøkkel: `admin-users`)
+**DriverChecks**: `AppId`, `VehicleId` (text — samme verdi som `AppId` på
+den aktuelle Vehicles-raden), `Dato` (text, DD/MM/ÅÅÅÅ), `Tidspunkt` (text),
+`Sjafor` (text), `KM` (number), `Varsellamper` (long text — lagres som
+JSON-liste), `AnnetTekst` (text), `HarNyeSkader` (checkbox),
+`SkadeBeskrivelse` (long text), `SkadeBilderCount` (number), `Kommentar`
+(long text), `LinkedDamageId` (text)
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| rolle | Rolle | tekst |
-| tittel | Tittel | tekst |
-| brukernavn | Brukernavn | tekst |
-| passord | Passord | tekst |
+**Damages**: `AppId`, `VehicleId` (text), `Dato` (text), `Beskrivelse` (long
+text), `Alvorlighet` (text), `Kommentar` (long text), `Status` (text),
+`RegistrertAv` (text), `HasPhoto` (checkbox), `CreatedByControlId` (text),
+`EstimertKostnad` (number — estimert kostnad på skaden, valgfritt, beholdes
+selv om skaden lukkes)
 
-### TireChanges (app-nøkkel: `dekkhistorikk`)
+**WarningLights**: `AppId`, `VehicleId` (text), `Type` (text), `AnnetTekst`
+(text), `Status` (text: aktiv/kvittert), `RegistrertDato` (text),
+`RegistrertAv` (text), `KvittertDato` (text), `KvittertAv` (text),
+`CreatedByControlId` (text)
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| dato | Dato | tekst |
-| retning | Retning | tekst |
-| km | KM | tall |
-| kommentar | Kommentar | tekst |
+**WorkshopAppointments**: `AppId`, `VehicleId` (text), `Verksted` (text),
+`Dato` (text), `Tidspunkt` (text), `Beskrivelse` (long text), `Notater`
+(long text), `Pris` (number — kostnad/verkstedregning for registreringen),
+`SakId` (text — intern id til Aktiv Sak denne verkstedtimen er registrert
+fra, se AktiveSaker), `CaseId` (text — lesbart saksnummer, f.eks.
+"SAK-0001", for visning uten oppslag), `Kontaktperson` (text), `Telefon`
+(text) — de to siste lagt til i "Fase 3 — Verkstedflyt". `Type` (text —
+lagt til i Prioritet 26.7/Planlagt service: `'service'` for planlagte
+serviceavtaler, tom/udefinert for ordinære verkstedtimer). **Viktig:**
+`Type` er lagt til i `storage.airtable.js` sin `LIST_TABLES` samtidig som
+denne dokumentasjonen — husk fortsatt å opprette selve kolonnen i
+Airtable-basen (eller kjør "🔄 Synkroniser Airtable" i Innstillinger).
 
-`retning` er, siden Prioritet 31, en av seks type-koder (ikke bare
-"sommer-vinter"/"vinter-sommer") — se `DEKK_TYPE_OPTIONS` i `index.html`.
-`km` er nytt (Prioritet 31, 2026-09-04): km ved dekkskifte, kun for
-oppføringer opprettet via den nye "✔ Utført dekkskifte"-fullfør-flyten
-(`fullforDekkskifttime()`) — historikk fra den eksisterende ad-hoc-
-registreringen (`submitDekkskifte()`) har fortsatt ingen km. Endrer ALDRI
-`v.km` (se Kilometerregel i CLAUDE.md).
+**TireCosts**: `AppId`, `VehicleId` (text), `Dato` (text), `Kostnad`
+(number), `Kommentar` (long text) — registrert fra Kostnadsoversikt
+("🛞 Nye dekk"), adskilt fra den eksisterende dekkskifte-loggen
+(sommer/vinter-bytte, se TireChanges).
 
-### TireCosts (app-nøkkel: `dekkkostnader`)
+**AktiveSaker** (ny i "Aktive Saker — Fase 1", grunnmur for fremtidig
+avviksoppfølging; utvidet i "Fase 2 — Automatisk opprettelse" og
+"Fase 3 — Verkstedflyt" og "Fase 4 — Kostnadsoversikt og
+avsettingsstyring"): `AppId`,
+`CaseId` (text — kort lesbart saksnummer, f.eks. "SAK-0001"), `VehicleId`
+(text), `RegistrationNumber` (text — øyeblikksbilde av regnr på
+registreringstidspunktet), `CaseType` (text — én av
+`varsellampe`/`skade`/`kontrollavvik`/`dekk`/`service`/`annet`), `Title`
+(text), `Description` (long text), `Status` (text — én av
+`ny`/`vurderes`/`tiltak-planlagt`/`verksted-bestilt`/
+`utfort-venter-bekreftelse`/`utfort`/`lukket`,
+standard `ny`), `Priority` (text — én av `lav`/`normal`/`hoy`/`kritisk`,
+standard `normal`), `SourceType` (text — `manuell` for saker opprettet fra
+Aktive Saker-siden, `auto` for saker opprettet automatisk fra
+kontrollregistrering i Fase 2), `SourceId` (text — for automatisk opprettede
+saker: nøkkelen til den konkrete varsellampetypen/kontrollavviket, eller
+skade-id-en, brukt til duplikatkontroll sammen med `CaseType`+`VehicleId`),
+`ReportedBy` (text), `ReportedAt` (text), `AssignedTo` (text), `NextAction`
+(long text), `FollowUpDate` (text), `ResolvedAt` (text — auto-utfylt
+systemtidspunkt når saken lukkes), `ResolvedBy`
+(text — auto-utfylt fra innlogget bruker), `ResolutionNote` (long text —
+sluttkommentar), `CreatedAt` (text — ISO-tidsstempel),
+`UpdatedAt` (text — ISO-tidsstempel), `ReportCount` (number — hvor mange
+ganger samme avvik er rapportert inn, standard 1, økes ved duplikat i
+stedet for å opprette en ny sak), `LastReportedAt` (text — ISO-tidsstempel
+for siste observasjon), `Historikk` (long text/JSON — liste over hver
+observasjon: `{dato, tidspunkt, av, kommentar}`, brukes til
+"Historikk"-seksjonen på sakskortet), `LinkedVtId` (text — intern id til
+tilknyttet verkstedtime, brukes bl.a. til å oppdage når verksteddato er
+passert slik at status kan flyttes automatisk til
+"Utført - venter bekreftelse"), `VerkstedResultat` (text — én av
+`feil-utbedret`/`ingen-feil-funnet`/`midlertidig-reparert`/
+`avventer-deler`/`ny-verkstedtime-nodvendig`, fylles ut ved lukking),
+`CompletedAt` (text — faktisk utført dato, angitt av administrator ved
+lukking, kan avvike fra `ResolvedAt`), `EstimatedCost` (number — estimert
+kostnad på saken, synkroniseres fra `Pris` når verkstedtime registreres fra
+saken, men kan også settes direkte), `ActualCost` (number — faktisk kostnad,
+angis ved lukking; brukes sammen med `EstimatedCost` til å vise avvik),
+`RequiresProvision` (checkbox — om saken krever regnskapsmessig avsetting),
+`ProvisionAmount` (number — avsettingsbeløp, kun relevant når
+`RequiresProvision` er sann), `ProvisionMonth` (text — avsettingsmåned i
+format ÅÅÅÅ-MM, kun relevant når `RequiresProvision` er sann). Lagt til i
+"Optimalisering 3 — Kontrollsletting med full cleanup": `CreatedByControlId`
+(text — samme mønster som på Damages/WarningLights: peker på kontrollen som
+først opprettet saken, kun satt ved førstegangsopprettelse, brukt til å
+avgjøre hva "full cleanup" av en slettet kontroll skal fjerne). Lagt til i
+"Prioritet 12 — Sammenslåtte Kontrollavvik": `Avvik` (long text/JSON — liste
+over hvert enkelt avvik saken samler, kun brukt av saker opprettet fra en
+sjåførkontroll med 2+ nye varsellamper/kontrollavvik samtidig; se eget
+avsnitt under). `Status` sitt verdisett er utvidet med én ny verdi:
+`delvis-utfort` ("Delvis utført") — selve feltet er uendret (fortsatt ren
+tekst), kun hvilke ord appen kan skrive dit.
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| vehicleId | VehicleId | tekst |
-| dato | Dato | tekst |
-| kostnad | Kostnad | tall |
-| kommentar | Kommentar | tekst |
+**Nytt felt: `Avvik`** (JSON-array, ett element per avvik saken samler):
+`{id, caseType, sourceId, label, status, prioritet, createdAt, resolvedAt,
+linkedVtId, reportCount, lastReportedAt}` — `caseType` er `varsellampe`
+eller `kontrollavvik`, `status` er `aktiv` eller `utfort`, `linkedVtId`
+peker på hvilken verkstedtime (om noen) som skal/har behandlet akkurat
+dette avviket (uavhengig av sakens egen `LinkedVtId`, som fortsatt peker på
+den mest nylige/relevante verkstedtimen for saken som helhet). Feltet er
+KUN satt på saker opprettet fra en sjåførkontroll som rapporterte 2 eller
+flere nye varsellamper/kontrollavvik samtidig — alle andre saker (skade,
+manuelt opprettede, Aktiv Biløkt/Min Bil-hurtigregistreringer, og alle
+saker fra før denne endringen) har det tomt/udefinert, og appen leser dem
+identisk som før via `sakAvvikListe()` i `index.html`, som syntetiserer ett
+element fra sakens egne toppnivåfelt når `Avvik` mangler. **Ingen
+bulk-migrering av eksisterende data er nødvendig eller gjort** — gammel og
+ny datamodell lever side om side permanent.
 
-### AktiveSaker (app-nøkkel: `aktiveSaker`)
+**⚠️ Manuelt steg gjenstår:** som ved tidligere feltendringer i denne
+sesjonen var ikke `storage.airtable.js` tilgjengelig, så feltmappingen der må
+oppdateres manuelt: legg til `CreatedByControlId` OG `Avvik` i
+AktiveSaker-delen av `LIST_TABLES` (samme mønster som feltet allerede har
+for Damages/WarningLights), samt selve kolonnene i Airtable-basen. Uten
+dette lagres feltene kun lokalt i appens minne inntil siden lastes på nytt.
 
-| App-felt | Airtable-kolonne | Type |
-|---|---|---|
-| id | AppId | tekst |
-| caseId | CaseId | tekst |
-| vehicleId | VehicleId | tekst |
-| registrationNumber | RegistrationNumber | tekst |
-| caseType | CaseType | tekst |
-| title | Title | tekst |
-| description | Description | tekst |
-| status | Status | tekst |
-| priority | Priority | tekst |
-| sourceType | SourceType | tekst |
-| sourceId | SourceId | tekst |
-| reportedBy | ReportedBy | tekst |
-| reportedAt | ReportedAt | tekst |
-| assignedTo | AssignedTo | tekst |
-| nextAction | NextAction | tekst |
-| followUpDate | FollowUpDate | tekst |
-| resolvedAt | ResolvedAt | tekst |
-| resolvedBy | ResolvedBy | tekst |
-| resolutionNote | ResolutionNote | tekst |
-| createdAt | CreatedAt | tekst |
-| updatedAt | UpdatedAt | tekst |
-| reportCount | ReportCount | tall |
-| lastReportedAt | LastReportedAt | tekst |
-| historikk | Historikk | JSON (tekst) — dette er de individuelle avvikspunktene i en flerpunkts sak |
-| linkedVtId | LinkedVtId | tekst |
-| verkstedResultat | VerkstedResultat | tekst |
-| completedAt | CompletedAt | tekst |
-| estimatedCost | EstimatedCost | tall |
-| actualCost | ActualCost | tall |
-| requiresProvision | RequiresProvision | boolsk |
-| provisionAmount | ProvisionAmount | tall |
-| provisionMonth | ProvisionMonth | tekst |
+**Users**: `AppId`, `Rolle` (text), `Tittel` (text), `Brukernavn` (text),
+`Passord` (text — **lagres i klartekst**, se sikkerhetsforbeholdet i punkt 0)
 
-**Merk om "Sammenslåtte kontrollavvik":** flere avvikspunkter per sak lagres
-i `historikk`-feltet (JSON) på selve saken, IKKE som egne Airtable-rader i en
-separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
+**Settings**: `Key` (text), `Value` (long text) — brukes til temavalg,
+verkstedregisteret, og bilder (som `photo:<id>` → base64-tekst i `Value`).
+**Obs:** Airtable har en grense på ca. 100 000 tegn per long text-felt —
+store bilder i full oppløsning kan i sjeldne tilfeller sprenge denne. Appen
+komprimerer bilder før lagring, men vurder om bilder heller bør lagres et
+annet sted (f.eks. Airtable-vedleggsfelt eller ekstern bildehosting) om dere
+opplever feil ved lagring av bilder.
 
-### Settings (Key/Value-mønster)
+**Servicehistorikk (Prioritet 18) — implementert.** Lagres gjennom
+Settings sin Key/Value-mekanisme, under nøkkelen `servicehistorikk` —
+nøyaktig samme mønster som `dekkhistorikk` (dekkskiftelogg), og altså
+**ikke** en egen Airtable-tabell. `Value` inneholder én JSON-array med ett
+element per serviceregistrering:
+`{id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}`.
+`type` er fritekst (f.eks. "Ordinær service", "Stor service", "EU-kontroll")
+— ingen fast liste, samme filosofi som `beskrivelse`-feltet på
+verkstedtimer. `verksted` er valgfritt og hentes fra samme
+verkstedregister (`verkstedSelectOptions()`) som verkstedtimer allerede
+bruker — tom verdi betyr internt utført service. `vehicleId` er den
+primære koblingen til kjøretøyet (samme interne `AppId`-verdi som andre
+tabeller bruker for `VehicleId`) — registreringsnummer vises kun i
+brukergrensesnittet, aldri som eneste relasjon. Lastes/lagres via
+`window.storage.get/set('servicehistorikk', true)` i `index.html`
+(`loadAll()`/`saveServicehistorikk()`), på nøyaktig samme måte som de
+øvrige generiske listene i denne tabellen — **ingen endring i
+`storage.airtable.js` er nødvendig** for selve historikklisten, siden
+Settings-mekanismen allerede er generisk for enhver nøkkel. (Det nye
+`ServiceIntervallKm`-feltet på selve Vehicles-tabellen er et unntak fra
+dette — se Vehicles-avsnittet over, det krever den vanlige manuelle
+`LIST_TABLES`-oppdateringen siden det er et strukturert kolonnefelt, ikke
+en generisk nøkkel/verdi-post.)
 
-- **Kolonner:** `Key` (tekst), `Value` (tekst/JSON)
-- **Brukes til enkeltverdier**, ikke lister: `theme-preference`,
-  `verksteder` (hele verkstedlisten lagret som én JSON-streng i én rad).
+**Statusberegning (kun i appen, ingen lagret status):** "neste service" =
+km ved siste registrerte service + `ServiceIntervallKm`. Er ingen service
+registrert ennå, brukes 0 km som utgangspunkt. Status beregnes LIVE ved
+hvert `render()`-kall ut fra bilens nåværende `KM` (samme
+live-beregningsprinsipp som resten av appens statusfelt — se
+`vehicleServiceStatus()` i `index.html`): grønn ved god margin, gul innen
+1000 km (`SERVICE_VARSEL_KM`), rød ved forfalt.
 
-### Photos (Key/Value-mønster, egen tabell)
+Feltnavnene med tekst-typer kan gjerne settes opp som Airtables "Single
+select" i stedet for ren tekst der det gir mening (f.eks. `Status`,
+`Kategori`, `Type`) — appen leser/skriver dem uansett som ren tekst, så
+begge varianter fungerer.
 
-- **Kolonner:** `Key` (tekst), `Value` (tekst — base64 dataURL)
-- **Brukes til skadebilder:** `photo:damage:{id}` (enkeltbilde) og
-  `photo:kontroll:{id}:0`, `:1`, … (flerbilde fra sjåførkontroll).
-- Er en EGEN tabell, ikke del av Settings, selv om mønsteret (Key/Value) er
-  identisk.
+## 3. Slik oppretter du Airtable-basen
 
-## 3. Data lagret via Settings/Photos (ikke egne Airtable-felt per rad)
+1. Gå til [airtable.com](https://airtable.com) og logg inn (eller opprett
+   konto).
+2. Klikk «Create a base» → «Start from scratch» → gi den et navn, f.eks.
+   «Bilpark».
+3. Opprett de 7 tabellene fra punkt 2, med feltene som beskrevet der. Slett
+   Airtables standard "Name"-felt i hver tabell om du ønsker (ikke i bruk),
+   eller la det stå urørt — appen bryr seg ikke om ekstra felt som ikke er i
+   listen over.
+4. Finn **Base ID** (starter med `app...`): åpne basen, klikk «Help» → «API
+   documentation» (eller gå til
+   [airtable.com/api](https://airtable.com/api) og velg basen) — Base ID-en
+   står øverst i dokumentasjonen som genereres.
 
-- `theme-preference` — brukerens tema-valg
-- `verksteder` — liste over verksteder (JSON i én Settings-rad)
-- `planlagteservicer` — planlagte servicer (lagres via `window.storage.set`,
-  samme Settings-mønster)
-- `dekkskifttimer` — planlagte dekkskifttimer (Prioritet 31, 2026-09-04),
-  samme Settings-mønster som `planlagteservicer` — IKKE en egen
-  `LIST_TABLES`-tabell.
-- `servicehistorikk` — **dokumentasjonsrettelse (Prioritet 28):** all
-  servicehistorikk for ALLE kjøretøy lagres som én samlet JSON-blob i én
-  Settings-rad (`window.storage.get('servicehistorikk')`/`.set(...)`), IKKE
-  som egne rader i en Airtable-tabell. `servicehistorikk` er derfor
-  IKKE registrert i `LIST_TABLES` og finnes ikke som egen tabell i
-  Airtable — dette var feilaktig utelatt fra forrige konsolidering av denne
-  filen. Se ROADMAP.md, "Gjenstående kjente feil eller mangler", for
-  driftsrisikoen ved denne modellen (Airtables praktiske feltgrense per
-  celle ved fortsatt vekst).
-- Alle skadebilder (`photo:*`-nøkler i Photos-tabellen)
+## 4. Slik oppretter du API-nøkkelen (Personal Access Token)
 
-## 4. Live-beregnede verdier (IKKE Airtable-felt — beregnes i JavaScript)
+Airtable har faset ut de gamle, kontobrede API-nøklene til fordel for
+**Personal Access Tokens (PAT)**, som kan begrenses til kun én base:
 
-Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
+1. Gå til [airtable.com/create/tokens](https://airtable.com/create/tokens).
+2. Klikk «Create new token».
+3. Gi det et navn, f.eks. «Bilpark app».
+4. Under **Scopes**, legg til:
+   - `data.records:read`
+   - `data.records:write`
+   - `schema.bases:read` — kreves for «⚙️ Database status» i Innstillinger,
+     som sjekker at basen har alle tabeller/felt appen forventer
+   - `schema.bases:write` — valgfritt, men kreves for at «🔄 Synkroniser
+     Airtable» skal kunne opprette manglende tabeller/felt automatisk i
+     stedet for at du må legge dem til manuelt. Utelates dette scopet,
+     fungerer resten av appen helt normalt — du får bare en tydelig
+     feilmelding i Database status i stedet for automatisk oppretting.
+5. Under **Access**, velg «Add a base» og velg Bilpark-basen din spesifikt
+   (ikke «All current and future bases»).
+6. Klikk «Create token» — kopier tokenet med det samme (det vises kun én
+   gang). Det starter med `pat...`.
 
-- `vehicleAktivSjafor()`, `vehicleSisteSjafor()` — beregnet fra
-  `aktivSjafor`/`aktivSjaforSiden` + dagens `kontroller`
-- `vehicleServiceStatus()`, `vehicleNesteServiceKm()`,
-  `vehicleSisteService()` — beregnet fra `servicehistorikk` + `v.km` +
-  `serviceIntervallKm`
-- `vehicleEuKontrollStatus()` — beregnet fra `euGodkjentTil` vs. dagens dato
-- `vehicleDatakvalitetStatus()` — beregnet fra kontrollhistorikk-tidspunkt
-- `dekkAlderStatus()` — beregnet fra dekkhistorikk
-- `damagePhotoCount()`/`damagePhotoKeys()` — beregnet/utledet, peker til
-  Photos-nøkler
-- Synkroniseringsstatus (`pagaendeSkrivinger`, `synkFeilLogg`,
-  `sisteVellykkedeSynkTidspunkt`) — kun i minnet under kjørende økt, ikke
-  persistert noe sted
+**Har du allerede et token fra tidligere** (kun `data.records:*`)? Det
+fungerer fortsatt for hele appen som før — «Database status» vil bare vise
+en feilmelding om manglende tilgang til å lese/endre struktur i stedet for
+et rapportresultat. Gå til
+[airtable.com/create/tokens](https://airtable.com/create/tokens), åpne det
+eksisterende tokenet, og legg til de to nye scopene der for å aktivere
+funksjonen — du trenger ikke lage et helt nytt token.
 
-## 5. Lokale brukerpreferanser (IKKE Airtable, kun `localStorage`)
+## 5. Slik kobler du appen til Airtable
 
-- `bilpark_sjaforkontroll_sist_driftslag` — sist brukte driftslag-gruppe i
-  Sjåførkontroll
-- Kontroll-kladd (`KONTROLL_DRAFT_KEY`)
-- Sjåførøkt-session (`DRIVER_SESSION_KEY`)
-- "Husk innlogging" (`REMEMBER_LOGIN_KEY`)
+Åpne `airtable-config.js` i pakken og fyll inn:
+```js
+const AIRTABLE_CONFIG = {
+  baseId: 'appXXXXXXXXXXXXXX',      // fra punkt 3.4
+  token: 'patXXXXXXXXXXXXXX.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  // fra punkt 4.6
+};
+```
+Det er alt som trengs — resten av appen henter og lagrer data via dette
+automatisk gjennom `storage.airtable.js`.
 
-## 6. Nye felt siden forrige dokumenterte migrering
+**Om "sanntid":** Airtables vanlige API har ingen push-varsling når data
+endres fra en annen enhet (Firestore-versjonen hadde dette via
+`onSnapshot`). Appen løser dette med **periodisk oppfrisking** (standard
+hvert 20. sekund, styrt av `POLL_INTERVAL_MS` i `storage.airtable.js`) —
+Dashboard/historikk oppdateres altså automatisk, men med inntil ca. 20
+sekunders forsinkelse i stedet for umiddelbart. Sett tallet lavere for
+raskere oppdatering, men vær da oppmerksom på Airtables grense på 5
+kall/sekund per base (punkt 0) dersom mange bruker appen samtidig.
 
-`KM` (TireChanges/`dekkhistorikk`, tall) er det nyeste feltet — lagt til
-2026-09-04 (Prioritet 31) som km ved dekkskifte, kun fylt ut av den nye
-"✔ Utført dekkskifte"-fullfør-flyten (`fullforDekkskifttime()`), aldri av
-den eksisterende ad-hoc-registreringen. Korrekt registrert i `LIST_TABLES` i
-nåværende `storage.airtable.js` (`v2.9.0`) — sendes og leses korrekt.
-Endrer aldri `v.km` (se Kilometerregel). `Mobilitetsavtale` (Vehicles,
-boolsk, lagt til 2026-09-04 samme dag, tidligere) forblir det nest nyeste
-feltet, deretter `Driftslag` (Vehicles, Prioritet 27.1). Ingen
-navneendringer på eksisterende felt er gjort. Merk også: `dekkskifttimer`
-(planlagte dekkskifttimer, Prioritet 31) er IKKE et nytt Airtable-felt —
-det er en ny Settings-blob-nøkkel, se seksjon 3.
+## 6. Filer som er endret eller lagt til
 
-## 7. Felt-kandidater — kun skrevet, aldri lest (Prioritet 28-felterevisjon)
+| Fil | Endring |
+|---|---|
+| `index.html` | `<head>` laster `airtable-config.js` + `storage.airtable.js` i stedet for Firebase. Innlogging er tilbake til enkel brukernavn/passord-sjekk mot `adminUsers`-listen (nå Airtable-backet), uten `sessionStorage`. |
+| `airtable-config.js` **(ny)** | Base ID + Personal Access Token (fyll inn selv, se punkt 3-4). |
+| `storage.airtable.js` **(ny, erstatter storage.firebase.js)** | Airtable-backet implementasjon av `get/set/delete/list`, med avstemming (reconciliation) mellom appens datasett og Airtable-radene, samt periodisk oppfriskning. |
+| `sw.js` | Oppdatert til å hverken cache eller gripe inn i forespørsler til `api.airtable.com`. |
+| `kontroll.html` | Ingen endring. |
+| `firebase-config.js`, `storage.firebase.js`, `firestore.rules`, `firebase.json`, `.firebaserc`, `firestore.indexes.json` | **Fjernet** — ikke lenger i bruk. |
 
-Del 9-feltrevisjonen (statisk kodeanalyse i `index.html`, kryssjekket mot
-`storage.airtable.js`) fant to `AktiveSaker`-felt som konsekvent skrives ved
-opprettelse, men aldri leses tilbake noe sted i koden:
+## 7. Slik publiserer du løsningen på GitHub etterpå
 
-| Tabell | Felt | Tidligere formål (antatt) | Historiske data? | Slette-risiko | Anbefaling |
-|---|---|---|---|---|---|
-| AktiveSaker | `RegistrationNumber` (app: `registrationNumber`) | Trolig ment som en denormalisert kopi av kjøretøyets regnr for enklere visning/eksport uten oppslag mot `Vehicles` | Ukjent — feltet kan inneholde reelle historiske verdier for eksisterende saker | Lav ved fortsatt eksistens, men **ukjent** ved fjerning uten videre undersøkelse | La feltet ligge urørt. Ikke slett. |
-| AktiveSaker | `AssignedTo` (app: `assignedTo`) | Trolig en planlagt "tildel sak til person"-funksjon som aldri ble ferdigstilt i UI | Ukjent | Lav ved fortsatt eksistens, men **ukjent** ved fjerning uten videre undersøkelse | La feltet ligge urørt. Vurder enten å fullføre tildelingsfunksjonen i UI, eller la det ligge. |
+1. **Opprett et nytt repository** på [github.com/new](https://github.com/new)
+   — velg et navn (f.eks. `bilpark`), og la det være **privat** (anbefales
+   sterkt siden `airtable-config.js` inneholder et reelt tilgangstoken —
+   se punkt 0).
+2. **Last opp filene** — enklest via nettleseren: åpne det nye repoet →
+   «Add file» → «Upload files» → dra inn alle filene fra denne pakken
+   (inkludert `icons/`-mappen) → «Commit changes». (Alternativt, med Git
+   installert lokalt: `git init`, `git add .`, `git commit -m "Bilpark"`,
+   `git branch -M main`, `git remote add origin <repo-url>`, `git push -u
+   origin main`.)
+3. **Aktiver GitHub Pages:** i repoet → «Settings» → «Pages» (venstremeny)
+   → under «Build and deployment» → «Source»: velg «Deploy from a branch» →
+   «Branch»: `main`, mappe `/ (root)` → «Save».
+4. Etter ca. ett minutt er siden tilgjengelig på
+   `https://<brukernavn>.github.io/<repo-navn>/`. Sjåførlenken blir da
+   `https://<brukernavn>.github.io/<repo-navn>/kontroll.html`.
+5. **Viktig ved privat repo + GitHub Pages:** vurder om siden bør være
+   offentlig tilgjengelig i deres tilfelle, siden `airtable-config.js` sitt
+   token uansett blir synlig for alle som besøker den *publiserte* siden
+   (kildekoden i nettleseren), helt uavhengig av om selve GitHub-repoet er
+   privat. Et privat repo hindrer kun at tilfeldige personer finner tokenet
+   ved å bla i kildekoden på GitHub selv — den publiserte nettsiden er,
+   som forklart i punkt 0, uansett åpen for alle med lenken.
+6. **Ved senere endringer:** last opp de endrede filene på nytt (samme
+   «Upload files»-fremgangsmåte, eller `git push` om du bruker Git lokalt) —
+   GitHub Pages oppdaterer automatisk innen ett-to minutter.
 
-**Eksplisitt regel:** dette er kun dokumentasjon av kandidater, ikke et
-handlingspunkt. Ingen Airtable-felt skal slettes eller migreres basert på
-denne tabellen alene — en eventuell fjerning krever en egen, separat
-godkjent migreringssak. Se også ROADMAP.md, "Gjenstående kjente feil eller
-mangler".
+## 8. Hva som gjenstår / bør vurderes videre
 
-## 8. Database status — automatisk skjemasjekk (Innstillinger)
+- **Bilder** kan i sjeldne tilfeller bli for store for et Airtable long
+  text-felt (se punkt 2) — vurder ekstern bildehosting om dette oppstår.
+- **Rate limits:** med mange samtidige brukere, vurder å øke
+  `POLL_INTERVAL_MS` i `storage.airtable.js`, eller undersøke Airtables
+  betalte nivåer med høyere grenser.
+- **Reell sikkerhet** krever en egen backend/proxy foran Airtable-kallene —
+  utenfor denne løsningens omfang som en ren, statisk side.
+- **Testing:** jeg har kontrollert at koden er syntaktisk korrekt, men har
+  ikke kunnet teste den mot en ekte Airtable-base herfra (ingen nettverks-
+  eller nettlesertilgang i dette miljøet) — en grundig gjennomgang i egen
+  nettleser mot deres faktiske base er nødvendig før dette tas i reell bruk.
 
-`EXPECTED_SCHEMA` bygges automatisk fra `LIST_TABLES` (pluss egne,
-hardkodede oppføringer for `Settings` og `Photos`). Database status i
-Innstillinger viser:
+## 9. Database status — automatisk skjemasjekk (Innstillinger)
 
-1. Versjonsmerke (`storageAirtableInfo.versjon` vs. forventet versjon i
-   `index.html`)
-2. Synkroniseringsstatus (se punkt 4 over)
-3. Skjemasjekk mot faktisk Airtable-struktur (krever `schema.bases:read`,
-   automatisk oppretting av manglende felt krever `schema.bases:write`)
+For å unngå at fremtidige nye funksjoner (nye felt/tabeller) glemmes å
+opprettes manuelt i Airtable, sjekker appen automatisk i bakgrunnen — stille,
+ved oppstart og ved innlogging — om basen har alle tabeller og felt den
+forventer, basert på den samme `LIST_TABLES`-oppsettet i
+`storage.airtable.js` som resten av appen bruker (én kilde til sannhet: nye
+felt lagt til der plukkes automatisk opp av sjekken).
 
-## 9. Oppsettsguide (uendret prosedyre)
-
-Fremgangsmåten for å koble appen til en Airtable-base, uendret siden
-prosjektet gikk over fra Firebase til Airtable:
-
-1. Opprett en ny Airtable-base med tabellene listet i seksjon 2 over (samme
-   navn og kolonnenavn som i `LIST_TABLES` i `storage.airtable.js`), samt en
-   `Settings`- og en `Photos`-tabell med kolonnene `Key`/`Value` (se
-   seksjon 2, "Settings" og "Photos").
-2. Generer en Airtable Personal Access Token med minst `data.records:read`,
-   `data.records:write` og `schema.bases:read`-scope for basen (legg til
-   `schema.bases:write` dersom automatisk oppretting av manglende felt via
-   Database status skal brukes, se seksjon 8).
-3. Fyll inn din egen `baseId` og token i `airtable-config.js` — bruk ALDRI
-   ekte verdier i en delt/offentlig kopi av prosjektet (se "Sikkerhet" i
-   CLAUDE.md).
-4. Åpne appen og bekreft i Innstillinger → Database status at
-   versjonsmerket og skjemasjekken er grønne.
+- Finner den avvik, vises et gult varsel øverst på Dashboard.
+- Full detalj (hvilke tabeller/felt som mangler) finnes under
+  **Innstillinger → Database status**.
+- **«🔄 Synkroniser Airtable»**-knappen sjekker på nytt, og forsøker
+  deretter å **opprette manglende tabeller/felt automatisk** via Airtables
+  metadata-API — men KUN om tokenet har scopet `schema.bases:write` (se
+  punkt 4). Uten det scopet får du i stedet en tydelig feilmelding per felt,
+  og må legge dem til manuelt i Airtable.
+- Appen oppretter **aldri** noe automatisk uten at en administrator selv
+  trykker synkroniser-knappen — bakgrunnssjekken ved oppstart varsler kun.
