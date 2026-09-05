@@ -1,12 +1,12 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Dashboard 3.1 — Less Is More), basert på
-faktisk kjørende kode i `Benibanos/Biloversikt`.
-Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
-antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
-alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart
-som egen fil i produksjonsprosjektet — den ligger i git-commit `cae279d`
-(prosjektets tilstand før den første store konsolideringen).
+Sist konsolidert: 2026-09-04 (Prioritet 28 — Total Less Is More), basert på
+faktisk kjørende kode i `Benibanos/Biloversikt`. Status er verifisert mot
+koden i `index.html`/`storage.airtable.js`, ikke antatt fra tidligere
+bestilling. Den fulle, kronologiske historikken over alle tidligere
+"Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart som egen fil i
+produksjonsprosjektet — den ligger i git-commit `cae279d` (prosjektets
+tilstand før den første store konsolideringen).
 
 Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 🔧 Må feilrettes · 📋 Planlagt
@@ -83,91 +83,11 @@ funnet — se merknad under Dashboard-optimaliseringer).
 svarer kun på tre spørsmål (hva må gjøres nå / hva kommer snart / hvilken
 bil starte med), lesbart på under 5 sekunder.
 
-✅ **Prioritet 29 — Desktop Dashboard 3.0 (2026-09-04):** Dashboard (kun
-desktop — mobilforsiden `renderMobilHjem()` er urørt) restrukturert til
-nøyaktig fire områder: 1) kompakt, klikkbar statuslinje i toppfeltet (🟢
-Operative / 🟡 Oppfølging / 🔴 Kritisk / 🚚 i drift — "Verksted"-chippen
-fjernet fra raden, "Kritisk" ruter nå til Aktive saker filtrert på kritisk
-prioritet i stedet for Biloversikt), 2) "Krever handling nå" og 3) "Kommer
-snart" side om side (`.dash-row-2`), 4) "Prioriterte biler" som en bred
-tabell (Prioritet/Bil/Årsak/Status/Neste handling) under. Ingen seksjoner
-fjernet fra Biloversikt/Historikk/Rapporter/Analyse — kun Dashboardets egen
-presentasjon endret, jf. "Endre minst mulig".
-
-✅ **Del av Prioritet 29:** "Kommer snart" viser nå også kommende Service
-og EU-kontroll ("Service om 1800 km" / "EU-kontroll om 56 dager"), avgrenset
-til "snart"-nivåene (`vehicleServiceStatus()`/`vehicleEuKontrollStatus()`
-sine eksisterende `snart-gul`/`snart-rod`-statuser — forfalt vises fortsatt
-kun i "Krever handling nå" for å unngå dobbeltinformasjon). Dette var
-tidligere eksplisitt IKKE bygget (se historisk merknad under) — nå bygget
-med de samme, allerede eksisterende status-funksjonene, ingen ny
-prognoselogikk.
-
-🔧 **Fortsatt IKKE bygget (uendret fra tidligere vurdering):** en egen,
-navngitt "Operativ Belastning"-indikator er ikke del av Prioritet 29 og
-finnes fortsatt ikke i koden — kun de spesifikke Service-/EU-kontroll-
-"kommer snart"-varslene beskrevet over er bygget. Ikke marker en bredere
-"Operativ Belastning"-indikator som implementert uten å bygge den først.
-
-✅ **Prioritet 32 — Hurtighandlinger på Desktop Dashboard (2026-09-04):** ny
-"⚡ Hurtighandlinger"-seksjon rett under statuslinjen, KUN desktop (mobilens
-`renderMobilHjem()` er urørt, som spesifisert).
-
-- 📅 Bestill time: ett felles hurtigskjema (type + bil + dato + klokkeslett
-  + kommentar) som ruter til riktig eksisterende planlagt-liste — Service
-  → `planlagteServicer`, Dekkskift → `dekkskifttimer`, Verksted →
-  `verkstedtimer` (alle tre gjenbrukt uendret, ingen ny lagringslogikk).
-  Nytt for EU-kontroll: en minimal, egen liste `euKontrollTimer` (samme
-  Settings-blob-prinsipp som de andre) — ingen nye Airtable-felt/tabeller i
-  det hele tatt denne runden.
-- 🚨 Registrer avvik og 📋 Opprett sak: begge ruter til den eksisterende
-  sak-opprettelsesflyten (`goToRegisterSak('')`), samme mål som mobilens
-  allerede eksisterende "Registrer avvik"-ikon.
-- 🚐 Åpne biloversikt: `goTo('register')`.
-- Alle fire bestillingstypene havner automatisk i riktig kategori i
-  Planlegging (EU-kontroll-kolonnen slår nå sammen frist-varsel og bestilte
-  timer, samme mønster som Service/Dekk fra Prioritet 30/31).
-- Bonus-korrigering (ikke mobilvisning): `reloadOne()` sin sanntids-
-  oppfriskingsliste manglet en gren for `dekkskifttimer` siden Prioritet
-  31 — rettet sammen med den nye `eukontrolltimer`-grenen.
-- Kjent, bevisst ikke rettet begrensning: mobilens egen
-  Planlegging-badge-telling (`renderMobilHjem()`) er fortsatt upresis (den
-  manglet allerede `planlagtDekkskifte` fra Prioritet 31, mangler nå også
-  `euKontrollBestilt`) — latt urørt fordi spesifikasjonen eksplisitt ba om
-  at mobilvisningen ikke skulle røres. Selve Planlegging-skjermen viser
-  fortsatt korrekt innhold og korrekt totaltall på begge flater.
-- Verifisert med Playwright (alle fire bestillingstyper, validering,
-  navigasjon, Planlegging-visning, og en egen sjekk av at
-  Hurtighandlinger-seksjonen IKKE finnes på mobil). Se CLAUDE.md for full
-  teknisk detalj.
-
-✅ **Dashboard 3.1 — Less Is More (2026-09-04):** rendyrker Desktop
-Dashboard videre, KUN desktop (mobil, Airtable-struktur, Aktive saker,
-Historikk, service-/EU-logikk uendret). Superseder mye av Prioritet 32
-sin visuelle presentasjon — selve "Bestill time"-lagringslogikken
-(`submitHurtigBestillTime()`, `euKontrollTimer`) er uendret.
-
-- God morgen-kortet (hilsen, dato/klokkeslett, "Neste verkstedtime",
-  ✅/🔧-snarveier) fjernet helt — vurdert uten operativ verdi.
-- "⚡ Hurtighandlinger"-seksjonen fjernet helt, inkl. "🚨 Registrer avvik"
-  og "📋 Opprett sak" (fortsatt tilgjengelig uendret via Aktive Saker sitt
-  "+ Ny sak"-skjema).
-- To nye, store hovedknapper rett under Bilparkhelse-statuslinjen: "📅
-  BESTILL TIME" (samme skjema/flyt som Prioritet 32) og "🚐 BILOVERSIKT".
-- Værstatus flyttet fra det fjernede God morgen-kortet til selve headeren
-  (`☀️ 14° · Lett regn` under "Kontroller • Registrer • Reager"), KUN
-  synlig på Desktop Dashboard — ikke på andre skjermer, ikke på mobil.
-- "Biloversikt" fjernet fra venstre sidebar-meny (nå kun Dashboard/Aktive
-  saker/Historikk/Planlegging) — Dashboard har nå sin egen hovedknapp dit,
-  og skjermen selv er uendret og fortsatt nåbar derfra samt via
-  Bilparkhelse-statuslinjens chips.
-- Verifisert med Playwright: alle fire bestillingstyper (Service/Dekkskift/
-  Verksted/EU-kontroll) fungerer uendret via de nye knappene, Biloversikt-
-  knapp navigerer riktig, sidebar viser nøyaktig fire punkter uten
-  Biloversikt, værstatus vises kun i header på Desktop Dashboard og
-  forsvinner på andre skjermer, og en full mobil-visningskontroll
-  (`.dash-main-actions`/`.brand-weather` fraværende, ingen visuell/DOM-
-  endring på mobil). Se CLAUDE.md for full teknisk detalj.
+🔧 **Kjent, dokumentert avvik fra tidligere spesifikasjon:** en tidligere
+spesifikasjon forutsatte at service-/kontrollprognoser og en "Operativ
+Belastning"-indikator allerede fantes fra "Prioritet 18–24" — dette ble
+avkreftet direkte i koden under Prioritet 26.2-arbeidet og er bevisst IKKE
+bygget. Ikke marker dette som implementert uten å bygge det først.
 
 ## Kontrollsletting og Full Cleanup
 
@@ -198,20 +118,6 @@ kontroll).
 26.3), fire faste felt (Registreringsnummer/Kilometerstand/Siste
 service/EU-godkjent til).
 
-## Mobilitetsavtale på kjøretøy
-
-✅ **Ny funksjon (2026-09-04):** nytt boolsk felt `v.mobilitetsavtale`
-(Airtable-kolonne `Mobilitetsavtale`, registrert i `LIST_TABLES`) — ren
-kjøretøyinformasjon, atskilt fra service-/verksted-/sakshistorikk. Vises som
-✅/❌ Mobilitetsavtale nederst til høyre i bilkort-hodet, redigeres manuelt
-("☑ Aktiv mobilitetsavtale") i Bilinformasjon på samme måte som de andre
-kjøretøyfeltene. `storage.airtable.js` økt til `v2.8.0`, `sw.js`
-`CACHE_VERSION` økt til `bilpark-v27`.
-
-📋 **Fremtidig, bevisst ikke bygget:** tilby "☑ Aktiver mobilitetsavtale" som
-et forslag ved serviceregistrering, med fortsatt mulighet for manuell
-overstyring. Ikke marker dette som implementert før det faktisk er bygget.
-
 ## Historikk-hub
 
 ✅ Implementert og verifisert — samlet inngang for kontroll-/service-/dekk-/
@@ -225,74 +131,11 @@ skadehistorikk, Service lagt til (Prioritet 26.10).
 ## Planlegging
 
 ✅ Implementert og verifisert — planlagt service atskilt fra ordinære
-verkstedtimer (`WorkshopAppointments.Type`), EU-kontroll og service vist i
-Planlegging.
-
-✅ **Prioritet 30 — Utfør arbeid direkte fra Planlegging (2026-09-04):**
-eliminerer dobbeltregistrering (Planlegg → Utfør → Registrer på nytt →
-Historikk). Ny, felles arbeidsflyt for alle fire planlagte hendelsestyper:
-Planlegging → Utført arbeid → historikk opprettes automatisk → planlagt
-hendelse fjernes umiddelbart.
-
-- Planlagt service: "✔ Utført arbeid" → `fullforPlanlagtService()`.
-- Planlagt verkstedtime: "✔ Utført arbeid" → `fullforVerkstedtime()`
-  (gjenbruker eksisterende felt på verkstedtimen — ingen nye
-  felt/tabeller).
-- Planlagt dekkskifte: eksisterende "Registrer dekkskifte" **midlertidig**
-  omdøpt til "✔ Utført dekkskifte" (samme skjema/logikk), auto-åpnes ved
-  navigasjon fra Planlegging. **Erstattet av Prioritet 31 under** — se der.
-- Oppfølging: "✔ Utført oppfølging" i saks-wizardens steg 3 →
-  `submitSakWizardOppfolgingUtfort()`, atskilt fra "Legg til oppfølging".
-
-Ingen datamodeller slått sammen (service/verksted/dekk/oppfølging forblir
-fire atskilte historikktyper), `v.km` fortsatt aldri overskrevet av
-historisk service-km, Dashboard/Planlegging oppdateres uten refresh (samme
-`render()`-prinsipp som resten av appen). Verifisert med Playwright
-(automatisert smoke-test av alle fire flyter, desktop + mobil) — se
-CLAUDE.md for detaljer om hvilke felt som gjenbrukes per flyt.
-
-✅ **Prioritet 31 — Dekkskifttime + Fullfør arbeid direkte fra Planlegging
-(2026-09-04):** utvider Dekk-modulen til samme "Planlegg → Utfør →
-Historikk automatisk"-filosofi. Ny, egen planlagt-enhet `dekkskifttimer`
-(Settings-blob, samme prinsipp som `planlagteservicer` — ingen ny
-Airtable-tabell).
-
-- 🛞 Registrer dekkskifttime: dato, klokkeslett, dekkverksted, type
-  dekkskifte (Sommer→Vinter / Vinter→Sommer / Nye sommerdekk / Nye
-  vinterdekk / Enkelthjul / Annet), kommentar → `submitDekkskifttime()`.
-- Vises i Planlegging under "🛞 Dekk" (slått sammen med det eksisterende
-  DOT-alder-varselet i samme kolonne — to adskilte datakilder, én kolonne,
-  samme mønster som Service-kolonnen).
-- Klikk på en planlagt dekkskifttime-rad i Planlegging går rett til
-  fullfør-skjemaet for DEN spesifikke timen (`data-goto-dekkskifttime`) —
-  ikke bare til bilen (en forbedring utover det eksisterende
-  `data-goto-dekk`/`data-goto-service`-mønsteret).
-- ✔ Utført dekkskifte (inline skjema, `fullforDekkskifttime()`): utført
-  dato, km ved dekkskifte (**nytt felt**, se under), dekktype
-  (forhåndsutfylt), kommentar. Oppretter dekkhistorikk, oppdaterer `v.dekk`
-  (kun ved faktisk sesongskifte-type), oppdaterer kjøretøyhistorikk og
-  Dashboard automatisk, fjerner dekkskifttimen — ingen dobbeltregistrering.
-- **Nytt Airtable-felt:** `KM` (tall) på `TireChanges` (dekkhistorikk) —
-  eneste genuine unntak fra "ikke lag nye databasefelt" i denne
-  leveransen, siden ingen eksisterende struktur dekket "km ved
-  dekkskifte". `v.km` overskrives fortsatt ALDRI (samme
-  bekreftelsesdialog-mønster som service ved avvik).
-- Den midlertidige "✔ Utført dekkskifte"-omdøpingen fra Prioritet 30 er
-  reversert — ad-hoc-knappen heter igjen "🛞 Registrer dekkskifte" (uten
-  km), og fungerer uendret og uavhengig av den nye planlagte flyten — to
-  parallelle registreringsveier til samme historikk-tabell, akkurat som
-  service.
-- Verksted/Oppfølging/Service er allerede dekket av Prioritet 30.
-  **EU-kontroll har IKKE fått en "Utført kontroll"-flyt i denne
-  leveransen** — spesifikasjonen nevnte det kun som en fremtidig
-  hjemkategori i Planlegging 2.0-visjonen, uten konkrete felt/dialog. Ikke
-  marker dette som implementert før det faktisk er spesifisert og bygget.
-- Verifisert med Playwright (automatisert smoke-test: registrer
-  dekkskifttime → vises i Planlegging → klikk åpner riktig fullfør-skjema
-  → fullføring oppretter dekkhistorikk med km, fjerner planen, oppdaterer
-  `v.dekk`, `v.km` uendret → kjøretøyhistorikk viser ny oppføring med km →
-  ad-hoc "Registrer dekkskifte" fortsatt uavhengig fungerende), desktop +
-  mobil. Se CLAUDE.md for full teknisk detalj.
+verkstedtimer, EU-kontroll og service vist i Planlegging.
+**DOKUMENTASJONSRETTING (Mobil Design 3.0):** planlagt service lagres i
+`planlagteServicer` (Settings-blob), IKKE i `WorkshopAppointments.Type`.
+Objektet har fra og med Mobil Design 3.0 et påkrevd `type`-felt (type service)
+inne i JSON-bloben — ikke et nytt Airtable-felt.
 
 ## Operativ beslutningsstøtte
 
@@ -309,13 +152,27 @@ kjernespørsmålene er flyttet ut av Dashboard.
 ## Design 2.0 mobil/desktop
 
 ✅ Implementert og verifisert (desktop, Prioritet 27: adaptivt layout,
-sidebar-navigasjon) — se CLAUDE.md for full struktur.
+sidebar-navigasjon) — se CLAUDE.md for full struktur. Desktop er uendret av
+Mobil Design 3.0.
 
-🟡 Delvis implementert (mobil) — sveipenavigasjon og hovedskjermene er
-verifisert i koden. "Manuell overstyring mellom mobil- og desktopvisning"
-som eget, eksplisitt brukervalg finnes IKKE i koden (bekreftet ved tre
-uavhengige gjennomganger — ingen egen bryter, ingen tilhørende
-localStorage-nøkkel). Se "Neste prioriterte arbeid".
+🟡 Delvis implementert (mobil) — **DOKUMENTASJONSRETTING:** "manuell
+overstyring mellom mobil- og desktopvisning" FINNES i koden (`deviceOverride`,
+`currentUiExperience()` og to brytere som setter den), men valget lagres ikke
+permanent og nullstilles ved refresh — ingen localStorage-nøkkel skrives. Den
+tidligere påstanden om at funksjonen ikke fantes i det hele tatt var feil.
+Vedvarende lagring gjenstår, se "Neste prioriterte arbeid".
+
+## Mobil Design 3.0 (driftskoordinatorens mobilforside)
+
+✅ Implementert — mobilforsiden bygd av åtte soner (header, søk,
+oppmerksomhet, primærhandlinger, bestill tjeneste, neste frister, bilparken,
+sekundærhandlinger) og en ny, samlet Bestill tjeneste-flyt
+(`screen='bestilltjeneste'`) for service, EU-kontroll, dekkskifte og
+verkstedtime. Gjenbruker `submitPlanlagtService()`/`submitAddVT()` og den delte
+driftslag-akkordionen — ingen ny verkstedmotor, ingen ny bilvelger, ingen ny
+tellelogikk, ingen nye Airtable-felt. Sjåførmodus (`kontroll.html`, `?sjafor=1`,
+Sjåførkontroll og driftslag-visningen for sjåfører) er en separat flyt og er
+uendret. Se CLAUDE.md for full struktur.
 
 ## EU-kontroll
 
@@ -398,6 +255,6 @@ fremtidig migreringssak dersom historikken vokser mye videre.
 Airtable-base) for å bekrefte at Aktive saker, Operativ status og
 Kjøretøyprofil viser nøyaktig feltsettet spesifisert i CLAUDE.md, ikke mer.
 
-📋 Avklar om "manuell overstyring mellom mobil-/desktopvisning" fortsatt er
-ønsket — bekreftet ikke-implementert i kode ved tre uavhengige
-gjennomganger. Bygg som ny, avgrenset sak dersom fortsatt aktuelt.
+📋 Gjør "manuell overstyring mellom mobil-/desktopvisning" vedvarende.
+Selve overstyringen finnes (`deviceOverride`), men lagres ikke og nullstilles
+ved refresh. Bygg lagring som ny, avgrenset sak dersom fortsatt ønsket.
