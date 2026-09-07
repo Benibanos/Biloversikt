@@ -1,8 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 32 — tydeligere brukerforståelse
-rundt automatisk utsjekking og avkortede Dashboard-lister), basert på
-faktisk kjørende kode i `Benibanos/Biloversikt`.
+Sist konsolidert: 2026-09-07 (Prioritet 33 — "Aktiv sjåfør" betyr nå det
+samme overalt i UI), basert på faktisk kjørende kode i
+`Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
 alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger
@@ -58,6 +58,22 @@ biler" — begge kuttet til topp 5 — viser nå "Viser 5 av X — +X flere …"
 når listen er avkortet, slik at biler som skyves ut/inn av de synlige 5
 ved en endring på en ANNEN bil ikke lenger oppleves som at de
 "forsvinner" uten forklaring. Se CLAUDE.md for full detalj.
+
+**Prioritet 33 — "Aktiv sjåfør" betyr nå det samme overalt i UI
+(2026-09-07):** ✅ Implementert og verifisert. Rotårsak: Biloversikt-kortet
+brukte `vehicleSisteSjafor()` (bredere — aktiv biløkt ELLER bare siste
+kontroll i dag) for etiketten "👤 Aktiv sjåfør", mens filteret "🚚 Har aktiv
+sjåfør" brukte `vehicleAktivSjafor()` strengt (kun live biløkt nå) — en bil
+kunne dermed vise "Aktiv sjåfør" på kortet uten å være med i filteret.
+Løst uten å røre `vehicleAktivSjafor()`, `vehicleSisteSjafor()`,
+biløktlogikk eller Airtable: kortet og Kjøretøyprofilens "Aktiv
+sjåfør"-felt viser nå "👤 Aktiv sjåfør: [navn]" kun når
+`vehicleAktivSjafor()` er sann, ellers "🕓 Sjåfør i dag: [navn]" når kun
+`vehicleSisteSjafor()` er sann, ellers "⚪ Tilgjengelig". Bekreftet
+dynamisk: alle biler i "Har aktiv sjåfør"-filteret viser nå "👤 Aktiv
+sjåfør", og ingen andre biler gjør det. Kjent, bevisst gjenstående
+inkonsistens: Excel-eksportenes "Aktiv sjåfør"-kolonne er ikke endret. Se
+CLAUDE.md for full detalj.
 
 ---
 

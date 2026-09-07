@@ -609,6 +609,9 @@
   .vl-indicator.red{color:var(--red);}
   .vl-indicator.green{color:var(--green);}
   .vl-indicator.amber{color:var(--amber);}
+  /* Prioritet 33: nøytral (verken varsel- eller "alt ok"-farget) — brukes for "🕓 Sjåfør
+     i dag" på bilkortet, som bevisst skal se annerledes ut enn "👤 Aktiv sjåfør" (amber). */
+  .vl-indicator.unset{color:var(--muted);}
 
   /* ---- Innstillinger ---- */
   .settings-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
@@ -5877,9 +5880,19 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // Prioritet 26.7: vehicleSisteSjafor() i stedet for vehicleAktivSjafor() — viser sist
-  // kjente sjåfør (aktiv biløkt ELLER siste kontroll i dag), ikke bare aktiv biløkt.
-  const aktivSjafor = vehicleSisteSjafor(v.id);
+  // Prioritet 33: "Aktiv sjåfør" skal bety det SAMME overalt i appen som filteret
+  // "🚚 Har aktiv sjåfør" (som bruker vehicleAktivSjafor() strengt — kjører akkurat nå).
+  // Kortet viste tidligere alltid "👤 Aktiv sjåfør: [navn]" basert på vehicleSisteSjafor()
+  // (aktiv biløkt ELLER bare siste kontroll i dag), som gjorde at biler kunne se ut som de
+  // hadde aktiv sjåfør uten å være med i filteret. Ingen endring i vehicleAktivSjafor()/
+  // vehicleSisteSjafor()/biløktlogikk — kun hvilken tekst/ikon som vises her, styrt av
+  // HVILKEN av de to funksjonene som faktisk ga svaret:
+  //   - vehicleAktivSjafor() sant → "👤 Aktiv sjåfør: [navn]" (med i "Har aktiv sjåfør")
+  //   - kun vehicleSisteSjafor() sant (dagens siste kontroll, ingen aktiv biløkt nå) →
+  //     "🕓 Sjåfør i dag: [navn]" (IKKE med i "Har aktiv sjåfør")
+  //   - ingen av delene → "⚪ Tilgjengelig"
+  const aktivSjaforNaa = vehicleAktivSjafor(v.id);
+  const sisteSjafor = vehicleSisteSjafor(v.id);
   return `
     <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);border-width:2px;"' : ''}>
       <div class="gcard-head">
@@ -5894,8 +5907,8 @@ function galleryCard(v, erMinAktiveBil){
           <div class="vl-indicator ${reserveUnntatt ? 'green' : (kontrollertIdag ? 'green' : 'amber')}" style="margin-top:2px;">
             ${reserveUnntatt ? '🚐 Reservebil — ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag')}
           </div>
-          <div class="vl-indicator ${aktivSjafor ? 'amber' : 'green'}" style="margin-top:2px;">
-            ${aktivSjafor ? `👤 Aktiv sjåfør: ${esc(aktivSjafor)}` : '⚪ Tilgjengelig'}
+          <div class="vl-indicator ${aktivSjaforNaa ? 'amber' : (sisteSjafor ? 'unset' : 'green')}" style="margin-top:2px;">
+            ${aktivSjaforNaa ? `👤 Aktiv sjåfør: ${esc(aktivSjaforNaa)}` : (sisteSjafor ? `🕓 Sjåfør i dag: ${esc(sisteSjafor)}` : '⚪ Tilgjengelig')}
           </div>
         </div>
       </div>
@@ -6696,7 +6709,7 @@ function renderBilkort(){
           <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
           <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
           <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleSisteSjafor(v.id) ? '👤 ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
+          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : (vehicleSisteSjafor(v.id) ? '🕓 Sjåfør i dag: ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør')}</span></div>
         </div>
       </div>
       <div class="ov-split-col">

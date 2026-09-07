@@ -1,9 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 32 —
-tydeligere brukerforståelse rundt automatisk utsjekking og avkortede
-Dashboard-lister). **Ved avvik mellom denne filen og koden er koden alltid
-sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 33 —
+"Aktiv sjåfør" betyr nå det samme overalt i UI). **Ved avvik mellom denne
+filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -93,6 +92,34 @@ bevisste mekanismer i eksisterende kode kunne likevel oppleves som at biler
 Ingen endring i `vehicleHovedstatus()`, `vehicleAktivSjafor()`,
 `vehicleAktiveSaker()`, saksmotoren, biløkt-reglene eller noe
 Airtable-skjema — kun to nye, synlige tekstvarsler i eksisterende flyt.
+
+**Prioritet 33 (2026-09-07) — "Aktiv sjåfør" betyr nå det samme overalt i
+UI (ren tekst-/visningsendring, ingen logikkendring).** Rotårsak (funnet
+via analyse, ikke endret): Biloversikt-kortet (`galleryCard()`) viste alltid
+"👤 Aktiv sjåfør: [navn]" basert på `vehicleSisteSjafor()` (aktiv biløkt
+ELLER bare siste kontroll i dag — bredere kilde, se linje ~1659), mens
+filteret "🚚 Har aktiv sjåfør" i Biloversikt (`renderRegister()`, linje
+~5731) bruker `vehicleAktivSjafor()` strengt (kun en LIVE biløkt akkurat
+nå). En bil kunne dermed vise "Aktiv sjåfør" på kortet uten å dukke opp i
+filteret — typisk en bil kontrollert i dag via administrasjonens vanlige
+✅ Kontroll-ikon (som aldri kaller `startBilokt()`, se linje ~1648–1651),
+eller en bil hvis biløkt siden er avsluttet (manuelt eller automatisk via
+`startBilokt()`s kryss-bil-utsjekking, se Prioritet 32). Løst UTEN å røre
+`vehicleAktivSjafor()`, `vehicleSisteSjafor()`, biløktlogikk eller Airtable
+— kortet (`galleryCard()`) og Kjøretøyprofilens "Aktiv sjåfør"-felt
+(`renderBilkort()`, "Operativ status") viser nå:
+- `vehicleAktivSjafor()` sann → "👤 Aktiv sjåfør: [navn]" (alltid med i
+  "Har aktiv sjåfør"-filteret)
+- kun `vehicleSisteSjafor()` sann (ingen aktiv biløkt nå, men kontrollert i
+  dag) → "🕓 Sjåfør i dag: [navn]" (aldri med i filteret)
+- ingen av delene → "⚪ Tilgjengelig" / "– Ingen aktiv sjåfør"
+
+Bekreftet med dynamisk test: alle biler filtrert frem av "Har aktiv
+sjåfør" viser nå "👤 Aktiv sjåfør" på kortet, og ingen bil utenfor filteret
+viser det. **Kjent, bevisst gjenstående inkonsistens (ikke endret denne
+runden):** Excel-eksportenes "Aktiv sjåfør"-kolonne (Bilparkrapport,
+`rapportEksporterExcel()`) bruker fortsatt `vehicleSisteSjafor()` uendret —
+vurder om denne også bør presiseres ved behov.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.
