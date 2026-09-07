@@ -184,6 +184,23 @@ kilde, dedikert Excel-eksport med frosset overskrift og tusenskilletegn.
 korrekt registrert i `LIST_TABLES` i nåværende `storage.airtable.js` (v2.7.0)
 og bekreftet sendt/lest til/fra Airtable i koden.
 
+## Biler ute av drift skjules fra aktive lister
+
+✅ Implementert og verifisert (2026-09-07) — en bil merket `v.uteAvDrift`
+skjules nå fra: driftslag-gruppert bilvalg i Sjåførkontroll (samlet i en
+egen, ikke-klikkbar gruppe "🚫 Biler ute av drift" nederst), Dashboard sine
+operative tellinger (kontrollstatus, EU-kontroll/service forfalt),
+Planleggings status-baserte "kommende"-varsler, og bilvelgeren ved
+registrering av ny sak/verkstedtime/dekkkostnad/skade. Forblir uendret
+tilgjengelig i Biloversikt/Administrasjon, Kjøretøyprofil, Historikk,
+Servicehistorikk, Dekkhistorikk, Rapporter og Analyse. Service-/Dekk-
+skjermenes bilvelgere viser fortsatt alle biler (historikk skal alltid være
+nåbar) — kun registrer-knappene skjules. `v.driftslag` beholdes uendret i
+databasen mens bilen er ute av drift, så den havner automatisk tilbake i
+riktig driftslag-gruppe når status settes tilbake til aktiv. Ingen sletting,
+arkivering eller endring av registreringsnummer — ren visningsfiltrering.
+Se CLAUDE.md, "Sjåførkontroll".
+
 ## Sjåførkontroll-dropdown
 
 ✅ Implementert og verifisert — akkordion med kun ett lag åpent om gangen

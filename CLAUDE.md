@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 29 —
-Kritisk datasikkerhet og stabilisering). **Ved avvik mellom denne filen og
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Ny regel — biler
+ute av drift skjules fra aktive lister). **Ved avvik mellom denne filen og
 koden er koden alltid sannheten.**
 
 ---
@@ -96,8 +96,8 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v25'`, økt i Prioritet 29 fordi
-  `index.html` og `storage.airtable.js` ble endret). To separate
+  offline-fallback (`CACHE_VERSION = 'bilpark-v26'`, økt fordi `index.html`
+  ble endret). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
@@ -179,6 +179,27 @@ direkte i koden ved videre endringer.
   steder i appen.
 - Driftslag lagres permanent i Airtable (`Vehicles.Driftslag`), ikke kun
   lokalt.
+- **Biler ute av drift (`v.uteAvDrift`):** vises IKKE i sin vanlige
+  driftslag-gruppe i Sjåførkontroll sitt bilvalg (`kontrollDriftslagGrupper()`),
+  men samles i en egen, alltid sist plasserte gruppe "🚫 Biler ute av drift" —
+  kortene der er bevisst ikke klikkbare (ingen bilvalg-attributt settes), kun
+  synlige for sporbarhet/åpenhet. `v.driftslag` fjernes ALDRI fra kjøretøyet
+  mens det er ute av drift, så bilen havner automatisk tilbake i riktig
+  driftslag-gruppe den dagen `markerUteAvDrift()`/`settTilbakeIDrift()` setter
+  `v.uteAvDrift = false` igjen — ingen egen "husk opprinnelig lag"-logikk
+  finnes eller er nødvendig. Samme regel skjuler biler ute av drift fra
+  Dashboard sine operative tellinger (kontrollstatus, EU-kontroll/service
+  forfalt — se `aktiveVehicles` i `renderDashboard()`), fra Planlegging sine
+  status-baserte "kommende"-varsler (`flatePlanleggingData()`), og fra
+  bilvelgeren ved registrering av NY sak/verkstedtime/dekkkostnad/skade
+  (`vehicleOptions(id, {ekskluderUteAvDrift:true})`). Service-/Dekk-skjermenes
+  egne bilvelgere viser fortsatt ALLE biler (historikk skal alltid være
+  nåbar) — kun "+ Registrer service"/"+ Planlegg service"/
+  "+ Registrer dekkskifte"-knappene skjules når valgt bil er ute av drift.
+  Bilen forblir uendret synlig i Biloversikt/Administrasjon, Kjøretøyprofil,
+  Historikk, Rapporter og Analyse — ingen av disse filtrerer på `uteAvDrift`.
+  Ingen kjøretøy slettes, arkiveres eller mister historikk av denne regelen —
+  den er en ren visningsfiltrering.
 
 ## Aktiv biløkt
 

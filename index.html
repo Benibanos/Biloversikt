@@ -1983,18 +1983,32 @@ function vehicleDriftslagGruppe(v){
 // lag først (i DRIFTSLAG_ORDER sin rekkefølge), deretter ukjente/egendefinerte lag
 // alfabetisk, deretter "Ikke satt" (biler uten driftslag registrert ennå — vises fortsatt,
 // for operativ kontinuitet, i stedet for å bli usynlige/utilgjengelige for kontroll).
+// Ny regel ("Ute av drift" skjules fra aktive lister, se saveVehicleForm()/
+// markerUteAvDrift() for selve markeringen): en bil merket v.uteAvDrift skal ALDRI vises i
+// sin vanlige driftslag-gruppe her — den samles i stedet i en egen gruppe "🚫 Biler ute av
+// drift" nederst. v.driftslag på selve kjøretøyet røres IKKE (kun filtrert bort fra denne
+// visningen), slik at bilen automatisk dukker opp i riktig driftslag-gruppe igjen den
+// dagen den settes tilbake i drift — ingen egen "husk opprinnelig lag"-logikk er
+// nødvendig siden lagtilknytningen aldri fjernes fra databasen.
+const DRIFTSLAG_GRUPPE_UTE_AV_DRIFT = 'Biler ute av drift';
 function kontrollDriftslagGrupper(){
   const grupper = {};
+  const uteAvDrift = [];
   vehicles.forEach(v => {
     const gruppe = vehicleDriftslagGruppe(v);
     if(DRIFTSLAG_SKJULT_I_KONTROLL.includes(gruppe.trim().toLowerCase())) return; // Pick Up Point Larvik
+    if(v.uteAvDrift){ uteAvDrift.push(v); return; }
     if(!grupper[gruppe]) grupper[gruppe] = [];
     grupper[gruppe].push(v);
   });
   const kjenteForst = DRIFTSLAG_ORDER.filter(g => grupper[g]);
   const ukjente = Object.keys(grupper).filter(g => !DRIFTSLAG_ORDER.includes(g) && g !== 'Ikke satt').sort((a,b) => a.localeCompare(b, 'nb'));
   const rekkefolge = [...kjenteForst, ...ukjente, ...(grupper['Ikke satt'] ? ['Ikke satt'] : [])];
-  return rekkefolge.map(g => ({navn: g, ikon: DRIFTSLAG_IKON[g] || '⚪', biler: sortedVehicles(grupper[g])}));
+  const grupperListe = rekkefolge.map(g => ({navn: g, ikon: DRIFTSLAG_IKON[g] || '⚪', biler: sortedVehicles(grupper[g])}));
+  // "Biler ute av drift" plasseres ALLTID sist, uansett om den ellers ville falt et annet
+  // sted alfabetisk — dette er en bevisst unntaksgruppe, ikke et driftslag.
+  if(uteAvDrift.length > 0) grupperListe.push({navn: DRIFTSLAG_GRUPPE_UTE_AV_DRIFT, ikon: '🚫', biler: sortedVehicles(uteAvDrift)});
+  return grupperListe;
 }
 // Prioritet 27.7 (Driftslag-akkordion) — kun ÉN driftslag-gruppe åpen om gangen i
 // Sjåførkontroll sitt bilvalg. Gjelder KUN Sjåførkontroll (begge steder komponenten
@@ -2035,6 +2049,24 @@ function renderDriftslagGruppertBilvalg(velgAttr){
         <div>
           <div style="display:flex;flex-direction:column;gap:8px;padding-top:2px;">
             ${gruppe.biler.map(v => {
+              // Ny regel ("Ute av drift" skjules fra Sjåførkontroll sitt faktiske bilvalg):
+              // "🚫 Biler ute av drift"-gruppen vises for åpenhet/sporbarhet (så det er
+              // tydelig HVOR bilen ble av, ikke bare at den forsvant), men kortet er bevisst
+              // IKKE klikkbart/velgbart her — ingen ${velgAttr}-attributt settes, så
+              // eksisterende klikk-håndterere (data-velg-bil/data-velg-kontroll-bil) aldri
+              // trigges for disse kortene.
+              if(v.uteAvDrift){
+                return `
+              <div style="padding:14px 16px;border:1.5px dashed var(--line);border-radius:10px;background:var(--bg);opacity:.65;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                  <div>
+                    <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
+                    <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${v.uteAvDriftArsak ? ' · ' + esc(v.uteAvDriftArsak) : ''}</div>
+                  </div>
+                  <span class="badge overdue">⛔ Ute av drift</span>
+                </div>
+              </div>`;
+              }
               const kontrollert = isKontrollertIdag(v.id);
               const aktivSjafor = vehicleAktivSjafor(v.id);
               return `
@@ -5390,18 +5422,23 @@ function renderDashboard(){
   // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
   const totalVehicles = vehicles.length;
+  // Ny regel ("Ute av drift" skjules fra dashboard-kort som teller operative biler): alle
+  // operative tellinger under (kontrollstatus, EU-kontroll/service forfalt) beregnes over
+  // aktiveVehicles, ikke hele flåten — biler ute av drift har sin egen, dedikerte
+  // "Ute av drift"-linje i Krever handling nå (se uteAvDriftBiler under), ikke to steder.
+  const aktiveVehicles = vehicles.filter(v => !v.uteAvDrift);
 
   const today = todayISO();
   const upcomingVT = verkstedtimer.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
   const nearestVT = upcomingVT[0] || null;
   const nearestWithin7 = nearestVT ? vtWithinWeek(nearestVT.dato) : false;
 
-  const kontrollertIdagCount = vehicles.filter(v => isKontrollertIdag(v.id)).length;
+  const kontrollertIdagCount = aktiveVehicles.filter(v => isKontrollertIdag(v.id)).length;
   // Optimalisering 14: reservebiler som ikke er tatt i bruk ennå i dag telles verken som
   // "kontrollert" eller "mangler kontroll" — de er unntatt fra kontrollkravet helt til de
   // faktisk tas i bruk (se vehicleErReserveUnntatt()), og skal ikke skape støy her.
-  const reserveUnntattCount = vehicles.filter(v => vehicleErReserveUnntatt(v.id)).length;
-  const manglerKontrollCount = totalVehicles - kontrollertIdagCount - reserveUnntattCount;
+  const reserveUnntattCount = aktiveVehicles.filter(v => vehicleErReserveUnntatt(v.id)).length;
+  const manglerKontrollCount = aktiveVehicles.length - kontrollertIdagCount - reserveUnntattCount;
   // ---- Krever handling nå (Kort 1) — uendret fra Optimalisering 2, kun utvidet med et
   // "prioritet"-felt (Kritisk/Høy/Normal) per element, jf. Prioritet 26.2 sitt krav om
   // en synlig Prioritet-kolonne. Fortsatt gjenbruk av sakKreverHandling() — ingen ny
@@ -5423,8 +5460,8 @@ function renderDashboard(){
   // Optimalisering 15 (Del 5): kun kritiske saker/ute av drift skal farge panelet rødt —
   // manglende kontroll (og oppfølging i dag) er lavere alvorlighetsgrad og skal IKKE lenger
   // gjøre hele "Krever handling nå" rød bare fordi noen biler ikke er kontrollert ennå.
-  const euForfalteBiler = vehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt');
-  const serviceForfalteBiler = vehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt');
+  const euForfalteBiler = aktiveVehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt');
+  const serviceForfalteBiler = aktiveVehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt');
   const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0 || serviceForfalteBiler.length > 0;
   const dashKreverListe = [];
   uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', prioritet:'Kritisk', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
@@ -5455,7 +5492,7 @@ function renderDashboard(){
     const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
     dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', prioritet: op === 'forfalt' ? 'Høy' : 'Normal', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2, aksjon});
   });
-  vehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)).forEach(v => {
+  aktiveVehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)).forEach(v => {
     dashKreverListe.push({sort:3, ikon:'🟡', prioritet:'Normal', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:'', aksjon:'Registrer kontroll'});
   });
   dashKreverListe.sort((a,b) => a.sort - b.sort);
@@ -5958,8 +5995,15 @@ function sortedVehicles(list){
     return ruteNumber(a) - ruteNumber(b);
   });
 }
-function vehicleOptions(selectedId){
-  const sorted = sortedVehicles(vehicles);
+// Ny regel ("Ute av drift" skjules fra standard nedtrekkslister/planlegging av nye
+// aktiviteter): `ekskluderUteAvDrift` fjerner biler merket v.uteAvDrift fra listen som
+// bygges her. Brukes KUN på kallesteder som registrerer noe NYTT (sak/verkstedtime/dekk-
+// kostnad/skade) — filter-dropdowns, redigering av eksisterende poster, og Service-/Dekk-
+// skjermenes egne bilvelgere (som også må vise historikk for en bil ute av drift, se
+// attachServiceSkjermListeners()/attachDekkSkjermListeners()) beholder alle biler uendret.
+function vehicleOptions(selectedId, opts){
+  const ekskluderUteAvDrift = !!(opts && opts.ekskluderUteAvDrift);
+  const sorted = sortedVehicles(vehicles).filter(v => !ekskluderUteAvDrift || !v.uteAvDrift);
   return KATEGORI_ORDER.map(kat => {
     const gruppe = sorted.filter(v => v.kategori === kat);
     if(gruppe.length === 0) return '';
@@ -6142,7 +6186,7 @@ function renderDekkoversikt(){
         <div class="field"><label>Bil</label>
           <select id="dkk-vehicle" required>
             <option value="">Velg bil...</option>
-            ${vehicleOptions('')}
+            ${vehicleOptions('', {ekskluderUteAvDrift:true})}
           </select>
         </div>
         <div class="field"><label>Dato</label><input id="dkk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
@@ -7118,6 +7162,7 @@ function renderServiceSkjerm(){
             </div>` : ''}
           </li>`).join('')}
         </ul>`}
+        ${v.uteAvDrift ? `<div class="empty-note">🚫 Bilen er ute av drift — planlegging av ny service er skjult.</div>` : `
         <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
         ${showPlanleggService ? `
         <form class="panel" id="planlegg-service-form" style="margin-top:14px;">
@@ -7134,15 +7179,15 @@ function renderServiceSkjerm(){
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="ps-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="ps-msg"></div>
           <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
-        </form>` : ''}
+        </form>` : ''}`}
       </div>
 
       <div class="panel" style="margin-bottom:16px;${(vServiceStatus.status === 'forfalt' || vServiceStatus.status === 'snart-rod') ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart-gul' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="toolbar" style="margin-bottom:14px;">
           <div class="count">${vServiceHistorikk.length} service${vServiceHistorikk.length===1?'':'r'} registrert</div>
-          <button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>
+          ${v.uteAvDrift ? '' : `<button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>`}
         </div>
-        ${showAddService ? `
+        ${v.uteAvDrift ? '' : (showAddService ? `
         <form class="panel" id="add-service-form">
           <div class="row2">
             <div class="field"><label>Dato</label><input id="sv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
@@ -7158,7 +7203,8 @@ function renderServiceSkjerm(){
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="sv-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="sv-msg"></div>
           <div class="panel-actions"><button class="btn" type="submit">Lagre service</button></div>
-        </form>` : ''}
+        </form>` : '')}
+        ${v.uteAvDrift ? `<div class="empty-note" style="margin-top:10px;">🚫 Bilen er ute av drift — registrering av ny service er skjult. Historikk under er fortsatt tilgjengelig.</div>` : ''}
         ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
         <div class="dmg-list">${vServiceHistorikk.map(s => serviceHistoryCard(s)).join('')}</div>`}
       </div>`;
@@ -7263,9 +7309,9 @@ function renderDekkSkjerm(){
         <div class="ov-label" style="margin-bottom:10px;">Dekkskiftehistorikk</div>
         <div class="toolbar" style="margin-bottom:14px;">
           <div class="count">${naaverendeDekkLabel}</div>
-          <button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>
+          ${v.uteAvDrift ? '' : `<button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>`}
         </div>
-        ${showAddDekkskifte ? `
+        ${v.uteAvDrift ? `<div class="empty-note" style="margin-bottom:10px;">🚫 Bilen er ute av drift — registrering av nytt dekkskifte er skjult. Historikk under er fortsatt tilgjengelig.</div>` : (showAddDekkskifte ? `
         <form class="panel" id="add-dekkskifte-form">
           <div class="row2">
             <div class="field"><label>Retning</label>
@@ -7279,7 +7325,7 @@ function renderDekkSkjerm(){
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="dk-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="dk-msg"></div>
           <div class="panel-actions"><button class="btn" type="submit">Lagre dekkskifte</button></div>
-        </form>` : ''}
+        </form>` : '')}
         ${vDekkHistorikk.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet ennå.</div>` : `
         <ul class="dmg-simple-list">
           ${vDekkHistorikk.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${DEKK_RETNING_LABEL[d.retning] || d.retning}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
@@ -7386,7 +7432,7 @@ function renderSkader(){
         <div class="field"><label>Bil</label>
           <select id="sk-vehicle" required>
             <option value="">Velg bil...</option>
-            ${vehicleOptions(skadePrefillVehicleId)}
+            ${vehicleOptions(skadePrefillVehicleId, {ekskluderUteAvDrift:true})}
           </select>
         </div>
         <div class="field"><label>Dato</label><input id="sk-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
@@ -8062,14 +8108,21 @@ function attachHistorikkListeners(){
 function flatePlanleggingData(periodeDager){
   const d = new Date(); d.setDate(d.getDate() + periodeDager);
   const grense = d.toISOString().slice(0, 10);
-  const service = vehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
+  // Ny regel ("Ute av drift" skjules fra planlegging av nye aktiviteter): biler merket
+  // v.uteAvDrift skal ikke dukke opp som "krever oppfølging snart" for status-baserte
+  // varsler (service/dekk-alder/EU-kontroll) her — de er ute av operativ drift, så disse
+  // varslene er ikke relevante før bilen settes tilbake i drift. Allerede planlagte/
+  // eksisterende avtaler (planlagtService/verksted/oppfolging) er UENDRET og vises
+  // fortsatt, siden de kan være selve årsaken til at bilen står ute av drift.
+  const aktiveVehicles = vehicles.filter(v => !v.uteAvDrift);
+  const service = aktiveVehicles.map(v => ({v, status: vehicleServiceStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
   // Serviceavtaler og verkstedtimer er adskilte datakilder (egen array, se
   // planlagteServicer) — hentes og vises separat fra verksted-listen under, selv om
   // begge til slutt havner i samme Planlegging-skjerm.
   const planlagtService = planlagteServicer.filter(t => t.dato >= todayISO() && t.dato <= grense)
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const dekk = vehicles.map(v => {
+  const dekk = aktiveVehicles.map(v => {
     const sesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
     const dot = sesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot;
     const st = dekkAlderStatus(dot);
@@ -8082,7 +8135,7 @@ function flatePlanleggingData(periodeDager){
     .sort((a,b) => (a.followUpDate||'').localeCompare(b.followUpDate||''));
   // Regel 6 (Prioritet 27 — Design 2.0): EU-kontroll er nå en av Planleggings fem
   // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
-  const euKontroll = vehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
+  const euKontroll = aktiveVehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
   return {service, planlagtService, dekk, verksted, oppfolging, euKontroll};
 }
@@ -8240,7 +8293,7 @@ function renderAktiveSaker(){
         <div class="field"><label>Bil</label>
           <select id="sak-vehicle" required>
             <option value="">Velg bil...</option>
-            ${vehicleOptions(sakPrefillVehicleId)}
+            ${vehicleOptions(sakPrefillVehicleId, {ekskluderUteAvDrift:true})}
           </select>
         </div>
         <div class="field"><label>Sakstype</label>
@@ -8550,7 +8603,7 @@ function renderVerksted(){
         <div class="field"><label>Bil</label>
           <select id="vt-vehicle" required>
             <option value="">Velg bil...</option>
-            ${vehicleOptions(vtPrefillVehicleId)}
+            ${vehicleOptions(vtPrefillVehicleId, {ekskluderUteAvDrift:true})}
           </select>
         </div>
         <div class="field"><label>Verksted</label>
