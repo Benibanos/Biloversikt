@@ -10469,7 +10469,21 @@ function renderInnstillinger(){
     // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    const FORVENTET_VERSJON = 'v2.8.0'; // hold denne i sync med versjon-verdien i storage.airtable.js
+    // Prioritet 35 (rettelse — falsk versjonsalarm): FORVENTET_VERSJON var tidligere en
+    // egen, manuelt vedlikeholdt tekstkonstant her — en TREDJE kopi av versjonsnummeret,
+    // ved siden av `versjon`-feltet i storage.airtable.js og `?v=`-parameteren på selve
+    // script-taggen i <head>. Den ble ved en glipp ikke oppdatert da storage.airtable.js
+    // gikk fra v2.8.0 til v2.8.1 (Prioritet 31), og panelet viste dermed en falsk rød
+    // versjonsalarm selv om filen og cache-busting-parameteren faktisk stemte perfekt
+    // overens. Løsning: FORVENTET_VERSJON hentes nå direkte fra `?v=`-parameteren på
+    // script-taggen — den ENESTE reelle kilden til hvilken versjon appen faktisk ber
+    // nettleseren om å laste — slik at det aldri finnes mer enn to steder å holde i sync
+    // (selve `versjon`-feltet i storage.airtable.js, og `?v=` på script-taggen; se
+    // CLAUDE.md "Regler for Claude / videre utvikling" om å øke begge sammen). Fallback-
+    // verdien under brukes KUN dersom script-taggen uventet ikke skulle finnes i DOM-en.
+    const storageScriptTag = document.querySelector('script[src^="storage.airtable.js?v="]');
+    const storageScriptVersjonMatch = storageScriptTag && storageScriptTag.getAttribute('src').match(/\?v=([\w.\-]+)/);
+    const FORVENTET_VERSJON = storageScriptVersjonMatch ? 'v' + storageScriptVersjonMatch[1] : 'v2.8.1';
     const info = window.storageAirtableInfo;
     const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
     const riktigVersjonKjorer = !!(info && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);

@@ -1,7 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 34 — Aktiv sjåfør følger turnus,
-uansett registreringskanal), basert på faktisk kjørende kode i
+Sist konsolidert: 2026-09-07 (Prioritet 35 — retting av falsk versjonsalarm
+i Database Status), basert på faktisk kjørende kode i
 `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
@@ -93,6 +93,22 @@ fra begge kanaler. Bekreftet dynamisk: administrasjonens kontroll-
 registrering setter nå Aktiv sjåfør korrekt, bilen teller umiddelbart som
 "🚚 Biler i drift", og administratorens egen lokale sesjon forblir urørt.
 Se CLAUDE.md for full detalj.
+
+**Prioritet 35 — Retting av falsk versjonsalarm i Database Status
+(2026-09-07):** ✅ Implementert og verifisert. Ren diagnostikkfiks, ingen
+funksjonell endring. Database Status-panelet viste "Appen forventer:
+v2.8.0" mot faktisk kjørende "v2.8.1", selv om `storage.airtable.js` og
+`?v=`-parameteren i `index.html` allerede stemte perfekt overens siden
+Prioritet 31. Rotårsak: `FORVENTET_VERSJON` i `renderInnstillinger()` var en
+tredje, separat, manuelt vedlikeholdt versjonskonstant som ikke ble
+oppdatert ved Prioritet 31 sin versjonsbump. Bekreftet ved kodegjennomgang
+at dette var en ren visnings-/diagnostikkfeil uten kobling til cache,
+`reloadOne()`, `_koKjor()`-skrivekøen eller km-logikk. Løst ved å hente
+`FORVENTET_VERSJON` automatisk fra `?v=`-parameteren på
+`storage.airtable.js`-script-taggen (med `v2.8.1` som fallback), slik at
+kun to versjonskilder gjenstår å holde i sync fremover. `v.km`-logikk,
+sjåførkontroll/aktiv sjåfør, selve `storage.airtable.js` og
+synkroniseringsmekanismene er UENDRET. Se CLAUDE.md for full detalj.
 
 ---
 

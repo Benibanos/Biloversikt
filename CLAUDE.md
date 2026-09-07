@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 34 —
-Aktiv sjåfør følger turnus, uansett registreringskanal). **Ved avvik mellom
-denne filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 35 —
+retting av falsk versjonsalarm i Database Status). **Ved avvik mellom denne
+filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -171,6 +171,37 @@ umiddelbart opp i "Har aktiv sjåfør"-filteret og viser "👤 Aktiv sjåfør" p
 kortet, kryss-bil-utsjekkingsvarselet vises korrekt når sjåføren allerede
 disponerte en annen bil, og administratorens egen lokale sesjon
 (`driverActiveVehicleId`) forblir urørt.
+
+**Prioritet 35 (2026-09-07) — retting av falsk versjonsalarm i Database
+Status (kun diagnostikk, ingen funksjonell endring).** Database
+Status-panelet viste "Storage Airtable: v2.8.1" mot "Appen forventer:
+v2.8.0" og en rød "Dette bekrefter rotårsaken …"-alarm, selv om
+`storage.airtable.js` sin `versjon`-verdi og `?v=`-parameteren på
+script-taggen i `index.html` faktisk stemte perfekt overens (begge
+`v2.8.1`, siden Prioritet 31). Rotårsak: `FORVENTET_VERSJON` i
+`renderInnstillinger()` var en TREDJE, separat, manuelt vedlikeholdt
+tekstkonstant (`'v2.8.0'`) — ved en glipp ikke oppdatert da
+`storage.airtable.js` ble bumpet til v2.8.1 i Prioritet 31. Ren
+diagnostikk-feil: bekreftet ved kodegjennomgang at konstanten aldri leses av
+`reloadOne()`, cache-logikk, `_koKjor()`-skrivekøen eller noe km-relatert —
+alarmens fire fryktede konsekvenser (gammel cache, feil `reloadOne`-versjon,
+km-overskriving, lokal/server-desync) forekom aldri i praksis.
+
+Løsning: `FORVENTET_VERSJON` hentes nå automatisk fra `?v=`-parameteren på
+`<script src="storage.airtable.js?v=...">`-taggen (den ENESTE reelle kilden
+til hvilken versjon appen faktisk ber nettleseren om å laste), med
+`'v2.8.1'` som fallback dersom script-taggen uventet ikke skulle finnes i
+DOM-en. Dette fjerner den tredje manuelt vedlikeholdte versjonskopien — kun
+`versjon`-feltet i `storage.airtable.js` og `?v=`-parameteren i
+`index.html` må heretter holdes i sync (se "Regler for Claude / videre
+utvikling"). Bekreftet med dynamisk test: panelet viser nå
+"Appen forventer: v2.8.1" og den røde versjonsalarmen vises ikke lenger.
+
+Endringen er strengt begrenset til Database Status-diagnostikken i
+`renderInnstillinger()`. Ikke rørt: kilometerlogikk (`v.km`,
+`submitKontroll()`), sjåførkontroll/aktiv sjåfør-logikk, selve
+`storage.airtable.js` (fortsatt v2.8.1, uendret), synkroniseringsmekanismer
+(`_koKjor()`, `reloadOne()`), eller Dashboard.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.
