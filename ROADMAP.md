@@ -1,7 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 29 — Kritisk datasikkerhet og
-stabilisering), basert på faktisk kjørende kode i `Benibanos/Biloversikt`.
+Sist konsolidert: 2026-09-07 (Prioritet 31 — regresjonsfiks: timeout på
+Airtable-nettverkskall), basert på faktisk kjørende kode i
+`Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
 alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger
@@ -31,6 +32,19 @@ duplikat `saveVehicles()`-kalling, batchet bakgrunnspoll-rendering til én
 fullfør/slett) for planlagte servicer. Se CLAUDE.md for full detalj og
 testkrav kjørt etter endringen, og `PRIORITET_29_SLUTTRAPPORT.md` for
 komplett leveranserapport.
+
+**Prioritet 31 — Akutt regresjonsfiks: sjåførkontroll kunne henge for alltid
+uten feilmelding (2026-09-07):** ✅ Implementert og verifisert. Root cause:
+Prioritet 29 sin serialiserte skrivekø (`_koKjor()`) kjeder alle
+`set()`/`del()`-kall mot samme Airtable-ressurs bak hverandre, og
+`airtableFetch()` hadde ingen timeout — én hengende forespørsel (typisk ved
+dårlig mobildekning i en bil) ble da ALDRI avgjort, og blokkerte permanent
+alle senere skrivinger mot samme tabell (f.eks. `Vehicles`/`DriverChecks`)
+i samme åpne fane, uten feilmelding, uten bekreftelse, uten lagring.
+Reprodusert dynamisk (ikke bare lest i koden) og rettet ved å gi
+`airtableFetch()` en 20-sekunders timeout (`AbortController`) slik at
+enhver forespørsel alltid avgjøres. Se CLAUDE.md "Dataintegritet" for
+detalj.
 
 ---
 

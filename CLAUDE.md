@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Ny regel — biler
-ute av drift skjules fra aktive lister). **Ved avvik mellom denne filen og
-koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 31 —
+regresjonsfiks: timeout på Airtable-nettverkskall). **Ved avvik mellom denne
+filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -17,7 +17,7 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.8.0). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.8.1). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
@@ -49,6 +49,24 @@ direkte km-endring i `saveVehicleForm()`, batchet bakgrunnspoll-rendering
 (`_lagBatchetLiveSyncHandler()`), og full livssyklus (rediger/fullfør/
 slett) for planlagte servicer. Se "Dataintegritet", "Service" og
 "Regler for Claude / videre utvikling" under for full detalj.
+
+**Prioritet 31 (2026-09-07) — regresjonsfiks: sjåførkontroll kunne henge for
+alltid uten feilmelding.** Root cause: Prioritet 29 sin serialiserte
+skrivekø (`_koKjor()` i `storage.airtable.js`) kjeder alle `set()`/`del()`-
+kall mot SAMME Airtable-ressurs (f.eks. `Vehicles`/`DriverChecks`) bak
+hverandre med `.then()`. `airtableFetch()` hadde ingen timeout — en enkelt
+hengende forespørsel (typisk ved dårlig mobildekning i en bil) ble dermed
+ALDRI avgjort, og `.then()`-kjeden ventet for alltid. Enhver senere
+`submitKontroll()`-innsending mot samme tabell (uansett hvilken bil/sjåfør,
+i samme åpne fane) ble da låst bak den hengende skrivingen permanent — uten
+feilmelding, uten bekreftelse, uten lagring. Før Prioritet 29 påvirket en
+hengende forespørsel kun den ene handlingen; skrivekøen gjorde feilen
+appbred og vedvarende. Rettet ved å gi `airtableFetch()` en eksplisitt
+20-sekunders timeout (`AbortController`), slik at enhver forespørsel alltid
+AVGJØRES (lykkes eller feiler synlig) — som igjen lar `_koKjor()` sin kø
+fortsette til neste operasjon uansett hvor dårlig forbindelsen er. Se
+"Dataintegritet" under for full detalj. Bekreftet med en dynamisk,
+reprodusert test (ikke bare kodelesing) før og etter fiksen.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.
@@ -329,6 +347,18 @@ Alle følger: Overskrift → Filtre → Forhåndsvisning → Excel-eksport
 
 ## Dataintegritet
 
+- **Timeout på Airtable-nettverkskall (Prioritet 31, regresjonsfiks):**
+  `airtableFetch()` i `storage.airtable.js` avbryter (via `AbortController`)
+  enhver forespørsel som ikke har fått svar innen 20 sekunder
+  (`AIRTABLE_TIMEOUT_MS`), og forkaster den med en synlig feil i stedet for
+  å la den henge for alltid. Dette er en forutsetning for at Prioritet 29
+  sin serialiserte skrivekø (`_koKjor()` under) skal være trygg: køen
+  kjeder skrivinger mot samme ressurs bak hverandre med `.then()`, og en
+  hengende forespørsel uten timeout ville blokkert ALLE senere skrivinger
+  mot samme tabell for alltid (bekreftet regresjon — se
+  "Prosjektkontekst" øverst i denne filen for full beskrivelse). Rør ikke
+  denne timeouten ned mot 0 eller fjern den — det gjenåpner nøyaktig denne
+  feilen.
 - Ingen duplikate sannheter (f.eks. `v.km` vs. servicehistorikk-km, se over;
   "biler i drift"-tellingen har kun én autoritativ kilde, `hDriftCount`).
 - Ingen parallelle historikkmotorer.

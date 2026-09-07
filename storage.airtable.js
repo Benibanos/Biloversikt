@@ -27,8 +27,35 @@
     'Content-Type': 'application/json'
   };
 
+  // ================= Prioritet 31: Timeout på nettverkskall (regresjonsfiks) =================
+  // KRITISK FEIL (Prioritet 31 — regresjon introdusert av Prioritet 29 sin skrivekø,
+  // _koKjor under): fetch() hadde ingen timeout. På en ustabil mobilforbindelse (typisk
+  // situasjon for en sjåfør i en bil) kunne én enkelt hengende forespørsel aldri avgjøres
+  // (verken lykkes eller feile). Før Prioritet 29 påvirket dette kun DEN ene handlingen.
+  // Etter Prioritet 29 kjeder _koKjor alle set()/delete()-kall mot SAMME ressurs (f.eks.
+  // Vehicles/DriverChecks) bak hverandre med .then() — og en .then()-kjede venter for
+  // alltid på en forgjenger som aldri avgjøres. Resultatet var at ÉN hengende skriving
+  // (f.eks. fra dårlig dekning ved en tidligere kontroll) låste ALLE senere sjåførkontroller
+  // for samme bil/tabell i samme åpne fane, uten feilmelding, uten bekreftelse, uten
+  // lagring — se CLAUDE.md/ROADMAP.md for full beskrivelse av regresjonen. Løsning: enhver
+  // forespørsel som ikke har fått svar innen TIMEOUT_MS avbrytes eksplisitt (AbortController)
+  // og forkastes med en tydelig feil, slik at den alltid AVGJØRES — og _koKjor sin kø dermed
+  // alltid kan fortsette til neste operasjon, uansett hvor dårlig forbindelsen er.
+  const AIRTABLE_TIMEOUT_MS = 20000;
   async function airtableFetch(path, options) {
-    const res = await fetch(API_BASE + path, Object.assign({ headers: HEADERS }, options || {}));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AIRTABLE_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(API_BASE + path, Object.assign({ headers: HEADERS, signal: controller.signal }, options || {}));
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        throw new Error('Ingen svar fra Airtable innen ' + (AIRTABLE_TIMEOUT_MS / 1000) + ' sekunder (' + path + '). Sjekk nettforbindelsen og prøv igjen.');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error('Airtable-feil ' + res.status + ' på ' + path + ': ' + body);
@@ -374,8 +401,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.8.0',
-    bygget: '04.09.2026 12:00',
+    versjon: 'v2.8.1',
+    bygget: '07.09.2026 08:31',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 
