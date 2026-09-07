@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 33 —
-"Aktiv sjåfør" betyr nå det samme overalt i UI). **Ved avvik mellom denne
-filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 34 —
+Aktiv sjåfør følger turnus, uansett registreringskanal). **Ved avvik mellom
+denne filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -116,10 +116,61 @@ eller en bil hvis biløkt siden er avsluttet (manuelt eller automatisk via
 
 Bekreftet med dynamisk test: alle biler filtrert frem av "Har aktiv
 sjåfør" viser nå "👤 Aktiv sjåfør" på kortet, og ingen bil utenfor filteret
-viser det. **Kjent, bevisst gjenstående inkonsistens (ikke endret denne
-runden):** Excel-eksportenes "Aktiv sjåfør"-kolonne (Bilparkrapport,
+viser det. **Delvis avløst av Prioritet 34 under** — se den for hvorfor
+"🕓 Sjåfør i dag" nå kun oppstår for eldre/legacy-tilfeller, ikke for nye
+kontroller uansett kanal. Fortsatt kjent, bevisst gjenstående inkonsistens:
+Excel-eksportenes "Aktiv sjåfør"-kolonne (Bilparkrapport,
 `rapportEksporterExcel()`) bruker fortsatt `vehicleSisteSjafor()` uendret —
 vurder om denne også bør presiseres ved behov.
+
+**Prioritet 34 (2026-09-07) — Aktiv sjåfør følger turnus, uansett
+registreringskanal (logikkendring, ikke bare visning).** Bring har ingen
+fast sjåfør på fast bil — "Aktiv sjåfør" skal derfor bety **hvem som
+disponerer bilen i inneværende skift**, ikke bare hvem som har startet en
+teknisk biløkt via sjåfør-URL-en. Rotårsak til at dette ikke stemte
+operativt (dokumentert allerede i Prioritet 26.7-kommentaren ved
+`vehicleSisteSjafor()`): `v.aktivSjafor` ble KUN satt av `startBilokt()`,
+som igjen KUN ble kalt fra `driverMode`-grenen i `submitKontroll()`. En
+kontroll registrert av en driftskoordinator via det vanlige ✅
+Kontroll-ikonet i administrasjonsdelen satte derfor ALDRI "Aktiv sjåfør",
+selv om sjåføren fortsatt disponerte bilen resten av skiftet — dette var
+den egentlige, underliggende årsaken bak Prioritet 32/33 sine symptomer.
+
+Løsning: selve tildelingen (kryss-bil-utsjekking + varsel + feltoppdatering
+på `v.aktivSjafor`/`v.aktivSjaforSiden`) er skilt ut i en ny funksjon,
+**`settAktivSjaforForKontroll(vehicleId, navn)`** (linje ~1677 i
+`index.html`). `submitKontroll()` kaller nå denne funksjonen fra BEGGE
+grener — `driverMode` (via `startBilokt()`, som er uendret i oppførsel og
+fortsatt eneste sted som setter sjåførens lokale enhets-sesjon
+`driverActiveVehicleId`/`saveDriverLocalSession()`) OG administrasjonsdelen
+(direkte, uten å røre den lokale sesjonen — en administrator som
+registrerer på vegne av noen andre skal ikke overstyre sin egen enhets
+sjåførtilstand). Kryss-bil-utsjekkingsvarselet fra Prioritet 32 ("Ola
+Hansen var allerede aktiv på Bil 5 …") vises nå identisk uansett hvilken
+kanal kontrollen ble registrert fra.
+
+**`vehicleAktivSjafor()` og `vehicleSisteSjafor()` er UENDRET** — dette er
+bevisst en endring av NÅR/HVOR feltene de leser fra faktisk blir satt, ikke
+av selve lesefunksjonene. Konsekvens: "🚚 Biler i drift" og "👤 Aktiv
+sjåfør" blir nå sanne for enhver bil kontrollert i dag, uansett
+registreringskanal, og forblir det gjennom skiftet inntil: (a) en annen
+sjåfør registrerer en ny kontroll på samme bil (overskriver naturlig,
+ingen ny logikk), (b) samme sjåfør registreres aktiv på en annen bil
+(kryss-bil-utsjekking, uendret regel), (c) bilen sjekkes eksplisitt ut
+(`avsluttBilokt()`, kun fra sjåførmodus sin "Min Bil"-skjerm — uendret),
+eller (d) det operative dagskillet kl. 04:00 passeres
+(`ryddOppBiloktDagskille()`, uendret). `vehicleSisteSjafor()`s fallback til
+dagens siste kontroll ("🕓 Sjåfør i dag") beholdes som sikkerhetsnett for
+eldre data/kanter appen ikke fanger opp — men vil i praksis nesten aldri
+lenger trenge å slå inn for kontroller registrert ETTER denne endringen,
+siden `v.aktivSjafor` nå alltid settes riktig med én gang, uansett kanal.
+
+Bekreftet med dynamisk test: en kontroll registrert via administrasjonens
+✅-ikon (ikke sjåfør-URL) setter nå `v.aktivSjafor` korrekt, bilen dukker
+umiddelbart opp i "Har aktiv sjåfør"-filteret og viser "👤 Aktiv sjåfør" på
+kortet, kryss-bil-utsjekkingsvarselet vises korrekt når sjåføren allerede
+disponerte en annen bil, og administratorens egen lokale sesjon
+(`driverActiveVehicleId`) forblir urørt.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.

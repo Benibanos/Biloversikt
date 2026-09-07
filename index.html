@@ -1667,14 +1667,27 @@ function vehicleSisteSjafor(vehicleId){
   const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
   return siste.sjafor || null;
 }
-// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
-// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
-// Prioritet 32 (Del 1): denne automatiske utsjekkingen er UENDRET (samme regel, samme
-// betingelse, samme felt som nullstilles) — det ENESTE nye er en synlig varsling til
-// sjåføren om AT og HVOR det skjedde, slik at en bil ikke stille "forsvinner" fra
-// "biler i drift" et annet sted i appen uten at noen fikk vite hvorfor. Ingen
-// kjøretøystatus, saksmotor eller Airtable-skriving er endret.
-async function startBilokt(vehicleId, navn){
+// ================= Prioritet 34: Aktiv sjåfør følger turnus, ikke bare biløkt =================
+// "Aktiv sjåfør" skal representere HVEM SOM DISPONERER BILEN I INNEVÆRENDE SKIFT — ikke
+// bare hvem som har startet en teknisk biløkt via sjåfør-URL-en. Rotårsak til at dette
+// tidligere ikke stemte (se Prioritet 26.7/32/33-kommentarer): v.aktivSjafor ble KUN satt
+// av startBilokt(), som igjen KUN ble kalt fra driverMode-grenen i submitKontroll(). En
+// kontroll registrert av en driftskoordinator via det vanlige ✅ Kontroll-ikonet i
+// administrasjonsdelen satte derfor ALDRI "Aktiv sjåfør", selv om sjåføren fortsatt
+// disponerte bilen resten av skiftet.
+//
+// Løsning: selve tildelingen (kryss-bil-utsjekking + varsel + feltoppdatering) er skilt ut
+// hit, slik at BEGGE registreringskanaler (sjåførmodus OG administrasjonsdelen) kaller
+// nøyaktig samme logikk fra submitKontroll() — se der. driverActiveVehicleId/
+// saveDriverLocalSession() (sjåførens EGEN enhets lokale sesjon, brukt av "Min Bil") er
+// bevisst IKKE med her — de hører fortsatt hjemme kun i startBilokt() under, som er den
+// eneste som skal kalles fra driverMode. vehicleAktivSjafor()/vehicleSisteSjafor() er
+// UENDRET — dette endrer kun NÅR/HVOR feltene de leser fra faktisk blir satt.
+//
+// Én sjåfør kan kun disponere én bil om gangen — en ev. annen aktiv bil samme sjåfør
+// disponerer fra før sjekkes automatisk ut (uendret regel fra tidligere startBilokt()),
+// med samme synlige varsel til den som registrerer kontrollen (sjåfør ELLER administrator).
+async function settAktivSjaforForKontroll(vehicleId, navn){
   const navnTrim = (navn || '').trim();
   let autoUtsjekketBil = null;
   vehicles.forEach(v => {
@@ -1686,12 +1699,21 @@ async function startBilokt(vehicleId, navn){
   const v = vehicles.find(x => x.id === vehicleId);
   if(v){ v.aktivSjafor = navnTrim; v.aktivSjaforSiden = new Date().toISOString(); }
   await saveVehicles();
-  driverActiveVehicleId = vehicleId;
-  driverNavn = navnTrim;
-  saveDriverLocalSession();
   if(autoUtsjekketBil){
     alert(navnTrim + ' var allerede aktiv på ' + vehicleLabel(autoUtsjekketBil) + '.\n' + vehicleLabel(autoUtsjekketBil) + ' ble automatisk sjekket ut.');
   }
+}
+// Starter en biløkt for `navn` på `vehicleId` — kalles KUN fra driverMode (se
+// submitKontroll()/attachDriverAlleredeKontrollertListeners()). Setter aktiv sjåfør (via
+// settAktivSjaforForKontroll() over, samme logikk som administrasjonsdelen nå også bruker)
+// OG sjåførens lokale enhets-sesjon, slik at "Min Bil"-skjermen kjenner igjen aktiv bil
+// ved neste besøk på SAMME enhet. Uendret oppførsel/signatur fra før Prioritet 34.
+async function startBilokt(vehicleId, navn){
+  const navnTrim = (navn || '').trim();
+  await settAktivSjaforForKontroll(vehicleId, navnTrim);
+  driverActiveVehicleId = vehicleId;
+  driverNavn = navnTrim;
+  saveDriverLocalSession();
 }
 // "Sjekk ut bil": avslutter biløkten. Kontrollstatus skal IKKE påvirkes — den står
 // fortsatt som kontrollert resten av den operative dagen (isKontrollertIdag er uendret).
@@ -4448,6 +4470,14 @@ async function submitKontroll(ev){
       driverScreen = 'min-bil';
       render();
     } else {
+      // Prioritet 34: administrasjonsdelens registrering av kontroll (det vanlige
+      // ✅ Kontroll-ikonet) setter nå "Aktiv sjåfør" akkurat som sjåførmodus gjør —
+      // samme funksjon, samme kryss-bil-utsjekking og samme synlige varsel dersom
+      // sjåføren allerede disponerte en annen bil. IKKE startBilokt() her — den
+      // hører til sjåførens EGEN enhets lokale sesjon (driverActiveVehicleId/
+      // saveDriverLocalSession), som en administrator som registrerer på vegne av
+      // noen andre ikke skal overstyre.
+      await settAktivSjaforForKontroll(vehicleId, sjafor);
       goTo('bilkort', vehicleId);
     }
   }catch(err){

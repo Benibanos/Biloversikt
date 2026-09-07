@@ -1,7 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 33 — "Aktiv sjåfør" betyr nå det
-samme overalt i UI), basert på faktisk kjørende kode i
+Sist konsolidert: 2026-09-07 (Prioritet 34 — Aktiv sjåfør følger turnus,
+uansett registreringskanal), basert på faktisk kjørende kode i
 `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
@@ -74,6 +74,25 @@ dynamisk: alle biler i "Har aktiv sjåfør"-filteret viser nå "👤 Aktiv
 sjåfør", og ingen andre biler gjør det. Kjent, bevisst gjenstående
 inkonsistens: Excel-eksportenes "Aktiv sjåfør"-kolonne er ikke endret. Se
 CLAUDE.md for full detalj.
+
+**Prioritet 34 — Aktiv sjåfør følger turnus, uansett registreringskanal
+(2026-09-07):** ✅ Implementert og verifisert. Ekte logikkendring (ikke kun
+visning): "Aktiv sjåfør" skal bety hvem som disponerer bilen i inneværende
+skift, ikke bare hvem som har en teknisk aktiv biløkt. Rotårsak:
+`v.aktivSjafor` ble kun satt via `startBilokt()`, som kun ble kalt fra
+sjåførmodus — en kontroll registrert via administrasjonens vanlige ✅
+Kontroll-ikon satte derfor aldri "Aktiv sjåfør", selv om sjåføren fortsatt
+disponerte bilen. Løst ved å skille ut tildelingslogikken i en ny funksjon,
+`settAktivSjaforForKontroll()`, som `submitKontroll()` nå kaller fra BEGGE
+registreringskanaler (sjåførmodus via uendret `startBilokt()`, og
+administrasjonsdelen direkte). `vehicleAktivSjafor()`, `vehicleSisteSjafor()`,
+`driverMode`, `driverActiveVehicleId`, `saveDriverLocalSession()` og all
+øvrig biløktlogikk er UENDRET — kun når/hvor feltene faktisk blir satt er
+endret. Kryss-bil-utsjekkingsvarselet fra Prioritet 32 vises nå identisk
+fra begge kanaler. Bekreftet dynamisk: administrasjonens kontroll-
+registrering setter nå Aktiv sjåfør korrekt, bilen teller umiddelbart som
+"🚚 Biler i drift", og administratorens egen lokale sesjon forblir urørt.
+Se CLAUDE.md for full detalj.
 
 ---
 
