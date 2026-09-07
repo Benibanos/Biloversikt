@@ -26,7 +26,8 @@ under 10 sekunder.
 - Sjåførkontroll — daglig kontroll gruppert etter Driftslag, egen
   sjåfør-URL (`kontroll.html`/`?sjafor=1`) uten innlogging.
 - Service — kilometerbasert serviceintervall per bil, service atskilt fra
-  ordinære verkstedtimer.
+  ordinære verkstedtimer. Planlagt service har full livssyklus (opprett,
+  rediger, marker utført, slett).
 - Dekk — dekkoversikt og dekkhistorikk slått sammen på kjøretøyprofilen.
 - EU-kontroll — fire varslingsnivåer basert på godkjenningsdato.
 - Rapporthub — 12 standardiserte rapporter (kilometerstand, service, dekk,

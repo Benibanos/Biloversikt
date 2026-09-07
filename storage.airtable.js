@@ -117,10 +117,13 @@
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
       beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
       sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon'],
-      // Lagt til i Prioritet 26.7 (Planlagt service) — samme lærdom som ServiceIntervallKm/
-      // EuGodkjentTil tidligere: et nytt JS-felt som IKKE registreres her forsvinner stille
-      // ved neste henting fra Airtable. 'type' skiller planlagt service ('service') fra
-      // ordinære verkstedtimer (tom/udefinert).
+      // Lagt til i Prioritet 26.7 — samme lærdom som ServiceIntervallKm/EuGodkjentTil
+      // tidligere: et nytt JS-felt som IKKE registreres her forsvinner stille ved neste
+      // henting fra Airtable. RETTELSE (Prioritet 29, Del 10): planlagt service lagres
+      // IKKE som en verkstedtime med type='service' — det er en helt separat array/
+      // Settings-nøkkel (planlagteServicer, se index.html). Dette 'type'-feltet er derfor
+      // ikke i aktiv bruk i dagens kode (ingen kallested setter eller leser det), men
+      // beholdes urørt i skjemaet siden felt ikke fjernes uten eksplisitt instruks.
       type: ['Type']
     }},
     kontroller: { table: 'DriverChecks', fields: {
@@ -157,12 +160,11 @@
       provisionMonth: ['ProvisionMonth']
     }},
   };
-  // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen,
-  // med Key = nøkkelnavnet og Value = selve verdien (tekst) — dette gjelder
-  // theme-preference OG verksteder (en liste, men lagret samlet som én
-  // JSON-tekst i én rad, ikke som egne rader — se saveVerksteder() i
-  // index.html, som allerede sender inn hele listen som én JSON-streng).
-  const SINGLE_SETTINGS_KEYS = ['theme-preference', 'verksteder'];
+  // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen, med
+  // Key = nøkkelnavnet og Value = selve verdien (tekst) — dette gjelder
+  // theme-preference, verksteder, servicehistorikk og planlagteservicer (se
+  // get()/set()/del() under: alt som ikke er en LIST_TABLES-nøkkel eller har
+  // "photo:"-prefiks, går automatisk til denne Settings-tabellen).
 
   function toAirtableFields(config, obj) {
     const out = {};
@@ -196,6 +198,34 @@
   // så vi slipper å hente hele tabellen på nytt for hver eneste lagring.
   const recordIdCache = {}; // { [table]: { [appId]: 'rec...' } }
   function cacheFor(table) { if (!recordIdCache[table]) recordIdCache[table] = {}; return recordIdCache[table]; }
+
+  // ================= Prioritet 29: Serialisert skrivekø per ressurs =================
+  // Løser race condition rundt reconcileList()/recordIdCache (se "BILPARK – FULL
+  // TEKNISK REVISJON", Kritisk feil 3): to samtidige set()/delete()-kall mot SAMME
+  // underliggende Airtable-tabell (eller samme Settings/Photos-nøkkel) kunne før lese
+  // og skrive den delte recordIdCache-en samtidig — med fare for dupliserte rader
+  // eller en tapt oppdatering (siste skriving vinner uten varsel). Løsningen er en
+  // enkel, liten per-ressurs-kø: hvert kall kjeder seg bak forrige kall for SAMME
+  // ressursnøkkel, mens ulike tabeller/nøkler fortsatt kjører uavhengig av hverandre.
+  // En feil i én operasjon stopper ALDRI køen for senere operasjoner for samme nøkkel
+  // (se .catch(()=>{}) i _koKjor under) — permanent låsing etter én feilet skriving
+  // er eksplisitt uønsket.
+  const _skriveKoer = {}; // { [ressursNokkel]: Promise }
+  function _ressursNokkelForKey(key) {
+    if (LIST_TABLES[key]) return 'table:' + LIST_TABLES[key].table;
+    if (key.startsWith('photo:')) return 'settingsrad:Photos:' + key;
+    return 'settingsrad:Settings:' + key;
+  }
+  function _koKjor(ressursNokkel, oppgave) {
+    const forrige = _skriveKoer[ressursNokkel] || Promise.resolve();
+    // .catch(()=>{}) er bevisst på LENKEN (ikke på verdien vi returnerer til kalleren)
+    // — den hindrer kun at en tidligere feilet operasjon stopper NESTE operasjon i
+    // køen. Selve feilen forplanter seg fortsatt korrekt til kalleren av denne
+    // oppgaven via .then(oppgave), se under.
+    const naaverende = forrige.catch(() => {}).then(oppgave);
+    _skriveKoer[ressursNokkel] = naaverende.catch(() => {});
+    return naaverende;
+  }
 
   async function reconcileList(key, arr) {
     const config = LIST_TABLES[key];
@@ -294,34 +324,41 @@
     }
   }
   async function set(key, value, shared) {
-    try {
-      if (LIST_TABLES[key]) {
-        const arr = value ? JSON.parse(value) : [];
-        await reconcileList(key, arr);
-      } else if (key.startsWith('photo:')) {
-        await writeSettingsRow('Photos', key, value);
-      } else {
-        await writeSettingsRow('Settings', key, value);
+    // Prioritet 29: serialisert per ressurs (tabell/Settings-rad), se _koKjor over —
+    // hindrer at to samtidige set()-kall mot SAMME tabell/rad kan krysse hverandre.
+    return _koKjor(_ressursNokkelForKey(key), async () => {
+      try {
+        if (LIST_TABLES[key]) {
+          const arr = value ? JSON.parse(value) : [];
+          await reconcileList(key, arr);
+        } else if (key.startsWith('photo:')) {
+          await writeSettingsRow('Photos', key, value);
+        } else {
+          await writeSettingsRow('Settings', key, value);
+        }
+        console.log('[storage.airtable.set] OK', { key, byteLength: value ? value.length : 0 });
+        return { key, value, shared: !!shared };
+      } catch (e) {
+        console.error('[storage.airtable.set] KLARTE IKKE Å SKRIVE', { key, error: e && e.message });
+        throw e;
       }
-      console.log('[storage.airtable.set] OK', { key, byteLength: value ? value.length : 0 });
-      return { key, value, shared: !!shared };
-    } catch (e) {
-      console.error('[storage.airtable.set] KLARTE IKKE Å SKRIVE', { key, error: e && e.message });
-      throw e;
-    }
+    });
   }
   async function del(key, shared) {
-    try {
-      if (key.startsWith('photo:')) {
-        const existed = await deleteSettingsRow('Photos', key);
+    // Prioritet 29: samme serialisering som set() — se _koKjor over.
+    return _koKjor(_ressursNokkelForKey(key), async () => {
+      try {
+        if (key.startsWith('photo:')) {
+          const existed = await deleteSettingsRow('Photos', key);
+          return { key, deleted: existed, shared: !!shared };
+        }
+        const existed = await deleteSettingsRow('Settings', key);
         return { key, deleted: existed, shared: !!shared };
+      } catch (e) {
+        console.error('[storage.airtable.delete] Feilet for', key, e);
+        throw e;
       }
-      const existed = await deleteSettingsRow('Settings', key);
-      return { key, deleted: existed, shared: !!shared };
-    } catch (e) {
-      console.error('[storage.airtable.delete] Feilet for', key, e);
-      throw e;
-    }
+    });
   }
   async function list(prefix, shared) {
     // Brukes ikke aktivt av appen i dag — holdt for grensesnittkompatibilitet.
@@ -337,8 +374,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.7.0',
-    bygget: '03.09.2026 11:20',
+    versjon: 'v2.8.0',
+    bygget: '04.09.2026 12:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 

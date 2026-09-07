@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.7.0"></script>
+<script src="storage.airtable.js?v=2.8.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -1138,8 +1138,12 @@ let dekkSaveConfirmedId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
 // Prioritet 26.7 (punkt 1): planlagt service — egen registreringsflyt, atskilt fra
-// "Registrer service" (allerede utført). Lagres som verkstedtimer med type='service'.
+// "Registrer service" (allerede utført). Lagres i egen array/Settings-nøkkel
+// (planlagteServicer), IKKE som en verkstedtime — se kommentar ved deklarasjonen over.
 let showPlanleggService = false;
+// Prioritet 29 (Del 8): rediger/fullfør planlagt service — samme mønster som
+// editingServiceId/editingVTId.
+let editingPlanlagtServiceId = null;
 // Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
 // (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
 // Kontroll (kontrollFormVehicleId) og Registrer avvik (sakPrefillVehicleId) — inline
@@ -1286,8 +1290,8 @@ const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', kritisk:'overdue', v
 // Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
 // bilen klar for drift akkurat nå", uavhengig av lavere-prioriterte forhold som
 // "under oppfølging". Prioritet: kritisk sak > mangler kontroll > verksted i dag > klar.
-const DAGENS_STATUS_IKON = {klar:'✅', 'mangler-kontroll':'⚪', 'verksted-idag':'🔧', kritisk:'🚨', reserve:'🚐'};
-const DAGENS_STATUS_LABEL = {klar:'Klar for drift', 'mangler-kontroll':'Mangler kontroll', 'verksted-idag':'Verksted i dag', kritisk:'Kritisk sak', reserve:'Reservebil'};
+// DAGENS_STATUS_IKON/DAGENS_STATUS_LABEL fjernet (Prioritet 29, Del 10) — bekreftet
+// ubrukte (kun definisjon, ingen kall/referanse noe sted i prosjektet).
 const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verksted-idag':'today', kritisk:'alert', reserve:'reserve'};
 // Fase 2/3: automatisk bilstatus utledet fra Aktive Saker (uavhengig av det manuelt
 // satte v.status-feltet som styrer "På verksted"/"Trenger oppfølging" andre steder).
@@ -1323,6 +1327,13 @@ function oppdaterVerkstedStatuser(){
 async function saveAktiveSaker(){
   try{ await window.storage.set('aktiveSaker', JSON.stringify(aktiveSaker), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+// Prioritet 29: kastende variant, brukt KUN av de kritiske mutasjonene som trenger å vite
+// om lagringen faktisk lyktes for å kunne rulle tilbake ved feil (se mutasjonMedRollback()).
+// Den opprinnelige saveAktiveSaker() over beholdes UENDRET for alle ~20 andre eksisterende
+// kallesteder, slik at deres oppførsel ikke endres (minst mulig kodeendring).
+async function saveAktiveSakerEllerKast(){
+  await window.storage.set('aktiveSaker', JSON.stringify(aktiveSaker), true);
 }
 function nesteSakId(){
   let maks = 0;
@@ -1850,6 +1861,102 @@ let sisteVellykkedeSynkTidspunkt = null;
   window.storage.delete = sporet(originalDelete, args => args[0]);
 })();
 
+// ================= Prioritet 29: Delt beskyttelse mot dobbel innsending =================
+// Løser Kritisk feil 5 i "BILPARK – FULL TEKNISK REVISJON": ingen skjema/handling hadde
+// noen sperre mot dobbelklikk/dobbelttrykk (relevant siden appen brukes på mobil i felt).
+// Én liten, delt mekanisme brukes i stedet for mange lokale varianter. Stoler IKKE kun på
+// HTML-attributtet disabled (det kan i prinsippet rekke å bli overskrevet av en render()
+// som skjer rett etter klikket) — selve sperren er en intern JS-lås (_aktiveHandlingsLaser)
+// som avviser ethvert nytt kall for SAMME nøkkel mens forrige kall fortsatt pågår, og som
+// ALLTID frigjøres i en finally-blokk (også ved feil), slik at brukeren kan prøve på nytt.
+const _aktiveHandlingsLaser = new Set();
+// For <form>-innsending: finner selv submit-knappen i skjemaet (ev.target) og deaktiverer
+// den mens handlingen kjører. Bruk: skjemaForm.addEventListener('submit', beskyttSubmit('nokkel', minHandler));
+function beskyttSubmit(nokkel, handlerFn){
+  return async (ev) => {
+    if(_aktiveHandlingsLaser.has(nokkel)){
+      if(ev && ev.preventDefault) ev.preventDefault();
+      return;
+    }
+    _aktiveHandlingsLaser.add(nokkel);
+    const btn = (ev && ev.target && ev.target.querySelector) ? ev.target.querySelector('button[type="submit"]') : null;
+    if(btn) btn.disabled = true;
+    try{
+      return await handlerFn(ev);
+    } finally {
+      _aktiveHandlingsLaser.delete(nokkel);
+      if(btn) btn.disabled = false;
+    }
+  };
+}
+// For klikk-handlere hvor knappen er kjent på bindetidspunkt (lagre-/slette-knapper
+// utenfor et <form>-element). Bruk: btn.addEventListener('click', beskyttKlikk('nokkel', btn, () => minHandler(id)));
+function beskyttKlikk(nokkel, btnEl, handlerFn){
+  return async (...args) => {
+    if(_aktiveHandlingsLaser.has(nokkel)) return;
+    _aktiveHandlingsLaser.add(nokkel);
+    if(btnEl) btnEl.disabled = true;
+    try{
+      return await handlerFn(...args);
+    } finally {
+      _aktiveHandlingsLaser.delete(nokkel);
+      if(btnEl) btnEl.disabled = false;
+    }
+  };
+}
+
+// ================= Prioritet 29: Trygg JSON-parsing med eksplisitt resultatstatus =================
+// Løser Kritisk feil 4: en korrupt Settings-blob (servicehistorikk/planlagteservicer) skal
+// ALDRI stille bli erstattet med et tomt array — det tomme arrayet ville deretter blitt
+// lagret tilbake til Airtable ved neste endring og slettet ALL historikk permanent. Denne
+// erstatter den tidligere "try{ JSON.parse(...) }catch(e){ x = []; }"-mønsteret med en
+// funksjon som returnerer eksplisitt status i stedet for å gjette et fallback-resultat.
+function parseJsonTrygt(raw, nokkelNavn){
+  if(raw === null || raw === undefined || raw === ''){
+    return {ok: true, value: []};
+  }
+  try{
+    return {ok: true, value: JSON.parse(raw)};
+  } catch(e){
+    // Ikke logg selve innholdet (kan i prinsippet inneholde brukerdata) — kun hvilken
+    // nøkkel som feilet og feilmeldingen fra JSON.parse.
+    console.error('[parseJsonTrygt] Korrupt JSON for Settings-nøkkel:', nokkelNavn, e && e.message);
+    return {ok: false, error: (e && e.message) || 'Ukjent parse-feil', nokkelNavn};
+  }
+}
+// Datasett som er markert korrupt (parseJsonTrygt feilet ved siste lasting) — blokkerer
+// videre lagring av akkurat DET datasettet inntil siden lastes på nytt med gyldige data,
+// slik at vi aldri risikerer å skrive et (feilaktig) tomt array tilbake til Airtable.
+// Én korrupt nøkkel påvirker ALDRI andre datasett (se loadAll(), hvert forsøk er uavhengig).
+const _korrupteDatasett = {}; // { [nokkelNavn]: true }
+
+// ================= Prioritet 29: Trygg mutasjon med rollback ved lagringsfeil =================
+// Løser DEL 3: dagens mønster endret alltid det lokale arrayet FØR lagring til Airtable
+// ble forsøkt, og viste "lagret"-tilstanden i UI selv om selve nettverksskrivingen feilet.
+// Tar en DYP kopi (JSON-rundtrip — trygt siden alle datasettene er rene JSON-modeller)
+// FØR mutasjonen og gjenoppretter (in-place, samme array-referanse) den dersom lagringen
+// feiler, rendrer på nytt, og gir et tydelig, vedvarende feilvarsel som ALDRI hevder at
+// noe ble lagret. Dyp kopi er nødvendig fordi mutateFn ofte endrer FELT på et eksisterende
+// objekt i arrayet (ikke bare legger til/fjerner hele elementer) — en grunn (shallow)
+// kopi ville delt samme objektreferanse og dermed IKKE beskyttet mot en slik endring.
+// Ingen automatisk, ubegrenset retry — Airtable forblir sannhetskilden, og brukeren kan
+// selv forsøke handlingen på nytt.
+async function mutasjonMedRollback(arr, mutateFn, saveFn, feilmelding){
+  const snapshot = JSON.parse(JSON.stringify(arr));
+  mutateFn();
+  try{
+    await saveFn();
+    return true;
+  } catch(e){
+    arr.length = 0;
+    Array.prototype.push.apply(arr, snapshot);
+    console.error('[mutasjonMedRollback]', feilmelding, e);
+    render();
+    alert((feilmelding || 'Lagring til Airtable feilet') + '\n\nEndringen ble IKKE lagret til Airtable og er tilbakestilt lokalt. Sjekk nettforbindelsen og prøv igjen.');
+    return false;
+  }
+}
+
 const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
 const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
 const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
@@ -2020,10 +2127,33 @@ async function loadAll(){
   catch(e){ dekkhistorikk = []; }
   try{ const dk = await window.storage.get('dekkkostnader', true); dekkkostnader = dk && dk.value ? JSON.parse(dk.value) : []; }
   catch(e){ dekkkostnader = []; }
-  try{ const sh = await window.storage.get('servicehistorikk', true); servicehistorikk = sh && sh.value ? JSON.parse(sh.value) : []; }
-  catch(e){ servicehistorikk = []; }
-  try{ const ps = await window.storage.get('planlagteservicer', true); planlagteServicer = ps && ps.value ? JSON.parse(ps.value) : []; }
-  catch(e){ planlagteServicer = []; }
+  // Prioritet 29 (Kritisk feil 4): bruker parseJsonTrygt() i stedet for en generell
+  // try/catch som stille satte servicehistorikk = [] ved korrupt JSON — det tomme
+  // arrayet ville deretter blitt lagret TILBAKE til Airtable ved neste endring og
+  // slettet all historikk permanent. Ved parse-feil markeres datasettet i stedet som
+  // korrupt (_korrupteDatasett), og saveServicehistorikk()/savePlanlagteServicer()
+  // nekter å lagre inntil dette er løst (se de funksjonene). Selve variabelen settes
+  // likevel til et tomt array her, kun for at resten av appen (filter/find osv.) ikke
+  // skal krasje — det er SKRIVINGEN som er blokkert, ikke visningen.
+  try{
+    const sh = await window.storage.get('servicehistorikk', true);
+    const shParsed = parseJsonTrygt(sh && sh.value, 'servicehistorikk');
+    if(shParsed.ok){ servicehistorikk = shParsed.value; delete _korrupteDatasett.servicehistorikk; }
+    else { servicehistorikk = []; _korrupteDatasett.servicehistorikk = true; }
+  } catch(e){ servicehistorikk = []; }
+  try{
+    const ps = await window.storage.get('planlagteservicer', true);
+    const psParsed = parseJsonTrygt(ps && ps.value, 'planlagteservicer');
+    if(psParsed.ok){ planlagteServicer = psParsed.value; delete _korrupteDatasett.planlagteservicer; }
+    else { planlagteServicer = []; _korrupteDatasett.planlagteservicer = true; }
+  } catch(e){ planlagteServicer = []; }
+  // Prioritet 29 (Kritisk feil 4): tydelig, vedvarende varsel — ikke bare en linje i
+  // Database status som lett kan overses. Vises kun ved oppstart (ikke ved hver
+  // bakgrunnspoll, se reloadOne()) for ikke å avbryte brukeren gjentatte ganger.
+  const korrupteVedOppstart = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
+  if(korrupteVedOppstart.length > 0){
+    alert('⚠️ Kunne ikke lese ' + korrupteVedOppstart.map(k => k === 'servicehistorikk' ? 'servicehistorikk' : 'planlagte servicer').join(' og ') + ' — dataene ser ut til å være korrupte.\n\nFor å unngå å slette eksisterende historikk er lagring til dette/disse datasettet(ene) blokkert. Se Innstillinger → Database status for detaljer, og ikke registrer mer service før dette er undersøkt.');
+  }
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
@@ -2087,19 +2217,7 @@ async function loadAll(){
     ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
   }
   loaded = true;
-  window.subscribeLiveSync(async (key) => {
-    // Kalles jevnlig (se POLL_INTERVAL_MS i storage.airtable.js — Airtable
-    // har ingen sanntids-push slik Firestore hadde) for hvert av de sentrale
-    // datasettene. Laster kun det ene datasettet på nytt i bakgrunnen — men
-    // tegner IKKE siden på nytt dersom brukeren har et skjema åpent akkurat nå
-    // (sjåførkontroll, skade, verkstedtime, bilinfo — se formInProgress()),
-    // siden det ville nullstilt det de akkurat har skrevet inn. Den ferske
-    // dataen brukes uansett automatisk neste gang siden tegnes på nytt av en
-    // annen grunn (f.eks. når skjemaet sendes inn eller brukeren bytter side).
-    await reloadOne(key);
-    if(formInProgress()) return;
-    render();
-  });
+  window.subscribeLiveSync(_lagBatchetLiveSyncHandler());
   render();
   if(isAdmin){
     // Stille bakgrunnssjekk av Airtable-strukturen ved oppstart — varsler kun
@@ -2111,6 +2229,20 @@ async function loadAll(){
 async function reloadOne(key){
   try{
     const raw = await window.storage.get(key, true);
+    // Prioritet 29 (Kritisk feil 4): samme trygge parsing som loadAll() for de to
+    // Settings-blobbene — en korrupt bakgrunnsoppfrisking skal heller IKKE stille
+    // nullstille historikken (se parseJsonTrygt() og saveServicehistorikk()/
+    // savePlanlagteServicer(), som nekter å lagre mens datasettet er markert korrupt).
+    if(key === 'servicehistorikk' || key === 'planlagteservicer'){
+      const parsed = parseJsonTrygt(raw && raw.value, key);
+      if(parsed.ok){
+        if(key === 'servicehistorikk'){ servicehistorikk = parsed.value; delete _korrupteDatasett.servicehistorikk; }
+        else { planlagteServicer = parsed.value; delete _korrupteDatasett.planlagteservicer; }
+      } else {
+        _korrupteDatasett[key] = true;
+      }
+      return;
+    }
     const parsed = raw && raw.value ? JSON.parse(raw.value) : [];
     if(key === 'vehicles') vehicles = parsed;
     else if(key === 'damages') damages = parsed;
@@ -2121,10 +2253,32 @@ async function reloadOne(key){
     else if(key === 'admin-users') adminUsers = parsed;
     else if(key === 'dekkhistorikk') dekkhistorikk = parsed;
     else if(key === 'dekkkostnader') dekkkostnader = parsed;
-    else if(key === 'servicehistorikk') servicehistorikk = parsed;
-    else if(key === 'planlagteservicer') planlagteServicer = parsed;
     else if(key === 'aktiveSaker') aktiveSaker = parsed;
   }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
+}
+// ================= Prioritet 29 (Del 9): samle bakgrunnspoll til ÉN render() =================
+// subscribeLiveSync (storage.airtable.js) kaller callback-en synkront én gang PER
+// LIST_TABLES-nøkkel (8 stk.) i samme pollingsrunde — før denne endringen ga det opptil
+// 8 fulle re-renders av hele appskallet per runde. Denne fabrikkfunksjonen returnerer én
+// callback som samler ALLE nøklene fra samme runde (de rekker å legge seg i _pending FØR
+// "await Promise.resolve()" under fortsetter, siden det er synkron kode helt til da),
+// henter dem alle, og kaller render() akkurat ÉN gang for hele runden — samme
+// formInProgress()-beskyttelse og samme faktiske data som før, kun færre re-renders.
+function _lagBatchetLiveSyncHandler(){
+  let batchPagaar = false;
+  const pending = new Set();
+  return async (key) => {
+    pending.add(key);
+    if(batchPagaar) return;
+    batchPagaar = true;
+    await Promise.resolve();
+    const nokler = Array.from(pending);
+    pending.clear();
+    await Promise.all(nokler.map(k => reloadOne(k)));
+    batchPagaar = false;
+    if(formInProgress()) return;
+    render();
+  };
 }
 async function saveAdminUsers(){
   try{ await window.storage.set('admin-users', JSON.stringify(adminUsers), true); }
@@ -2181,6 +2335,10 @@ async function saveVerkstedtimer(){
   try{ await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
+// Prioritet 29: kastende variant, samme begrunnelse som saveAktiveSakerEllerKast() over.
+async function saveVerkstedtimerEllerKast(){
+  await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true);
+}
 async function saveVerksteder(){
   try{ await window.storage.set('verksteder', JSON.stringify(verksteder), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
@@ -2202,12 +2360,19 @@ async function saveDekkkostnader(){
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function saveServicehistorikk(){
-  try{ await window.storage.set('servicehistorikk', JSON.stringify(servicehistorikk), true); }
-  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+  // Prioritet 29 (Kritisk feil 4): blokker skriving dersom datasettet ble lastet inn
+  // korrupt denne økten — se parseJsonTrygt()/loadAll(). Å likevel lagre ville skrevet
+  // det (tomme) fallback-arrayet tilbake til Airtable og slettet historikken permanent.
+  if(_korrupteDatasett.servicehistorikk){
+    throw new Error('Servicehistorikk kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere service før dette er undersøkt (se Database status i Innstillinger).');
+  }
+  await window.storage.set('servicehistorikk', JSON.stringify(servicehistorikk), true);
 }
 async function savePlanlagteServicer(){
-  try{ await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true); }
-  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+  if(_korrupteDatasett.planlagteservicer){
+    throw new Error('Planlagte servicer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt service før dette er undersøkt (se Database status i Innstillinger).');
+  }
+  await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true);
 }
 async function savePhoto(key, dataUrl){
   try{ await window.storage.set('photo:'+key, dataUrl, true); return true; }
@@ -3043,6 +3208,25 @@ async function submitAddVehicle(ev){
 }
 async function saveVehicleForm(id){
   const v = vehicles.find(x => x.id === id);
+  if(!v) return;
+  // DEL 6 (Prioritet 29): v.km er kjøretøyets ENESTE autoritative kilometerstand og skal
+  // normalt KUN skrives fra submitKontroll() (se CLAUDE.md, "Kilometerregel"). Vanlig
+  // redigering av annen bilinformasjon her (regnr, modell, kategori osv.) skal ALDRI
+  // utilsiktet overskrive den — feltverdien sammenlignes derfor mot v.km FØR NOE ANNET
+  // felt muteres på kjøretøyet, og en eksplisitt bekreftelse kreves KUN når brukeren
+  // faktisk har endret tallet. Sjekken må skje FØRST (før noen felt settes på v) slik at
+  // et avbrutt bekreftelsesvalg lar hele skjemaet/kjøretøyet stå fullstendig uendret,
+  // ikke bare km-feltet.
+  const nyKmRaw = document.getElementById('f-km').value;
+  const nyKm = nyKmRaw === '' ? '' : Number(nyKmRaw);
+  const gammelKm = (v.km === '' || v.km === null || v.km === undefined) ? '' : Number(v.km);
+  if(String(nyKm) !== String(gammelKm)){
+    const bekreftetKmEndring = confirm(
+      'Du har endret kilometerstanden direkte fra ' + (gammelKm === '' ? 'ukjent' : gammelKm.toLocaleString('nb-NO')) + ' km til ' + (nyKm === '' ? 'tomt' : nyKm.toLocaleString('nb-NO')) + ' km.\n\n' +
+      'Kilometerstand bør normalt KUN oppdateres via en sjåførkontroll (Kontroll-registrering), ikke ved manuell redigering av bilinformasjon her.\n\nEr du sikker på at du vil overstyre kilometerstanden direkte som en administrativ korrigering?'
+    );
+    if(!bekreftetKmEndring) return; // Skjemaet forblir åpent og HELE kjøretøyet uendret.
+  }
   v.bilnummer = document.getElementById('f-bilnummer').value.trim();
   v.regnr = document.getElementById('f-regnr').value.trim().toUpperCase();
   v.merke = document.getElementById('f-merke').value.trim();
@@ -3051,17 +3235,16 @@ async function saveVehicleForm(id){
   v.kategori = document.getElementById('f-kategori').value;
   v.status = document.getElementById('f-status').value;
   v.dekk = document.getElementById('f-dekk').value;
-  v.km = document.getElementById('f-km').value;
+  v.km = nyKmRaw;
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
   v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
   v.driftslag = document.getElementById('f-driftslag').value.trim();
-  await saveVehicles();
   if(pendingVehiclePhoto){
     v.hasPhoto = true;
     await savePhoto('vehicle:'+v.id, pendingVehiclePhoto);
     pendingVehiclePhoto = null;
   }
-  await saveVehicles();
+  await saveVehicles(); // DEL 6 (Prioritet 29): dobbelt saveVehicles()-kall fjernet — lagres kun én gang.
   // Henter bilregisteret på nytt fra Airtable (ikke bare den lokale endringen) rett
   // etter lagring, slik at bilkortet, Dashboard og resten av appen garantert viser
   // nøyaktig det som faktisk står lagret — helt uten at brukeren må laste siden på
@@ -3581,8 +3764,29 @@ async function reapneSak(id){
 }
 async function deleteSak(id){
   if(!confirm('Slette denne saken?')) return;
-  aktiveSaker = aktiveSaker.filter(x => x.id !== id);
-  await saveAktiveSaker();
+  const s = aktiveSaker.find(x => x.id === id);
+  if(!s) return;
+  const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
+  const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
+  // DEL 5 (Prioritet 29): rydd opp verkstedtimer som peker til denne saken FØR selve saken
+  // slettes, slik at ingen verkstedtime blir stående med en referanse til en sak som ikke
+  // lenger finnes. Verkstedtimen selv slettes ALDRI automatisk — kun sak-referansen på den.
+  const beroerteVt = verkstedtimer.filter(t => t.sakId === s.id || (s.caseId && t.caseId === s.caseId));
+  beroerteVt.forEach(t => { t.sakId = ''; t.caseId = ''; });
+  const idx = aktiveSaker.findIndex(x => x.id === id);
+  if(idx !== -1) aktiveSaker.splice(idx, 1);
+  try{
+    if(beroerteVt.length > 0) await saveVerkstedtimerEllerKast();
+    await saveAktiveSakerEllerKast();
+  } catch(e){
+    // Begge datasett rulles tilbake ved feil, siden dette er én logisk handling (Del 3).
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnapshot);
+    console.error('[deleteSak] Feilet', e);
+    render();
+    alert('Kunne ikke slette saken i Airtable. Endringen ble IKKE lagret og er tilbakestilt lokalt. Prøv igjen.');
+    return;
+  }
   editingSakId = null;
   sakWizardStep = null;
   render();
@@ -3703,8 +3907,14 @@ async function submitService(ev){
     if(!bekreftet) return;
   }
   const now = new Date().toISOString();
-  servicehistorikk.push({id: uid(), vehicleId: serviceValgtVehicleId, dato, km: serviceKm, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'});
-  await saveServicehistorikk();
+  const nyOppforing = {id: uid(), vehicleId: serviceValgtVehicleId, dato, km: serviceKm, type, verksted, kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent'};
+  const lagretOk = await mutasjonMedRollback(
+    servicehistorikk,
+    () => servicehistorikk.push(nyOppforing),
+    saveServicehistorikk,
+    'Kunne ikke lagre serviceregistreringen til Airtable.'
+  );
+  if(!lagretOk) return;
   // v.km røres BEVISST ALDRI her — se hovedregel i CLAUDE.md
   // "Servicehistorikk vs. kjøretøyets kilometerstand". Ingen saveVehicles()/reloadOne()
   // nødvendig siden vehicles-arrayet ikke er endret av denne funksjonen.
@@ -3728,11 +3938,100 @@ async function submitPlanlagtService(ev){
   }
   const v = vehicles.find(x => x.id === serviceValgtVehicleId);
   if(!v) return;
-  planlagteServicer.push({
-    id: uid(), vehicleId: serviceValgtVehicleId, verksted, dato, tidspunkt, kommentar
-  });
-  await savePlanlagteServicer();
+  const nyPlanlagt = {id: uid(), vehicleId: serviceValgtVehicleId, verksted, dato, tidspunkt, kommentar};
+  const lagretOk = await mutasjonMedRollback(
+    planlagteServicer,
+    () => planlagteServicer.push(nyPlanlagt),
+    savePlanlagteServicer,
+    'Kunne ikke lagre planlagt service til Airtable.'
+  );
+  if(!lagretOk) return;
   showPlanleggService = false;
+  render();
+}
+// Prioritet 29 (Del 8): rediger/slett/fullfør planlagt service — samme mønster som
+// toggleEditService/saveServiceEdit/deleteService over, tilpasset planlagteServicer sin
+// egen, enklere datamodell (dato/tidspunkt/verksted/kommentar, ingen km/type).
+function toggleEditPlanlagtService(id){
+  editingPlanlagtServiceId = editingPlanlagtServiceId === id ? null : id;
+  render();
+}
+async function savePlanlagtServiceEdit(id){
+  const t = planlagteServicer.find(x => x.id === id);
+  if(!t) return;
+  const newDato = readDateInput('e-ps-dato-'+id);
+  if(!newDato){ alert('Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'); return; }
+  const newTid = readTimeInput('e-ps-tid-'+id);
+  const verksted = document.getElementById('e-ps-verksted-'+id).value;
+  if(!verksted){ alert('Velg verksted.'); return; }
+  const kommentar = document.getElementById('e-ps-kommentar-'+id).value.trim();
+  const lagretOk = await mutasjonMedRollback(
+    planlagteServicer,
+    () => { t.dato = newDato; t.tidspunkt = newTid; t.verksted = verksted; t.kommentar = kommentar; },
+    savePlanlagteServicer,
+    'Kunne ikke lagre endringen av planlagt service til Airtable.'
+  );
+  if(!lagretOk) return;
+  editingPlanlagtServiceId = null;
+  render();
+}
+async function deletePlanlagtService(id){
+  if(!confirm('Slette denne planlagte serviceavtalen?')) return;
+  const lagretOk = await mutasjonMedRollback(
+    planlagteServicer,
+    // In-place mutasjon (splice), ikke reassignment — se forklaring ved deleteService().
+    () => { const idx = planlagteServicer.findIndex(t => t.id === id); if(idx !== -1) planlagteServicer.splice(idx, 1); },
+    savePlanlagteServicer,
+    'Kunne ikke slette planlagt service i Airtable.'
+  );
+  if(!lagretOk) return;
+  editingPlanlagtServiceId = null;
+  render();
+}
+// Marker en planlagt service som utført: oppretter en korrekt servicehistorikk-oppføring
+// (samme felter/format som submitService()) og fjerner den planlagte avtalen først ETTER
+// at historikk-oppføringen er bekreftet lagret — slik at et avbrutt/feilet forsøk aldri
+// kan miste avtalen uten at historikk faktisk ble skrevet. Kalles kun via beskyttKlikk (se
+// event-bindingen), som hindrer duplikat-oppføring ved dobbelttrykk. v.km røres ALDRI her,
+// på samme måte som submitService() — km ved fullført service må registreres eksplisitt av
+// brukeren (samme skjema/felt som ved "Registrer service"), ikke gjettes automatisk.
+async function fullforPlanlagtService(id){
+  const t = planlagteServicer.find(x => x.id === id);
+  if(!t) return;
+  const kmRaw = prompt('Kilometerstand ved utført service:');
+  if(kmRaw === null) return; // avbrutt av bruker
+  const serviceKm = Number(kmRaw.trim().replace(/\s/g,'').replace(',','.'));
+  if(!Number.isFinite(serviceKm) || serviceKm < 0){
+    alert('Ugyldig kilometerstand. Fullføring avbrutt — den planlagte avtalen er ikke endret.');
+    return;
+  }
+  const now = new Date().toISOString();
+  const nyOppforing = {
+    id: uid(), vehicleId: t.vehicleId, dato: todayISO(), km: serviceKm, type: 'Planlagt service',
+    verksted: t.verksted, kommentar: t.kommentar, createdAt: now, createdBy: loggedInRole || 'Ukjent',
+    // Bevarer sporbarhet tilbake til den opprinnelige planlagte avtalen, i tråd med
+    // eksisterende felt-mønster (samme prinsipp som sak.linkedVtId) — ingen nye
+    // Airtable-felt nødvendig siden servicehistorikk allerede er en fritt strukturert
+    // JSON-blob i Settings (se AIRTABLE_MIGRATION.md).
+    fraPlanlagtServiceId: t.id
+  };
+  const historikkLagretOk = await mutasjonMedRollback(
+    servicehistorikk,
+    () => servicehistorikk.push(nyOppforing),
+    saveServicehistorikk,
+    'Kunne ikke lagre serviceregistreringen for den fullførte avtalen til Airtable.'
+  );
+  if(!historikkLagretOk) return;
+  // Historikk-oppføringen er nå trygt lagret — fjern den planlagte avtalen. Skulle denne
+  // andre lagringen feile, blir historikk-oppføringen stående (korrekt, ikke tapt) og
+  // brukeren varsles slik at den planlagte avtalen kan slettes manuelt etterpå.
+  const vtFjernetOk = await mutasjonMedRollback(
+    planlagteServicer,
+    () => { const idx = planlagteServicer.findIndex(x => x.id === id); if(idx !== -1) planlagteServicer.splice(idx, 1); },
+    savePlanlagteServicer,
+    'Serviceregistreringen ble lagret, men den planlagte avtalen kunne ikke fjernes automatisk. Slett den manuelt under "Planlagt service".'
+  );
+  if(!vtFjernetOk) return;
   render();
 }
 async function submitAddVT(ev){
@@ -3808,8 +4107,34 @@ async function saveVTEdit(id){
 }
 async function deleteVT(id){
   if(!confirm('Slette denne verkstedtimen?')) return;
-  verkstedtimer = verkstedtimer.filter(t => t.id !== id);
-  await saveVerkstedtimer();
+  const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
+  const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
+  // DEL 5 (Prioritet 29): motsatt retning av deleteSak() — en aktiv sak kan peke til denne
+  // verkstedtimen via linkedVtId. Nullstill referansen og sett saken tilbake til korrekt
+  // status (samme livssyklus som resten av appen, se SAK_STATUS_ORDER/oppdaterVerkstedStatuser())
+  // i stedet for å la den bli stående feilaktig som "Verksted bestilt". Saken slettes ALDRI
+  // automatisk — kun referansen og status på den.
+  const linketSak = aktiveSaker.find(s => s.linkedVtId === id);
+  if(linketSak){
+    linketSak.linkedVtId = '';
+    if(linketSak.status === 'verksted-bestilt' || linketSak.status === 'utfort-venter-bekreftelse'){
+      linketSak.status = 'tiltak-planlagt';
+    }
+    linketSak.updatedAt = new Date().toISOString();
+  }
+  const idx = verkstedtimer.findIndex(t => t.id === id);
+  if(idx !== -1) verkstedtimer.splice(idx, 1);
+  try{
+    await saveVerkstedtimerEllerKast();
+    if(linketSak) await saveAktiveSakerEllerKast();
+  } catch(e){
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnapshot);
+    console.error('[deleteVT] Feilet', e);
+    render();
+    alert('Kunne ikke slette verkstedtimen i Airtable. Endringen ble IKKE lagret og er tilbakestilt lokalt. Prøv igjen.');
+    return;
+  }
   editingVTId = null;
   render();
 }
@@ -3835,20 +4160,32 @@ async function saveServiceEdit(id){
     alert('Kilometerstand ved service må være et gyldig, ikke-negativt tall.');
     return;
   }
-  s.dato = newDato;
-  s.km = serviceKm;
-  s.type = type;
-  s.verksted = document.getElementById('e-sv-verksted-'+id).value;
-  s.kommentar = document.getElementById('e-sv-kommentar-'+id).value.trim();
-  await saveServicehistorikk();
+  const verksted = document.getElementById('e-sv-verksted-'+id).value;
+  const kommentar = document.getElementById('e-sv-kommentar-'+id).value.trim();
+  const lagretOk = await mutasjonMedRollback(
+    servicehistorikk,
+    () => { s.dato = newDato; s.km = serviceKm; s.type = type; s.verksted = verksted; s.kommentar = kommentar; },
+    saveServicehistorikk,
+    'Kunne ikke lagre endringen av serviceregistreringen til Airtable.'
+  );
+  if(!lagretOk) return;
   // v.km røres BEVISST ALDRI her — samme prinsipp som submitService().
   editingServiceId = null;
   render();
 }
 async function deleteService(id){
   if(!confirm('Slette denne serviceregistreringen?')) return;
-  servicehistorikk = servicehistorikk.filter(s => s.id !== id);
-  await saveServicehistorikk();
+  const lagretOk = await mutasjonMedRollback(
+    servicehistorikk,
+    // VIKTIG: muterer arrayet IN PLACE (splice), ikke "servicehistorikk = ...filter(...)" —
+    // en reassignment ville pekt den globale variabelen til et NYTT array-objekt, mens
+    // mutasjonMedRollback fortsatt har referansen til det GAMLE arrayet og dermed ikke
+    // ville klart å gjenopprette riktig tilstand ved en feilet lagring.
+    () => { const idx = servicehistorikk.findIndex(s => s.id === id); if(idx !== -1) servicehistorikk.splice(idx, 1); },
+    saveServicehistorikk,
+    'Kunne ikke slette serviceregistreringen i Airtable.'
+  );
+  if(!lagretOk) return;
   editingServiceId = null;
   render();
 }
@@ -5002,13 +5339,6 @@ function renderLoginShell(){
 }
 
 // ================= scrDashboard =================
-function vehicleReasons(v){
-  const reasons = [];
-  if(v.status === 'oppfolging') reasons.push('Trenger oppfølging');
-  if(v.status === 'verksted') reasons.push('På verksted');
-  return reasons;
-}
-
 // ================= Prioritet 27 (Design 2.0) — Mobil hjemskjerm =================
 // Regel 3: "Mobil Dashboard skal ikke eksistere som Desktop Dashboard." Ikonbasert,
 // handlingsdrevet hjemskjerm — IKKE en smal utgave av desktopens kort-baserte Dashboard.
@@ -5478,7 +5808,7 @@ function attachRegisterListeners(){
   document.getElementById('register-back').addEventListener('click', () => goBack('dashboard'));
   document.getElementById('add-vehicle-btn').addEventListener('click', () => { showAddVehicleForm = !showAddVehicleForm; render(); });
   const f = document.getElementById('add-vehicle-form');
-  if(f) f.addEventListener('submit', submitAddVehicle);
+  if(f) f.addEventListener('submit', beskyttSubmit('submitAddVehicle', submitAddVehicle));
   document.getElementById('f-search').addEventListener('input', e => {
     filterSearch = e.target.value; render();
     const el = document.getElementById('f-search'); el.focus(); el.selectionStart = el.value.length;
@@ -5883,7 +6213,7 @@ function attachDekkoversiktListeners(){
     render();
   });
   const dkkForm = document.getElementById('add-dekkkostnad-form');
-  if(dkkForm) dkkForm.addEventListener('submit', submitAddDekkkostnad);
+  if(dkkForm) dkkForm.addEventListener('submit', beskyttSubmit('submitAddDekkkostnad', submitAddDekkkostnad));
   document.querySelectorAll('[data-delete-dekkkostnad]').forEach(el => el.addEventListener('click', () => deleteDekkkostnad(el.dataset.deleteDekkkostnad)));
   document.querySelectorAll('[data-toggle-dekk-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleDekkVehicle;
@@ -6634,7 +6964,7 @@ function attachBilkortListeners(){
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
 
   const saveBtn = document.getElementById('save-vehicle');
-  if(saveBtn) saveBtn.addEventListener('click', () => saveVehicleForm(currentVehicleId));
+  if(saveBtn) saveBtn.addEventListener('click', beskyttKlikk('saveVehicleForm:'+currentVehicleId, saveBtn, () => saveVehicleForm(currentVehicleId)));
   const skadeBtn = document.getElementById('ny-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
   const vtBtn = document.getElementById('ny-vt-btn');
@@ -6730,9 +7060,9 @@ function renderServiceSkjerm(){
     const vServiceHistorikk = vehicleServiceHistorikk(v.id);
     const vSisteService = vehicleSisteService(v.id);
     const vServiceStatus = vehicleServiceStatus(v);
-    // Prioritet 26.7 (punkt 1): planlagte serviceavtaler er verkstedtimer med type='service'
-    // — samme datastruktur/tabell som vanlige verkstedtimer ("på samme måte som
-    // verkstedtime"), kun kategorisert. Ingen ny datamodell.
+    // Prioritet 26.7 (punkt 1): planlagte serviceavtaler lagres i sin egen array/
+    // Settings-nøkkel (planlagteServicer) — helt atskilt fra verkstedtimer, se
+    // kommentar ved deklarasjonen av planlagteServicer.
     const vPlanlagteServicer = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
       .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
     const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
@@ -6760,7 +7090,33 @@ function renderServiceSkjerm(){
         <div class="ov-label" style="margin-bottom:10px;">📅 Planlagt service</div>
         ${vPlanlagteServicer.length === 0 ? `<div class="empty-note" style="margin-bottom:14px;">Ingen planlagte serviceavtaler.</div>` : `
         <ul class="dmg-simple-list" style="margin-bottom:14px;">
-          ${vPlanlagteServicer.map(t => `<li><span class="dmg-simple-main">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span></li>`).join('')}
+          ${vPlanlagteServicer.map(t => `
+          <li>
+            <span class="dmg-simple-main" style="cursor:pointer;" data-toggle-ps="${t.id}">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted)}${t.kommentar ? ' · ' + esc(t.kommentar) : ''}</span>
+            <div class="panel-actions" style="margin-top:6px;">
+              <button class="btn secondary small" data-edit-ps="${t.id}">Rediger</button>
+              <button class="btn small" data-fullfor-ps="${t.id}">✅ Marker utført</button>
+              <button class="btn danger-outline small" data-delete-ps="${t.id}">Slett</button>
+            </div>
+            ${editingPlanlagtServiceId === t.id ? `
+            <div class="dmg-editbox">
+              <div class="row2">
+                <div class="field"><label>Dato</label><input id="e-ps-dato-${t.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(t.dato)}"></div>
+                <div class="field"><label>Klokkeslett</label><input id="e-ps-tid-${t.id}" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="${esc(t.tidspunkt||'')}"></div>
+              </div>
+              <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+                <select id="e-ps-verksted-${t.id}">
+                  <option value="">Velg verksted...</option>
+                  ${verkstedSelectOptions(t.verksted)}
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><input id="e-ps-kommentar-${t.id}" type="text" value="${esc(t.kommentar||'')}"></div>
+              <div class="panel-actions">
+                <button class="btn small" id="ps-save-${t.id}">Lagre endringer</button>
+                <button class="btn secondary small" id="ps-cancel-${t.id}">Avbryt</button>
+              </div>
+            </div>` : ''}
+          </li>`).join('')}
         </ul>`}
         <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
         ${showPlanleggService ? `
@@ -6832,11 +7188,11 @@ function attachServiceSkjermListeners(){
   const serviceBtn = document.getElementById('ny-service-btn');
   if(serviceBtn) serviceBtn.addEventListener('click', () => { showAddService = !showAddService; render(); });
   const serviceForm = document.getElementById('add-service-form');
-  if(serviceForm) serviceForm.addEventListener('submit', submitService);
+  if(serviceForm) serviceForm.addEventListener('submit', beskyttSubmit('submitService', submitService));
   const planleggBtn = document.getElementById('ny-planlagt-service-btn');
   if(planleggBtn) planleggBtn.addEventListener('click', () => { showPlanleggService = !showPlanleggService; render(); });
   const planleggForm = document.getElementById('planlegg-service-form');
-  if(planleggForm) planleggForm.addEventListener('submit', submitPlanlagtService);
+  if(planleggForm) planleggForm.addEventListener('submit', beskyttSubmit('submitPlanlagtService', submitPlanlagtService));
   document.querySelectorAll('[data-toggle-service]').forEach(el => el.addEventListener('click', () => toggleEditService(el.dataset.toggleService)));
   servicehistorikk.filter(s => s.vehicleId === serviceValgtVehicleId).forEach(s => {
     const saveBtn = document.getElementById('sv-save-'+s.id);
@@ -6845,6 +7201,21 @@ function attachServiceSkjermListeners(){
     if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingServiceId = null; render(); });
     const delBtn = document.getElementById('sv-delete-'+s.id);
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteService(s.id); });
+  });
+  // Prioritet 29 (Del 8): planlagt service — rediger/fullfør/slett.
+  document.querySelectorAll('[data-toggle-ps]').forEach(el => el.addEventListener('click', () => toggleEditPlanlagtService(el.dataset.togglePs)));
+  document.querySelectorAll('[data-edit-ps]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditPlanlagtService(el.dataset.editPs); }));
+  document.querySelectorAll('[data-delete-ps]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deletePlanlagtService(el.dataset.deletePs); }));
+  document.querySelectorAll('[data-fullfor-ps]').forEach(el => {
+    // beskyttKlikk hindrer at et dobbelttrykk oppretter to servicehistorikk-oppføringer
+    // for samme fullførte avtale (samme mønster som deleteSak/deleteVT/saveVehicleForm).
+    el.addEventListener('click', beskyttKlikk('fullforPlanlagtService:'+el.dataset.fullforPs, el, (e) => { e.stopPropagation(); return fullforPlanlagtService(el.dataset.fullforPs); }));
+  });
+  planlagteServicer.filter(t => t.vehicleId === serviceValgtVehicleId).forEach(t => {
+    const saveBtn = document.getElementById('ps-save-'+t.id);
+    if(saveBtn) saveBtn.addEventListener('click', (e) => { e.stopPropagation(); savePlanlagtServiceEdit(t.id); });
+    const cancelBtn = document.getElementById('ps-cancel-'+t.id);
+    if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingPlanlagtServiceId = null; render(); });
   });
 }
 
@@ -6940,7 +7311,7 @@ function attachDekkSkjermListeners(){
   const dekkskifteBtn = document.getElementById('ny-dekkskifte-btn');
   if(dekkskifteBtn) dekkskifteBtn.addEventListener('click', () => { showAddDekkskifte = !showAddDekkskifte; render(); });
   const dekkskifteForm = document.getElementById('add-dekkskifte-form');
-  if(dekkskifteForm) dekkskifteForm.addEventListener('submit', submitDekkskifte);
+  if(dekkskifteForm) dekkskifteForm.addEventListener('submit', beskyttSubmit('submitDekkskifte', submitDekkskifte));
 }
 
 // ================= scrSkader =================
@@ -7080,7 +7451,7 @@ function attachSkaderListeners(){
     render();
   });
   const f = document.getElementById('add-skade-form');
-  if(f) f.addEventListener('submit', submitAddSkade);
+  if(f) f.addEventListener('submit', beskyttSubmit('submitAddSkade', submitAddSkade));
   const skPhoto = document.getElementById('sk-photo');
   if(skPhoto) skPhoto.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -7922,7 +8293,7 @@ function attachAktiveSakerListeners(){
     render();
   });
   const f = document.getElementById('add-sak-form');
-  if(f) f.addEventListener('submit', submitAddSak);
+  if(f) f.addEventListener('submit', beskyttSubmit('submitAddSak', submitAddSak));
   document.querySelectorAll('[data-toggle-sako-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleSakoVehicle;
     if(sakOversiktOpenVehicles.has(id)) sakOversiktOpenVehicles.delete(id); else sakOversiktOpenVehicles.add(id);
@@ -7950,7 +8321,7 @@ function attachAktiveSakerListeners(){
   }));
   aktiveSaker.forEach(s => {
     const delBtn = document.getElementById('swz-delete-'+s.id);
-    if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSak(s.id); });
+    if(delBtn) delBtn.addEventListener('click', beskyttKlikk('deleteSak:'+s.id, delBtn, (e) => { e.stopPropagation(); return deleteSak(s.id); }));
     const reapneBtn = document.getElementById('swz-reapne-'+s.id);
     if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
 
@@ -8013,7 +8384,7 @@ function attachAktiveSakerListeners(){
   // Inline verkstedtime-skjemaet i Steg 3 gjenbruker det eksisterende add-vt-form/
   // submitAddVT() helt uendret (se sakWizardVtFormHtml).
   const inlineVtForm = document.getElementById('add-vt-form');
-  if(inlineVtForm) inlineVtForm.addEventListener('submit', submitAddVT);
+  if(inlineVtForm) inlineVtForm.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
@@ -8313,7 +8684,7 @@ function attachVerkstedListeners(){
     render();
   });
   const f = document.getElementById('add-vt-form');
-  if(f) f.addEventListener('submit', submitAddVT);
+  if(f) f.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
   document.getElementById('vt-filter-toggle-btn').addEventListener('click', () => {
     showVtFilterMeny = !showVtFilterMeny;
     render();
@@ -8346,7 +8717,7 @@ function attachVerkstedListeners(){
     const cancelBtn = document.getElementById('vt-cancel-'+t.id);
     if(cancelBtn) cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); editingVTId = null; render(); });
     const delBtn = document.getElementById('vt-delete-'+t.id);
-    if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteVT(t.id); });
+    if(delBtn) delBtn.addEventListener('click', beskyttKlikk('deleteVT:'+t.id, delBtn, (e) => { e.stopPropagation(); return deleteVT(t.id); }));
   });
 }
 
@@ -9961,6 +10332,17 @@ function renderInnstillinger(){
       pagar: `<span style="color:var(--amber);">🟡 Synkronisering pågår (${pagaendeSkrivinger})</span>`,
       feil: `<span style="color:var(--red);">🔴 Manglende synkronisering</span>`
     }[status];
+    // Prioritet 29 (Kritisk feil 4): korrupte Settings-datasett (servicehistorikk/
+    // planlagteservicer) — vises ØVERST, over synk-status, siden dette er alvorligere:
+    // skriving til det aktuelle datasettet er aktivt blokkert (se saveServicehistorikk()/
+    // savePlanlagteServicer()) helt til siden lastes på nytt med gyldige data.
+    const korrupteNokler = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
+    const korruptStatusHtml = korrupteNokler.length > 0 ? `
+      <div class="panel" style="margin-bottom:16px;border-color:var(--red);background:var(--red-soft);">
+        <div class="ov-label" style="margin-bottom:8px;font-size:15px;color:var(--red);">🔴 Korrupt datasett — lagring blokkert</div>
+        <div class="required-hint" style="color:var(--red);font-weight:600;">${korrupteNokler.map(k => k === 'servicehistorikk' ? 'Servicehistorikk' : 'Planlagte servicer').join(', ')} kunne ikke leses (ugyldig data i Airtable). For å unngå å slette eksisterende historikk er ALL lagring til dette datasettet blokkert inntil videre.</div>
+        <div class="required-hint" style="margin-top:8px;">Last siden på nytt (F5) og prøv igjen. Vedvarer problemet, må Settings-raden med denne nøkkelen undersøkes direkte i Airtable FØR noen registrerer mer service — ikke fortsett å bruke funksjonen i mellomtiden.</div>
+      </div>` : '';
     const synkStatusHtml = `
       <div class="panel" style="margin-bottom:16px;${status==='feil' ? 'border-color:var(--red);background:var(--red-soft);' : (status==='pagar' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="ov-label" style="margin-bottom:8px;font-size:15px;">${statusHtml}</div>
@@ -9979,7 +10361,7 @@ function renderInnstillinger(){
     // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    const FORVENTET_VERSJON = 'v2.7.0'; // hold denne i sync med versjon-verdien i storage_airtable.js
+    const FORVENTET_VERSJON = 'v2.8.0'; // hold denne i sync med versjon-verdien i storage.airtable.js
     const info = window.storageAirtableInfo;
     const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
     const riktigVersjonKjorer = !!(info && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
@@ -10002,7 +10384,7 @@ function renderInnstillinger(){
       </div>
     `;
     if(!dbStatusReport){
-      return versjonHtml + synkStatusHtml + `
+      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;">
           Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
           lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
@@ -10012,7 +10394,7 @@ function renderInnstillinger(){
       `;
     }
     if(!dbStatusReport.ok){
-      return versjonHtml + synkStatusHtml + `
+      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
           ⚠️ ${esc(dbStatusReport.error)}
         </div>
@@ -10022,7 +10404,7 @@ function renderInnstillinger(){
     const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
     const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
     const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
-    return versjonHtml + synkStatusHtml + `
+    return versjonHtml + korruptStatusHtml + synkStatusHtml + `
       <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
       <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
         ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
@@ -10329,7 +10711,7 @@ function attachKontrollListeners(){
       goBack();
     }
   });
-  document.getElementById('kontroll-form').addEventListener('submit', submitKontroll);
+  document.getElementById('kontroll-form').addEventListener('submit', beskyttSubmit('submitKontroll', submitKontroll));
 
   document.querySelectorAll('[data-velg-kontroll-bil]').forEach(el => el.addEventListener('click', () => velgKontrollBil(el.dataset.velgKontrollBil)));
   const byttBilEl = document.getElementById('kt-bytt-bil');

@@ -1,12 +1,12 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-04 (Prioritet 28 — Total Less Is More), basert på
-faktisk kjørende kode i `Benibanos/Biloversikt`. Status er verifisert mot
-koden i `index.html`/`storage.airtable.js`, ikke antatt fra tidligere
-bestilling. Den fulle, kronologiske historikken over alle tidligere
-"Prioritet N"/"Optimalisering N"-runder er ikke lenger bevart som egen fil i
-produksjonsprosjektet — den ligger i git-commit `cae279d` (prosjektets
-tilstand før den første store konsolideringen).
+Sist konsolidert: 2026-09-07 (Prioritet 29 — Kritisk datasikkerhet og
+stabilisering), basert på faktisk kjørende kode i `Benibanos/Biloversikt`.
+Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
+antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
+alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger
+bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
+`cae279d` (prosjektets tilstand før den første store konsolideringen).
 
 Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 🔧 Må feilrettes · 📋 Planlagt
@@ -15,15 +15,22 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
 
-**Prioritet 28 — Total Less Is More (2026-09-04):** Repoet redusert fra 25
-til 13 filer (dokumentrapporter fra tidligere oppryddingsrunder enten
-fjernet eller slått sammen inn i CLAUDE.md/README.md, siden git-historikken
-er backupen). 13 verifisert ubrukte funksjoner + 1 ubrukt duplikatvariabel
-fjernet fra `index.html` (~70 linjer), ~14 ubrukte CSS-regler fra to
-tidligere, allerede erstattede dashboard-design fjernet, og de to
-diagnoseseksjonene "Biler i drift — diagnose"/"Driftslag — diagnose" fjernet
-fra Innstillinger (begge bekreftet knyttet til nå rettede bugs). Se
-CLAUDE.md for testkrav kjørt etter endringen.
+**Prioritet 29 — Kritisk datasikkerhet og stabilisering (2026-09-07):**
+Lukket de kritiske datatap-/samtidighetsrisikoene som ble avdekket i
+Prioritet 28-revisjonen: felles dobbel-innsendingsbeskyttelse for alle
+kritiske skjemaer/knapper, en serialisert per-ressurs skrivekø i
+`storage.airtable.js` (fjerner race conditions i `reconcileList()`/
+`recordIdCache`), trygg rollback-på-feil for kritiske mutasjoner (service,
+planlagt service, aktive saker, verkstedtimer), korrupt-JSON-beskyttelse
+for Settings-blobene `servicehistorikk`/`planlagteservicer` (blokkerer
+lagring i stedet for å stille nullstille til tomt array), opprydding av
+gjensidige referanser mellom `AktiveSaker` og `WorkshopAppointments` ved
+sletting, fjernet en km-overskrivingsvei i `saveVehicleForm()` og en
+duplikat `saveVehicles()`-kalling, batchet bakgrunnspoll-rendering til én
+`render()` per synkroniseringssyklus, samt full livssyklus (rediger/
+fullfør/slett) for planlagte servicer. Se CLAUDE.md for full detalj og
+testkrav kjørt etter endringen, og `PRIORITET_29_SLUTTRAPPORT.md` for
+komplett leveranserapport.
 
 ---
 
@@ -208,10 +215,50 @@ fallback-kopiering og lightbox-galleri.
 
 ✅ Implementert og verifisert — se CLAUDE.md, "Service". Kritisk
 km-overskrivingsfeil er rettet (se AIRTABLE_MIGRATION.md/CLAUDE.md for
-detaljer og manuell datakontroll-anbefaling). **Dokumentasjonsrettelse
-(Prioritet 28):** `servicehistorikk`/`planlagteservicer` er ikke egne
-Airtable-tabeller, men én JSON-blob hver i `Settings` — se
-AIRTABLE_MIGRATION.md.
+detaljer og manuell datakontroll-anbefaling). `servicehistorikk`/
+`planlagteservicer` er ikke egne Airtable-tabeller, men én JSON-blob hver i
+`Settings` — se AIRTABLE_MIGRATION.md, seksjon 9, for vurdert (men ikke
+aktivert, fordi tabellene ikke finnes i produksjonsbasen) fremtidig
+radbasert migrering. **Nytt i Prioritet 29:** full livssyklus for planlagte
+servicer (rediger/marker utført/slett — `savePlanlagtServiceEdit()`,
+`fullforPlanlagtService()`, `deletePlanlagtService()`), samt korrupt-JSON-
+beskyttelse og rollback-på-lagringsfeil for begge datasett (se
+"Datasikkerhet og samtidighet" under).
+
+## Datasikkerhet og samtidighet (Prioritet 29)
+
+✅ Implementert og verifisert:
+
+- **Dobbel innsending:** `beskyttSubmit()`/`beskyttKlikk()` — delt,
+  internt JS-lås (ikke kun `disabled`-attributtet) rundt alle kritiske
+  skjemaer/knapper (service, planlagt service, verkstedtime, kontroll, sak,
+  kjøretøy, dekk, skade, sletting av sak/verkstedtime, lagring av
+  kjøretøyskjema, fullføring av planlagt service).
+- **Skrivekø:** `_koKjor()`/`_skriveKoer` i `storage.airtable.js` —
+  serialiserer `set()`/`del()` per ressurs (tabell eller Settings-rad), slik
+  at to samtidige lagringer til samme tabell/rad aldri lenger kan
+  race-conditione `reconcileList()`/`recordIdCache`. Uendret offentlig
+  API (`set`/`del`-signatur), ingen kallesteder måtte endres.
+- **Rollback ved lagringsfeil:** `mutasjonMedRollback()` i `index.html` —
+  deep-clone-snapshot før mutasjon, gjenoppretter og re-rendrer ved feilet
+  Airtable-lagring, med tydelig, vedvarende feilmelding som aldri påstår at
+  data ble lagret. Brukt av service, planlagt service, aktive saker og
+  verkstedtimer sine kritiske mutasjoner.
+- **Korrupt Settings-JSON:** `parseJsonTrygt()` — `servicehistorikk`/
+  `planlagteservicer` blir aldri stille nullstilt til tomt array ved
+  korrupt JSON; datasettet flagges korrupt, lagring til det blokkeres, og
+  brukeren varsles både ved oppstart og i Database status.
+- **Gjensidige referanser:** `deleteSak()`/`deleteVT()` rydder nå opp i
+  hverandres referanser (nullstiller `sakId`/`caseId` på verkstedtiden ved
+  slettet sak; nullstiller `linkedVtId` og tilbakestiller sakstatus til
+  "Tiltak planlagt" ved slettet verkstedtime) — ingen av delene slettes
+  automatisk som følge av den andre.
+- **Kilometerstand:** `saveVehicleForm()` krever nå eksplisitt bekreftelse
+  før den kan endre `v.km` direkte (kun ved faktisk verdiendring), og
+  dupliserte `saveVehicles()`-kallet i samme funksjon er fjernet.
+- **Bakgrunnspoll:** `_lagBatchetLiveSyncHandler()` batcher alle endrede
+  datasett i én synkroniseringssyklus til maks ett `render()`-kall, i
+  stedet for opptil ett per `LIST_TABLES`-nøkkel.
 
 ## Gjenstående kjente feil eller mangler
 
@@ -220,16 +267,22 @@ kan ha fått `v.km` feilaktig overskrevet av historiske
 service-registreringer før km-overskrivingsfeilen ble rettet (se CLAUDE.md).
 Ingen automatisk korrigering er gjort.
 
-📋 **To Airtable-felt kun skrives, aldri lest** (`AktiveSaker.RegistrationNumber`,
-`AktiveSaker.AssignedTo`) — se AIRTABLE_MIGRATION.md. Ikke slettet; vurder
-enten å fullføre den tiltenkte funksjonen (særlig `AssignedTo` — trolig en
-planlagt "tildel sak til person"-funksjon som aldri ble ferdigstilt i UI)
-eller la dem ligge urørt.
+✅ **Avklart (Prioritet 29, Del 11):** de to Airtable-feltene
+(`AktiveSaker.RegistrationNumber`, `AktiveSaker.AssignedTo`) er IKKE
+orphaned på datalagnivå — begge leses faktisk tilbake til minnet ved
+innlasting (registrert i `LIST_TABLES`). Beslutning: behold begge felt som
+bevisst redundans (se AIRTABLE_MIGRATION.md, seksjon 7, for full
+begrunnelse) — ingen kodeendring gjort.
 
-📋 **`servicehistorikk` lagres som én samlet JSON-blob** i Settings-tabellen
-for ALLE kjøretøy over ALLE år — ikke en akutt feil, men en driftsrisiko ved
-fortsatt vekst (Airtables praktiske feltgrense per celle). Vurder som egen,
-fremtidig migreringssak dersom historikken vokser mye videre.
+📋 **`servicehistorikk`/`planlagteservicer` lagres fortsatt som JSON-blober**
+i Settings-tabellen for ALLE kjøretøy over ALLE år — ikke lenger en akutt
+datasikkerhetsrisiko (se "Datasikkerhet og samtidighet" over), men fortsatt
+en driftsrisiko ved fortsatt vekst (Airtables praktiske feltgrense per
+celle). Målmodell for en eventuell fremtidig radbasert migrering er
+dokumentert i AIRTABLE_MIGRATION.md, seksjon 9 — IKKE aktivert, siden de
+nødvendige Airtable-tabellene bekreftet ikke finnes i produksjonsbasen i
+dag. Krever en egen, separat godkjent migreringssak (inkludert manuelt
+Airtable-oppsett) dersom dette skal gjennomføres.
 
 ## Neste prioriterte arbeid
 

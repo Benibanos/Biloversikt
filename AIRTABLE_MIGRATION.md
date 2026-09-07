@@ -276,6 +276,30 @@ denne tabellen alene — en eventuell fjerning krever en egen, separat
 godkjent migreringssak. Se også ROADMAP.md, "Gjenstående kjente feil eller
 mangler".
 
+**Beslutning (Prioritet 29, Del 11 — verifisert og avklart):** feltene
+er IKKE orphaned på datalagnivå slik den forrige revisjonen antok. Begge er
+registrert i `LIST_TABLES.aktiveSaker.fields` i `storage.airtable.js` og blir
+derfor faktisk lest tilbake til minnet av den generiske
+`fromAirtableFields()`-funksjonen ved hver henting fra Airtable — de
+"forsvinner" ikke, og verdien finnes i `sak.registrationNumber`/
+`sak.assignedTo` etter innlasting. Det opprinnelige funnet ("orphaned/write-
+only") gjaldt kun at ingen UI-visning i dag leser disse to feltene fra
+minnet, ikke at data-laget mister dem.
+
+Valgt løsning: **behold begge felt, fortsett å skrive dem** (alternativ 3 i
+oppgavebeskrivelsen — bevisst redundans, dokumentert her). Årsak: siden
+`toAirtableFields()` skriver `''` for `undefined`/`null` på ALLE felt ved
+enhver full re-lagring av en sak (se `saveAktiveSaker()`/
+`saveAktiveSakerEllerKast()`), ville det å SLUTTE å skrive disse to feltene
+aktivt overskrive/slette eksisterende historiske verdier for alle saker som
+senere blir lagret på nytt (f.eks. ved statusendring) — i direkte konflikt
+med sikkerhetsregel 2/3 i Prioritet 29 ("bevar eksisterende Airtable-data",
+"ingen eksisterende poster skal slettes"). Å begynne å lese dem tilbake inn
+i UI (alternativ 1) er en egen, ny funksjonsendring utenfor denne
+stabiliseringsoppgavens omfang ("gjør minst mulig kodeendring for å oppnå
+målet") og er derfor ikke gjort her. Ingen kodeendring er utført for Del 11
+— kun denne avklaringen/dokumentasjonen.
+
 ## 8. Database status — automatisk skjemasjekk (Innstillinger)
 
 `EXPECTED_SCHEMA` bygges automatisk fra `LIST_TABLES` (pluss egne,
@@ -288,7 +312,82 @@ Innstillinger viser:
 3. Skjemasjekk mot faktisk Airtable-struktur (krever `schema.bases:read`,
    automatisk oppretting av manglende felt krever `schema.bases:write`)
 
-## 9. Oppsettsguide (uendret prosedyre)
+## 9. Servicehistorikk/planlagteservicer — vurdert radbasert migrering (Prioritet 29, Del 7)
+
+Den forrige tekniske revisjonen anbefalte å vurdere å flytte
+`servicehistorikk` og `planlagteservicer` fra én samlet JSON-blob per
+datasett i `Settings`-tabellen (se seksjon "Service" i CLAUDE.md) til egne,
+radbaserte Airtable-tabeller — av hensyn til Airtables praktiske
+feltstørrelsesgrense ved fortsatt vekst over mange år/kjøretøy.
+
+**Verifisert direkte mot den faktiske produksjonsbasen** (les-only
+skjemainspeksjon, `baseId` kryssjekket mot `airtable-config.js` og bekreftet
+identisk): basen inneholder IKKE noen `ServiceHistory`- eller
+`PlannedServices`-tabell i dag. Fullstendig liste over faktiske
+Bilpark-relevante tabeller i basen: `Vehicles`, `DriverChecks`, `Damages`,
+`WarningLights`, `WorkshopAppointments`, `Users`, `Settings`, `TireChanges`,
+`Photos`, `TireCosts`, `AktiveSaker` — nøyaktig samme sett som
+`LIST_TABLES` i `storage.airtable.js` allerede forventer, ingen flere.
+
+**Følgelig, per sikkerhetsregel 7 ("ikke gjett tabellstruktur, ikke koble
+appen til ikke-eksisterende tabeller") og oppgaveteksten for Del 7 sin
+"tabeller finnes ikke"-gren:** radbasert migrering er IKKE aktivert i denne
+runden. Ingen kode i `index.html`/`storage.airtable.js` forsøker å lese fra
+eller skrive til tabeller som ikke finnes. I stedet er selve
+Settings-blob-tilnærmingen gjort vesentlig tryggere i denne stabiliserings-
+runden (se CLAUDE.md, "Dataintegritet" og "Service"):
+
+- Serialisert skriving per Settings-nøkkel (Del 2 — per-ressurs kø i
+  `storage.airtable.js`) hindrer at to samtidige lagringer av samme
+  JSON-blob kan overskrive hverandre.
+- Trygg JSON-parsing med eksplisitt `{ok, value}`/`{ok, error}`-status
+  (Del 4, `parseJsonTrygt()`) hindrer at korrupt JSON stille blir til et
+  tomt array — datasettet flagges i stedet som korrupt, lagring blokkeres,
+  og brukeren varsles tydelig i Innstillinger → Database status og ved
+  oppstart.
+- Rollback ved lagringsfeil (Del 3, `mutasjonMedRollback()`) hindrer at
+  lokal tilstand kan vise en endring som faktisk ikke ble lagret i
+  Airtable.
+
+Dersom radbasert migrering skal aktiveres i en senere, egen godkjent
+migreringssak, er dette mål-datamodellen (kun til referanse — IKKE
+implementert):
+
+**Ny tabell `ServiceHistory`** (én rad per historisk service, én per
+kjøretøy og hendelse):
+
+| App-felt | Airtable-kolonne | Type |
+|---|---|---|
+| id | AppId | tekst |
+| vehicleId | VehicleId | tekst |
+| dato | Dato | tekst |
+| km | Km | tall |
+| type | Type | tekst |
+| verksted | Verksted | tekst |
+| kommentar | Kommentar | tekst |
+| createdAt | CreatedAt | tekst |
+| createdBy | CreatedBy | tekst |
+| fraPlanlagtServiceId | FraPlanlagtServiceId | tekst (valgfri — sporbarhet til opprinnelig planlagt avtale, se Del 8) |
+
+**Ny tabell `PlannedServices`** (én rad per planlagt serviceavtale):
+
+| App-felt | Airtable-kolonne | Type |
+|---|---|---|
+| id | AppId | tekst |
+| vehicleId | VehicleId | tekst |
+| dato | Dato | tekst |
+| tidspunkt | Tidspunkt | tekst |
+| verksted | Verksted | tekst |
+| kommentar | Kommentar | tekst |
+
+En eventuell fremtidig migrering må følge de samme sikkerhetsreglene som
+gjaldt for denne oppgaven: idempotent (kan kjøres flere ganger uten
+duplikater, f.eks. ved å bruke eksisterende `id` som unik nøkkel),
+lese-tilbake-verifisering av alle migrerte rader før den gamle
+Settings-verdien fjernes, og den gamle Settings-blob-verdien beholdes som
+sikkerhetskopi inntil migreringen er bekreftet vellykket.
+
+## 10. Oppsettsguide (uendret prosedyre)
 
 Fremgangsmåten for å koble appen til en Airtable-base, uendret siden
 prosjektet gikk over fra Firebase til Airtable:

@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-04 (Prioritet 28 —
-Total Less Is More). **Ved avvik mellom denne filen og koden er koden alltid
-sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 29 —
+Kritisk datasikkerhet og stabilisering). **Ved avvik mellom denne filen og
+koden er koden alltid sannheten.**
 
 ---
 
@@ -17,22 +17,38 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.7.0). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.8.0). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
 Kritiske regler som aldri skal brytes: et nytt felt MÅ registreres i
 `LIST_TABLES` i `storage.airtable.js` samtidig som det tas i bruk i
 `index.html`, ellers forsvinner det stille; `v.km` skrives KUN fra
-`submitKontroll()`, aldri fra service-registrering; ingen databasefelt
-fjernes uten eksplisitt instruks; øk `?v=` i `index.html` OG `versjon` i
-`storage.airtable.js` sammen ved enhver endring i storage-filen.
+`submitKontroll()` (normal drift), `performKontrollDeletion()`
+(rekalkulering ved sletting) eller `resetFleetData()` (eksplisitt
+admin-nullstilling) — se "Service" under for full liste over tillatte
+skrivepunkter; ingen databasefelt fjernes uten eksplisitt instruks; øk
+`?v=` i `index.html` OG `versjon` i `storage.airtable.js` sammen ved enhver
+endring i storage-filen.
 
 Kjente, uferdige områder: "manuell overstyring mellom mobil-/
 desktopvisning" er bekreftet IKKE implementert i kode (verifisert tre
 ganger uavhengig, se ROADMAP.md) — ikke anta at den finnes. Eksisterende
 km-data bør kontrolleres manuelt for historiske feil fra en nå rettet
 service-km-overskrivingsbug (se "Service" under).
+
+**Prioritet 29 (2026-09-07) — kritisk datasikkerhet og stabilisering:**
+felles dobbel-innsendingsbeskyttelse (`beskyttSubmit()`/`beskyttKlikk()`),
+en serialisert per-ressurs skrivekø i `storage.airtable.js`
+(`_koKjor()`/`_skriveKoer`), rollback-på-lagringsfeil for kritiske
+mutasjoner (`mutasjonMedRollback()`), trygg JSON-parsing med eksplisitt
+ok/feil-status for Settings-blobene `servicehistorikk`/`planlagteservicer`
+(`parseJsonTrygt()`), opprydding av gjensidige referanser mellom
+`AktiveSaker` og `WorkshopAppointments` ved sletting, en confirm-gate rundt
+direkte km-endring i `saveVehicleForm()`, batchet bakgrunnspoll-rendering
+(`_lagBatchetLiveSyncHandler()`), og full livssyklus (rediger/fullfør/
+slett) for planlagte servicer. Se "Dataintegritet", "Service" og
+"Regler for Claude / videre utvikling" under for full detalj.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.
@@ -80,16 +96,18 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v24'`, økt i Prioritet 28 fordi
-  `index.html` ble endret). To separate
+  offline-fallback (`CACHE_VERSION = 'bilpark-v25'`, økt i Prioritet 29 fordi
+  `index.html` og `storage.airtable.js` ble endret). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.7.0`, cache-bustet via `?v=2.7.0` på script-taggen i `index.html`).
+  `v2.8.0`, cache-bustet via `?v=2.8.0` på script-taggen i `index.html`).
   Dette er den ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
   `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
-  løpende kommentartekst forekommer — se AIRTABLE_MIGRATION.md).
+  løpende kommentartekst forekommer — se AIRTABLE_MIGRATION.md). Siden
+  Prioritet 29 har filen en internt serialisert per-ressurs skrivekø
+  (`_koKjor()`) rundt `set()`/`del()` — se "Dataintegritet" under.
 - **Autoritative datakilder:** `v.km` er eneste autoritative NÅVÆRENDE
   kilometerstand for et kjøretøy; `servicehistorikk[].km` er historisk og
   skal aldri overskrive `v.km` (se "Dataintegritet" under).
@@ -200,7 +218,21 @@ direkte i koden ved videre endringer.
 
 ## Service
 
-- `v.km` er eneste autoritative NÅVÆRENDE kilometerstand.
+- `v.km` er eneste autoritative NÅVÆRENDE kilometerstand. **Tillatte
+  skrivepunkter (uttømmende liste, Prioritet 29, Del 6):**
+  - `submitKontroll()` — normal, operativ skrivevei ved hver kontroll.
+  - `performKontrollDeletion()` — kan rekalkulere `v.km` fra nyeste
+    gjenværende kontroll når en kontroll slettes.
+  - `resetFleetData()` — eksplisitt admin-nullstilling av hele flåten.
+  - `saveVehicleForm()` — direkte redigering av km i kjøretøyskjemaet er
+    fortsatt mulig, men KUN som en eksplisitt admin-korreksjon: en
+    `confirm()`-dialog vises nå før lagring dersom (og kun dersom) km-verdien
+    i skjemaet faktisk avviker fra `v.km`, slik at vanlig redigering av
+    regnr/modell/lag/annen kjøretøyinfo aldri kan overskrive `v.km` utilsiktet
+    ved et uhell. Samme funksjon lagrer nå kun ÉN gang (den tidligere
+    duplikate `saveVehicles()`-kallingen er fjernet).
+  - Ingen andre steder i koden skriver til `v.km` — verifisert ved
+    kodegjennomgang i Prioritet 29-revisjonen.
 - `servicehistorikk[].km` er historisk kilometerstand ved utført service —
   skal ALDRI overskrive `v.km`. **Historisk kritisk feil** (rettet): en
   tidligere versjon av `submitService()` overskrev `v.km` når en historisk
@@ -212,18 +244,36 @@ direkte i koden ved videre endringer.
 - Serviceintervall per bil: `v.serviceIntervallKm` (Airtable-felt
   `ServiceIntervallKm`).
 - Varslingsgrenser knyttet til intervallet (`vehicleServiceStatus()`).
-- Registrering, redigering (`saveServiceEdit()`) og sletting
-  (`deleteService()`) av servicehistorikk — verifisert at kun opprettelse
-  (`submitService()`) noensinne hadde km-overskrivingsfeilen.
-- Serviceavtaler/planlagt service og ordinære verkstedtimer er adskilt
-  (`WorkshopAppointments.Type` skiller `'service'` fra vanlige
-  verkstedtimer).
+- Registrering (`submitService()`), redigering (`saveServiceEdit()`) og
+  sletting (`deleteService()`) av servicehistorikk — verifisert at kun
+  opprettelse noensinne hadde km-overskrivingsfeilen. Alle tre går nå gjennom
+  `mutasjonMedRollback()` (rollback ved lagringsfeil, se "Dataintegritet").
+- **Planlagt service** (`planlagteServicer`) har siden Prioritet 29 full
+  livssyklus: opprettelse (`submitPlanlagtService()`), redigering
+  (`savePlanlagtServiceEdit()`), sletting (`deletePlanlagtService()`) og
+  markering som utført (`fullforPlanlagtService()` — oppretter en korrekt
+  servicehistorikk-oppføring med sporbarhetsfeltet `fraPlanlagtServiceId`
+  tilbake til den opprinnelige avtalen, FØR den planlagte avtalen fjernes,
+  og kun etter at historikk-oppføringen er bekreftet lagret). Beskyttet mot
+  dobbel innsending/dobbelttrykk (`beskyttSubmit()`/`beskyttKlikk()`). `v.km`
+  røres aldri av noen av disse — brukeren oppgir km eksplisitt ved
+  fullføring, på samme måte som ved vanlig "Registrer service".
+- Planlagt service og ordinære verkstedtimer er FULLSTENDIG adskilte
+  datamodeller — `planlagteServicer` er en egen array/Settings-nøkkel, IKKE
+  en verkstedtime. `WorkshopAppointments.Type` (`verkstedtime.type`) finnes
+  fortsatt registrert i `LIST_TABLES` av historiske årsaker, men er IKKE i
+  aktiv bruk i dagens kode (rettet dokumentasjonsfeil, Prioritet 29 —
+  se `storage.airtable.js` for detaljer). Feltet er ikke fjernet, siden
+  databasefelt ikke slettes uten eksplisitt instruks.
 - **`servicehistorikk` og `planlagteservicer` er IKKE egne Airtable-tabeller**
   — de lagres som én samlet JSON-blob hver i `Settings`-tabellen (samme
   Key/Value-mønster som `theme-preference`/`verksteder`). All historisk
   service for ALLE kjøretøy over ALLE år ligger i ÉN Airtable-celle — vær
-  oppmerksom på Airtables praktiske feltgrense ved videre vekst. Se
-  AIRTABLE_MIGRATION.md.
+  oppmerksom på Airtables praktiske feltgrense ved videre vekst. Begge
+  datasett er siden Prioritet 29 beskyttet mot korrupt JSON (se
+  "Dataintegritet") og lagres via en serialisert skrivekø. Vurdert, men IKKE
+  aktivert, radbasert migrering til egne tabeller — se AIRTABLE_MIGRATION.md,
+  seksjon 9 (tabellene finnes ikke i produksjonsbasen i dag).
 
 ## EU-kontroll
 
@@ -268,15 +318,52 @@ Alle følger: Overskrift → Filtre → Forhåndsvisning → Excel-eksport
 - Synkroniseringsstatus: `instrumenterStorageForSynkStatus()` sporer
   `pagaendeSkrivinger`, `synkFeilLogg` (siste 20 feilede forsøk),
   `sisteVellykkedeSynkTidspunkt` — vist øverst i Database status i
-  Innstillinger. **Viktig:** ingen retry-kø finnes — "feilet lagring" betyr
-  at brukeren allerede fikk en feilmelding med én gang, ikke at noe står og
-  venter på å bli lagret automatisk.
+  Innstillinger. **Oppdatert (Prioritet 29):** det finnes fortsatt ingen
+  UBEGRENSET automatisk retry-kø for feilede lagringer — "feilet lagring"
+  betyr fortsatt at brukeren får en tydelig, vedvarende feilmelding med én
+  gang og selv må trykke på nytt for å prøve igjen (ikke noe som står og
+  venter i bakgrunnen uten videre handling). Det som ER nytt: (1) en
+  serialisert per-ressurs SKRIVEKØ i `storage.airtable.js` (`_koKjor()`)
+  sørger for at to samtidige lagringer til samme tabell/Settings-rad aldri
+  kjører side om side (dette er ren rekkefølge-sikring, ikke retry — en
+  feilet operasjon rapporteres fortsatt umiddelbart, den prøves ikke på
+  nytt automatisk, og feiler den, blokkerer den ikke senere operasjoner i
+  køen); (2) kritiske mutasjoner (service, planlagt service, aktive saker,
+  verkstedtimer) bruker nå `mutasjonMedRollback()`, som ved feilet lagring
+  gjenoppretter forrige, korrekte lokale tilstand og re-rendrer — slik at
+  brukergrensesnittet ALDRI kan vise en endring som "lagret" når den faktisk
+  feilet.
+- **Korrupt Settings-JSON (Prioritet 29, Del 4):** `parseJsonTrygt()` gir et
+  eksplisitt `{ok: true, value}` / `{ok: false, error}`-resultat ved
+  innlasting av `servicehistorikk`/`planlagteservicer`. Ved korrupt JSON
+  blir datasettet ALDRI stille nullstilt til et tomt array — det flagges i
+  `_korrupteDatasett`, lagring til nettopp det datasettet blokkeres
+  (`saveServicehistorikk()`/`savePlanlagteServicer()` kaster en feil i
+  stedet for å lagre), og brukeren varsles både med en engangs-`alert()` ved
+  oppstart og med et vedvarende varselpanel i Database status i
+  Innstillinger. Én korrupt Settings-nøkkel påvirker aldri andre datasett.
 - Et nytt felt i JavaScript-koden som IKKE er registrert i `LIST_TABLES` i
   `storage.airtable.js` forsvinner STILLE ved neste henting fra Airtable
   (bekreftet gjentatte ganger historisk: ServiceIntervallKm, EuGodkjentTil,
   AktivSjafor, Driftslag rammet alle av nøyaktig denne feilen før de ble
   registrert). **Registrer ALLTID et nytt felt i `LIST_TABLES` samtidig som
   det tas i bruk i `index.html`.**
+- **Dobbel innsending (Prioritet 29, Del 1):** alle kritiske skjemaer og
+  handlingsknapper (service, planlagt service, verkstedtime, kontroll, sak,
+  kjøretøy, dekkskifte/-kostnad, skade, sletting av sak/verkstedtime, lagring
+  av kjøretøyskjema, fullføring av planlagt service) er beskyttet av en
+  delt, intern JS-lås (`beskyttSubmit()` for skjema-submit,
+  `beskyttKlikk()` for knappeklikk) — ikke bare HTML sitt `disabled`-
+  attributt. Første trykk låser umiddelbart, låsen frigjøres ALLTID i en
+  `finally`-blokk (også ved feil), og brukeren kan alltid prøve på nytt
+  etter en feilet lagring.
+- **Gjensidige referanser mellom Aktive saker og verkstedtimer (Prioritet
+  29, Del 5):** `deleteSak()` nullstiller `sakId`/`caseId` på enhver
+  verkstedtime som pekte på den slettede saken (fjerner IKKE selve
+  verkstedtiden). `deleteVT()` nullstiller `linkedVtId` og tilbakestiller
+  status til `'tiltak-planlagt'` på en eventuell sak som pekte på den
+  slettede verkstedtiden (fjerner IKKE selve saken, og lar den aldri stå
+  feilaktig fast som "Verksted bestilt" uten en gyldig verkstedtime).
 
 ## Sikkerhet
 
