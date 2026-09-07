@@ -106,11 +106,7 @@
       statusHistorikk: ['StatusHistorikk', 'json'],
       // Prioritet 27.1 (Driftslag i Sjåførkontroll) — fritekstfelt, styrer kun gruppering
       // av bilvalg på Kontroll-skjermen, ingen annen betydning i appen for øvrig.
-      driftslag: ['Driftslag'],
-      // Ny funksjon (2026-09-04): Mobilitetsavtale — ren kjøretøyinformasjon (følger bilen,
-      // IKKE service-/verksted-/sakshistorikk), manuelt av/på-felt. Se Bilinformasjon
-      // (renderBilkort() → infoBody) og statusmerket nederst til høyre i bilkort-hodet.
-      mobilitetsavtale: ['Mobilitetsavtale', 'bool']
+      driftslag: ['Driftslag']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -142,7 +138,7 @@
       id: ['AppId'], rolle: ['Rolle'], tittel: ['Tittel'], brukernavn: ['Brukernavn'], passord: ['Passord']
     }},
     dekkhistorikk: { table: 'TireChanges', fields: {
-      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], km: ['KM', 'num'], kommentar: ['Kommentar']
+      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar']
     }},
     dekkkostnader: { table: 'TireCosts', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], kostnad: ['Kostnad', 'num'], kommentar: ['Kommentar']
@@ -341,8 +337,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.9.0',
-    bygget: '04.09.2026 15:00',
+    versjon: 'v2.7.0',
+    bygget: '03.09.2026 11:20',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 
