@@ -1666,10 +1666,17 @@ function vehicleSisteSjafor(vehicleId){
 }
 // Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
 // en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
+// Prioritet 32 (Del 1): denne automatiske utsjekkingen er UENDRET (samme regel, samme
+// betingelse, samme felt som nullstilles) — det ENESTE nye er en synlig varsling til
+// sjåføren om AT og HVOR det skjedde, slik at en bil ikke stille "forsvinner" fra
+// "biler i drift" et annet sted i appen uten at noen fikk vite hvorfor. Ingen
+// kjøretøystatus, saksmotor eller Airtable-skriving er endret.
 async function startBilokt(vehicleId, navn){
   const navnTrim = (navn || '').trim();
+  let autoUtsjekketBil = null;
   vehicles.forEach(v => {
     if(v.id !== vehicleId && navnTrim && v.aktivSjafor && v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase()){
+      autoUtsjekketBil = v;
       v.aktivSjafor = ''; v.aktivSjaforSiden = '';
     }
   });
@@ -1679,6 +1686,9 @@ async function startBilokt(vehicleId, navn){
   driverActiveVehicleId = vehicleId;
   driverNavn = navnTrim;
   saveDriverLocalSession();
+  if(autoUtsjekketBil){
+    alert(navnTrim + ' var allerede aktiv på ' + vehicleLabel(autoUtsjekketBil) + '.\n' + vehicleLabel(autoUtsjekketBil) + ' ble automatisk sjekket ut.');
+  }
 }
 // "Sjekk ut bil": avslutter biløkten. Kontrollstatus skal IKKE påvirkes — den står
 // fortsatt som kontrollert resten av den operative dagen (isKontrollertIdag er uendret).
@@ -5581,6 +5591,7 @@ function renderDashboard(){
           </div>`;
         }).join('')}
       </div>
+      ${dashKreverListe.length > 5 ? `<div class="required-hint" style="margin-top:8px;">Viser 5 av ${dashKreverListe.length} — +${dashKreverListe.length - 5} flere krever handling, ikke vist her.</div>` : ''}
       <button type="button" class="btn secondary small" style="margin-top:10px;" data-goto-aktivesaker-filter="krever-handling">Se alle saker${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''}</button>
       ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
       `}
@@ -5627,6 +5638,7 @@ function renderDashboard(){
           </div>`;
         }).join('')}
       </div>
+      ${prioriterteBilerMap.size > 5 ? `<div class="required-hint" style="margin-top:8px;">Viser 5 av ${prioriterteBilerMap.size} — +${prioriterteBilerMap.size - 5} flere biler, ikke vist her.</div>` : ''}
       `}
     </div>
 

@@ -1,8 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 31 — regresjonsfiks: timeout på
-Airtable-nettverkskall), basert på faktisk kjørende kode i
-`Benibanos/Biloversikt`.
+Sist konsolidert: 2026-09-07 (Prioritet 32 — tydeligere brukerforståelse
+rundt automatisk utsjekking og avkortede Dashboard-lister), basert på
+faktisk kjørende kode i `Benibanos/Biloversikt`.
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
 alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger
@@ -45,6 +45,19 @@ Reprodusert dynamisk (ikke bare lest i koden) og rettet ved å gi
 `airtableFetch()` en 20-sekunders timeout (`AbortController`) slik at
 enhver forespørsel alltid avgjøres. Se CLAUDE.md "Dataintegritet" for
 detalj.
+
+**Prioritet 32 — Tydeligere brukerforståelse rundt "forsvinnende" biler på
+Dashboard (2026-09-07):** ✅ Implementert og verifisert. Ren
+visningsforbedring — ingen endring i `vehicleHovedstatus()`,
+`vehicleAktivSjafor()`, `vehicleAktiveSaker()`, saksmotoren, biløkt-reglene
+eller Airtable. To tiltak: (1) `startBilokt()` viser nå et synlig varsel
+til sjåføren når den automatisk sjekker ut en annen bil samme sjåfør sto
+aktiv på ("Ola Hansen var allerede aktiv på Bil 5. Bil 5 ble automatisk
+sjekket ut."); (2) Dashboardets "Krever handling nå" og "Prioriterte
+biler" — begge kuttet til topp 5 — viser nå "Viser 5 av X — +X flere …"
+når listen er avkortet, slik at biler som skyves ut/inn av de synlige 5
+ved en endring på en ANNEN bil ikke lenger oppleves som at de
+"forsvinner" uten forklaring. Se CLAUDE.md for full detalj.
 
 ---
 

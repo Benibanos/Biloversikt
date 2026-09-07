@@ -1,8 +1,9 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 31 —
-regresjonsfiks: timeout på Airtable-nettverkskall). **Ved avvik mellom denne
-filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 32 —
+tydeligere brukerforståelse rundt automatisk utsjekking og avkortede
+Dashboard-lister). **Ved avvik mellom denne filen og koden er koden alltid
+sannheten.**
 
 ---
 
@@ -67,6 +68,31 @@ AVGJØRES (lykkes eller feiler synlig) — som igjen lar `_koKjor()` sin kø
 fortsette til neste operasjon uansett hvor dårlig forbindelsen er. Se
 "Dataintegritet" under for full detalj. Bekreftet med en dynamisk,
 reprodusert test (ikke bare kodelesing) før og etter fiksen.
+
+**Prioritet 32 (2026-09-07) — tydeligere brukerforståelse rundt
+"forsvinnende" biler på Dashboard (ren visningsforbedring, ingen
+logikkendring).** Oppfølging av en analyse (ikke feil) av
+`vehicleHovedstatus()`/`vehicleAktivSjafor()`/`vehicleAktiveSaker()`, som
+alle er bekreftet korrekte og UENDRET i denne runden. To reelle,
+bevisste mekanismer i eksisterende kode kunne likevel oppleves som at biler
+"forsvant" uten grunn:
+
+1. `startBilokt()` (linje ~1669–1690) nullstiller automatisk en annen bils
+   `aktivSjafor` dersom samme sjåførnavn allerede sto aktiv der (regelen
+   "én sjåfør, én aktiv biløkt" — uendret). Sjåføren får nå et synlig
+   `alert()`-varsel når dette skjer, med navn på sjåfør og hvilken bil som
+   ble sjekket ut, i stedet for at det skjer stille.
+2. Dashboardets "Krever handling nå" og "Prioriterte biler" bygger begge på
+   `dashKreverListe`, kuttet til topp 5 (`.slice(0, 5)`). En endring på én
+   bil (ny sak, kontroll registrert) kan dermed skyve en annen, uendret bil
+   inn eller ut av de synlige 5 — et rent visningsfenomen, ikke en
+   datafeil. Begge kort viser nå "Viser 5 av X — +X flere …" når listen er
+   avkortet, slik at avkortingen er synlig i stedet for at biler ser ut
+   til å forsvinne.
+
+Ingen endring i `vehicleHovedstatus()`, `vehicleAktivSjafor()`,
+`vehicleAktiveSaker()`, saksmotoren, biløkt-reglene eller noe
+Airtable-skjema — kun to nye, synlige tekstvarsler i eksisterende flyt.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
 AIRTABLE_MIGRATION.md.
