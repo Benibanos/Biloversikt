@@ -401,7 +401,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.8.1',
+    versjon: 'v2.8.0',
     bygget: '07.09.2026 08:31',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
