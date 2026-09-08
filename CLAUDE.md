@@ -17,7 +17,7 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.8.1). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.8.0). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
@@ -200,7 +200,7 @@ utvikling"). Bekreftet med dynamisk test: panelet viser nå
 Endringen er strengt begrenset til Database Status-diagnostikken i
 `renderInnstillinger()`. Ikke rørt: kilometerlogikk (`v.km`,
 `submitKontroll()`), sjåførkontroll/aktiv sjåfør-logikk, selve
-`storage.airtable.js` (fortsatt v2.8.1, uendret), synkroniseringsmekanismer
+`storage.airtable.js` (fortsatt v2.8.0, uendret), synkroniseringsmekanismer
 (`_koKjor()`, `reloadOne()`), eller Dashboard.
 
 For full detalj: resten av denne filen, samt ROADMAP.md og
