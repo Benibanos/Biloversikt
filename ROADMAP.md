@@ -1,7 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-08 (Prioritet 36 — full prosjektopprydding og
-permanent versjonsløsning), basert på faktisk kjørende kode i
+Sist oppdatert: 2026-09-08 (Prioritet 39 — navigasjon og ferdigstilt
+designretning).
+Forrige: Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender). Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
@@ -139,7 +140,88 @@ saker, Service, EU-kontroll, Dekk, Planlegging, Rapporter, mobil-/
 desktopdesign, `_koKjor()`/synkroniseringsmekanismer, eller noe
 Airtable-skjema. Se CLAUDE.md for full detalj.
 
+**Prioritet 39 — Navigasjon og ferdigstilt designretning (2026-09-08):** ✅
+Implementert og verifisert med dynamisk test (92 kontroller grønne, null
+JS-feil). Kun UI/UX og navigasjon.
+
+- Sidemenyen følger referansebildet (Hjem · Biler · Bestill tjenester · Kalender
+  · Aktive saker · Påminnelser · Kostnader · Rapporter · Innstillinger), med
+  teller på Aktive saker og Påminnelser. Historikk og Analyse flyttet til
+  sekundærseksjonen.
+- Ny flate «Bestill tjenester» — kun de fire eksisterende hurtigbestillingene
+  samlet, ingen ny logikk.
+- Kostnadsoversikten har igjen et menypunkt (fantes, men var uten inngang).
+- Kalender: oppfølginger lagt til i dagsvisningen; seksjonen under heter «Alle
+  kommende aktiviteter», så Kalender og Planlegging fremstår som ett system.
+- Kjøretøyinformasjon samler all identitetsdata, inkludert aktiv sjåfør.
+- Biltabellen på Dashboard fikk plass til alle seks kolonner.
+
+**Prioritet 38 — Design 4.1: visuell implementering (2026-09-08):** ✅
+Implementert og verifisert med dynamisk test (68 kontroller grønne, null
+JS-feil). Kun UI/UX: nytt designsystem, ingen ny funksjonalitet, ingen ny
+logikk, ingen nye Airtable-felt, ingen endring i `storage.airtable.js`.
+
+- Ny mørk premium-palett som NY STANDARD (temabryteren beholdes, kun i
+  Innstillinger). Lys drakt bygget i samme tokensystem.
+- Delte presentasjonsklasser: ikonfliser, ett pillesystem, KPI-kort,
+  bestillingskort, oppgaverader, statusliste, nøkkeltallsstripe,
+  understrekfaner.
+- Dashboard: kun 🔔 varselklokke i topplinjen (de to hurtigknappene fjernet
+  etter bestilling), dato vises én gang med «dager igjen»-pille.
+- Kjøretøyprofil: eget løyvekort øverst fjernet — løyvenummer er i stedet
+  fremhevet øverst i Kjøretøyinformasjon.
+- Planlegging INTEGRERT i Kalender (ett menypunkt). `renderPlanlegging()` er
+  uendret i koden, men ikke lenger koblet til noen meny.
+- `#app` utvidet til 1420 px på desktop; duplikat topplinje skjult.
+- `CACHE_VERSION` → `bilpark-v32`. `kontroll.html` synkronisert.
+
+**Prioritet 37 — Dashboard 4.0, Kjøretøyprofil 4.0, Kalender, Kostnader-fane,
+Drivstoff og Mobilitetsgaranti (2026-09-08):** ✅ Implementert og verifisert
+med dynamisk test (Playwright mot appen kjørende med et in-memory-lager med
+identisk storage-grensesnitt — ingen kontakt med produksjonsbasen i Airtable).
+
+- **Hurtigbestilling** (fire kort på Dashboard og Kjøretøyprofil) — fire delte
+  snarveier til EKSISTERENDE skjemaer: `bestillService()`,
+  `bestillEuKontroll()`, `bestillDekkskift()`, `bestillVerkstedtime()`. Ingen
+  ny lagring, ingen ny datamodell. Simulert ende-til-ende:
+  bestilling → Planlegging → «Marker utført» → historikk, uten
+  dobbeltregistrering, med `fraPlanlagtServiceId`/`fraPlanlagtDekkskiftId`
+  korrekt satt og `v.km` bekreftet uendret.
+- **Dashboard 4.0** — fire KPI-kort, hurtigbestilling, «Kommende oppgaver»
+  (erstatter «Kommer snart», bygger på `flatePlanleggingData(7)`), biltabell
+  med løyvenummer som egen kolonne, og Bilparkhelse flyttet fra topplinjen til
+  panelet «Bilpark status». Ingen nye tellinger.
+- **Kjøretøyprofil 4.0** — identitetslinje med fremhevet løyvenummer, eget
+  Mobilitetsgaranti-felt, fire nøkkeltall, fire bestillingskort og faner
+  (Oversikt/Historikk/Skader/Dekk/Kostnader) i stedet for akkordion. Bilbilde
+  fjernet fra visningen; `hasPhoto` og Photos-radene er urørt i databasen.
+- **Kalender** (🗓️, nytt menypunkt) — ren visning av planlagte servicer,
+  planlagte dekkskift, verkstedtimer og EU-frister, gruppert på dato. Ingen ny
+  datamodell.
+- **Kostnader-fane per kjøretøy** — filtrert visning av `getKostnadsposter()`.
+  Ingen ny kostnadsmotor.
+- **To nye felt** (`Drivstoff`, `Mobilitetsgaranti` på `Vehicles`), registrert
+  i `LIST_TABLES` samtidig som de tas i bruk; storage `v2.9.0`, `?v=2.9.0`,
+  `CACHE_VERSION = 'bilpark-v31'`.
+- **Dokumenter-fane:** 📋 Parkert etter beslutning fra bruker — krever egen
+  datamodell og Airtable-tabell, og er derfor ikke bygget.
+
+🔧 **Funn i denne runden — `kontroll.html` var en stale fullkopi av
+`index.html`.** Filen lå én leveranse bak (manglet hele «ute av drift»-
+arbeidet), slik at sjåførmodus kjørte gammel kode. Synkronisert til en eksakt
+kopi i denne leveransen. 📋 **Anbefalt egen sak:** erstatt `kontroll.html` med
+en ren omdirigering til `index.html?sjafor=1`, slik at prosjektet ikke lenger
+har to nesten like HTML-filer som må holdes manuelt i sync — dagens løsning
+bryter med prinsippet «ingen parallelle løsninger».
+
 ---
+
+## Kalender (inkluderer Planlegging)
+
+✅ Implementert og verifisert (Prioritet 37, utvidet i Prioritet 38) — ren
+visning, ingen egen datamodell. Fra Prioritet 38 er Planlegging integrert i
+Kalender, som dermed er hovedvisningen for planlagt service, planlagt
+dekkskift, EU-kontroll og verkstedtimer. Se CLAUDE.md.
 
 ## Aktive saker
 

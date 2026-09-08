@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-08 (Prioritet 36 —
-full prosjektopprydding og permanent versjonsløsning). **Ved avvik mellom
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-08 (Prioritet 39 —
+navigasjonsopprydding og ferdigstilling av designretningen). **Ved avvik mellom
 denne filen og koden er koden alltid sannheten.**
 
 ---
@@ -241,6 +241,134 @@ desktopdesign, eller noe Airtable-skjema. Se ROADMAP.md for
 valideringsresultater og AIRTABLE_MIGRATION.md punkt 1 for den oppdaterte
 versjonsregelen.
 
+**Prioritet 39 (2026-09-08) — Navigasjon og ferdigstilt designretning.** Ingen
+ny forretningslogikk, ingen nye Airtable-felt, ingen endring i
+`storage.airtable.js`.
+
+1. **Sidemenyen følger referansebildet:** Hjem · Biler · Bestill tjenester ·
+   Kalender · Aktive saker · Påminnelser · Kostnader · Rapporter ·
+   Innstillinger. Hvert punkt peker på en skjerm som ALLEREDE fantes —
+   «Påminnelser» er den uendrede varsellampe-oversikten
+   (`renderVarslerOversikt()`), og «Kostnader» er `renderKostnadsoversikt()`,
+   som fantes men manglet menypunkt. Historikk og Analyse er flyttet ned i
+   sekundærseksjonen (fortsatt fullt nåbare); Historikk nås primært fra
+   Kjøretøyprofil, Aktive saker og Rapporter. Aktive saker og Påminnelser viser
+   teller som rød pille (`totaltKreverHandlingCount()` / `allActiveVarsellys()`).
+2. **Ny flate `renderBestillTjenester()` (screen `'bestill'`)** — menypunktet
+   «🛠️ Bestill tjenester». Inneholder KUN de fire eksisterende
+   hurtigbestillingskortene (`bestillService`/`bestillEuKontroll`/
+   `bestillDekkskift`/`bestillVerkstedtime`) pluss en liste over kommende
+   avtaler fra `flatePlanleggingData(7)`. Ingen ny logikk, ingen ny lagring.
+3. **Kalender er arbeidsflaten, Planlegging er dataene.** Oppfølginger
+   (`sak.followUpDate`) er lagt til i kalenderens dagsvisning, slik at alle fem
+   typer — service, dekkskift, EU-kontroll, verkstedtimer og oppfølginger — nå
+   vises samme sted. Seksjonen under kalenderen heter «📋 Alle kommende
+   aktiviteter» i stedet for «Planlegging», så det ikke oppleves som to systemer.
+4. **Kjøretøyinformasjon samler all identitetsdata:** aktiv sjåfør er lagt til,
+   sammen med løyvenummer (fremhevet øverst), reg.nr, bilgruppe, biltype,
+   årsmodell, drivstoff, driftslag og mobilitetsgaranti. Mobilitetsgarantien
+   vises fortsatt også som eget panel øverst i profilen.
+5. **Spacing-finjustering:** biltabellen på Dashboard fikk plass til alle seks
+   kolonner (kolonnen «Aktiv sjåfør» heter «Sjåfør» i tabellhodet, og tom verdi
+   vises som «—» med forklarende tooltip i stedet for «⚪ Tilgjengelig»).
+   Biloversikt-siden er uendret.
+
+**Prioritet 38 (2026-09-08) — Design 4.1: visuell implementering.** Ingen ny
+funksjonalitet, ingen ny logikk, ingen nye Airtable-felt og ingen endring i
+`storage.airtable.js` (derfor står `?v=2.9.0` stille). Kun designsystem og
+presentasjon.
+
+1. **Nytt designsystem.** `:root[data-theme="dark"]` har fått en ny premium-
+   palett (#080C0B / #101614 / #19A66B) og et lite sett nye tokens
+   (`--surface-2`, `--surface-3`, `--line-soft`, `--ink-2`, `--purple`,
+   `--sh-card`, `--sh-hover`). Lys drakt har fått de samme nye tokenene, slik at
+   det er ETT system i to drakter. Fordi alle skjermer allerede henter farger
+   fra disse variablene, løftes Aktive saker, Historikk, Rapporter, Analyse og
+   Innstillinger automatisk — ingen skjermspesifikk markup er endret for det.
+2. **Mørk modus er ny standard.** `themePreference` faller nå tilbake til
+   `'dark'` i stedet for `'system'` når ingen verdi er lagret. Brukere som
+   aktivt har valgt lys eller «følg enheten» beholder sitt valg. Temabryteren
+   ligger fortsatt KUN i Innstillinger (bevisst — ikke i sidemenyen eller på
+   Dashboard).
+3. **Delte presentasjonsklasser:** `.flis` (ikonflis med emoji i tonet flate),
+   `.p38-pill` (ett pillesystem som visuelt erstatter blandingen av `.badge` og
+   `.dash-chip`), `.p38-task`, `.p38-case`, `.p38-statrow`, `.p38-panel-head`,
+   `.profil-stat4`, `.p38-loyve-rad` og understrekfaner (`.profil-tab`).
+   `P38_STATUS_STIL` er en ren farge-oppslagstabell per hovedstatus — den
+   inneholder ingen logikk, og statusverdiene kommer fortsatt utelukkende fra
+   `vehicleHovedstatus()`.
+4. **Dashboard:** hilsen-kortet er erstattet av en slank topplinje. De to
+   hurtigknappene der (✅ kontroll / 🔧 verkstedtime) er FJERNET etter
+   bestilling — begge funksjonene finnes fortsatt på Kjøretøyprofilen og på
+   sine egne skjermer. Igjen står kun 🔔 varselklokken, som åpner den
+   eksisterende Varsler-skjermen og viser antall aktive varsellamper
+   (`allActiveVarsellys()`). «Kommende oppgaver» viser nå dato/klokkeslett én
+   gang, med en fargekodet «dager igjen»-pille ved siden av (`daysUntil()`).
+5. **Planlegging integrert i Kalender.** Kalender er nå hovedvisningen:
+   månedsrutenett + valgt dato + hele planleggingsseksjonen
+   (`planleggingSeksjonHtml()`), som bruker samme `flatePlanleggingData()` og
+   samme periodevelger (7/30/90 dager) som Planlegging-skjermen hadde.
+   `renderPlanlegging()` er UENDRET i koden, men ikke lenger koblet til noen
+   meny. Mobilens hjemskjerm peker nå til Kalender.
+6. **Bredere desktop-grid:** `#app` går fra 1080 px til 1420 px på skjermer
+   ≥1200 px, og den duplikate merkevare-topplinjen skjules på desktop (sidemenyen
+   er merkevareblokken). Mobil og smale skjermer er uendret.
+
+Ikke rørt: Airtable-struktur, aktiv sjåfør, kilometerlogikk, service-, EU- og
+dekk-logikk, historikk, rapporter, alle skjemaer og hele sjåførmodus.
+
+**Prioritet 37 (2026-09-08) — Dashboard 4.0, Kjøretøyprofil 4.0, Kalender,
+Kostnader-fane, Drivstoff og Mobilitetsgaranti.** Bestilt som en
+OMORGANISERING: eksisterende funksjoner → ny plassering → bedre arbeidsflyt.
+Ingen ny forretningslogikk, ingen ny statusmotor, ingen nye tabeller.
+
+1. **Hurtigbestilling (fire kort, Dashboard + Kjøretøyprofil).** Fire delte
+   snarveier — `bestillService()`, `bestillEuKontroll()`, `bestillDekkskift()`,
+   `bestillVerkstedtime()` — som kun setter eksisterende UI-state og navigerer
+   til den arbeidsflaten som allerede eier flyten. Flyten Planlegging → Utført
+   → Historikk er UENDRET: `submitPlanlagtService()`/`fullforPlanlagtService()`,
+   `submitPlanlagtDekkskift()`/`submitFullforPlanlagtDekkskift()` og
+   `submitVT()`. EU-kontroll har ingen egen datamodell — kortet forhåndskrysser
+   «🚦 Gjelder EU-kontroll» (`vtEuForhandskrysset` → `verkstedtime.type =
+   'eu-kontroll'`), som er den eneste EU-bestillingsveien som finnes.
+2. **Dashboard 4.0** (`renderDashboard()`, kun desktop-grenen): fire KPI-kort
+   (Aktive saker / Kommende frister / Biler i drift / Planlagte timer),
+   hurtigbestillingsraden, «Kommende oppgaver» og en biltabell med
+   **løyvenummer som egen kolonne**. Høyre kolonne: Bilpark status, Krever
+   handling nå, Prioriterte biler. Kortet «Kommer snart» er ERSTATTET av
+   «Kommende oppgaver», som bygger på `flatePlanleggingData(7)` — samme kilder
+   pluss service/EU/dekk. Bilparkhelse-stripen er FLYTTET fra topplinjen
+   (`shell-top`) til panelet «Bilpark status»; samme tellinger
+   (`vehicleHovedstatus()`/`vehicleAktivSjafor()`), samme klikkfiltre.
+3. **Kalender** (`renderKalender()`, nytt menypunkt 🗓️). REN VISNING av fire
+   eksisterende kilder gruppert på dato: `planlagteServicer`,
+   `planlagteDekkskift`, `verkstedtimer` (inkl. `type='eu-kontroll'`) og
+   `v.euGodkjentTil`. Datoer med aktivitet markeres; valgt dato viser alle
+   avtaler med klokkeslett. Ingen registrering skjer herfra — klikk fører til
+   den eksisterende arbeidsflaten. Ingen ny datamodell, ingen ny tabell.
+4. **To nye kjøretøyfelt** — `drivstoff` (fast liste: diesel/bensin/elektrisk/
+   hybrid/hvo/annet) og `mobilitetsgaranti` (fritekst). Begge registrert i
+   `LIST_TABLES.vehicles` i `storage.airtable.js` SAMTIDIG som de tas i bruk
+   (feltregelen), storage-versjon økt til `v2.9.0` og `?v=`-parameteren i
+   `index.html`/`kontroll.html` til `2.9.0`. Se AIRTABLE_MIGRATION.md punkt 6.
+5. **Kostnader-fane per kjøretøy** — filtrert visning av `getKostnadsposter()`
+   (verkstedtimer, saker, dekkkostnader, skader) med `bestKostnad()`. Samme
+   kostnadsmotor som Kostnadsoversikt og Kostnadsrapport. Ingen ny beregning.
+6. **kontroll.html var en STALE fullkopi av index.html** (én leveranse bak —
+   manglet hele «ute av drift»-arbeidet, og brukte `vehicles` der index.html
+   brukte `aktiveVehicles`). Sjåfører kjørte altså gammel kode. Filen er i
+   denne leveransen synkronisert til å være en EKSAKT kopi av `index.html`
+   (sjåførmodus utledes av filnavnet, se `driverMode`-deteksjonen, og
+   manifestet byttes i kjøretid til `manifest-sjafor.json`). **Anbefalt egen
+   sak:** erstatt `kontroll.html` med en ren omdirigering til
+   `index.html?sjafor=1`, slik at prosjektet ikke lenger har to nesten like
+   HTML-filer å holde i sync.
+
+Ikke rørt: kilometerlogikk (`v.km` skrives fortsatt kun fra de fire tillatte
+stedene), sjåførkontroll/aktiv sjåfør, saksmotoren, Aktive saker, Service-,
+Dekk- og Verksted-arbeidsflatene, Rapporter, Analyse, mobilvisningen
+(`renderMobilHjem()`) og alt Airtable-skjema utover de to nye feltene.
+
 ---
 
 ## Produktvisjon
@@ -284,12 +412,12 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v30'`). To separate
+  offline-fallback (`CACHE_VERSION = 'bilpark-v32'`). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`). Ikoner
   ligger i `icons/` (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.8.1`, cache-bustet via `?v=2.8.1` på script-taggen i `index.html` OG
+  `v2.9.0`, cache-bustet via `?v=2.9.0` på script-taggen i `index.html` OG
   `kontroll.html` — se "Versjonskontroll (permanent løsning)" under for
   hvordan Database status verifiserer dette automatisk). Dette er den
   ENESTE Airtable-storage-filen i prosjektet — ingen
@@ -314,8 +442,14 @@ Adaptivt layout med sidebar-navigasjon (`renderDesktopSidebarHtml()`):
   bil starter jeg med. Alt annet hører hjemme andre steder.
 - Aktive saker
 - Historikk (samlet hub for kontroll-/service-/dekk-/skadehistorikk)
-- Planlegging
-- Biloversikt
+- Kalender (📅 — Prioritet 38/39: Planlegging er INTEGRERT her, inkludert
+  oppfølginger. `renderPlanlegging()` er uendret i koden, men ikke lenger koblet
+  til noen meny — samme mønster som Prioritet 27 brukte for Kontrolloversikt/
+  Skadeoversikt m.fl.)
+- Biler (Biloversikt)
+- Bestill tjenester
+- Påminnelser (varsellamper)
+- Kostnader
 - Rapporter (📊, eget menypunkt atskilt fra Analyse)
 - Analyse (📈, eget menypunkt)
 - Innstillinger (inkl. Database status, synkroniseringsstatus, diagnoseverktøy)
@@ -337,18 +471,47 @@ Adaptivt layout med sidebar-navigasjon (`renderDesktopSidebarHtml()`):
   localStorage-nøkkel). Vurder som en ny, separat sak dersom dette fortsatt
   er ønsket.
 
-## Kjøretøyprofil
+## Kjøretøyprofil (4.0, Prioritet 37)
 
-Skal kun vise (fire faste felt):
+**Regelendring, bevisst besluttet:** den tidligere regelen «skal kun vise fire
+faste felt (Registreringsnummer / Kilometerstand / Siste service / EU-godkjent
+til)» er erstattet. Bakgrunn: løyvenummer brukes daglig operativt og lå gjemt i
+redigeringsskjemaet. Profilen er nå bygget slik (`renderBilkort()`):
 
-- Registreringsnummer
-- Kilometerstand
-- Siste service
-- EU-godkjent til
+1. **Identitetslinje** — skilt/reg.nr, bilnummer, merke/modell, biltype,
+   bilgruppe, årsmodell, drivstoff, hovedstatus, aktiv sjåfør, og
+   **løyvenummer i en egen, fremhevet boks**.
+2. **Mobilitetsgaranti** — eget, tydelig felt rett under identitetslinjen
+   (operativt felt ved havari/veihjelp).
+3. **Nøkkeltall (fire kort)** — Kilometerstand, Siste service, Neste service,
+   EU-godkjent til. Samme fire tall som før, ny plassering.
+4. **Hurtigbestilling (fire kort)** — Service, EU-kontroll, Dekkskifte,
+   Verkstedtime, med bilen forhåndsvalgt. Sekundært: Registrer kontroll,
+   Registrer skade, Åpne aktive saker.
+5. **Faner** (`bilkortAktivFane`) — Oversikt (= Operativ status + service/dekk/
+   EU-statuslenkene), Historikk (tidslinje/nøkkeltall/kontroller), Skader,
+   Dekk (ren visning), Kostnader (ren visning). Erstatter de tidligere
+   akkordion-radene. **Ikke legg til nye faner uten egen beslutning.**
+   «Dokumenter» er bevisst IKKE bygget (parkert av bruker, Prioritet 37).
+6. **Høyre kolonne** — Kommende oppgaver (per bil), Aktive saker,
+   Kjøretøyinformasjon (løyvenummer først), og «Rediger informasjon» som
+   åpner det uendrede Bilinformasjon-skjemaet.
+7. **Faresone** nederst — uendret (ute av drift, slett bil).
 
-All annen operativ informasjon ligger i Operativ status. Profilen er
-restrukturert til seks seksjoner — verifiser fortsatt seksjonsinndeling
-direkte i koden ved videre endringer.
+**Bilbilde er fjernet fra visningen** (ingen operativ verdi). Ingen data er
+slettet: `v.hasPhoto` og eventuelle `vehicle:{id}`-rader i `Photos` er urørt —
+kun opplasting og visning er tatt bort fra grensesnittet.
+
+**Endring i Prioritet 38:** løyvenummer har IKKE lenger et eget kort ved siden
+av skiltet øverst. Det ligger i stedet fremhevet øverst i panelet
+«🚐 Kjøretøyinformasjon» (`.p38-loyve-rad`), sammen med reg.nr, bilgruppe,
+årsmodell, drivstoff, biltype, driftslag og mobilitetsgaranti.
+
+Fanene «Dekk» og «Kostnader» er RENE VISNINGER av eksisterende data. All
+registrering/redigering skjer fortsatt kun på de dedikerte arbeidsflatene
+(`renderDekkSkjerm()`) og gjennom den eksisterende kostnadsmotoren
+(`getKostnadsposter()`/`bestKostnad()`) — ingen parallell dekk- eller
+kostnadsmotor er innført.
 
 ## Sjåførkontroll
 

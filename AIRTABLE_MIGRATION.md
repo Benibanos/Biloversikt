@@ -19,8 +19,10 @@ kategorier — ingen av dem er Airtable-kolonner.
 ## 1. Autoritativ storage-fil og versjon
 
 - **Fil:** `storage.airtable.js` (eneste Airtable-storage-fil i prosjektet)
-- **Versjon:** `v2.8.1` (`window.storageAirtableInfo.versjon`)
-- **Cache-busting:** `<script src="storage.airtable.js?v=2.8.1">` i BÅDE
+- **Versjon:** `v2.9.0` (`window.storageAirtableInfo.versjon`) — økt i
+  Prioritet 37 fordi `LIST_TABLES.vehicles` fikk to nye felt (`Drivstoff`,
+  `Mobilitetsgaranti`)
+- **Cache-busting:** `<script src="storage.airtable.js?v=2.9.0">` i BÅDE
   `index.html` og `kontroll.html`
 - **Regel (permanent versjonsløsning, Prioritet 36):** øk BÅDE `?v=`-tallet
   på script-taggen i `index.html`/`kontroll.html` OG `versjon`-verdien i
@@ -62,6 +64,8 @@ kategorier — ingen av dem er Airtable-kolonner.
 | uteAvDriftKommentar | UteAvDriftKommentar | tekst |
 | statusHistorikk | StatusHistorikk | JSON (tekst) |
 | **driftslag** | **Driftslag** | tekst |
+| **drivstoff** | **Drivstoff** | tekst (Prioritet 37) |
+| **mobilitetsgaranti** | **Mobilitetsgaranti** | tekst (Prioritet 37) |
 
 ### Damages (app-nøkkel: `damages`)
 
@@ -260,9 +264,24 @@ Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
 ## 6. Nye felt siden forrige dokumenterte migrering
 
-`Driftslag` (Vehicles) er det nyeste feltet, lagt til i Prioritet 27.1 og
-korrekt registrert i `LIST_TABLES` i nåværende `storage.airtable.js` — sendes
-og leses korrekt. Ingen navneendringer på eksisterende felt er gjort.
+**Prioritet 37 (2026-09-08) — to nye felt på `Vehicles`:**
+
+| App-felt | Airtable-felt | Type | Verdier | Brukes til |
+|---|---|---|---|---|
+| `drivstoff` | `Drivstoff` | singleLineText | `diesel`, `bensin`, `elektrisk`, `hybrid`, `hvo`, `annet` (lagres som nøkkelen, vises via `DRIVSTOFF_LABEL` i `index.html`) | Vises i Kjøretøyprofil (identitetslinje + Kjøretøyinformasjon) og i Biloversikt (bilkort + Dashboardets biltabell) |
+| `mobilitetsgaranti` | `Mobilitetsgaranti` | singleLineText | Fritekst, f.eks. «Mercedes Service24h – gyldig til 14/08/2027» | Operativt felt ved havari/veihjelp. Vises som eget, fremhevet felt øverst i Kjøretøyprofilen |
+
+Begge er registrert i `LIST_TABLES.vehicles` i `storage.airtable.js` SAMTIDIG
+som de tas i bruk i `index.html` (feltregelen). Feltene opprettes automatisk i
+Airtable av «🔄 Synkroniser Airtable» i Innstillinger → Database status (krever
+`schema.bases:write`), siden EXPECTED_SCHEMA utledes direkte fra `LIST_TABLES`.
+Eksisterende kjøretøy får tom verdi inntil den fylles ut — ingen migrering av
+eksisterende data er nødvendig, og ingen eksisterende felt er endret eller
+fjernet.
+
+`Driftslag` (Vehicles) var det forrige nye feltet, lagt til i Prioritet 27.1 og
+korrekt registrert i `LIST_TABLES` — sendes og leses korrekt. Ingen
+navneendringer på eksisterende felt er gjort.
 
 ## 7. Felt-kandidater — kun skrevet, aldri lest (Prioritet 28-felterevisjon)
 
