@@ -133,7 +133,18 @@
       statusHistorikk: ['StatusHistorikk', 'json'],
       // Prioritet 27.1 (Driftslag i Sjåførkontroll) — fritekstfelt, styrer kun gruppering
       // av bilvalg på Kontroll-skjermen, ingen annen betydning i appen for øvrig.
-      driftslag: ['Driftslag']
+      driftslag: ['Driftslag'],
+      // PRIORITET 37 (Dashboard 4.0 / Kjøretøyprofil 4.0) — to nye felt på kjøretøyet,
+      // registrert her SAMTIDIG som de tas i bruk i index.html (FELTREGELEN i CLAUDE.md).
+      // Uten denne registreringen ville begge forsvunnet stille ved neste henting fra
+      // Airtable — nøyaktig samme feil som rammet ServiceIntervallKm/EuGodkjentTil/
+      // AktivSjafor/Driftslag tidligere.
+      //   drivstoff        — fast verdiliste i appen (diesel/bensin/elektrisk/hybrid/hvo/annet),
+      //                      lagret som ren tekst her slik at Airtable-feltet kan være
+      //                      singleLineText (opprettes automatisk av Database status).
+      //   mobilitetsgaranti — fritekst, brukes operativt ved havari/veihjelp.
+      drivstoff: ['Drivstoff'],
+      mobilitetsgaranti: ['Mobilitetsgaranti']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -401,8 +412,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.8.1',
-    bygget: '07.09.2026 08:31',
+    versjon: 'v2.9.0',
+    bygget: '08.09.2026 11:30',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 
