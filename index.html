@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.8.1"></script>
+<script src="storage.airtable.js?v=2.8.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -609,9 +609,6 @@
   .vl-indicator.red{color:var(--red);}
   .vl-indicator.green{color:var(--green);}
   .vl-indicator.amber{color:var(--amber);}
-  /* Prioritet 33: nøytral (verken varsel- eller "alt ok"-farget) — brukes for "🕓 Sjåfør
-     i dag" på bilkortet, som bevisst skal se annerledes ut enn "👤 Aktiv sjåfør" (amber). */
-  .vl-indicator.unset{color:var(--muted);}
 
   /* ---- Innstillinger ---- */
   .settings-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
@@ -1667,50 +1664,18 @@ function vehicleSisteSjafor(vehicleId){
   const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
   return siste.sjafor || null;
 }
-// ================= Prioritet 34: Aktiv sjåfør følger turnus, ikke bare biløkt =================
-// "Aktiv sjåfør" skal representere HVEM SOM DISPONERER BILEN I INNEVÆRENDE SKIFT — ikke
-// bare hvem som har startet en teknisk biløkt via sjåfør-URL-en. Rotårsak til at dette
-// tidligere ikke stemte (se Prioritet 26.7/32/33-kommentarer): v.aktivSjafor ble KUN satt
-// av startBilokt(), som igjen KUN ble kalt fra driverMode-grenen i submitKontroll(). En
-// kontroll registrert av en driftskoordinator via det vanlige ✅ Kontroll-ikonet i
-// administrasjonsdelen satte derfor ALDRI "Aktiv sjåfør", selv om sjåføren fortsatt
-// disponerte bilen resten av skiftet.
-//
-// Løsning: selve tildelingen (kryss-bil-utsjekking + varsel + feltoppdatering) er skilt ut
-// hit, slik at BEGGE registreringskanaler (sjåførmodus OG administrasjonsdelen) kaller
-// nøyaktig samme logikk fra submitKontroll() — se der. driverActiveVehicleId/
-// saveDriverLocalSession() (sjåførens EGEN enhets lokale sesjon, brukt av "Min Bil") er
-// bevisst IKKE med her — de hører fortsatt hjemme kun i startBilokt() under, som er den
-// eneste som skal kalles fra driverMode. vehicleAktivSjafor()/vehicleSisteSjafor() er
-// UENDRET — dette endrer kun NÅR/HVOR feltene de leser fra faktisk blir satt.
-//
-// Én sjåfør kan kun disponere én bil om gangen — en ev. annen aktiv bil samme sjåfør
-// disponerer fra før sjekkes automatisk ut (uendret regel fra tidligere startBilokt()),
-// med samme synlige varsel til den som registrerer kontrollen (sjåfør ELLER administrator).
-async function settAktivSjaforForKontroll(vehicleId, navn){
+// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
+// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
+async function startBilokt(vehicleId, navn){
   const navnTrim = (navn || '').trim();
-  let autoUtsjekketBil = null;
   vehicles.forEach(v => {
     if(v.id !== vehicleId && navnTrim && v.aktivSjafor && v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase()){
-      autoUtsjekketBil = v;
       v.aktivSjafor = ''; v.aktivSjaforSiden = '';
     }
   });
   const v = vehicles.find(x => x.id === vehicleId);
   if(v){ v.aktivSjafor = navnTrim; v.aktivSjaforSiden = new Date().toISOString(); }
   await saveVehicles();
-  if(autoUtsjekketBil){
-    alert(navnTrim + ' var allerede aktiv på ' + vehicleLabel(autoUtsjekketBil) + '.\n' + vehicleLabel(autoUtsjekketBil) + ' ble automatisk sjekket ut.');
-  }
-}
-// Starter en biløkt for `navn` på `vehicleId` — kalles KUN fra driverMode (se
-// submitKontroll()/attachDriverAlleredeKontrollertListeners()). Setter aktiv sjåfør (via
-// settAktivSjaforForKontroll() over, samme logikk som administrasjonsdelen nå også bruker)
-// OG sjåførens lokale enhets-sesjon, slik at "Min Bil"-skjermen kjenner igjen aktiv bil
-// ved neste besøk på SAMME enhet. Uendret oppførsel/signatur fra før Prioritet 34.
-async function startBilokt(vehicleId, navn){
-  const navnTrim = (navn || '').trim();
-  await settAktivSjaforForKontroll(vehicleId, navnTrim);
   driverActiveVehicleId = vehicleId;
   driverNavn = navnTrim;
   saveDriverLocalSession();
@@ -3006,6 +2971,17 @@ function vehicleServiceStatus(v){
   if(gjenstaende <= SERVICE_VARSEL_KM_GUL) return {status:'snart-gul', ikon:'🟡', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
   return {status:'ok', ikon:'🟢', tekst:`${gjenstaende.toLocaleString('nb-NO')} km igjen til service`, gjenstaende};
 }
+// Dashboard "Krever handling nå" — Regel 2 (redusert støy): en bil med forfalt service skal
+// IKKE vises som et akutt handlingspunkt dersom det allerede finnes en AKTIV planlagt
+// service-avtale for bilen (planlagteServicer, egen datamodell — se deklarasjonen av
+// planlagteServicer). "Aktiv" er her bevisst definert som dato >= i dag: en planlagt avtale
+// hvis dato har PASSERT uten at den er markert utført (fullforPlanlagtService() ville da ha
+// fjernet oppføringen fra planlagteServicer) regnes IKKE som aktiv — bilen faller da tilbake
+// til Krever handling nå igjen, slik at en glemt/ikke-fulgt-opp avtale aldri kan skjule et
+// reelt problem stille. Ingen ny datamodell — gjenbruker planlagteServicer uendret.
+function vehicleHarAktivPlanlagtService(vehicleId){
+  return planlagteServicer.some(t => t.vehicleId === vehicleId && t.dato >= todayISO());
+}
 // ---- EU-kontroll (periodisk kjøretøykontroll) — ny funksjonalitet, samme mønster som
 // Service (Prioritet 26.3). Ett datofelt på selve kjøretøyet (v.euGodkjentTil), ingen
 // egen historikk-liste — kun forfallsdatoen er relevant å spore, i motsetning til
@@ -3026,6 +3002,17 @@ function vehicleEuKontrollStatus(v){
   if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER_ROD) return {status:'snart-rod', ikon:'🔴', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
   if(gjenstaende <= EU_KONTROLL_VARSEL_DAGER_GUL) return {status:'snart-gul', ikon:'🟡', tekst:`${gjenstaende} dag${gjenstaende===1?'':'er'} igjen`, gjenstaende};
   return {status:'ok', ikon:'🟢', tekst:`Godkjent til ${fmt(v.euGodkjentTil)}`, gjenstaende};
+}
+// Dashboard "Krever handling nå" — Regel 3 (forberedt EU-kontroll-støtte): en bil med forfalt
+// EU-kontroll skal IKKE vises som et akutt handlingspunkt dersom det allerede finnes en
+// registrert, kommende verkstedtime for EU-kontroll. Avgjøres UTELUKKENDE av det strukturerte
+// feltet WorkshopAppointments.Type (verkstedtime.type === 'eu-kontroll', satt via avkrysnings-
+// boksen "Gjelder EU-kontroll" i Ny verkstedtime-skjemaet) — ALDRI ved fritekstsøk i
+// beskrivelse-feltet, som ville vært en gjetning på ustrukturert data. Samme "aktiv"-prinsipp
+// som vehicleHarAktivPlanlagtService() over: kun kommende (dato >= i dag) timer teller: en
+// passert, ikke-fullført EU-time faller tilbake til Krever handling nå.
+function vehicleHarRegistrertEuTime(vehicleId){
+  return verkstedtimer.some(t => t.vehicleId === vehicleId && t.type === 'eu-kontroll' && t.dato >= todayISO());
 }
 function fmtDateObj(d){
   return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
@@ -4115,6 +4102,13 @@ async function submitAddVT(ev){
   const telefonEl = document.getElementById('vt-telefon');
   const kontaktperson = kontaktEl ? kontaktEl.value.trim() : '';
   const telefon = telefonEl ? telefonEl.value.trim() : '';
+  // Regel 3 (forberedt EU-kontroll-støtte, se vehicleHarRegistrertEuTime()): strukturert
+  // markering av verkstedtimen via WorkshopAppointments.Type — kun tilgjengelig når timen
+  // ikke er koblet til en Aktiv Sak (EU-kontroll-frister oppretter ingen sak). Feltet er
+  // allerede registrert i LIST_TABLES i storage.airtable.js (historisk, se CLAUDE.md), så
+  // ingen ny databasekolonne trengs — kun aktiv bruk av et eksisterende felt.
+  const euKontrollEl = document.getElementById('vt-eu-kontroll');
+  const type = (euKontrollEl && euKontrollEl.checked) ? 'eu-kontroll' : '';
   const msgEl = document.getElementById('vt-msg');
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
@@ -4124,7 +4118,7 @@ async function submitAddVT(ev){
   const sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
   verkstedtimer.push({
     id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
-    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon
+    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type
   });
   await saveVerkstedtimer();
   if(sak){
@@ -4470,14 +4464,6 @@ async function submitKontroll(ev){
       driverScreen = 'min-bil';
       render();
     } else {
-      // Prioritet 34: administrasjonsdelens registrering av kontroll (det vanlige
-      // ✅ Kontroll-ikonet) setter nå "Aktiv sjåfør" akkurat som sjåførmodus gjør —
-      // samme funksjon, samme kryss-bil-utsjekking og samme synlige varsel dersom
-      // sjåføren allerede disponerte en annen bil. IKKE startBilokt() her — den
-      // hører til sjåførens EGEN enhets lokale sesjon (driverActiveVehicleId/
-      // saveDriverLocalSession), som en administrator som registrerer på vegne av
-      // noen andre ikke skal overstyre.
-      await settAktivSjaforForKontroll(vehicleId, sjafor);
       goTo('bilkort', vehicleId);
     }
   }catch(err){
@@ -5503,11 +5489,21 @@ function renderDashboard(){
   // Optimalisering 15 (Del 5): kun kritiske saker/ute av drift skal farge panelet rødt —
   // manglende kontroll (og oppfølging i dag) er lavere alvorlighetsgrad og skal IKKE lenger
   // gjøre hele "Krever handling nå" rød bare fordi noen biler ikke er kontrollert ennå.
-  const euForfalteBiler = aktiveVehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt');
-  const serviceForfalteBiler = aktiveVehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt');
+  // Regel 2/3 (Dashboard "Krever handling nå" — redusert støy): forfalt service/EU-kontroll
+  // skal ikke telle som et akutt handlingspunkt dersom handlingen allerede er igangsatt (aktiv
+  // planlagt service, hhv. registrert kommende EU-time). Se vehicleHarAktivPlanlagtService()/
+  // vehicleHarRegistrertEuTime() for full begrunnelse, inkl. at en PASSERT, ikke-fullført
+  // avtale bevisst faller tilbake hit igjen i stedet for å forsvinne stille.
+  const euForfalteBiler = aktiveVehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt' && !vehicleHarRegistrertEuTime(v.id));
+  const serviceForfalteBiler = aktiveVehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt' && !vehicleHarAktivPlanlagtService(v.id));
   const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0 || serviceForfalteBiler.length > 0;
   const dashKreverListe = [];
-  uteAvDriftBiler.forEach(v => dashKreverListe.push({sort:-1, ikon:'⛔', prioritet:'Kritisk', vehicleId:v.id, linje1:'Ute av drift', linje2: v.uteAvDriftArsak || '', aksjon:'Vurder driftssituasjon'}));
+  // Regel 1 (Dashboard "Krever handling nå" — redusert støy): biler ute av drift skal IKKE
+  // lenger vises som et eget element i denne listen — "ute av drift" er allerede en håndtert
+  // tilstand (bevisst valg), ikke et uløst avvik som krever ny handling. Bilen forblir uendret
+  // synlig i Biloversikt og i sin egen "ute av drift"-oversikt (uteAvDriftBiler brukes fortsatt
+  // under, både til krHarKritisk over og til fotnoten under selve listen i renderDashboard sitt
+  // returnerte markup — "+X biler ute av drift — ikke saker, vises kun her og i Biloversikt").
   kritiskeSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
     dashKreverListe.push({sort:0, ikon:'🔴', prioritet:'Kritisk', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
@@ -5624,7 +5620,6 @@ function renderDashboard(){
           </div>`;
         }).join('')}
       </div>
-      ${dashKreverListe.length > 5 ? `<div class="required-hint" style="margin-top:8px;">Viser 5 av ${dashKreverListe.length} — +${dashKreverListe.length - 5} flere krever handling, ikke vist her.</div>` : ''}
       <button type="button" class="btn secondary small" style="margin-top:10px;" data-goto-aktivesaker-filter="krever-handling">Se alle saker${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''}</button>
       ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
       `}
@@ -5671,7 +5666,6 @@ function renderDashboard(){
           </div>`;
         }).join('')}
       </div>
-      ${prioriterteBilerMap.size > 5 ? `<div class="required-hint" style="margin-top:8px;">Viser 5 av ${prioriterteBilerMap.size} — +${prioriterteBilerMap.size - 5} flere biler, ikke vist her.</div>` : ''}
       `}
     </div>
 
@@ -5910,19 +5904,9 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // Prioritet 33: "Aktiv sjåfør" skal bety det SAMME overalt i appen som filteret
-  // "🚚 Har aktiv sjåfør" (som bruker vehicleAktivSjafor() strengt — kjører akkurat nå).
-  // Kortet viste tidligere alltid "👤 Aktiv sjåfør: [navn]" basert på vehicleSisteSjafor()
-  // (aktiv biløkt ELLER bare siste kontroll i dag), som gjorde at biler kunne se ut som de
-  // hadde aktiv sjåfør uten å være med i filteret. Ingen endring i vehicleAktivSjafor()/
-  // vehicleSisteSjafor()/biløktlogikk — kun hvilken tekst/ikon som vises her, styrt av
-  // HVILKEN av de to funksjonene som faktisk ga svaret:
-  //   - vehicleAktivSjafor() sant → "👤 Aktiv sjåfør: [navn]" (med i "Har aktiv sjåfør")
-  //   - kun vehicleSisteSjafor() sant (dagens siste kontroll, ingen aktiv biløkt nå) →
-  //     "🕓 Sjåfør i dag: [navn]" (IKKE med i "Har aktiv sjåfør")
-  //   - ingen av delene → "⚪ Tilgjengelig"
-  const aktivSjaforNaa = vehicleAktivSjafor(v.id);
-  const sisteSjafor = vehicleSisteSjafor(v.id);
+  // Prioritet 26.7: vehicleSisteSjafor() i stedet for vehicleAktivSjafor() — viser sist
+  // kjente sjåfør (aktiv biløkt ELLER siste kontroll i dag), ikke bare aktiv biløkt.
+  const aktivSjafor = vehicleSisteSjafor(v.id);
   return `
     <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);border-width:2px;"' : ''}>
       <div class="gcard-head">
@@ -5937,8 +5921,8 @@ function galleryCard(v, erMinAktiveBil){
           <div class="vl-indicator ${reserveUnntatt ? 'green' : (kontrollertIdag ? 'green' : 'amber')}" style="margin-top:2px;">
             ${reserveUnntatt ? '🚐 Reservebil — ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag')}
           </div>
-          <div class="vl-indicator ${aktivSjaforNaa ? 'amber' : (sisteSjafor ? 'unset' : 'green')}" style="margin-top:2px;">
-            ${aktivSjaforNaa ? `👤 Aktiv sjåfør: ${esc(aktivSjaforNaa)}` : (sisteSjafor ? `🕓 Sjåfør i dag: ${esc(sisteSjafor)}` : '⚪ Tilgjengelig')}
+          <div class="vl-indicator ${aktivSjafor ? 'amber' : 'green'}" style="margin-top:2px;">
+            ${aktivSjafor ? `👤 Aktiv sjåfør: ${esc(aktivSjafor)}` : '⚪ Tilgjengelig'}
           </div>
         </div>
       </div>
@@ -6739,7 +6723,7 @@ function renderBilkort(){
           <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
           <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
           <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleAktivSjafor(v.id) ? '👤 ' + esc(vehicleAktivSjafor(v.id)) : (vehicleSisteSjafor(v.id) ? '🕓 Sjåfør i dag: ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør')}</span></div>
+          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleSisteSjafor(v.id) ? '👤 ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
         </div>
       </div>
       <div class="ov-split-col">
@@ -8674,6 +8658,7 @@ function renderVerksted(){
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
       ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>`}
+      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label style="display:flex;align-items:center;gap:8px;font-weight:400;"><input type="checkbox" id="vt-eu-kontroll" style="width:auto;"> 🚦 Gjelder EU-kontroll</label></div>`}
       <div class="row2">
         <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
         <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
@@ -10469,21 +10454,7 @@ function renderInnstillinger(){
     // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    // Prioritet 35 (rettelse — falsk versjonsalarm): FORVENTET_VERSJON var tidligere en
-    // egen, manuelt vedlikeholdt tekstkonstant her — en TREDJE kopi av versjonsnummeret,
-    // ved siden av `versjon`-feltet i storage.airtable.js og `?v=`-parameteren på selve
-    // script-taggen i <head>. Den ble ved en glipp ikke oppdatert da storage.airtable.js
-    // gikk fra v2.8.0 til v2.8.1 (Prioritet 31), og panelet viste dermed en falsk rød
-    // versjonsalarm selv om filen og cache-busting-parameteren faktisk stemte perfekt
-    // overens. Løsning: FORVENTET_VERSJON hentes nå direkte fra `?v=`-parameteren på
-    // script-taggen — den ENESTE reelle kilden til hvilken versjon appen faktisk ber
-    // nettleseren om å laste — slik at det aldri finnes mer enn to steder å holde i sync
-    // (selve `versjon`-feltet i storage.airtable.js, og `?v=` på script-taggen; se
-    // CLAUDE.md "Regler for Claude / videre utvikling" om å øke begge sammen). Fallback-
-    // verdien under brukes KUN dersom script-taggen uventet ikke skulle finnes i DOM-en.
-    const storageScriptTag = document.querySelector('script[src^="storage.airtable.js?v="]');
-    const storageScriptVersjonMatch = storageScriptTag && storageScriptTag.getAttribute('src').match(/\?v=([\w.\-]+)/);
-    const FORVENTET_VERSJON = storageScriptVersjonMatch ? 'v' + storageScriptVersjonMatch[1] : 'v2.8.1';
+    const FORVENTET_VERSJON = 'v2.8.0'; // hold denne i sync med versjon-verdien i storage.airtable.js
     const info = window.storageAirtableInfo;
     const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
     const riktigVersjonKjorer = !!(info && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
