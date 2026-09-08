@@ -10791,26 +10791,53 @@ function renderInnstillinger(){
     // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    const FORVENTET_VERSJON = 'v2.8.0'; // hold denne i sync med versjon-verdien i storage.airtable.js
+    //
+    // RETTET (falsk versjonsfeil): FORVENTET_VERSJON var tidligere en TREDJE, manuelt
+    // vedlikeholdt konstant her — i tillegg til ?v=-parameteren på selve <script>-taggen
+    // og "versjon"-verdien i storage.airtable.js selv. Når de to sistnevnte ble oppdatert
+    // sammen (slik CLAUDE.md allerede krever, se "VED ENDRING I storage.airtable.js"),
+    // men denne tredje konstanten ble glemt, viste Database Status en FALSK rød
+    // versjonsfeil selv om riktig fil faktisk kjørte. Permanent løsning: les "forventet
+    // versjon" DIREKTE fra ?v=-parameteren på den faktiske <script>-taggen i DOM-en, i
+    // stedet for en egen konstant — den finnes allerede, oppdateres allerede av samme
+    // rutine, og kan dermed aldri komme ut av synk med seg selv igjen.
+    const lesForventetStorageVersjonFraScriptTag = () => {
+      const tag = document.querySelector('script[src*="storage.airtable.js"]');
+      const m = tag ? /[?&]v=([^&"']+)/.exec(tag.getAttribute('src') || '') : null;
+      if(!m) return null;
+      const raw = decodeURIComponent(m[1]);
+      // window.storageAirtableInfo.versjon rapporteres alltid med "v"-prefiks (f.eks.
+      // "v2.8.1"), mens ?v=-parameteren av historiske årsaker er uten (f.eks. "2.8.1") —
+      // normalisert likt her slik at sammenligningen under blir korrekt uansett.
+      return raw.startsWith('v') ? raw : 'v' + raw;
+    };
+    const FORVENTET_VERSJON = lesForventetStorageVersjonFraScriptTag();
     const info = window.storageAirtableInfo;
     const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
-    const riktigVersjonKjorer = !!(info && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
+    // Kan kun bekrefte faktisk match dersom BÅDE info og en lesbar ?v=-parameter finnes —
+    // manglende ?v=-parameter er en egen, distinkt feiltilstand (se "kanIkkeBekrefte" under),
+    // ikke en automatisk "feil versjon"-konklusjon (det ville vært en gjetning).
+    const kanIkkeBekrefte = !!(info && !FORVENTET_VERSJON);
+    const riktigVersjonKjorer = !!(info && FORVENTET_VERSJON && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
+    const visVersjonSomFeil = !!info && !kanIkkeBekrefte && !riktigVersjonKjorer;
+    const forventetVersjonVisning = FORVENTET_VERSJON || 'Ukjent (fant ingen ?v=-parameter på script-taggen)';
     const versjonHtml = `
-      <div class="panel" style="margin-bottom:16px;${!riktigVersjonKjorer ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
+      <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage_airtable.js)</div>
         ${!info ? `
         <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 Kunne ikke lese versjonsinformasjon — svært gammel filversjon kjører fortsatt (denne markøren ble innført i v2.7.0).</div>
         <div class="ov-grid" style="margin-top:10px;">
           <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value">Ukjent (for gammel til å rapportere versjon)</span></div>
-          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(FORVENTET_VERSJON)}</span></div>
+          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
         </div>` : `
         <div class="ov-grid">
           <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value" style="font-weight:700;">${esc(info.versjon)}</span></div>
           <div class="ov-item"><span class="ov-label">Bygget</span><span class="ov-value">${esc(info.bygget || '–')}</span></div>
-          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(FORVENTET_VERSJON)}</span></div>
+          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
           <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei'}</span></div>
         </div>`}
-        ${!riktigVersjonKjorer ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage_airtable.js enn den ${esc(FORVENTET_VERSJON)} som index.html forventer. Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting — se også ?v=-parameteren på selve script-taggen i index.html, som nå økes ved hver fremtidig versjon nettopp for å forhindre dette).</div>` : ''}
+        ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage_airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
+        ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Fant ingen ?v=-parameter på storage.airtable.js sin script-tag — kan ikke bekrefte om riktig versjon kjører. Sjekk at script-taggen i index.html har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
       </div>
     `;
     if(!dbStatusReport){
