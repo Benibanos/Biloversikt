@@ -58,7 +58,7 @@ prosjektet eller planlagt.
 
 ## Filoversikt
 
-Prosjektet består av 13 filer:
+Prosjektet består av 14 filer:
 
 **Runtime (kreves for at appen skal kjøre):**
 - `index.html` — app-shell, all UI og forretningslogikk
@@ -68,7 +68,14 @@ Prosjektet består av 13 filer:
   CLAUDE.md)
 - `sw.js` — service worker (offline app-shell-cache)
 - `manifest.json` / `manifest-sjafor.json` — PWA-manifester
-- `icons/icon-192.png`, `icon-512.png`, `icon-512-maskable.png` — app-ikoner
+- `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-512-maskable.png`
+  — app-ikoner
+
+Prosjektet inneholder bevisst INGEN filer for andre hostingplattformer
+(ingen `vercel.json`, `_headers`/`_redirects` for Netlify, ingen
+APK/Android/TWA/Bubblewrap-relatert konfigurasjon som `release-apk.yml`) —
+se "Teknologi" over. Git-historikken er backupen dersom noe av dette skulle
+bli aktuelt igjen; de holdes ikke som "historikk" i selve prosjektmappen.
 
 **Dokumentasjon:**
 - `README.md` — denne filen
@@ -104,9 +111,14 @@ Prosjektet består av 13 filer:
 ## Hvordan riktig storage-versjon kontrolleres
 
 Åpne Innstillinger → Database status. Øverst vises kjørende fil-versjon
-(`storage.airtable.js`) sammenlignet med versjonen `index.html` forventer.
-Et rødt avvik betyr at en gammel, cachet kopi av `storage.airtable.js`
-fortsatt kjører — last opp filen på nytt og kjør "Oppdater app".
+(`window.storageAirtableInfo.versjon` fra `storage.airtable.js`)
+sammenlignet med versjonen `index.html`/`kontroll.html` sin script-tag
+`?v=`-parameter forventer — lest automatisk, ingen egen versjonskonstant å
+vedlikeholde (se CLAUDE.md, "Versjonskontroll (permanent løsning)"). Tre
+mulige tilstander: 🟢 samsvarer, 🔴 ekte avvik (en gammel, cachet kopi av
+`storage.airtable.js` kjører fortsatt — last opp filen på nytt og kjør
+"Oppdater app"), eller 🟡 kan ikke bekrefte (fant ingen `?v=`-parameter på
+script-taggen).
 
 ## Hvordan Database status brukes
 

@@ -1,8 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist konsolidert: 2026-09-07 (Prioritet 35 — retting av falsk versjonsalarm
-i Database Status), basert på faktisk kjørende kode i
-`Benibanos/Biloversikt`.
+Sist konsolidert: 2026-09-08 (Prioritet 36 — full prosjektopprydding og
+permanent versjonsløsning), basert på faktisk kjørende kode i
+`Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
+konsolideringen).
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
 antatt fra tidligere bestilling. Den fulle, kronologiske historikken over
 alle tidligere "Prioritet N"/"Optimalisering N"-runder er ikke lenger
@@ -95,20 +96,48 @@ registrering setter nå Aktiv sjåfør korrekt, bilen teller umiddelbart som
 Se CLAUDE.md for full detalj.
 
 **Prioritet 35 — Retting av falsk versjonsalarm i Database Status
-(2026-09-07):** ✅ Implementert og verifisert. Ren diagnostikkfiks, ingen
-funksjonell endring. Database Status-panelet viste "Appen forventer:
-v2.8.0" mot faktisk kjørende "v2.8.1", selv om `storage.airtable.js` og
-`?v=`-parameteren i `index.html` allerede stemte perfekt overens siden
-Prioritet 31. Rotårsak: `FORVENTET_VERSJON` i `renderInnstillinger()` var en
-tredje, separat, manuelt vedlikeholdt versjonskonstant som ikke ble
-oppdatert ved Prioritet 31 sin versjonsbump. Bekreftet ved kodegjennomgang
-at dette var en ren visnings-/diagnostikkfeil uten kobling til cache,
-`reloadOne()`, `_koKjor()`-skrivekøen eller km-logikk. Løst ved å hente
-`FORVENTET_VERSJON` automatisk fra `?v=`-parameteren på
-`storage.airtable.js`-script-taggen (med `v2.8.1` som fallback), slik at
-kun to versjonskilder gjenstår å holde i sync fremover. `v.km`-logikk,
-sjåførkontroll/aktiv sjåfør, selve `storage.airtable.js` og
-synkroniseringsmekanismene er UENDRET. Se CLAUDE.md for full detalj.
+(2026-09-07):** ✅ Implementert. Ren diagnostikkfiks: `FORVENTET_VERSJON` i
+`renderInnstillinger()` sluttet å være en tredje, manuelt vedlikeholdt
+versjonskonstant og leses i stedet fra `?v=`-parameteren på
+`storage.airtable.js`-script-taggen. **Se Prioritet 36 under** — denne
+oppføringen påsto den gang feilaktig at `?v=`-parameteren og
+`storage.airtable.js` allerede stemte overens; det gjorde de faktisk ikke i
+koden, og selve løsningen hadde fortsatt en hardkodet fallback-verdi. Begge
+deler er korrigert i Prioritet 36.
+
+**Prioritet 36 — Full prosjektopprydding og permanent versjonsløsning
+(2026-09-08):** ✅ Implementert og verifisert. Kildegrunnlag: repoet klonet
+direkte fra GitHub (`Benibanos/Biloversikt`), ikke tidligere vedlegg/ZIP-er
+— hvert filnavn verifisert mot faktisk filinnhold først.
+
+- **Ekte versjonsavvik funnet og rettet:** `?v=`-parameteren i BÅDE
+  `index.html` og `kontroll.html` sto fortsatt på `2.8.0` mens
+  `storage.airtable.js` sin `versjon` faktisk var `v2.8.1` — et reelt,
+  levende avvik (Prioritet 35-teksten over antok feilaktig at dette
+  allerede var synkronisert). Begge script-tagger satt til `?v=2.8.1`.
+- **Ingen tredje versjonskilde i det hele tatt lenger:** den dynamiske
+  lesingen av `?v=`-parameteren har ingen hardkodet fallback-verdi (heller
+  ikke `v2.8.1`) — kun to kilder gjenstår å synkronisere:
+  `storage.airtable.js` sin `versjon` og `?v=` på script-taggene. Se
+  CLAUDE.md, "Versjonskontroll (permanent løsning)".
+- **Nøytrale feilmeldinger** i Database status når versjon ikke kan
+  bekreftes — verken en påstått rotårsak ("gammel filversjon") eller en
+  gjettet forventet versjon vises lenger, kun at informasjonen mangler.
+- **Filopprydding:** fjernet `release-apk.yml` (APK/Bubblewrap),
+  `vercel.json`, `_headers`, `_redirects` (Netlify/Vercel) — ingen aktiv
+  kodereferanse til noen av de fire, kun prosjektets egen dokumentasjon som
+  allerede utelukket disse plattformene. Ingen duplikate storage-filer eller
+  gamle ZIP-er/backup-filer fantes.
+- **Ikoner flyttet til `icons/`** i den leverte pakken, i tråd med hvordan
+  all kode (index.html, kontroll.html, begge manifestene, sw.js) allerede
+  refererte dem — ren filplassering, ingen kodeendring.
+- `CACHE_VERSION` i `sw.js` økt (`bilpark-v30`) som følge av
+  app-shell-endringene over.
+
+Ikke rørt: `v.km`-logikk, sjåførkontroll/aktiv sjåfør, Dashboard, Aktive
+saker, Service, EU-kontroll, Dekk, Planlegging, Rapporter, mobil-/
+desktopdesign, `_koKjor()`/synkroniseringsmekanismer, eller noe
+Airtable-skjema. Se CLAUDE.md for full detalj.
 
 ---
 
@@ -259,7 +288,7 @@ kilde, dedikert Excel-eksport med frosset overskrift og tusenskilletegn.
 ## Driftslag
 
 ✅ Implementert og verifisert — se CLAUDE.md, "Sjåførkontroll". Feltet er
-korrekt registrert i `LIST_TABLES` i nåværende `storage.airtable.js` (v2.7.0)
+korrekt registrert i `LIST_TABLES` i nåværende `storage.airtable.js` (v2.8.1)
 og bekreftet sendt/lest til/fra Airtable i koden.
 
 ## Biler ute av drift skjules fra aktive lister

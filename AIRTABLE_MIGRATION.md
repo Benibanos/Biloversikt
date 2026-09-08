@@ -1,7 +1,7 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
 Sist konsolidert: 2026-09-04 (Prioritet 28 — Total Less Is More). Kilde:
-faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.7.0),
+faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.8.1),
 kryssjekket mot faktiske feltreferanser i `index.html`. Den tidligere,
 separate oppsettsguiden for Firebase→Airtable-migreringen er ikke lenger
 bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
@@ -19,11 +19,16 @@ kategorier — ingen av dem er Airtable-kolonner.
 ## 1. Autoritativ storage-fil og versjon
 
 - **Fil:** `storage.airtable.js` (eneste Airtable-storage-fil i prosjektet)
-- **Versjon:** `v2.7.0` (`window.storageAirtableInfo.versjon`)
-- **Cache-busting:** `<script src="storage.airtable.js?v=2.7.0">` i
-  `index.html`
-- **Regel:** øk BÅDE `?v=`-tallet i `index.html` OG `versjon`-verdien i
+- **Versjon:** `v2.8.1` (`window.storageAirtableInfo.versjon`)
+- **Cache-busting:** `<script src="storage.airtable.js?v=2.8.1">` i BÅDE
+  `index.html` og `kontroll.html`
+- **Regel (permanent versjonsløsning, Prioritet 36):** øk BÅDE `?v=`-tallet
+  på script-taggen i `index.html`/`kontroll.html` OG `versjon`-verdien i
   `storage.airtable.js` samtidig ved enhver fremtidig endring i filen.
+  Database status (Innstillinger) leser "forventet versjon" AUTOMATISK fra
+  `?v=`-parameteren — det finnes ingen egen, tredje `FORVENTET_VERSJON`-
+  konstant å huske å oppdatere. Se CLAUDE.md, "Versjonskontroll (permanent
+  løsning)", for full detalj.
 
 ## 2. Faktiske Airtable-tabeller og felt
 

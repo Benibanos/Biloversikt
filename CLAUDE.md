@@ -1,8 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-07 (Prioritet 35 —
-retting av falsk versjonsalarm i Database Status). **Ved avvik mellom denne
-filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-08 (Prioritet 36 —
+full prosjektopprydding og permanent versjonsløsning). **Ved avvik mellom
+denne filen og koden er koden alltid sannheten.**
 
 ---
 
@@ -173,38 +173,73 @@ disponerte en annen bil, og administratorens egen lokale sesjon
 (`driverActiveVehicleId`) forblir urørt.
 
 **Prioritet 35 (2026-09-07) — retting av falsk versjonsalarm i Database
-Status (kun diagnostikk, ingen funksjonell endring).** Database
-Status-panelet viste "Storage Airtable: v2.8.1" mot "Appen forventer:
-v2.8.0" og en rød "Dette bekrefter rotårsaken …"-alarm, selv om
-`storage.airtable.js` sin `versjon`-verdi og `?v=`-parameteren på
-script-taggen i `index.html` faktisk stemte perfekt overens (begge
-`v2.8.1`, siden Prioritet 31). Rotårsak: `FORVENTET_VERSJON` i
-`renderInnstillinger()` var en TREDJE, separat, manuelt vedlikeholdt
-tekstkonstant (`'v2.8.0'`) — ved en glipp ikke oppdatert da
-`storage.airtable.js` ble bumpet til v2.8.1 i Prioritet 31. Ren
-diagnostikk-feil: bekreftet ved kodegjennomgang at konstanten aldri leses av
-`reloadOne()`, cache-logikk, `_koKjor()`-skrivekøen eller noe km-relatert —
-alarmens fire fryktede konsekvenser (gammel cache, feil `reloadOne`-versjon,
-km-overskriving, lokal/server-desync) forekom aldri i praksis.
+Status (kun diagnostikk, ingen funksjonell endring).** `FORVENTET_VERSJON` i
+`renderInnstillinger()` var tidligere en TREDJE, separat, manuelt
+vedlikeholdt tekstkonstant — løst ved å lese `FORVENTET_VERSJON` automatisk
+fra `?v=`-parameteren på `<script src="storage.airtable.js?v=...">`-taggen
+i stedet. **Korrigert i Prioritet 36 under:** denne konsolideringen påsto
+feilaktig at `?v=`-parameteren og `storage.airtable.js` sin `versjon`
+allerede stemte overens ("begge v2.8.1 siden Prioritet 31") — det stemte
+ikke i koden slik den faktisk lå (script-taggen sto fortsatt på `?v=2.8.0`
+mens `storage.airtable.js` var `v2.8.1`), og den dynamiske lesingen hadde
+den gang fortsatt en hardkodet fallback-verdi (`'v2.8.1'`) i tillegg til
+selve DOM-lesingen. Se Prioritet 36 for det faktiske, verifiserte bildet og
+den fullstendige rettingen.
 
-Løsning: `FORVENTET_VERSJON` hentes nå automatisk fra `?v=`-parameteren på
-`<script src="storage.airtable.js?v=...">`-taggen (den ENESTE reelle kilden
-til hvilken versjon appen faktisk ber nettleseren om å laste), med
-`'v2.8.1'` som fallback dersom script-taggen uventet ikke skulle finnes i
-DOM-en. Dette fjerner den tredje manuelt vedlikeholdte versjonskopien — kun
-`versjon`-feltet i `storage.airtable.js` og `?v=`-parameteren i
-`index.html` må heretter holdes i sync (se "Regler for Claude / videre
-utvikling"). Bekreftet med dynamisk test: panelet viser nå
-"Appen forventer: v2.8.1" og den røde versjonsalarmen vises ikke lenger.
+**Prioritet 36 (2026-09-08) — full prosjektopprydding og permanent
+versjonsløsning (pakke-/dokumentasjonsopprydding + diagnostikkfiks, ingen
+endring i forretningslogikk).** Kildegrunnlag: `Benibanos/Biloversikt`
+klonet direkte fra GitHub (ikke tidligere vedlegg/ZIP-er) — hvert filnavn
+verifisert mot faktisk innhold før noe ble endret.
 
-Endringen er strengt begrenset til Database Status-diagnostikken i
-`renderInnstillinger()`. Ikke rørt: kilometerlogikk (`v.km`,
-`submitKontroll()`), sjåførkontroll/aktiv sjåfør-logikk, selve
-`storage.airtable.js` (fortsatt v2.8.1, uendret), synkroniseringsmekanismer
-(`_koKjor()`, `reloadOne()`), eller Dashboard.
+1. **Ekte, gjenværende versjonsavvik funnet og rettet:** i motsetning til
+   hva Prioritet 35-teksten over hevdet, sto `?v=`-parameteren på
+   `storage.airtable.js`-script-taggen i BÅDE `index.html` og
+   `kontroll.html` fortsatt på `2.8.0`, mens `storage.airtable.js` sin
+   `versjon`-verdi faktisk var `v2.8.1` — et ekte, levende avvik som ville
+   vist en (denne gangen korrekt) rød versjonsalarm. Rettet ved å sette
+   begge script-tagger til `?v=2.8.1`, slik at de igjen samsvarer med filen
+   som faktisk kjører.
+2. **Tredje versjonskonstant endelig fjernet helt:** `FORVENTET_VERSJON`
+   har ingen hardkodet fallback-verdi lenger (heller ikke `'v2.8.1'`) — den
+   er utelukkende resultatet av å lese `?v=`-parameteren fra DOM-en, hver
+   gang. Kun to versjonskilder gjenstår å holde i sync: `versjon` i
+   `storage.airtable.js` og `?v=` på script-taggen i `index.html`/
+   `kontroll.html`.
+3. **Nøytrale, ikke-konkluderende feilmeldinger i Database status:**
+   - `window.storageAirtableInfo` mangler helt →
+     "🔴 storage.airtable.js er ikke lastet eller rapporterer ikke
+     versjon." (tidligere tekst påsto en ubevist rotårsak: "svært gammel
+     filversjon kjører fortsatt").
+   - `?v=`-parameteren kan ikke leses fra script-taggen →
+     "🟡 Kunne ikke lese forventet storage-versjon fra script-taggen." —
+     viser ALDRI en gjettet/gammel forventet versjon.
+   - Faktisk avvik mellom kjørende og forventet versjon → uendret rød
+     alarm som viser begge faktiske verdier.
+4. **Filoppryddning:** fjernet `release-apk.yml` (Bubblewrap/APK-utgivelse),
+   `vercel.json` (Vercel-spesifikk rewrite), `_headers` og `_redirects`
+   (Netlify-spesifikke, egen kommentar i `_headers` bekreftet dette) — ingen
+   av de fire hadde noen aktiv referanse fra kjørende kode, kun prosjektets
+   egen dokumentasjon som allerede sa at disse plattformene IKKE brukes.
+   Ingen andre/duplikate `storage`-varianter, gamle ZIP-er eller
+   backup-filer fantes i repoet.
+5. **Ikon-plassering rettet i den leverte pakken:** `index.html`,
+   `kontroll.html`, begge manifestene og `sw.js` har alltid forventet
+   ikonene under en `icons/`-mappe (`icons/icon-192.png` osv.) — i det
+   klonede repoet lå de tre ikonfilene derimot direkte i rot. Dette er KUN
+   en flytting av filer til mappestrukturen koden allerede forventer, ingen
+   kodeendring.
+6. `CACHE_VERSION` i `sw.js` økt (`bilpark-v30`) siden app-shell-filene
+   endret seg (`?v=` i index.html/kontroll.html, mappestruktur for ikoner).
+   `storage.airtable.js` sitt INNHOLD er uendret — kun cache-busting-tallet
+   som pekte på den er synkronisert, derfor er `versjon`-verdien inni filen
+   fortsatt `v2.8.1`.
 
-For full detalj: resten av denne filen, samt ROADMAP.md og
-AIRTABLE_MIGRATION.md.
+Ikke rørt: kilometerlogikk, sjåførkontroll/aktiv sjåfør, Dashboard, Aktive
+saker, Service, EU-kontroll, Dekk, Planlegging, Rapporter, mobil-/
+desktopdesign, eller noe Airtable-skjema. Se ROADMAP.md for
+valideringsresultater og AIRTABLE_MIGRATION.md punkt 1 for den oppdaterte
+versjonsregelen.
 
 ---
 
@@ -249,13 +284,15 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v26'`, økt fordi `index.html`
-  ble endret). To separate
+  offline-fallback (`CACHE_VERSION = 'bilpark-v30'`). To separate
   manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
-  (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`).
+  (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`). Ikoner
+  ligger i `icons/` (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`).
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.8.0`, cache-bustet via `?v=2.8.0` på script-taggen i `index.html`).
-  Dette er den ENESTE Airtable-storage-filen i prosjektet — ingen
+  `v2.8.1`, cache-bustet via `?v=2.8.1` på script-taggen i `index.html` OG
+  `kontroll.html` — se "Versjonskontroll (permanent løsning)" under for
+  hvordan Database status verifiserer dette automatisk). Dette er den
+  ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
   `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
   løpende kommentartekst forekommer — se AIRTABLE_MIGRATION.md). Siden
@@ -550,6 +587,26 @@ Alle følger: Overskrift → Filtre → Forhåndsvisning → Excel-eksport
   status til `'tiltak-planlagt'` på en eventuell sak som pekte på den
   slettede verkstedtiden (fjerner IKKE selve saken, og lar den aldri stå
   feilaktig fast som "Verksted bestilt" uten en gyldig verkstedtime).
+
+## Versjonskontroll (permanent løsning, Prioritet 36)
+
+Én autoritativ versjonssannhet — ingen tredje, manuelt vedlikeholdt kopi:
+
+1. `storage.airtable.js` rapporterer selv sin kjørende versjon via
+   `window.storageAirtableInfo.versjon`.
+2. `index.html`/`kontroll.html` sin `<script src="storage.airtable.js?v=X">`-
+   tag bærer cache-bustingen.
+3. Database status (Innstillinger) leser "forventet versjon" AUTOMATISK fra
+   `?v=`-parameteren på den faktiske script-taggen i DOM-en — ingen egen
+   `FORVENTET_VERSJON`-konstant vedlikeholdes lenger.
+4. Ved enhver fremtidig endring i `storage.airtable.js`: øk BÅDE `versjon`
+   inni filen OG `?v=` på begge script-tagger, samtidig (se "Regler for
+   Claude / videre utvikling").
+
+Tre tilstander i Database status: 🟢 samsvarer (kjørende versjon = forventet
+versjon), 🔴 ekte avvik (viser begge faktiske verdier), 🟡 kan ikke
+bekrefte (fant ingen `?v=`-parameter — viser ALDRI en gjettet/gammel
+forventet versjon som fasit).
 
 ## Sikkerhet
 

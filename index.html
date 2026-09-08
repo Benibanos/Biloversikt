@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.8.0"></script>
+<script src="storage.airtable.js?v=2.8.1"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -10825,9 +10825,9 @@ function renderInnstillinger(){
       <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage_airtable.js)</div>
         ${!info ? `
-        <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 Kunne ikke lese versjonsinformasjon — svært gammel filversjon kjører fortsatt (denne markøren ble innført i v2.7.0).</div>
+        <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 storage.airtable.js er ikke lastet eller rapporterer ikke versjon.</div>
         <div class="ov-grid" style="margin-top:10px;">
-          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value">Ukjent (for gammel til å rapportere versjon)</span></div>
+          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value">Ukjent (window.storageAirtableInfo mangler)</span></div>
           <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
         </div>` : `
         <div class="ov-grid">
@@ -10837,7 +10837,7 @@ function renderInnstillinger(){
           <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei'}</span></div>
         </div>`}
         ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage_airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
-        ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Fant ingen ?v=-parameter på storage.airtable.js sin script-tag — kan ikke bekrefte om riktig versjon kjører. Sjekk at script-taggen i index.html har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
+        ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Kunne ikke lese forventet storage-versjon fra script-taggen. Sjekk at script-taggen har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
       </div>
     `;
     if(!dbStatusReport){
