@@ -12536,6 +12536,17 @@ function renderInnstillinger(){
       <div class="required-hint">Bilpark v2.0 — data lagres delt mellom alle som bruker appen. Import fra Excel/CSV er ikke i bruk; alle biler, skader og verkstedtimer registreres direkte i appen.</div>
     </div>
     <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
+      <!-- PRIORITET 42 — diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
+           lenger ned i denne filen. Leser samme delte deferredInstallPrompt-variabel som
+           toppbanneret (#pwa-install-bar) bruker, slik at det finnes ETT sted å trykke "Installer"
+           selv om banneret er lukket/aldri vist. -->
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📲 Installer app</h4>
+      <div class="required-hint" style="margin-bottom:12px;">
+        Installer Bilpark som en app på denne enheten, for raskere tilgang og bruk uten nett.
+      </div>
+      ${pwaInstallStatusHtml()}
+    </div>
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oppdater app</h4>
       <div class="required-hint" style="margin-bottom:12px;">
         Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
@@ -12816,6 +12827,10 @@ function attachInnstillingerListeners(){
   if(resetBtn) resetBtn.addEventListener('click', resetFleetData);
   const hardRefreshBtn = document.getElementById('hard-refresh-btn');
   if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', hardRefreshApp);
+  // PRIORITET 42 — "📲 Installer app". Knappen finnes kun i DOM-en når pwaInstallStatusHtml()
+  // faktisk har et installasjonstilbud å vise (se funksjonen over i filen).
+  const pwaSettingsInstallBtn = document.getElementById('pwa-settings-install-btn');
+  if(pwaSettingsInstallBtn) pwaSettingsInstallBtn.addEventListener('click', (e) => { e.stopPropagation(); installPwaNow(); });
 }
 
 // ================= scrKontroll (Sjåførkontroll) =================
@@ -13222,12 +13237,79 @@ window.addEventListener('resize', () => {
   }, 150);
 });
 
-// ================= PWA: installasjon og offline-støtte =================
+// ================= PWA: installasjon og offline-støtte (PRIORITET 42) =================
+// Rotårsaken til at "Installer app" ikke ble tilbudt kunne IKKE reproduseres/bekreftes fra
+// utviklingsøkten (ingen tilgang til den faktiske, levende GitHub Pages-siden derfra) — se
+// PRIORITET_42_ANALYSE.md/CLAUDE.md for full gjennomgang av hvorfor. Manifest/ikoner/SW er
+// verifisert korrekte i KODEN. Denne runden gjør derfor to ting i stedet for å gjette på en
+// fiks: (1) fjerner den ENE konkrete, bekreftede svakheten — det fantes tidligere ingen vei
+// til å installere igjen etter at toppbanneret ble lukket ("Lukk"), kun banneret selv, som per
+// spesifikasjon (`beforeinstallprompt`) normalt bare tilbys automatisk ØN gang per besøk/enhet.
+// Nå finnes i tillegg en alltid tilgjengelig "🔽 Installer Bilpark"-inngang i Innstillinger.
+// (2) legger til en kjørende diagnose (`pwaDiag`) som fanger opp og VISER konkret om
+// manifestet, ikonene eller service workeren faktisk feiler på den enheten den kjører på —
+// slik at neste "virker ikke"-rapport kommer med en presis årsak i stedet for en gjetning.
+let pwaDiag = {
+  checking: true,
+  manifestOk: null,
+  manifestError: '',
+  icons: [],
+  swOk: null,
+  swError: '',
+  secureContext: (typeof window.isSecureContext === 'boolean' ? window.isSecureContext : null)
+};
+let pwaJustInstalled = false;
+
+async function kjorPwaDiagnostikk(){
+  try{
+    const manifestLinkEl = document.querySelector('link[rel="manifest"]');
+    const manifestHref = (manifestLinkEl && manifestLinkEl.getAttribute('href')) || 'manifest.json';
+    const res = await fetch(manifestHref, {cache: 'no-store'});
+    if(!res.ok){
+      pwaDiag.manifestOk = false;
+      pwaDiag.manifestError = 'HTTP ' + res.status;
+    }else{
+      const data = await res.json();
+      pwaDiag.manifestOk = true;
+      const icons = Array.isArray(data.icons) ? data.icons : [];
+      pwaDiag.icons = await Promise.all(icons.map(ic => new Promise(resolve => {
+        try{
+          const src = new URL(ic.src, res.url).toString();
+          const img = new Image();
+          img.onload = () => resolve({src: ic.src, ok: true});
+          img.onerror = () => resolve({src: ic.src, ok: false});
+          img.src = src;
+        }catch(e){ resolve({src: ic.src, ok: false}); }
+      })));
+    }
+  }catch(e){
+    pwaDiag.manifestOk = false;
+    pwaDiag.manifestError = (e && e.message) ? e.message : String(e);
+  }
+  pwaDiag.checking = false;
+  if(screen === 'innstillinger') render();
+}
+
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(e => console.error('Kunne ikke registrere service worker', e));
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => {
+        pwaDiag.swOk = true;
+        if(screen === 'innstillinger') render();
+      })
+      .catch(e => {
+        console.error('Kunne ikke registrere service worker', e);
+        pwaDiag.swOk = false;
+        pwaDiag.swError = (e && e.message) ? e.message : String(e);
+        if(screen === 'innstillinger') render();
+      });
   });
+}else{
+  pwaDiag.swOk = false;
+  pwaDiag.swError = 'Denne nettleseren støtter ikke Service Worker.';
 }
+kjorPwaDiagnostikk();
+
 let deferredInstallPrompt = null;
 const installBar = document.getElementById('pwa-install-bar');
 const installBtn = document.getElementById('pwa-install-btn');
@@ -13236,20 +13318,63 @@ let pwaInstallBarDismissed = false; // erstatter sessionStorage — nullstilles 
 function isStandalone(){
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+// Delt installasjonsfunksjon — brukt av BÅDE toppbanneret og den nye knappen i Innstillinger,
+// slik at det kun finnes ÉN vei inn i nettleserens faktiske installasjons-API (ingen duplisert
+// installasjonslogikk, jf. prosjektets regel om å ikke duplisere eksisterende funksjoner).
+async function installPwaNow(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if(installBar) installBar.style.display = 'none';
+  if(screen === 'innstillinger') render();
+}
+// Brukt av renderInnstillinger() (Systeminnstillinger → "📲 Installer app") for å vise riktig
+// status/knapp/forklaring der. Leser samme delte tilstand som resten av denne seksjonen.
+function pwaInstallStatusHtml(){
+  if(pwaJustInstalled){
+    return `<div class="required-hint">✅ Bilpark er installert. Åpne appen fra hjemskjermen/app-menyen på enheten.</div>`;
+  }
+  if(isStandalone()){
+    return `<div class="required-hint">✅ Appen kjører installert på denne enheten.</div>`;
+  }
+  if(deferredInstallPrompt){
+    return `<button class="btn small" id="pwa-settings-install-btn">🔽 Installer Bilpark</button>`;
+  }
+  if(isIOS()){
+    return `<div class="required-hint">📱 iPhone/iPad: trykk Del-knappen nederst i Safari, og velg «Legg til på Hjemskjerm». iOS tilbyr ikke automatisk installasjon slik Android gjør.</div>`;
+  }
+  if(pwaDiag.checking){
+    return `<div class="required-hint">Sjekker installasjonsstatus …</div>`;
+  }
+  const problemer = [];
+  if(pwaDiag.manifestOk === false) problemer.push(`Manifest kunne ikke lastes (${esc(pwaDiag.manifestError || 'ukjent feil')}).`);
+  if(pwaDiag.manifestOk === true){
+    const feilendeIkoner = pwaDiag.icons.filter(i => !i.ok);
+    if(feilendeIkoner.length > 0) problemer.push(`${feilendeIkoner.length} av ${pwaDiag.icons.length} ikon(er) i manifestet kunne ikke lastes: ${esc(feilendeIkoner.map(i => i.src).join(', '))}.`);
+  }
+  if(pwaDiag.swOk === false) problemer.push(`Service worker kunne ikke registreres${pwaDiag.swError ? ' (' + esc(pwaDiag.swError) + ')' : ''}.`);
+  if(pwaDiag.secureContext === false) problemer.push('Siden kjører ikke i en sikker kontekst (HTTPS kreves for installasjon).');
+  return `
+    <div class="required-hint" style="margin-bottom:8px;">📵 PWA ikke tilgjengelig på denne enheten.</div>
+    ${problemer.length > 0
+      ? `<div class="required-hint" style="color:var(--red);">${problemer.join('<br>')}</div>`
+      : `<div class="required-hint">Fant ingen konkret feil i manifest/ikoner/service worker herfra — nettleseren har likevel ikke tilbudt installasjon ennå. Prøv å laste siden på nytt, eller se etter «Installer app»/«Legg til på Hjemskjerm» i nettleserens meny (⋮).</div>`}
+  `;
+}
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
   if (!isStandalone() && !pwaInstallBarDismissed) {
     installBar.style.display = 'flex';
   }
+  if(screen === 'innstillinger') render();
 });
-if (installBtn) installBtn.addEventListener('click', async () => {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
-  installBar.style.display = 'none';
-});
+if (installBtn) installBtn.addEventListener('click', installPwaNow);
 if (installDismiss) installDismiss.addEventListener('click', () => {
   installBar.style.display = 'none';
   pwaInstallBarDismissed = true;
@@ -13257,14 +13382,12 @@ if (installDismiss) installDismiss.addEventListener('click', () => {
 window.addEventListener('appinstalled', () => {
   installBar.style.display = 'none';
   deferredInstallPrompt = null;
+  pwaJustInstalled = true;
+  if(screen === 'innstillinger') render();
 });
 const iosHint = document.getElementById('pwa-ios-hint');
 const iosDismiss = document.getElementById('pwa-ios-dismiss');
 let pwaIosHintDismissed = false; // erstatter sessionStorage, se pwaInstallBarDismissed over
-function isIOS(){
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
 if (isIOS() && !isStandalone() && !pwaIosHintDismissed) {
   iosHint.style.display = 'flex';
 }

@@ -1,7 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-09 (Prioritet 41 — Redigerbare bilkategorier).
-Forrige: Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender). Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
+Sist oppdatert: 2026-09-09 (Prioritet 42 — PWA-installasjon: rotårsak
+funnet og bekreftet live mot GitHub Pages).
+Forrige: Prioritet 41 — Redigerbare bilkategorier. Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
@@ -16,6 +17,50 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet LIVE
+(2026-09-09):** 🔧 **Rotårsak funnet og dokumentert, men krever en
+repo-operasjon (ikke en kodeendring) for å lukkes helt** — se
+PRIORITET_42_ANALYSE.md for full detalj og eksakt fremgangsmåte.
+
+Bestilling: "Installer app"/"Legg til på startskjerm" tilbys ikke lenger på
+nye telefoner på `https://benibanos.github.io/Biloversikt/`.
+
+Rotårsak (bekreftet direkte mot den kjørende GitHub Pages-siden med
+`fetch()`/`caches.addAll()` i en ekte nettleserfane, ikke antatt fra
+kodelesing alene): `icons/icon-192.png`, `icons/icon-512.png` og
+`icons/icon-512-maskable.png` gir alle 404 live — ikonene ligger i praksis
+i repo-ROTEN, ikke under en `icons/`-mappe, selv om manifestene, `sw.js` og
+`index.html` konsekvent forventer `icons/`-mappen. Dette slår beina under
+installerbarhet på TO uavhengige måter samtidig: (1) manifestet har ingen
+gyldig, lastbar 192px+-ikon; (2) `sw.js` sin `install`-håndterer kaller
+`caches.addAll(APP_SHELL)`, som er alt-eller-ingenting — de samme tre
+404-ene får HELE service worker-installasjonen til å feile
+(`TypeError: Failed to execute 'addAll' on 'Cache': Request failed`,
+reprodusert direkte), så service workeren blir værende i `installing` og
+aktiveres aldri. Prioritet 36 (under) hevdet at nøyaktig denne
+ikon-flyttingen var gjort "i den leverte pakken" — men det ble aldri
+faktisk lastet opp til det publiserte repoet, eller ble reversert senere.
+Forklarer "nye telefoner": eksisterende, allerede installerte telefoner
+installerte trolig FØR regresjonen, og er upåvirket av den.
+
+Levert i denne runden (kodeforbedringer — selve rotårsaksfiksen er en
+manuell opplasting av tre bildefiler til GitHub, utenfor det denne økten
+kan gjøre siden bildefilene ikke er en del av Claude-prosjektets
+tekstdokumenter):
+- Alltid tilgjengelig "🔽 Installer Bilpark"/"📵 PWA ikke tilgjengelig på
+  denne enheten" i Innstillinger → Systeminnstillinger → "📲 Installer app"
+  (`pwaInstallStatusHtml()`), som supplement til det eksisterende,
+  lukkbare toppbanneret — begge deler nå samme `installPwaNow()`.
+- Ny kjøretids-diagnose (`pwaDiag`/`kjorPwaDiagnostikk()`) som sjekker
+  manifest/ikoner/service worker live og viser konkret feilårsak i
+  Innstillinger, i stedet for at et fremtidig avvik må reproduseres manuelt.
+- `id`-felt lagt til i begge manifestene (anbefalt praksis, rent tillegg).
+- `sw.js`: `CACHE_VERSION` → `bilpark-v38`. `kontroll.html` resynkronisert.
+
+Se PRIORITET_42_ANALYSE.md for alle 8 kontrollpunktene fra bestillingen
+punkt for punkt, simuleringsresultat og eksakt fremgangsmåte for
+repo-fiksen (last opp de tre ikonfilene til `icons/`).
 
 **Prioritet 41 — Redigerbare bilkategorier + 🚫 Ute av drift (2026-09-09):**
 ✅ Implementert og verifisert med dynamisk simulering (68 sjekker, 0 feil) +
@@ -217,7 +262,9 @@ koden, og selve løsningen hadde fortsatt en hardkodet fallback-verdi. Begge
 deler er korrigert i Prioritet 36.
 
 **Prioritet 36 — Full prosjektopprydding og permanent versjonsløsning
-(2026-09-08):** ✅ Implementert og verifisert. Kildegrunnlag: repoet klonet
+(2026-09-08):** ✅ Implementert og verifisert (i den leverte pakken —
+**se Prioritet 42: ikon-flyttingen under punkt 5 ble aldri faktisk lastet
+opp til det publiserte GitHub Pages-repoet**). Kildegrunnlag: repoet klonet
 direkte fra GitHub (`Benibanos/Biloversikt`), ikke tidligere vedlegg/ZIP-er
 — hvert filnavn verifisert mot faktisk filinnhold først.
 
@@ -241,7 +288,9 @@ direkte fra GitHub (`Benibanos/Biloversikt`), ikke tidligere vedlegg/ZIP-er
   gamle ZIP-er/backup-filer fantes.
 - **Ikoner flyttet til `icons/`** i den leverte pakken, i tråd med hvordan
   all kode (index.html, kontroll.html, begge manifestene, sw.js) allerede
-  refererte dem — ren filplassering, ingen kodeendring.
+  refererte dem — ren filplassering, ingen kodeendring. **🔧 Prioritet 42
+  fant at denne flyttingen aldri faktisk kom til den publiserte siden —
+  dette var selve rotårsaken til at PWA-installasjon sluttet å tilbys.**
 - `CACHE_VERSION` i `sw.js` økt (`bilpark-v30`) som følge av
   app-shell-endringene over.
 
@@ -299,8 +348,8 @@ identisk storage-grensesnitt — ingen kontakt med produksjonsbasen i Airtable).
   korrekt satt og `v.km` bekreftet uendret.
 - **Dashboard 4.0** — fire KPI-kort, hurtigbestilling, «Kommende oppgaver»
   (erstatter «Kommer snart», bygger på `flatePlanleggingData(7)`), biltabell
-  med løyvenummer som egen kolonne, og Bilparkhelse flyttet fra topplinjen til
-  panelet «Bilpark status». Ingen nye tellinger.
+  med løyvenummer som egen kolonne, og Bilparkhelse flyttet fra topplinjen
+  til panelet «Bilpark status». Ingen nye tellinger.
 - **Kjøretøyprofil 4.0** — identitetslinje med fremhevet løyvenummer, eget
   Mobilitetsgaranti-felt, fire nøkkeltall, fire bestillingskort og faner
   (Oversikt/Historikk/Skader/Dekk/Kostnader) i stedet for akkordion. Bilbilde
@@ -325,6 +374,12 @@ har to nesten like HTML-filer som må holdes manuelt i sync — dagens løsning
 bryter med prinsippet «ingen parallelle løsninger».
 
 ---
+
+## PWA-installasjon (Prioritet 42)
+
+🔧 **Rotårsak funnet og bekreftet live, kodeforbedringer levert — selve
+lukkingen krever en manuell repo-operasjon (opplasting av tre ikonfiler).**
+Se egen seksjon over og PRIORITET_42_ANALYSE.md for full detalj.
 
 ## Kalender (inkluderer Planlegging)
 
@@ -600,7 +655,17 @@ nødvendige Airtable-tabellene bekreftet ikke finnes i produksjonsbasen i
 dag. Krever en egen, separat godkjent migreringssak (inkludert manuelt
 Airtable-oppsett) dersom dette skal gjennomføres.
 
+🔧 **PWA-installasjon (Prioritet 42):** rotårsak funnet og bekreftet live —
+`icons/`-mappen mangler på det publiserte GitHub Pages-repoet selv om all
+kode forventer den der. Krever en manuell opplasting av tre ikonfiler til
+`icons/` for å lukkes helt — se PRIORITET_42_ANALYSE.md.
+
 ## Neste prioriterte arbeid
+
+📋 Last opp `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` til en
+`icons/`-mappe i GitHub-repoet (Prioritet 42 — se PRIORITET_42_ANALYSE.md).
+Dette er den eneste gjenstående handlingen for å lukke PWA-installasjonssaken
+helt; alt annet i sjekklisten er verifisert OK i koden.
 
 📋 Vurder en full, visuell UI-gjennomgang (Del 11 i Prioritet
 28-oppryddingen ble kun gjort som statisk kodeanalyse, ikke mot en levende

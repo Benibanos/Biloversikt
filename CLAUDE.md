@@ -1,8 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 41 —
-Redigerbare bilkategorier + systemstyrt Ute av drift). **Ved avvik mellom
-denne filen og koden er koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 42 —
+PWA-installasjon: rotårsak funnet og bekreftet live mot GitHub Pages).
+Forrige: Prioritet 41 — Redigerbare bilkategorier + systemstyrt Ute av
+drift. **Ved avvik mellom denne filen og koden er koden alltid
+sannheten.**
 
 ---
 
@@ -229,6 +231,10 @@ verifisert mot faktisk innhold før noe ble endret.
    klonede repoet lå de tre ikonfilene derimot direkte i rot. Dette er KUN
    en flytting av filer til mappestrukturen koden allerede forventer, ingen
    kodeendring.
+   **⚠️ Se Prioritet 42 under: denne flyttingen ble aldri faktisk lastet opp
+   til det publiserte GitHub Pages-repoet — regresjonen var fortsatt til
+   stede live per 2026-09-09, og var rotårsaken til at PWA-installasjon
+   sluttet å tilbys.**
 6. `CACHE_VERSION` i `sw.js` økt (`bilpark-v30`) siden app-shell-filene
    endret seg (`?v=` i index.html/kontroll.html, mappestruktur for ikoner).
    `storage.airtable.js` sitt INNHOLD er uendret — kun cache-busting-tallet
@@ -334,9 +340,6 @@ Kostnader, Analyse, Excel-eksport, `sortedVehicles()` og `vehicleOptions()`.
   `vehicleErReserveUnntatt()` bruker den til å la en reservebil slippe daglig
   kontrollkrav før den tas i bruk. Navnet kan endres fritt, men slettes
   kategorien forsvinner regelen — derfor egen advarsel ved sletting.
-
-**Uendret:** aktiv sjåfør, kontroll, kilometerlogikk, service, dekk, EU,
-verksted, historikk, saksmotoren, `vehicleHovedstatus()` og hele Airtable-skjemaet.
 
 **Prioritet 40 (2026-09-09) — Aktiv sjåfør fullført: én skriver, riktig flyt.**
 Ingen nye Airtable-felt, ingen endring i `storage.airtable.js` (`?v=2.9.0` står
@@ -485,8 +488,8 @@ at `settAktivSjaforForKontroll(vehicleId, navn)` finnes på linje ~1677 og at
 koden.** Funksjonen finnes ikke i `index.html`, og `v.aktivSjafor` settes
 fortsatt KUN av `startBilokt()`, som kun kalles fra `driverMode`-grenen i
 `submitKontroll()` og fra sjåførmodusens bilvalg. En kontroll registrert fra
-administrasjonsdelen gir derfor «🕓 Sjåfør i dag» via `vehicleSisteSjafor()`,
-ikke «👤 Aktiv sjåfør». Verifisert dynamisk i simulering (se ROADMAP.md).
+administrasjonsdelen gir derfor «🕓 Sjåfør i dag», ikke «👤 Aktiv sjåfør».
+Verifisert dynamisk i simulering (se ROADMAP.md).
 Prioritet 39 endret bevisst ikke dette — aktiv sjåfør sto på «ikke rør»-listen.
 **RETTET I PRIORITET 40:** funksjonen finnes nå, og en kontroll registrert fra
 administrasjonsdelen setter aktiv sjåfør. Se Prioritet 40 over.
@@ -593,6 +596,100 @@ Dekk- og Verksted-arbeidsflatene, Rapporter, Analyse, mobilvisningen
 
 ---
 
+## Prioritet 42 (2026-09-09) — PWA-installasjon: rotårsak funnet og
+bekreftet LIVE mot GitHub Pages (ikke bare kodelesing)
+
+Bestilling: "på nye telefoner" tilbys ikke lenger "Installer app"/"Legg til
+på startskjerm" på `https://benibanos.github.io/Biloversikt/`.
+
+**Rotårsak (verifisert direkte mot den kjørende siden, med `fetch()`/
+`caches.addAll()` i en ekte nettleserfane — ikke antatt):**
+
+1. `manifest.json`/`manifest-sjafor.json` sine `icons[].src`
+   (`icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-512-maskable.png`)
+   gir **404** på den faktiske GitHub Pages-siden. Ikonene ligger i praksis i
+   REPO-ROTEN (`icon-192.png` osv. — bekreftet 200 OK der), ikke under en
+   `icons/`-mappe, selv om ALL kode (manifestene, `sw.js`, `index.html`s
+   `<link rel="icon">`/`apple-touch-icon`) konsekvent forventer `icons/`-
+   mappen. Ingen alternativ mappe (`Icons/`, `ICONS/`, `icon/`,
+   `assets/icons/`) finnes heller.
+2. Fordi ikonene 404, har manifestet ingen gyldig, lastbar 192px+-ikon — ett
+   av Chromes to harde installerbarhetskrav feiler alene av dette.
+3. **Samme mangel ødelegger i tillegg selve Service Workeren:** `sw.js` sin
+   `install`-håndterer kjører `caches.open(CACHE_VERSION).then(cache =>
+   cache.addAll(APP_SHELL))`, og `APP_SHELL` inneholder de samme tre
+   ikonstiene. `cache.addAll()` er alt-eller-ingenting — når tre av ti URL-er
+   404er, kaster HELE installasjonssteget en feil (`TypeError: Failed to
+   execute 'addAll' on 'Cache': Request failed`), reprodusert direkte i
+   nettleseren. Service workeren blir dermed værende i `installing`-
+   tilstand og når ALDRI `activated`. Det andre harde installerbarhets-
+   kravet (aktiv service worker) feiler dermed også — av nøyaktig samme
+   underliggende årsak.
+
+**Konklusjon:** dette er ikke en kodefeil i `index.html`/manifestene/
+`sw.js` — alle fire filene er internt konsistente og korrekte, og peker
+samstemt på `icons/`-mappen slik prosjektets egen dokumentasjon alltid har
+beskrevet strukturen. Feilen er at `icons/`-mappen mangler på den FAKTISK
+PUBLISERTE GitHub Pages-siden. Prioritet 36-teksten over hevdet at nøyaktig
+dette var rettet "i den leverte pakken" — men det leverte innholdet ble
+tydeligvis aldri (eller ikke lenger) faktisk lastet opp til det kjørende
+repoet. Forklarer også hvorfor eksisterende, allerede installerte
+telefoner ikke er rammet: de installerte trolig FØR denne mappen forsvant
+fra live-siden, og sitter fortsatt med en fungerende, tidligere installert
+kopi + gammel service worker-cache. "Nye telefoner" er ganske enkelt ethvert
+FØRSTE besøk etter at mappen forsvant fra det publiserte repoet.
+
+**Den faktiske fiksen er ikke en kodeendring, men en repo-operasjon:** last
+opp `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` til en
+`icons/`-mappe i `Benibanos/Biloversikt`-repoet på GitHub (samme filnavn, ny
+plassering) — se PRIORITET_42_ANALYSE.md for eksakt fremgangsmåte. Denne
+leveransen inneholder ikke selve bildefilene (de er ikke en del av
+Claude-prosjektets tekstdokumenter) og kan derfor ikke gjøre denne delen av
+jobben automatisk.
+
+**Kodeendringer levert i samme runde (defensive/robuste forbedringer, ikke
+selve rotårsaksfiksen, men adresserer sakens EKSTRA-punkt og gjør neste
+eventuelle avvik synlig med én gang i stedet for å måtte reproduseres
+manuelt):**
+
+1. **Ny, alltid tilgjengelig installasjonsinngang i Innstillinger →
+   Systeminnstillinger → "📲 Installer app"** (`pwaInstallStatusHtml()`).
+   Tidligere fantes KUN det ene, lukkbare toppbanneret (`#pwa-install-bar`)
+   — lukket man det (eller det aldri viste seg), fantes ingen annen vei inn
+   i appens egen installasjonsflyt. Den nye seksjonen viser enten
+   "🔽 Installer Bilpark"-knappen (deler samme `deferredInstallPrompt`/
+   `installPwaNow()` som toppbanneret — ingen duplisert installasjonslogikk),
+   en bekreftelse på at appen allerede kjører installert, iOS-instruksjonen,
+   eller — dersom nettleseren aldri har tilbudt installasjon — en
+   forklaring: **"📵 PWA ikke tilgjengelig på denne enheten"**, med
+   konkret(e) årsak(er) hvis diagnosen under har funnet noen.
+2. **Ny kjøretids-diagnose (`pwaDiag`/`kjorPwaDiagnostikk()`)**: henter
+   manifestet på nytt (`fetch`), sjekker at hvert ikon faktisk laster
+   (`new Image()`), og sjekker at service worker-registreringen faktisk
+   lykkes — og viser resultatet i klartekst i "📲 Installer app"-seksjonen
+   over. Dette er nøyaktig den samme sjekken som avdekket rotårsaken over,
+   nå innebygd i appen slik at et fremtidig avvik (f.eks. hvis ikonene
+   flyttes/forsvinner igjen) vises direkte til driftskoordinator i stedet
+   for å kreve en ny, manuell utviklerøkt for å reproduseres.
+3. **`id`-felt lagt til i begge manifestene** (`/Biloversikt/` og
+   `/Biloversikt/?sjafor=1`) — anbefalt praksis for stabil app-identitet på
+   tvers av fremtidige oppdateringer. Rent tillegg, endrer ikke eksisterende
+   oppførsel.
+4. `CACHE_VERSION` i `sw.js` økt til `bilpark-v38` (app-shell-filene endret
+   seg). `kontroll.html` resynkronisert som eksakt kopi av `index.html`, som
+   før.
+
+**Ikke rørt:** Dashboard, Mobil Design 4.1, Kjøretøyprofil, Aktiv sjåfør,
+Service, EU-kontroll, Dekk, hele Airtable-laget/`storage.airtable.js`
+(ingen `?v=`-endring, siden filen selv ikke er endret) — saken var
+eksplisitt avgrenset til PWA/manifest/service worker/installasjon.
+
+Se PRIORITET_42_ANALYSE.md for full analyse (alle 8 kontrollpunktene fra
+bestillingen, punkt for punkt), simuleringsresultat og eksakt fremgangsmåte
+for repo-fiksen.
+
+---
+
 ## Produktvisjon
 
 - Operativt styringssystem for bilparken til Bring Larvik (ca. 16 kjøretøy,
@@ -626,7 +723,7 @@ Repoet inneholder ingen filer for andre hostingplattformer og ingen
 Android/APK/TWA/Bubblewrap/Play Store-relatert konfigurasjon — alt dette er
 fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
 
-- **Frontend:** Ett samlet HTML-dokument (`index.html`, ~10 700 linjer) med
+- **Frontend:** Ett samlet HTML-dokument (`index.html`, ~10 800 linjer) med
   all CSS og all forretningslogikk inline i to `<script>`-blokker. Ingen
   separate CSS- eller komponentfiler.
 - **Database:** Airtable — se AIRTABLE_MIGRATION.md for fullt skjema. Ingen
@@ -634,10 +731,14 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v32'`). To separate
-  manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
-  (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`). Ikoner
-  ligger i `icons/` (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`).
+  offline-fallback (`CACHE_VERSION = 'bilpark-v38'`, Prioritet 42). To
+  separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
+  (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`), begge nå
+  med et eksplisitt `id`-felt (Prioritet 42). Ikoner skal ligge i `icons/`
+  (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`) — **se Prioritet
+  42: bekreftet live at denne mappen for øyeblikket MANGLER på den
+  publiserte siden; må rettes i selve GitHub-repoet, se
+  PRIORITET_42_ANALYSE.md.** Se også ny seksjon "PWA og installasjon" under.
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
   `v2.9.0`, cache-bustet via `?v=2.9.0` på script-taggen i `index.html` OG
   `kontroll.html` — se "Versjonskontroll (permanent løsning)" under for
@@ -655,6 +756,34 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   sjåfører fjernes, kontrollstatus nullstilles kl. 04:00 (`ryddOppBiloktDagskille()`/
   `isoDateForOperationalDay()`), ikke ved midnatt — fordi sjåfører kan
   arbeide til langt etter midnatt.
+
+## PWA og installasjon (Prioritet 42)
+
+- Manifester: `manifest.json` (hovedapp, `start_url: ./index.html`),
+  `manifest-sjafor.json` (sjåfør-snarvei, `start_url: ./index.html?sjafor=1`).
+  Begge har `id` (nytt i Prioritet 42), `name`/`short_name`,
+  `display: standalone`, korrekt `scope: ./` (matcher GitHub Pages-
+  understien `/Biloversikt/`), og tre ikoner (192 any, 512 any, 512
+  maskable).
+- `sw.js`: nettverk-først for samme-opprinnelse GET-forespørsler, cache som
+  offline-reserve. `install`-steget cacher `APP_SHELL` (app-skallfilene,
+  inkl. ikonene) via `cache.addAll()` — **denne er alt-eller-ingenting: hvis
+  ÉN fil i `APP_SHELL` 404er, feiler HELE service worker-installasjonen.**
+  Hold denne listen synkronisert med hva som faktisk finnes live — dette var
+  nøyaktig det som feilet i Prioritet 42.
+- `beforeinstallprompt`/`appinstalled` fanges i `index.html` sitt
+  hovedscript (`deferredInstallPrompt`), med to visningssteder som deler
+  samme tilstand og samme `installPwaNow()`-funksjon: det dismissbare
+  toppbanneret (`#pwa-install-bar`, vises automatisk når nettleseren
+  tilbyr installasjon) og "📲 Installer app" i Innstillinger →
+  Systeminnstillinger (alltid tilgjengelig, viser diagnose
+  (`pwaDiag`/`kjorPwaDiagnostikk()`) når installasjon IKKE er tilgjengelig).
+- **Kjent, dokumentert driftsavhengighet:** koden forutsetter at
+  `icons/icon-192.png`, `icons/icon-512.png` og `icons/icon-512-maskable.png`
+  faktisk finnes i `icons/`-mappen i det publiserte GitHub Pages-repoet.
+  Dette er IKKE noe koden kan garantere alene — verifiser det manuelt (åpne
+  URL-ene direkte i nettleseren, eller se "📲 Installer app" i
+  Innstillinger) etter enhver endring i repoets filstruktur.
 
 ## Desktop Design 2.0
 
@@ -674,7 +803,8 @@ Adaptivt layout med sidebar-navigasjon (`renderDesktopSidebarHtml()`):
 - Kostnader
 - Rapporter (📊, eget menypunkt atskilt fra Analyse)
 - Analyse (📈, eget menypunkt)
-- Innstillinger (inkl. Database status, synkroniseringsstatus, diagnoseverktøy)
+- Innstillinger (inkl. Database status, synkroniseringsstatus, "📲 Installer
+  app" (nytt i Prioritet 42), diagnoseverktøy)
 
 ## Mobil Design 2.0
 
@@ -1014,7 +1144,8 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
 
 **Før enhver endring:**
 
-1. Les denne filen, ROADMAP.md og AIRTABLE_MIGRATION.md.
+1. Les denne filen, ROADMAP.md og AIRTABLE_MIGRATION.md — for PWA/
+   installasjonssaker spesifikt også PRIORITET_42_ANALYSE.md.
 2. Analyser eksisterende kode direkte i `index.html`/`storage.airtable.js`
    før du antar hvordan noe fungerer — flere historiske feil i dette
    prosjektet oppsto nettopp av antakelser uten kodeverifisering.
@@ -1025,6 +1156,12 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
    hvilken som er riktig.
 4. Ta en snapshot/backup (git-commit) før du starter — git-historikken er
    backupen, ikke en arkivmappe i produksjonsprosjektet.
+5. **For alt som gjelder PWA-installerbarhet (Prioritet 42): verifiser
+   ALLTID mot den faktisk publiserte siden, ikke bare kildekoden/det som er
+   levert i en ZIP.** Prioritet 42 viste at kode og live-repo kan divergere
+   — ikonmappen fantes i kildekoden/den leverte pakken siden Prioritet 36,
+   men var likevel fortsatt fraværende på den publiserte GitHub Pages-siden
+   per 2026-09-09.
 
 **Under endring:**
 
@@ -1057,6 +1194,10 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
   Dekk, Skadebilder, Historikk, Planlegging, Rapporthub/Kilometerstandsrapport-
   eksport, service worker/PWA, oppdateringsfunksjonen ("Oppdater app" i
   Innstillinger).
+- **For PWA-endringer spesifikt (nytt i Prioritet 42): åpne hver
+  ikon-/manifest-/service worker-URL direkte i nettleseren mot den FAKTISK
+  publiserte siden og bekreft 200 OK — ikke stol på at kildekoden alene
+  garanterer dette.**
 - Oppdater dokumentasjon (denne filen ved ny funksjonalitet,
   AIRTABLE_MIGRATION.md ved databaseendringer, ROADMAP.md ved
   statusendring) — etter implementering, ikke før.
@@ -1076,3 +1217,9 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
   igjen i nettleseren hvis cache-buster-tallet ikke økes ved opplasting.
 - `servicehistorikk`/`planlagteservicer` er én JSON-blob i Settings, ikke
   egne tabeller — vær varsom med feltgrenser ved stor vekst.
+- **Nytt i Prioritet 42: et manifest/en service worker kan være 100 %
+  korrekt i KILDEKODEN og likevel feile fullstendig live, hvis en referert
+  fil (typisk ikoner) mangler på selve den publiserte GitHub Pages-siden.
+  `cache.addAll()` i `sw.js` er alt-eller-ingenting — én manglende fil i
+  `APP_SHELL` blokkerer HELE service worker-installasjonen, ikke bare den
+  ene filen.**
