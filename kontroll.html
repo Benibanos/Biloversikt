@@ -1214,6 +1214,17 @@ let vehicles = [];
 let damages = [];
 let verkstedtimer = [];
 let verksteder = [];
+// PRIORITET 41 — redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
+// Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
+// tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
+// endring, ingen migrering. Hvert element: {id, navn, ikon}.
+// v.kategori på kjøretøyet peker på `id` — de fire standard-id-ene (bil/lastebil/
+// montering/reserve) er BEVISST beholdt, slik at alle eksisterende kjøretøy og all
+// eksisterende data fortsetter å peke riktig.
+let bilkategorier = [];
+let editingKategoriId = null;
+let showAddKategori = false;
+let kategoriAdminMsg = '';
 let loaded = false;
 
 let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
@@ -2472,9 +2483,70 @@ async function mutasjonMedRollback(arr, mutateFn, saveFn, feilmelding){
 
 const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
 const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
+// PRIORITET 41: kategoriene er ikke lenger hardkodet. De tre oppslagene under er beholdt
+// UENDRET som navn og form — alle ~15 kallesteder i appen (Biloversikt, Varsler, Rapporter,
+// Kostnader, Analyse, Excel-eksport, vehicleOptions(), sortedVehicles() …) fortsetter å
+// lese dem akkurat som før. Forskjellen er at INNHOLDET nå bygges fra `bilkategorier` av
+// rebyggKategoriOppslag(), i stedet for å stå skrevet her. Verdiene under er kun
+// startverdier før dataene er lastet — de tilsvarer standardkategoriene.
 const KATEGORI_LABEL = {bil:'Bil 1–11', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
 const KATEGORI_GROUP_LABEL = {bil:'Bil 1–11', lastebil:'Lastebiler', montering:'Monteringsbiler', reserve:'Reserve'};
 const KATEGORI_ORDER = ['bil','lastebil','montering','reserve'];
+// Standardkategoriene. Brukes KUN ved førstegangsoppstart (seeding), på samme måte som
+// DEFAULT_FLEET og standard-verkstedlisten — endrer driftskoordinator kategoriene senere,
+// kommer disse ikke tilbake av seg selv.
+const STANDARD_BILKATEGORIER = [
+  {id:'bil',       navn:'Bil 1–11',       ikon:'🚐'},
+  {id:'lastebil',  navn:'Lastebiler',     ikon:'🚚'},
+  {id:'montering', navn:'Monteringsbiler', ikon:'🔧'},
+  {id:'reserve',   navn:'Reserve',        ikon:'🔄'}
+];
+// ---- Systemstyrt kategori: 🚫 Ute av drift ----
+// Dette er IKKE en vanlig kategori. Den kan ikke opprettes, endres, flyttes eller slettes,
+// den ligger ALDRI i `bilkategorier`/KATEGORI_ORDER (og dukker derfor ikke opp i noen
+// nedtrekksliste eller noe rapportfilter), og ingen bil kan «settes» i den manuelt.
+// Plasseringen beregnes LIVE fra v.uteAvDrift, på nøyaktig samme måte som alle andre
+// statusindikatorer i appen. Nettopp derfor bevares den opprinnelige kategorien helt av
+// seg selv: v.kategori røres ALDRI når en bil settes ute av drift, og bilen faller
+// automatisk tilbake i sin egen kategori i det uteAvDrift fjernes. Ingen ekstra felt,
+// ingen manuell flytting, ingenting som kan komme ut av synk.
+const UTE_AV_DRIFT_KATEGORI_ID = 'ute-av-drift';
+const UTE_AV_DRIFT_KATEGORI_NAVN = 'Ute av drift';
+const UTE_AV_DRIFT_KATEGORI_IKON = '🚫';
+// Bygger de tre oppslagene på nytt fra `bilkategorier`. Kalles etter lasting og etter hver
+// eneste endring i kategoriregisteret. Muterer innholdet i de eksisterende objektene/
+// arrayet i stedet for å opprette nye, slik at alle kallesteder peker på samme sannhet.
+function rebyggKategoriOppslag(){
+  KATEGORI_ORDER.length = 0;
+  Object.keys(KATEGORI_LABEL).forEach(k => delete KATEGORI_LABEL[k]);
+  Object.keys(KATEGORI_GROUP_LABEL).forEach(k => delete KATEGORI_GROUP_LABEL[k]);
+  Object.keys(GRUPPE_IKON).forEach(k => delete GRUPPE_IKON[k]);
+  bilkategorier.forEach(k => {
+    KATEGORI_ORDER.push(k.id);
+    KATEGORI_LABEL[k.id] = k.navn;
+    KATEGORI_GROUP_LABEL[k.id] = k.navn;
+    GRUPPE_IKON[k.id] = k.ikon || '🚐';
+  });
+}
+// Kategorien en bil skal VISES i akkurat nå. Eneste sted denne regelen finnes.
+function vehicleVisningsKategori(v){
+  return (v && v.uteAvDrift) ? UTE_AV_DRIFT_KATEGORI_ID : (v ? v.kategori : '');
+}
+function kategoriNavn(katId){
+  if(katId === UTE_AV_DRIFT_KATEGORI_ID) return UTE_AV_DRIFT_KATEGORI_NAVN;
+  return KATEGORI_LABEL[katId] || '—';
+}
+function kategoriIkon(katId){
+  if(katId === UTE_AV_DRIFT_KATEGORI_ID) return UTE_AV_DRIFT_KATEGORI_IKON;
+  return GRUPPE_IKON[katId] || '🚐';
+}
+// Felles nedtrekksliste for kategori. Erstatter de tre hardkodede <option>-listene som
+// lå i «Ny bil», Biloversikt-filteret og kjøretøyskjemaet — de ville ellers ikke fått med
+// seg nye kategorier. 🚫 Ute av drift er bevisst IKKE med: den er systemstyrt.
+function kategoriOptionsHtml(valgt, tomTekst){
+  return (tomTekst !== null && tomTekst !== undefined ? `<option value="">${esc(tomTekst)}</option>` : '')
+    + bilkategorier.map(k => `<option value="${esc(k.id)}" ${valgt === k.id ? 'selected' : ''}>${k.ikon || ''} ${esc(k.navn)}</option>`).join('');
+}
 // Prioritet 27.1 (Driftslag i Sjåførkontroll) — gjelder KUN bilvalget i Kontroll-skjermen,
 // ikke Biloversikt/Historikk/Rapporter/Planlegging (disse grupperer fortsatt uendret etter
 // KATEGORI_ORDER over). v.driftslag er et nytt, fritekstbasert felt på kjøretøyet — bevisst
@@ -2711,6 +2783,21 @@ async function loadAll(){
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
+  // PRIORITET 41 — bilkategorier lastes fra Settings-blobben, med seeding av
+  // standardkategoriene ved førstegangsoppstart. Oppslagene (KATEGORI_ORDER/
+  // KATEGORI_LABEL/KATEGORI_GROUP_LABEL/GRUPPE_IKON) bygges umiddelbart etterpå.
+  try{
+    const bk = await window.storage.get('bilkategorier', true);
+    bilkategorier = bk && bk.value ? JSON.parse(bk.value) : [];
+  }catch(e){ bilkategorier = []; }
+  if(!Array.isArray(bilkategorier) || bilkategorier.length === 0){
+    bilkategorier = STANDARD_BILKATEGORIER.map(k => ({id: k.id, navn: k.navn, ikon: k.ikon}));
+    await saveBilkategorier();
+  }
+  // Sikkerhetsnett: en bil kan peke på en kategori-id som ikke (lenger) finnes — f.eks.
+  // eldre data. Da opprettes ikke en ny sannhet; bilen vises i stedet under den FØRSTE
+  // kategorien, slik at den aldri blir usynlig i Biloversikt.
+  rebyggKategoriOppslag();
   try{
     const vs = await window.storage.get('verksteder', true);
     verksteder = vs && vs.value ? JSON.parse(vs.value) : null;
@@ -2896,6 +2983,12 @@ async function saveVerkstedtimer(){
 // Prioritet 29: kastende variant, samme begrunnelse som saveAktiveSakerEllerKast() over.
 async function saveVerkstedtimerEllerKast(){
   await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true);
+}
+// PRIORITET 41: samme mønster som saveVerksteder() — én JSON-blob i Settings-tabellen.
+async function saveBilkategorier(){
+  try{ await window.storage.set('bilkategorier', JSON.stringify(bilkategorier), true); }
+  catch(e){ alert('Kunne ikke lagre bilkategoriene. Prøv igjen.'); console.error(e); }
+  rebyggKategoriOppslag();
 }
 async function saveVerksteder(){
   try{ await window.storage.set('verksteder', JSON.stringify(verksteder), true); }
@@ -5455,6 +5548,99 @@ function deleteSelectedKontroller(){
 }
 
 
+// ================= PRIORITET 41 — Bilkategorier (Innstillinger) =================
+// Alt under endrer KUN kategoriregisteret og v.kategori på kjøretøy. Ingen kontroll,
+// ingen kilometer, ingen service/dekk/EU, ingen historikk og ingen saker berøres.
+async function addBilkategori(){
+  const input = document.getElementById('new-kategori-navn');
+  const ikonInput = document.getElementById('new-kategori-ikon');
+  const navn = (input ? input.value : '').trim();
+  if(!navn){ kategoriAdminMsg = 'Skriv inn et navn på kategorien.'; render(); return; }
+  if(bilkategorier.some(k => k.navn.trim().toLowerCase() === navn.toLowerCase())){
+    kategoriAdminMsg = 'Det finnes allerede en kategori med dette navnet.'; render(); return;
+  }
+  bilkategorier.push({id: uid(), navn, ikon: ((ikonInput ? ikonInput.value : '') || '🚐').trim() || '🚐'});
+  await saveBilkategorier();
+  showAddKategori = false;
+  kategoriAdminMsg = '✅ Kategorien «' + navn + '» er opprettet.';
+  render();
+}
+function toggleEditKategori(id){
+  editingKategoriId = editingKategoriId === id ? null : id;
+  kategoriAdminMsg = '';
+  render();
+}
+async function saveKategoriEdit(id){
+  const k = bilkategorier.find(x => x.id === id);
+  if(!k) return;
+  const navnEl = document.getElementById('edit-kategori-navn-' + id);
+  const ikonEl = document.getElementById('edit-kategori-ikon-' + id);
+  const nyttNavn = ((navnEl ? navnEl.value : '') || '').trim();
+  if(!nyttNavn){ kategoriAdminMsg = 'Navnet kan ikke være tomt.'; render(); return; }
+  if(bilkategorier.some(x => x.id !== id && x.navn.trim().toLowerCase() === nyttNavn.toLowerCase())){
+    kategoriAdminMsg = 'Det finnes allerede en kategori med dette navnet.'; render(); return;
+  }
+  // Kun visningsnavnet endres. `id` står FAST — det er den kjøretøyene peker på, og et
+  // navnebytte skal derfor aldri kunne løsrive en bil fra kategorien sin.
+  k.navn = nyttNavn;
+  k.ikon = ((ikonEl ? ikonEl.value : '') || k.ikon || '🚐').trim() || '🚐';
+  await saveBilkategorier();
+  editingKategoriId = null;
+  kategoriAdminMsg = '';
+  render();
+}
+async function flyttKategori(id, retning){
+  const i = bilkategorier.findIndex(k => k.id === id);
+  const j = i + retning;
+  if(i < 0 || j < 0 || j >= bilkategorier.length) return;
+  const tmp = bilkategorier[i];
+  bilkategorier[i] = bilkategorier[j];
+  bilkategorier[j] = tmp;
+  await saveBilkategorier();
+  kategoriAdminMsg = '';
+  render();
+}
+async function deleteBilkategori(id){
+  const k = bilkategorier.find(x => x.id === id);
+  if(!k) return;
+  // Bevisst STRENG regel: en kategori med biler i kan ikke slettes. Alternativet ville
+  // vært å flytte bilene stille et annet sted — det ville vært en skjult dataendring på
+  // kjøretøy, og nøyaktig den typen «ny sannhet» arkitekturen skal unngå.
+  const antall = vehicles.filter(v => v.kategori === id).length;
+  if(antall > 0){
+    kategoriAdminMsg = '⚠️ «' + k.navn + '» kan ikke slettes: ' + antall + ' ' + (antall === 1 ? 'bil ligger' : 'biler ligger') + ' fortsatt i kategorien. Flytt dem til en annen kategori først.';
+    render();
+    return;
+  }
+  if(bilkategorier.length <= 1){
+    kategoriAdminMsg = '⚠️ Den siste kategorien kan ikke slettes — bilparken må ha minst én kategori.';
+    render();
+    return;
+  }
+  // Kategori-id-en `reserve` har en EGEN operativ betydning: vehicleErReserveUnntatt()
+  // bruker den til å la en reservebil slippe daglig kontrollkrav så lenge den ikke er tatt
+  // i bruk. Navnet kan trygt endres (id-en står fast), men slettes kategorien forsvinner
+  // regelen — derfor en tydelig ekstra advarsel her.
+  if(k.id === 'reserve' && !confirm('«' + k.navn + '» er reservebilkategorien. Sletter du den, mister systemet regelen om at en reservebil ikke krever daglig kontroll før den tas i bruk. Slette likevel?')) return;
+  if(!confirm('Slette kategorien «' + k.navn + '»? Den er tom, så ingen biler berøres.')) return;
+  bilkategorier = bilkategorier.filter(x => x.id !== id);
+  await saveBilkategorier();
+  if(filterKategori === id) filterKategori = '';
+  kategoriAdminMsg = '';
+  render();
+}
+// Flytt ETT kjøretøy til en annen kategori. Endrer kun v.kategori — ingen annen del av
+// kjøretøyet røres, og en bil som står ute av drift beholder kategorien sin som den
+// «faller tilbake til» når den settes i drift igjen.
+async function flyttBilTilKategori(vehicleId, katId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v || !bilkategorier.some(k => k.id === katId)) return;
+  v.kategori = katId;
+  await saveVehicles();
+  kategoriAdminMsg = '✅ ' + vehicleLabel(v) + ' er flyttet til ' + kategoriNavn(katId) + '.';
+  render();
+}
+
 // ================= Verkstedregister (Innstillinger) =================
 async function addVerksted(){
   const input = document.getElementById('new-verksted-navn');
@@ -7034,13 +7220,7 @@ function renderRegister(){
         <div class="field"><label>Bilnummer</label><input id="new-bilnummer" type="text" placeholder="F.eks. Bil 3" required></div>
         <div class="field"><label>Registreringsnummer</label><input id="new-regnr" type="text" placeholder="F.eks. AB12345" required></div>
         <div class="field"><label>Kategori</label>
-          <select id="new-kategori" required>
-            <option value="">Velg kategori...</option>
-            <option value="bil">Bil 1–11</option>
-            <option value="lastebil">Lastebil</option>
-            <option value="montering">Monteringsbil</option>
-            <option value="reserve">Reserve</option>
-          </select>
+          <select id="new-kategori" required>${kategoriOptionsHtml('', 'Velg kategori...')}</select>
         </div>
       </div>
       <div class="row3">
@@ -7072,13 +7252,7 @@ function renderRegister(){
 
     <div class="filters-row">
       <input type="text" id="f-search" placeholder="Søk på bilnummer, regnr., modell eller løyvenummer..." value="${esc(filterSearch)}">
-      <select id="f-kategori">
-        <option value="">Alle kategorier</option>
-        <option value="bil" ${filterKategori==='bil'?'selected':''}>Bil 1–11</option>
-        <option value="lastebil" ${filterKategori==='lastebil'?'selected':''}>Lastebil</option>
-        <option value="montering" ${filterKategori==='montering'?'selected':''}>Monteringsbil</option>
-        <option value="reserve" ${filterKategori==='reserve'?'selected':''}>Reserve</option>
-      </select>
+      <select id="f-kategori">${kategoriOptionsHtml(filterKategori, 'Alle kategorier')}</select>
       <select id="f-kontrollstatus">
         <option value="" ${filterKontrollStatus===''?'selected':''}>Alle biler</option>
         <option value="kontrollert" ${filterKontrollStatus==='kontrollert'?'selected':''}>Kontrollert i dag</option>
@@ -7113,34 +7287,64 @@ function renderRegister(){
         return minBil ? `<div class="required-hint" style="margin-bottom:14px;background:var(--amber-soft);color:var(--ink);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;" data-open="${minBil.id}">🚚 Aktiv bil: ${esc(vehicleLabel(minBil))} →</div>` : '';
       })()}
       <div class="dash-group-grid" style="grid-template-columns:1fr;">
-        ${KATEGORI_ORDER.filter(k => filtered.some(v => v.kategori === k)).map(k => {
+        ${(() => {
+          // PRIORITET 41 — to ULIKE måter å se bilparken på, med bevisst ULIK logikk:
+          //
+          //   Biloversikt   = ORGANISERING. Grupperes etter kategori (redigerbar), med den
+          //                   systemstyrte gruppen 🚫 Ute av drift alltid nederst.
+          //   Biler i drift = AKTIV BRUK. Når filteret «Har aktiv sjåfør» er valgt, vises
+          //                   ÉN samlet liste på tvers av alle kategorier — kategori skal
+          //                   ikke påvirke hvem som faktisk kjører akkurat nå.
           const minBil = egenAktiveBil();
-          const gruppeBilerSortert = sortedVehicles(filtered.filter(v => v.kategori === k));
-          // Egen aktive bil løftes øverst i sin gruppe — samme liste, kun omsortert.
-          const gruppeBiler = minBil && minBil.kategori === k
-            ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
-            : gruppeBilerSortert;
-          // Er kun ÉN kategori synlig pga. filter, eller gruppen inneholder egen aktive
-          // bil, åpnes gruppen automatisk i tillegg til manuelt åpnede grupper.
-          const open = registerGrupperApne.has(k) || filterKategori === k || (minBil && minBil.kategori === k);
-          return `
-          <div class="panel dash-group-card">
-            <div class="group-card-head" data-toggle-register-gruppe="${k}">
-              <div>
-                <div class="group-card-title">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
-                <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
-              </div>
-              <span class="chevron ${open?'open':''}">⌄</span>
-            </div>
-            <div class="vehicle-group-body ${open?'open':''}">
-              <div>
-                <div class="gallery" style="margin-top:12px;">
-                  ${gruppeBiler.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
+          const kortHtml = (biler) => sortedVehicles(biler).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('');
+
+          if(filterHovedstatus === 'har-aktiv-sjafor'){
+            const iDrift = sortedVehicles(filtered);
+            return `
+            <div class="panel dash-group-card">
+              <div class="group-card-head" style="cursor:default;">
+                <div>
+                  <div class="group-card-title">🚚 Biler i drift (${iDrift.length})</div>
+                  <div class="group-card-sub">Alle biler med aktiv sjåfør — uavhengig av kategori</div>
                 </div>
               </div>
-            </div>
-          </div>`;
-        }).join('')}
+              <div class="vehicle-group-body open">
+                <div><div class="gallery" style="margin-top:12px;">${kortHtml(iDrift)}</div></div>
+              </div>
+            </div>`;
+          }
+
+          // Grupperekkefølge: de administrerbare kategoriene i sin egen rekkefølge, deretter
+          // 🚫 Ute av drift nederst. Tomme grupper skjules automatisk (filter under).
+          const gruppeIder = [...KATEGORI_ORDER, UTE_AV_DRIFT_KATEGORI_ID];
+          return gruppeIder.filter(k => filtered.some(v => vehicleVisningsKategori(v) === k)).map(k => {
+            const gruppeBilerSortert = sortedVehicles(filtered.filter(v => vehicleVisningsKategori(v) === k));
+            // Egen aktive bil løftes øverst i sin gruppe — samme liste, kun omsortert.
+            const gruppeBiler = minBil && vehicleVisningsKategori(minBil) === k
+              ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
+              : gruppeBilerSortert;
+            // Er kun ÉN kategori synlig pga. filter, eller gruppen inneholder egen aktive
+            // bil, åpnes gruppen automatisk i tillegg til manuelt åpnede grupper.
+            const open = registerGrupperApne.has(k) || filterKategori === k || (minBil && vehicleVisningsKategori(minBil) === k);
+            return `
+            <div class="panel dash-group-card">
+              <div class="group-card-head" data-toggle-register-gruppe="${k}">
+                <div>
+                  <div class="group-card-title">${kategoriIkon(k)} ${esc(kategoriNavn(k))}</div>
+                  <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
+                </div>
+                <span class="chevron ${open?'open':''}">⌄</span>
+              </div>
+              <div class="vehicle-group-body ${open?'open':''}">
+                <div>
+                  <div class="gallery" style="margin-top:12px;">
+                    ${gruppeBiler.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          }).join('');
+        })()}
       </div>
     `}
   `;
@@ -7206,7 +7410,7 @@ function galleryCard(v, erMinAktiveBil){
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
         <span class="p38-pill" style="--tint:${aktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${aktiveVarsler.length > 0 ? 'var(--red)' : 'var(--green-ink)'};">${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen varsellamper'}</span>
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
-        <span class="p38-pill">${KATEGORI_LABEL[v.kategori] || '—'}</span>
+        <span class="p38-pill" ${v.uteAvDrift ? 'style="--tint:var(--surface-3);--tone:var(--red);"' : ''}>${kategoriIkon(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}</span>
       </div>
     </div>
   `;
@@ -7971,7 +8175,12 @@ function renderBilkort(){
   // full historikk vises på den dedikerte Service-arbeidsflaten (se renderServiceSkjerm()).
   const vSisteService = vehicleSisteService(v.id);
   const vServiceStatus = vehicleServiceStatus(v);
-  const KATEGORI_BILTYPE_LABEL = {bil:'Bil', lastebil:'Lastebil', montering:'Monteringsbil', reserve:'Reserve'};
+  // PRIORITET 41: «Biltype» leste tidligere fra en EGEN, hardkodet etikettliste som lå
+  // her inne i renderBilkort() — en fjerde parallell sannhet om kategorinavn. Den er
+  // fjernet; feltet leser nå det samme redigerbare kategoriregisteret som resten av appen,
+  // via kategoriNavn(). Bilens EGEN kategori vises her (ikke visningskategorien), slik at
+  // man ser hva bilen faller tilbake til når den settes i drift igjen.
+  const KATEGORI_BILTYPE_LABEL = new Proxy({}, {get: (_t, k) => (typeof k === 'string' ? kategoriNavn(k) : undefined)});
 
   // Prioritet 27 (Design 2.0): Kjøretøyprofil-toppanelet forenklet til KUN de fire
   // feltene som identifiserer bilen og dens to viktigste frister — Bilgruppe/Biltype/
@@ -8097,12 +8306,7 @@ function renderBilkort(){
       <div class="field"><label>Bilnummer</label><input id="f-bilnummer" type="text" value="${esc(v.bilnummer)}"></div>
       <div class="field"><label>Registreringsnummer</label><input id="f-regnr" type="text" value="${esc(v.regnr)}"></div>
       <div class="field"><label>Kategori</label>
-        <select id="f-kategori">
-          <option value="bil" ${v.kategori==='bil'?'selected':''}>Bil 1–11</option>
-          <option value="lastebil" ${v.kategori==='lastebil'?'selected':''}>Lastebil</option>
-          <option value="montering" ${v.kategori==='montering'?'selected':''}>Monteringsbil</option>
-          <option value="reserve" ${v.kategori==='reserve'?'selected':''}>Reserve</option>
-        </select>
+        <select id="f-kategori">${kategoriOptionsHtml(v.kategori, null)}</select>
       </div>
     </div>
     <div class="row3">
@@ -8444,6 +8648,7 @@ function renderBilkort(){
             <button type="button" class="p38-lenke" id="profil-rediger-btn-2">Rediger →</button>
           </div>
           <div class="ov-grid">
+            <div class="ov-item"><span class="ov-label">🗂️ Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkon(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
             <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
             <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span></div>
             <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${esc(v.regnr)}</span></div>
@@ -12221,6 +12426,76 @@ function renderInnstillinger(){
     </div>
   `;
 
+  // PRIORITET 41 — ⚙️ Administrer bilkategorier.
+  const kategoriBody = `
+    <div class="required-hint" style="margin-bottom:12px;">
+      Kategoriene bilparken grupperes etter i Biloversikt, og som ligger i alle
+      kategori-nedtrekkslister og rapportfiltre. Rekkefølgen her er rekkefølgen de vises i.
+      <br><br>
+      🚫 <strong>Ute av drift</strong> er systemstyrt og vises ikke her: en bil merket
+      «ute av drift» flyttes automatisk dit, og faller like automatisk tilbake til sin egen
+      kategori når den settes i drift igjen. Kategorien under beholdes hele tiden.
+      <br><br>
+      🔄 <strong>Reserve</strong> har i tillegg en operativ regel: en reservebil krever ikke
+      daglig kontroll før den faktisk tas i bruk. Navnet kan endres fritt, men sletter du
+      kategorien forsvinner den regelen.
+    </div>
+    ${kategoriAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(kategoriAdminMsg)}</div>` : ''}
+    <div class="settings-list">
+      ${bilkategorier.map((k, i) => {
+        const antall = vehicles.filter(v => v.kategori === k.id).length;
+        return `
+        <div class="settings-row" style="${editingKategoriId===k.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
+          ${editingKategoriId === k.id ? `
+            <div class="row2" style="margin-bottom:0;">
+              <div class="field"><label>Navn</label><input type="text" id="edit-kategori-navn-${k.id}" value="${esc(k.navn)}"></div>
+              <div class="field"><label>Ikon</label><input type="text" id="edit-kategori-ikon-${k.id}" value="${esc(k.ikon || '')}" maxlength="4" placeholder="🚐"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn small" data-save-kategori="${k.id}">Lagre</button>
+              <button class="btn secondary small" data-cancel-kategori="${k.id}">Avbryt</button>
+            </div>
+          ` : `
+            <span>${k.ikon || '🚐'} <strong>${esc(k.navn)}</strong> <span class="required-hint" style="margin-left:6px;">${antall} ${antall===1?'bil':'biler'}</span></span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn secondary small" data-flytt-kategori-opp="${k.id}" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="btn secondary small" data-flytt-kategori-ned="${k.id}" ${i === bilkategorier.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="btn secondary small" data-edit-kategori="${k.id}">✏️ Rediger</button>
+              <button class="btn danger-outline small" data-del-kategori="${k.id}">🗑️ Slett</button>
+            </div>
+          `}
+        </div>`;
+      }).join('')}
+    </div>
+    ${showAddKategori ? `
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">
+      <div class="row2" style="margin-bottom:0;">
+        <div class="field"><label>Navn på ny kategori</label><input type="text" id="new-kategori-navn" placeholder="F.eks. Express"></div>
+        <div class="field"><label>Ikon</label><input type="text" id="new-kategori-ikon" value="🚐" maxlength="4"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn small" id="add-kategori-btn">Opprett kategori</button>
+        <button class="btn secondary small" id="cancel-add-kategori-btn">Avbryt</button>
+      </div>
+    </div>` : `
+    <div class="panel-actions" style="margin-top:10px;"><button class="btn small" id="show-add-kategori-btn">+ Ny kategori</button></div>`}
+
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Flytt kjøretøy mellom kategorier</h4>
+      <div class="required-hint" style="margin-bottom:10px;">Endrer kun hvilken kategori bilen tilhører. Ingenting annet på kjøretøyet berøres.</div>
+      <div class="settings-list">
+        ${sortedVehicles(vehicles).map(v => `
+          <div class="settings-row">
+            <span>${esc(vehicleLabel(v))}${v.uteAvDrift ? ` <span class="required-hint" style="margin-left:6px;">🚫 ute av drift</span>` : ''}</span>
+            <select data-flytt-bil-kategori="${v.id}" style="min-height:40px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);">
+              ${kategoriOptionsHtml(v.kategori, null)}
+            </select>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
   const systemBody = `
     <div style="margin-bottom:18px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Tema</h4>
@@ -12430,6 +12705,7 @@ function renderInnstillinger(){
     <div class="acc-list">
       ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
+      ${settingsAccordionRow('kategorier', '⚙️ Administrer bilkategorier', bilkategorier.length, kategoriBody)}
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
       ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
     </div>
@@ -12476,6 +12752,22 @@ function attachInnstillingerListeners(){
     saveThemePreference(e.target.value);
     render();
   }));
+
+  // PRIORITET 41 — bilkategorier. e.stopPropagation() overalt, samme mønster som
+  // Verkstedregisteret, slik at klikk i seksjonen ikke lukker trekkspillraden.
+  const showAddKategoriBtn = document.getElementById('show-add-kategori-btn');
+  if(showAddKategoriBtn) showAddKategoriBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddKategori = true; kategoriAdminMsg = ''; render(); });
+  const cancelAddKategoriBtn = document.getElementById('cancel-add-kategori-btn');
+  if(cancelAddKategoriBtn) cancelAddKategoriBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddKategori = false; kategoriAdminMsg = ''; render(); });
+  const addKategoriBtn = document.getElementById('add-kategori-btn');
+  if(addKategoriBtn) addKategoriBtn.addEventListener('click', (e) => { e.stopPropagation(); addBilkategori(); });
+  document.querySelectorAll('[data-edit-kategori]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditKategori(el.dataset.editKategori); }));
+  document.querySelectorAll('[data-save-kategori]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveKategoriEdit(el.dataset.saveKategori); }));
+  document.querySelectorAll('[data-cancel-kategori]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingKategoriId = null; kategoriAdminMsg = ''; render(); }));
+  document.querySelectorAll('[data-del-kategori]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteBilkategori(el.dataset.delKategori); }));
+  document.querySelectorAll('[data-flytt-kategori-opp]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); flyttKategori(el.dataset.flyttKategoriOpp, -1); }));
+  document.querySelectorAll('[data-flytt-kategori-ned]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); flyttKategori(el.dataset.flyttKategoriNed, 1); }));
+  document.querySelectorAll('[data-flytt-bil-kategori]').forEach(el => el.addEventListener('change', (e) => { e.stopPropagation(); flyttBilTilKategori(el.dataset.flyttBilKategori, e.target.value); }));
 
   const addVerkstedBtn = document.getElementById('add-verksted-btn');
   if(addVerkstedBtn) addVerkstedBtn.addEventListener('click', addVerksted);

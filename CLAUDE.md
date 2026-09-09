@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 40 —
-Aktiv sjåfør fullført). **Ved avvik mellom
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 41 —
+Redigerbare bilkategorier + systemstyrt Ute av drift). **Ved avvik mellom
 denne filen og koden er koden alltid sannheten.**
 
 ---
@@ -272,6 +272,71 @@ ny forretningslogikk, ingen nye Airtable-felt, ingen endring i
    kolonner (kolonnen «Aktiv sjåfør» heter «Sjåfør» i tabellhodet, og tom verdi
    vises som «—» med forklarende tooltip i stedet for «⚪ Tilgjengelig»).
    Biloversikt-siden er uendret.
+
+**Prioritet 41 (2026-09-09) — Redigerbare bilkategorier + systemstyrt 🚫 Ute av
+drift.** Ingen ny Airtable-tabell, ingen nye felt, ingen `LIST_TABLES`-endring,
+ingen endring i `storage.airtable.js` (`?v=2.9.0` står stille), ingen migrering.
+
+**Kartlegging (verifisert i kode):** kategoriene var hardkodet FIRE steder —
+`KATEGORI_LABEL`, `KATEGORI_GROUP_LABEL`, `KATEGORI_ORDER`, `GRUPPE_IKON` — pluss
+en femte, lokal `KATEGORI_BILTYPE_LABEL` inne i `renderBilkort()`, og tre
+hardkodede `<option>`-lister (Ny bil, Biloversikt-filteret, kjøretøyskjemaet).
+Til sammen ~15 kallesteder på tvers av Biloversikt, Varsler, Rapporter,
+Kostnader, Analyse, Excel-eksport, `sortedVehicles()` og `vehicleOptions()`.
+
+**Løsning:**
+1. **`bilkategorier`** — ny liste `[{id, navn, ikon}]`, lagret som ÉN JSON-blob i
+   den eksisterende **Settings**-tabellen, nøyaktig samme mønster som
+   `verksteder`. `saveBilkategorier()`. Seedes med `STANDARD_BILKATEGORIER` ved
+   førstegangsoppstart. **De fire standard-id-ene (`bil`, `lastebil`,
+   `montering`, `reserve`) er bevisst beholdt**, slik at alle eksisterende
+   kjøretøy og all eksisterende data fortsetter å peke riktig.
+2. **`rebyggKategoriOppslag()`** fyller de fire oppslagene på nytt fra
+   `bilkategorier`, ved å MUTERE innholdet i de eksisterende objektene/arrayet.
+   Alle kallesteder er dermed uendret — de leser samme konstanter som før, men
+   innholdet er nå data i stedet for kode. Kalles etter lasting og etter hver
+   lagring. `KATEGORI_BILTYPE_LABEL` er fjernet som egen sannhet (leser nå
+   `kategoriNavn()` via en Proxy, slik at kallestedene står urørt).
+3. **`kategoriOptionsHtml()`** erstatter de tre hardkodede `<option>`-listene.
+   Nye kategorier dukker derfor automatisk opp overalt.
+4. **🚫 Ute av drift er SYSTEMSTYRT, ikke en kategori.** `UTE_AV_DRIFT_KATEGORI_ID`
+   ligger ALDRI i `bilkategorier`/`KATEGORI_ORDER` og dukker derfor ikke opp i noen
+   nedtrekksliste eller noe rapportfilter. **`v.kategori` røres ALDRI** når en bil
+   settes ute av drift — plasseringen beregnes live av
+   `vehicleVisningsKategori(v)` fra `v.uteAvDrift`, akkurat som alle andre
+   statusindikatorer i appen. Nettopp derfor bevares den opprinnelige kategorien
+   helt av seg selv, og bilen faller automatisk tilbake i det `uteAvDrift`
+   fjernes: ingen ekstra felt, ingen manuell flytting, ingenting som kan komme
+   ut av synk. Kjøretøyprofilen viser «🚫 Ute av drift (tilbake til …)».
+5. **Biloversikt** grupperer nå på `vehicleVisningsKategori()`, i
+   `KATEGORI_ORDER` sin rekkefølge, med 🚫 Ute av drift ALLTID nederst. Tomme
+   grupper skjules automatisk (uendret regel).
+6. **Biloversikt vs. Biler i drift — bevisst ULIK logikk.** Biloversikt =
+   ORGANISERING (kategori). «Biler i drift» = AKTIV BRUK. Når filteret
+   «Har aktiv sjåfør» er valgt, viser Biloversikt ÉN samlet liste
+   «🚚 Biler i drift (N)» på tvers av alle kategorier — også biler som står ute
+   av drift, hvis de faktisk har en aktiv sjåfør. `hDriftCount` i
+   `dashboardBeregning()` var allerede kategoriuavhengig og er UENDRET.
+7. **⚙️ Administrer bilkategorier** — ny trekkspillseksjon i Innstillinger (ingen
+   ny skjerm, ingen `ADMIN_SCREENS`-endring): opprett, endre navn/ikon, flytt opp/
+   ned, slett, og flytt kjøretøy mellom kategorier. `addBilkategori()`,
+   `saveKategoriEdit()`, `flyttKategori()`, `deleteBilkategori()`,
+   `flyttBilTilKategori()`.
+8. `CACHE_VERSION` i `sw.js` økt til `bilpark-v37`. `kontroll.html` resynkronisert.
+
+**Regler som beskytter mot tapt data:**
+- En kategori med biler i **kan ikke slettes** — bilene må flyttes først.
+  Alternativet (å flytte dem stille) ville vært en skjult dataendring på kjøretøy.
+- Den siste kategorien kan ikke slettes.
+- Navnebytte endrer KUN `navn`; `id` står fast, slik at et navnebytte aldri kan
+  løsrive en bil fra kategorien sin.
+- **Kategori-id-en `reserve` har egen operativ betydning:**
+  `vehicleErReserveUnntatt()` bruker den til å la en reservebil slippe daglig
+  kontrollkrav før den tas i bruk. Navnet kan endres fritt, men slettes
+  kategorien forsvinner regelen — derfor egen advarsel ved sletting.
+
+**Uendret:** aktiv sjåfør, kontroll, kilometerlogikk, service, dekk, EU,
+verksted, historikk, saksmotoren, `vehicleHovedstatus()` og hele Airtable-skjemaet.
 
 **Prioritet 40 (2026-09-09) — Aktiv sjåfør fullført: én skriver, riktig flyt.**
 Ingen nye Airtable-felt, ingen endring i `storage.airtable.js` (`?v=2.9.0` står

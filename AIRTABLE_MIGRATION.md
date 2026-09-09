@@ -443,3 +443,17 @@ Prioritet 40 bruker de EKSISTERENDE feltene `Vehicles.aktivSjafor` og
 `Vehicles.aktivSjaforSiden` (begge allerede registrert i `LIST_TABLES.vehicles`).
 Ingen nye tabeller, ingen nye felt, ingen migrering. `storage.airtable.js` er
 uendret (`versjon` og `?v=` står begge på `2.9.0`).
+
+## 13. Prioritet 41 (Redigerbare bilkategorier) — ingen strukturendring
+
+Kategoriregisteret lagres som **én rad i den eksisterende `Settings`-tabellen**,
+med `Key = 'bilkategorier'` og `Value` = JSON-array `[{id, navn, ikon}]` — nøyaktig
+samme mønster som `verksteder`, `servicehistorikk` og `planlagteservicer`. Dette
+er bevisst valgt fremfor en ny tabell: ingen `LIST_TABLES`-endring, ingen nye felt,
+ingen migrering, og `storage.airtable.js` er uendret (`versjon` og `?v=` står
+begge på `2.9.0`).
+
+`Vehicles.Kategori` er UENDRET og inneholder fortsatt kategori-**id-en**
+(`bil`/`lastebil`/`montering`/`reserve`, eller en generert id for nye kategorier).
+Feltet skrives ALDRI om når en bil settes ute av drift — `🚫 Ute av drift` er en
+ren visningsgruppe beregnet fra `Vehicles.UteAvDrift`.

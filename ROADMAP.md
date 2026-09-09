@@ -1,6 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-09 (Prioritet 40 — Aktiv sjåfør fullført).
+Sist oppdatert: 2026-09-09 (Prioritet 41 — Redigerbare bilkategorier).
 Forrige: Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender). Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -16,6 +16,42 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 41 — Redigerbare bilkategorier + 🚫 Ute av drift (2026-09-09):**
+✅ Implementert og verifisert med dynamisk simulering (68 sjekker, 0 feil) +
+full regresjon av alle tre tidligere suiter (101 + 68 + 56 sjekker, 0 feil).
+
+Kartlegging: kategoriene var hardkodet i fire konstanter pluss en femte lokal
+etikettliste i `renderBilkort()`, og i tre `<option>`-lister — til sammen ~15
+kallesteder.
+
+Levert:
+- `bilkategorier` `[{id, navn, ikon}]` lagret som JSON-blob i den eksisterende
+  Settings-tabellen (samme mønster som `verksteder`). Ingen ny tabell, ingen nye
+  felt, ingen `LIST_TABLES`-endring, ingen migrering.
+- `rebyggKategoriOppslag()` fyller KATEGORI_ORDER/KATEGORI_LABEL/
+  KATEGORI_GROUP_LABEL/GRUPPE_IKON fra registeret. Alle ~15 kallesteder uendret.
+- `kategoriOptionsHtml()` erstatter de tre hardkodede nedtrekkslistene.
+- 🚫 Ute av drift er systemstyrt: `v.kategori` røres aldri, plasseringen beregnes
+  live fra `v.uteAvDrift` via `vehicleVisningsKategori()`. Opprinnelig kategori
+  bevares dermed uten noe ekstra felt.
+- Biloversikt: gruppert på visningskategori, 🚫 Ute av drift alltid nederst,
+  tomme grupper skjult.
+- «🚚 Biler i drift» vises som én samlet liste på tvers av kategorier — bevisst
+  annen logikk enn Biloversikt sin organisering.
+- ⚙️ Administrer bilkategorier i Innstillinger: opprett / endre navn og ikon /
+  endre rekkefølge / slett / flytt kjøretøy.
+- `sw.js`: `CACHE_VERSION` → `bilpark-v37`. `kontroll.html` resynkronisert.
+
+Simulerte scenarioer: Bil 7 ute av drift → vises kun under 🚫 Ute av drift ·
+Bil 7 tilbake i drift → automatisk tilbake i Bil 1–11 · ny kategori «Express» +
+bil flyttet dit + navnebytte + rekkefølge + sletteregler · aktiv sjåfør i tre
+ulike kategorier → «Biler i drift (3)» samlet · kilometerregelen · alle skjermer
+på desktop, mobil og sjåførmodus.
+
+⚠️ **Merk:** kategori-id-en `reserve` styrer `vehicleErReserveUnntatt()`. Navnet
+kan endres fritt, men sletting fjerner regelen om at reservebiler ikke krever
+daglig kontroll — det advares eksplisitt om ved sletting.
 
 **Prioritet 40 — Aktiv sjåfør fullført (2026-09-09):** ✅ Implementert og
 verifisert med dynamisk simulering (68 sjekker, 0 feil) + full regresjonskjøring
