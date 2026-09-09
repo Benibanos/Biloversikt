@@ -1056,6 +1056,105 @@
   @media (max-width:1199px){
     .profil-stat4{grid-template-columns:1fr 1fr;}
   }
+
+  /* ================================================================
+     PRIORITET 39 (Mobil Design 4.1) — mobilen bruker DESKTOP 4.1 sitt
+     designsystem. Det finnes IKKE et eget mobil-designsystem: alle farger,
+     radier, skygger, piller, ikonflater og typografi under er de samme
+     tokenene og de samme klassene (.flis / .p38-pill / .panel / .dash40-*)
+     som desktop allerede bruker. Klassene her er kun mobil-spesifikk
+     LAYOUT (topplinje, sok, bunnmeny, bilkort) — ingen av dem henger paa
+     beregninger, datafelt eller forretningslogikk.
+     ================================================================ */
+
+  /* Mobilskallet: bunnmenyen ER navigasjonen. Den gamle merkevare-topplinjen
+     (.shell-top) skjules derfor visuelt paa mobil, akkurat slik desktop gjor
+     det fordi sidemenyen er merkevareblokken. Selve ☰-knappen blir liggende
+     i DOM med uendret listener — den apnes na fra bunnmenyens ☰ Mer. */
+  .app-shell-mobil .shell-top{display:none;}
+
+  .p41-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;}
+  .p41-brand{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;gap:8px;}
+  .p41-brand-sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:500;}
+  .p41-iconbtn{
+    width:42px;height:42px;border-radius:13px;background:var(--surface-2);border:1px solid var(--line);
+    display:grid;place-items:center;font-size:17px;position:relative;color:var(--ink);
+    font-family:inherit;cursor:pointer;flex-shrink:0;
+  }
+  .p41-iconbtn .n{
+    position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:10px;
+    font-weight:700;border-radius:100px;padding:1px 5px;line-height:1.4;
+  }
+  .p41-sok{
+    display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;padding:12px 14px;margin-bottom:16px;box-shadow:var(--sh-card);
+  }
+  .p41-sok input{background:none;border:none;color:var(--ink);font-family:inherit;font-size:14px;width:100%;outline:none;padding:0;}
+  .p41-sok input::placeholder{color:var(--muted);}
+  .p41-sok button{background:none;border:none;color:var(--green-ink);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;padding:0;}
+
+  /* Bunnmeny — kun mobil. Ren navigasjon til skjermer som allerede finnes. */
+  .p41-bunn{
+    position:fixed;left:0;right:0;bottom:0;z-index:60;
+    display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding:8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow:0 -8px 24px rgba(0,0,0,.28);
+  }
+  .p41-bunn button{
+    background:none;border:none;color:var(--muted);font-family:inherit;display:flex;flex-direction:column;
+    align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:6px 2px;border-radius:12px;
+    position:relative;cursor:pointer;min-height:52px;
+  }
+  .p41-bunn button .ik{font-size:20px;line-height:1;}
+  .p41-bunn button.aktiv{color:var(--green-ink);background:var(--surface-2);}
+  .p41-bunn button .n{position:absolute;top:2px;right:calc(50% - 22px);background:var(--red);color:#fff;font-size:9.5px;font-weight:700;border-radius:100px;padding:0 5px;line-height:1.5;}
+
+  /* Biloversikt paa mobil: kort, ikke tabell. Bilnummer, reg.nr, loyvenummer,
+     status og aktiv sjafor skal vaere lesbart uten ekstra klikk. */
+  .gcard{
+    background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--sh-card);overflow:hidden;
+  }
+  .gcard.ok{border-left-color:var(--line);}
+  .gcard.oppfolging{border-left-color:var(--line);}
+  .gcard.verksted{border-left-color:var(--line);}
+  .gcard:hover{box-shadow:var(--sh-hover);}
+  .gcard-head{padding:14px 14px 10px;display:flex;gap:12px;align-items:center;min-width:0;}
+  .gcard-navn{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;line-height:1.15;}
+  .gcard-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .gcard-rader{padding:0 14px;}
+  .gcard-rad{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:12.5px;}
+  .gcard-rad .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;}
+  .gcard-loyve{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;color:var(--blue);}
+  .gcard-loyve.mangler{color:var(--amber);font-size:12.5px;}
+  .gcard-badges{display:flex;gap:6px;flex-wrap:wrap;padding:11px 14px 14px;border-top:1px solid var(--line-soft);margin-top:2px;}
+
+  /* Loyvenummer i Kjoretoyinformasjon — fremhevet felt, ikke egen stor seksjon. */
+  .ov-item.ov-loyve .ov-label{color:var(--blue);}
+  .ov-item.ov-loyve .ov-value{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--blue);}
+
+  @media (max-width:640px){
+    /* Desktop 4.1 sine firekolonners rutenett blir to kolonner paa telefon —
+       store touch-kort, ikke sma knapper. */
+    .dash40-grid4{grid-template-columns:1fr 1fr;}
+    .dash40-bestill{min-height:126px;padding:15px;gap:3px;}
+    .dash40-bestill-sub{font-size:11px;}
+    .dash40-kpi{padding:15px 16px;}
+    .dash40-kpi-num{font-size:34px;}
+    /* Plass til bunnmenyen. */
+    #app{padding:16px 12px calc(96px + env(safe-area-inset-bottom, 0px));}
+    /* Kjoretoyprofil: fanene scroller sideveis i stedet for a brekke. */
+    .profil-tabs{flex-wrap:nowrap;overflow-x:auto;}
+    .profil-tab{padding:11px 10px;}
+    /* Kalender: sju kolonner maa faa plass paa telefonbredde. */
+    .kal-grid, .kal-ukedager{gap:4px;}
+    .kal-dag{min-height:46px;padding:4px 3px;align-items:center;justify-content:center;gap:2px;text-align:center;}
+    .kal-antall{display:none;}
+    .kal-merker{justify-content:center;font-size:9px;gap:1px;}
+    .kal-topp{gap:8px;}
+    .kal-mnd{font-size:15px;}
+  }
 </style>
 </head>
 <body>
@@ -5514,7 +5613,7 @@ function render(){
   const desktopSidebarHtml = uiExp === 'desktop' ? renderDesktopSidebarHtml() : '';
 
   app.innerHTML = `
-    <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : ''}">
+    <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : 'app-shell-mobil'}">
       ${desktopSidebarHtml}
       <div class="app-shell-main">
         <div class="shell-top">
@@ -5530,18 +5629,22 @@ function render(){
         ${body}
       </div>
     </div>
+    ${uiExp === 'mobil' ? renderMobilBunnmenyHtml() : ''}
   `;
 
   document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
-  if(uiExp === 'desktop') attachDesktopSidebarListeners();
+  if(uiExp === 'desktop') attachDesktopSidebarListeners(); else attachMobilBunnmenyListeners();
 
   renderDrawer();
   renderKontrollSlettModal();
   renderLightbox();
   attachKontrollSlettModalListeners();
 
-  if(screen === 'dashboard'){ if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); else attachDashboardListeners(); }
+  // PRIORITET 39: mobilforsiden bruker de SAMME delte lytterne som Dashboard (bestilling,
+  // navigasjon, filtre, varselklokke) — attachMobilHjemListeners() legger kun til søket og
+  // 👤 Konto på toppen av dem. Ingen duplisert navigasjonskode.
+  if(screen === 'dashboard'){ attachDashboardListeners(); if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); }
   else if(screen === 'register') attachRegisterListeners();
   else if(screen === 'bilkort') attachBilkortListeners();
   else if(screen === 'skader') attachSkaderListeners();
@@ -5606,13 +5709,19 @@ function renderDrawer(){
       ${drawerItemHtml('varsler', '🔔', 'Påminnelser')}
       ${drawerItemHtml('kostnadsoversikt', '📊', 'Kostnader')}
       ${drawerItemHtml('rapporter', '📈', 'Rapporter')}
-      ${drawerItemHtml('historikk', '🕐', 'Historikk')}
-      ${drawerItemHtml('analyse', '🔍', 'Analyse')}
+      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
     </div>
     <div class="drawer-divider"></div>
-    <div class="drawer-section-label">Administrasjon</div>
+    <div class="drawer-section-label">Registrer</div>
     <div class="drawer-nav">
-      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
+      <button class="drawer-item" id="drawer-kontroll-btn"><span class="drawer-icon">✅</span><span>Kontroll</span></button>
+      <button class="drawer-item" id="drawer-avvik-btn"><span class="drawer-icon">🚨</span><span>Registrer avvik</span></button>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section-label">Oppslag</div>
+    <div class="drawer-nav">
+      ${drawerItemHtml('historikk', '🕐', 'Historikk')}
+      ${drawerItemHtml('analyse', '🔍', 'Analyse')}
     </div>
     <div class="drawer-footer">
       <button class="drawer-item" id="mobil-override-btn"><span class="drawer-icon">🖥️</span><span>Bytt til Desktop-visning</span></button>
@@ -5629,6 +5738,13 @@ function renderDrawer(){
     goTo(el.dataset.drawerNav);
   }));
   document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
+  // PRIORITET 39: Kontroll og Registrer avvik er flyttet ut av mobilforsiden og ligger nå
+  // her i ☰ Mer (i tillegg til Min bil og Kjøretøyprofil). Samme eksisterende funksjoner —
+  // goToRegisterKontroll()/goToRegisterSak() med tom bil-id, slik mobilforsiden kalte dem.
+  const drawerKontrollBtn = document.getElementById('drawer-kontroll-btn');
+  if(drawerKontrollBtn) drawerKontrollBtn.addEventListener('click', () => { closeDrawer(); goToRegisterKontroll(''); });
+  const drawerAvvikBtn = document.getElementById('drawer-avvik-btn');
+  if(drawerAvvikBtn) drawerAvvikBtn.addEventListener('click', () => { closeDrawer(); goToRegisterSak(''); });
   document.getElementById('drawer-logout-btn').addEventListener('click', () => { closeDrawer(); logout(); });
   attachMobilOverrideListener();
 }
@@ -6033,50 +6149,259 @@ function renderLoginShell(){
 // Samme underliggende data som resten av appen (kun badge-tall på tre av ikonene) —
 // totaltKreverHandlingCount()/flatePlanleggingData() er delte funksjoner, ingen egen
 // datamodell for mobil.
-const MOBIL_HJEM_IKONER = [
-  {key:'biloversikt', ikon:'🚐', label:'Biloversikt'},
-  {key:'kontroll', ikon:'✅', label:'Kontroll'},
-  {key:'avvik', ikon:'🚨', label:'Registrer avvik'},
-  {key:'aktivesaker', ikon:'📋', label:'Aktive saker'},
-  {key:'service', ikon:'🔧', label:'Service'},
-  {key:'dekk', ikon:'🛞', label:'Dekk'},
-  {key:'kalender', ikon:'📅', label:'Kalender'}
-];
+// ================= PRIORITET 39 — Mobil Design 4.1: forsiden =================
+// Mobilforsiden er "Desktop 4.1 på telefon": den bruker de SAMME komponentklassene
+// (.dash40-kpi / .dash40-bestill / .p38-task / .p38-statrow / .p38-case / .flis /
+// .p38-pill) og de SAMME tallene som desktopens Dashboard, hentet fra den delte
+// dashboardBeregning(). Ingen egen tellelogikk, ingen ny state, ingen nye
+// Airtable-felt — hver flate peker på en skjerm/arbeidsflate som allerede finnes:
+//   🔔 Varsler        → renderVarslerOversikt()   (screen 'varsler')
+//   👤 Konto          → eksisterende ☰-meny/drawer (openDrawer(), ingen ny side)
+//   🔎 Søk            → samme filterSearch som Biloversikt + goTo('register')
+//   KPI-kortene       → Aktive saker / Kalender   (samme klikkmål som desktop)
+//   Bestill-kortene   → bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime
+// Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
 function renderMobilHjem(){
-  const badgeAktiveSaker = totaltKreverHandlingCount();
-  const planData = flatePlanleggingData(30);
-  const badgePlanlegging = planData.service.length + planData.dekk.length + planData.verksted.length + planData.oppfolging.length + planData.euKontroll.length;
-  const BADGE = {aktivesaker: badgeAktiveSaker, kalender: badgePlanlegging};
+  const d = dashboardBeregning();
+  const aktiveVarslerAntall = allActiveVarsellys().length;
+  const kommendeTop = d.kommendeOppgaver.slice(0, 4);
+  const kreverTop = d.dashKreverListe.slice(0, 4);
   return `
-    <div class="mobil-hjem-grid">
-      ${MOBIL_HJEM_IKONER.map(x => `
-        <button type="button" class="mobil-hjem-btn" data-mobilhjem="${x.key}">
-          ${BADGE[x.key] ? `<span class="mobil-hjem-badge">${BADGE[x.key]}</span>` : ''}
-          <span class="mobil-hjem-ikon">${x.ikon}</span>
-          <span class="mobil-hjem-label">${x.label}</span>
-        </button>
-      `).join('')}
+    <div class="p41-head">
+      <div>
+        <div class="p41-brand">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="#19A66B" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" aria-hidden="true">
+            <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V16a1 1 0 0 1-1 1h-1a2 2 0 1 1-4 0H9a2 2 0 1 1-4 0H4a1 1 0 0 1-1-1v-3.5A1.5 1.5 0 0 1 4.5 11H5z"/>
+          </svg>
+          Bilpark
+        </div>
+        <div class="p41-brand-sub">Dine biler. Full kontroll.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">🔔${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
+        <button type="button" class="p41-iconbtn" id="mobil-konto-btn" title="Konto og meny">👤</button>
+      </div>
     </div>
+
+    ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
+    <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
+      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer.
+    </div>` : ''}
+
+    <div class="p41-sok">
+      <span style="color:var(--muted);">🔎</span>
+      <input type="text" id="mobil-sok" placeholder="Søk bil, reg.nr eller løyvenummer" value="${esc(filterSearch)}" autocomplete="off">
+      <button type="button" id="mobil-sok-btn">Søk</button>
+    </div>
+
+    <div class="dash40-grid4">
+      <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis">🚨</span>
+        <span class="dash40-kpi-num" style="${d.krHarKritisk ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
+        <span class="dash40-kpi-label">Aktive saker</span>
+        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} kritisk${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
+      </button>
+      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
+        <span class="flis">📅</span>
+        <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
+        <span class="dash40-kpi-label">Kommende frister</span>
+        <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
+      </button>
+    </div>
+
+    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
+    <div class="dash40-grid4">
+      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
+        <span class="flis lg">🔧</span>
+        <span class="dash40-bestill-tittel">Service</span>
+        <span class="dash40-bestill-sub">Velg bil → Planlegg</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
+        <span class="flis lg">🚦</span>
+        <span class="dash40-bestill-tittel">EU-kontroll</span>
+        <span class="dash40-bestill-sub">Verkstedtime for EU</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
+        <span class="flis lg">🛞</span>
+        <span class="dash40-bestill-tittel">Dekkskifte</span>
+        <span class="dash40-bestill-sub">Planlegg dekkskift</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
+        <span class="flis lg">🏭</span>
+        <span class="dash40-bestill-tittel">Verkstedtime</span>
+        <span class="dash40-bestill-sub">Ny verkstedtime</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="p38-panel-head">
+        <div class="tittel">📋 Kommende oppgaver</div>
+        <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${d.kommendeOppgaver.length}) →</button>
+      </div>
+      ${d.kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
+      ${kommendeTop.map(kommendeOppgaveRadHtml).join('')}
+      ${d.kommendeOppgaver.length > kommendeTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeTop.length} av ${d.kommendeOppgaver.length} — +${d.kommendeOppgaver.length - kommendeTop.length} flere i Kalender.</div>` : ''}
+      `}
+    </div>
+
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
+      ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
+    </div>
+
+    <div class="panel" style="margin-bottom:14px;${d.krHarKritisk ? 'border-color:var(--red);' : ''}">
+      <div class="p38-panel-head">
+        <div class="tittel">${d.krHarKritisk ? '🔴' : (d.dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
+        ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
+      </div>
+      ${d.dashKreverListe.length === 0 ? `
+      <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
+      ` : `
+      ${kreverTop.map(dashKreverRadHtml).join('')}
+      ${d.dashKreverListe.length > kreverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kreverTop.length} av ${d.dashKreverListe.length} — +${d.dashKreverListe.length - kreverTop.length} flere.</div>` : ''}
+      ${(d.uteAvDriftBiler.length > 0 || d.manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[d.uteAvDriftBiler.length > 0 ? `${d.uteAvDriftBiler.length} bil${d.uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', d.manglerKontrollCount > 0 ? `${d.manglerKontrollCount} bil${d.manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
+      `}
+    </div>
+
+    ${d.totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
   `;
 }
+// Mobilforsidens EGNE lyttere. Alle de delte data-attributtene (data-bestill,
+// data-quick-page, data-goto-*, data-stat-nav, data-goto-biloversikt-filter,
+// data-goto-aktivesaker-filter, varselklokken og databasebanneret) håndteres av
+// attachDashboardListeners(), som kalles for begge opplevelser i render() —
+// ingen duplisert navigasjonskode.
 function attachMobilHjemListeners(){
-  document.querySelectorAll('[data-mobilhjem]').forEach(el => el.addEventListener('click', () => {
-    const key = el.dataset.mobilhjem;
-    if(key === 'kontroll') goToRegisterKontroll('');
-    else if(key === 'avvik') goToRegisterSak('');
-    else if(key === 'aktivesaker') goTo('aktivesaker');
-    else if(key === 'service') goTo('service');
-    else if(key === 'dekk') goTo('dekk');
-    else if(key === 'biloversikt') goTo('register');
-    else if(key === 'kalender') goTo('kalender');
+  const kontoBtn = document.getElementById('mobil-konto-btn');
+  if(kontoBtn) kontoBtn.addEventListener('click', () => openDrawer());
+  const sokInput = document.getElementById('mobil-sok');
+  const sokBtn = document.getElementById('mobil-sok-btn');
+  // Søket bruker NØYAKTIG samme filterSearch som Biloversikt allerede eier — ingen
+  // ny state, ingen ny søkemotor. Verdien skrives først når søket faktisk utføres,
+  // slik at hvert tastetrykk ikke utløser en render (og dermed mistet fokus).
+  const utforSok = () => {
+    filterSearch = sokInput ? sokInput.value : '';
+    goTo('register');
+  };
+  if(sokBtn) sokBtn.addEventListener('click', utforSok);
+  if(sokInput) sokInput.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); utforSok(); } });
+}
+
+// ---- Bunnmeny (kun mobil) ----
+// REN NAVIGASJON. Hvert punkt peker på en skjerm som allerede finnes, med samme
+// goTo()/screenHistory-mekanikk som resten av appen. ☰ Mer åpner den eksisterende
+// drawer-menyen (openDrawer()), som er uendret.
+const MOBIL_BUNNMENY = [
+  {key:'dashboard', ikon:'🏠', label:'Hjem'},
+  {key:'register',  ikon:'🚐', label:'Biler'},
+  {key:'bestill',   ikon:'➕', label:'Bestill'},
+  {key:'kalender',  ikon:'📅', label:'Kalender'},
+  {key:'mer',       ikon:'☰',  label:'Mer'}
+];
+function renderMobilBunnmenyHtml(){
+  const merTeller = totaltKreverHandlingCount();
+  return `
+    <nav class="p41-bunn">
+      ${MOBIL_BUNNMENY.map(x => `
+        <button type="button" class="${screen === x.key ? 'aktiv' : ''}" data-mobilbunn="${x.key}">
+          ${x.key === 'mer' && merTeller > 0 ? `<span class="n">${merTeller}</span>` : ''}
+          <span class="ik">${x.ikon}</span>${x.label}
+        </button>
+      `).join('')}
+    </nav>
+  `;
+}
+function attachMobilBunnmenyListeners(){
+  document.querySelectorAll('[data-mobilbunn]').forEach(el => el.addEventListener('click', () => {
+    const key = el.dataset.mobilbunn;
+    if(key === 'mer') openDrawer(); else goTo(key);
   }));
 }
 
-function renderDashboard(){
-  if(oppdaterVerkstedStatuser()) saveAktiveSaker();
-  // Regel 3 (Prioritet 27 — Design 2.0): mobil får en helt annen forside her — ingen av
-  // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
-  if(currentUiExperience() === 'mobil') return renderMobilHjem();
+// ================= PRIORITET 39 (Mobil Design 4.1) — delt dashboardberegning =================
+// Hele beregningen under er FLYTTET UT AV renderDashboard() UENDRET, linje for linje, slik at
+// mobilens forside (renderMobilHjem()) og desktopens Dashboard leser NOYAKTIG de samme tallene
+// fra den samme koden. Det er bevisst ingen ny/parallell tellelogikk: alle funksjonene som
+// kalles her (sakKreverHandlingSamletMaster, vehicleHovedstatus, vehicleAktivSjafor,
+// flatePlanleggingData, vehicleServiceStatus, vehicleEuKontrollStatus osv.) er uendret.
+// PRIORITET 39: markupen for EN rad i "Kommende oppgaver" er flyttet ut hit UENDRET, slik at
+// desktopens Dashboard og mobilens forside viser nøyaktig samme rad fra samme kode.
+function kommendeOppgaveRadHtml(o){
+              const v = vehicles.find(x => x.id === o.vehicleId);
+              const nav = o.mal === 'service' ? `data-goto-service="${o.vehicleId}"`
+                : o.mal === 'dekk' ? `data-goto-dekk="${o.vehicleId}"`
+                : o.mal === 'sak' ? `data-goto-sak="${o.sakId}"`
+                : o.mal === 'verksted' ? `data-goto-vt="${o.vtId}"`
+                : `data-goto-bilkort="${o.vehicleId}"`;
+              const farge = o.ikon === '🔧' ? 'green' : (o.ikon === '🛞' ? 'orange' : (o.ikon === '🚦' ? 'blue' : (o.ikon === '🏭' ? 'purple' : 'amber')));
+              const tint = `var(--${farge}-soft)`;
+              // Datoen skal stå ÉN gang: som dato/klokkeslett øverst, og som en fargekodet
+              // "hvor lenge til"-pille under. Km-baserte varsler (uten dato) beholder sin
+              // egen tekst i pillen, siden det ikke finnes noen dato å telle ned til.
+              const harDato = o.sortDato !== '9999-99-99';
+              const tid = (o.naar.match(/kl\. (\d{2}:\d{2})/) || [])[1] || '';
+              const dagerIgjen = harDato ? daysUntil(o.sortDato) : null;
+              const pilleTekst = dagerIgjen === null ? o.naar
+                : (dagerIgjen < 0 ? `Forfalt ${Math.abs(dagerIgjen)} dag${Math.abs(dagerIgjen)===1?'':'er'}`
+                : (dagerIgjen === 0 ? 'I dag' : `${dagerIgjen} dag${dagerIgjen===1?'':'er'}`));
+              const pilleHast = o.hast === 0 || (dagerIgjen !== null && dagerIgjen <= 2);
+              return `
+              <div class="p38-task" ${nav}>
+                <span class="flis sm" style="--tint:${tint};">${o.ikon}</span>
+                <div>
+                  <div class="p38-task-t1">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(o.tittel)}</div>
+                  ${o.detalj ? `<div class="p38-task-t2">${esc(o.detalj)}</div>` : ''}
+                </div>
+                <div class="p38-task-right">
+                  <div class="p38-task-dato">${harDato ? fmt(o.sortDato) + (tid ? ' kl. ' + tid : '') : ''}</div>
+                  <span class="p38-pill" style="--tint:${pilleHast ? 'var(--red-soft)' : 'var(--surface-3)'};--tone:${pilleHast ? 'var(--red)' : 'var(--muted)'};">${esc(pilleTekst)}</span>
+                </div>
+              </div>`;
+}
+
+// PRIORITET 39: markupen for EN rad i "Krever handling nå" er flyttet ut hit UENDRET — samme
+// rad, samme farger og samme klikkmål på både desktop og mobil.
+function dashKreverRadHtml(item){
+            const v = vehicles.find(x => x.id === item.vehicleId);
+            const tone = item.prioritet === 'Kritisk' ? 'var(--red)' : (item.prioritet === 'Høy' ? 'var(--orange)' : 'var(--amber)');
+            const tint = item.prioritet === 'Kritisk' ? 'var(--red-soft)' : (item.prioritet === 'Høy' ? 'var(--orange-soft)' : 'var(--amber-soft)');
+            return `
+            <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
+              <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
+              <span>
+                <b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} · ${esc(item.linje1)}</b>
+                <span>${item.linje2 ? esc(item.linje2) + ' · ' : ''}<span style="color:${tone};font-weight:600;">${item.prioritet}</span> · ➡️ ${esc(item.aksjon)}</span>
+              </span>
+            </div>`;
+}
+
+// PRIORITET 39: innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
+// og desktop viser identisk panel. Tellingene (hbp/hDriftCount) kommer fortsatt fra
+// dashboardBeregning() — altså fra vehicleHovedstatus()/vehicleAktivSjafor(), uendret.
+function bilparkStatusInnholdHtml(hbp, hDriftCount){
+  return `
+          ${['operativ','oppfolging','verksted','kritisk','ikke-kontrollert','reserve','ute-av-drift'].filter(k => hbp[k] > 0 || ['operativ','oppfolging','verksted','kritisk'].includes(k)).map(k => {
+            const st = P38_STATUS_STIL[k] || {tint:'var(--surface-3)', tone:'var(--muted)'};
+            const nav = k === 'ikke-kontrollert' ? 'data-stat-nav="mangler-kontroll"'
+              : k === 'reserve' ? 'data-goto-register-kategori="reserve"'
+              : k === 'ute-av-drift' ? 'data-quick-page="register"'
+              : `data-goto-biloversikt-filter="${k}"`;
+            return `
+            <div class="p38-statrow" ${nav}>
+              <span class="flis sm" style="--tint:${st.tint};">${HOVEDSTATUS_IKON[k]}</span>
+              <span class="n" style="color:${st.tone};">${hbp[k]}</span>
+              <span class="l">${HOVEDSTATUS_LABEL[k]}</span>
+            </div>`;
+          }).join('')}
+          <div class="required-hint" style="margin-top:10px;">🚚 <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
+  `;
+}
+
+function dashboardBeregning(){
   const totalVehicles = vehicles.length;
   // Ny regel ("Ute av drift" skjules fra dashboard-kort som teller operative biler): alle
   // operative tellinger under (kontrollstatus, EU-kontroll/service forfalt) beregnes over
@@ -6235,6 +6560,21 @@ function renderDashboard(){
   const prioriterteBilerMap = new Map();
   dashKreverListe.forEach(item => { if(!prioriterteBilerMap.has(item.vehicleId)) prioriterteBilerMap.set(item.vehicleId, item); });
   const prioriterteBilerListe = Array.from(prioriterteBilerMap.values()).slice(0, 5);
+  return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
+    manglerKontrollCount, kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
+    krHarKritisk, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
+    kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe};
+}
+
+function renderDashboard(){
+  if(oppdaterVerkstedStatuser()) saveAktiveSaker();
+  // Regel 3 (Prioritet 27 — Design 2.0): mobil får en helt annen forside her — ingen av
+  // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
+  if(currentUiExperience() === 'mobil') return renderMobilHjem();
+  const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
+    kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, krHarKritisk,
+    dashKreverListe, dashKreverTop5, kommendeFristerAntall, kommendeOppgaver, kommendeOppgaverTop,
+    hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe} = dashboardBeregning();
 
   const g = greetingInfo();
   const displayNavn = loggedInRole || '';
@@ -6351,38 +6691,7 @@ function renderDashboard(){
           </div>
           ${kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
           <div>
-            ${kommendeOppgaverTop.map(o => {
-              const v = vehicles.find(x => x.id === o.vehicleId);
-              const nav = o.mal === 'service' ? `data-goto-service="${o.vehicleId}"`
-                : o.mal === 'dekk' ? `data-goto-dekk="${o.vehicleId}"`
-                : o.mal === 'sak' ? `data-goto-sak="${o.sakId}"`
-                : o.mal === 'verksted' ? `data-goto-vt="${o.vtId}"`
-                : `data-goto-bilkort="${o.vehicleId}"`;
-              const farge = o.ikon === '🔧' ? 'green' : (o.ikon === '🛞' ? 'orange' : (o.ikon === '🚦' ? 'blue' : (o.ikon === '🏭' ? 'purple' : 'amber')));
-              const tint = `var(--${farge}-soft)`;
-              // Datoen skal stå ÉN gang: som dato/klokkeslett øverst, og som en fargekodet
-              // "hvor lenge til"-pille under. Km-baserte varsler (uten dato) beholder sin
-              // egen tekst i pillen, siden det ikke finnes noen dato å telle ned til.
-              const harDato = o.sortDato !== '9999-99-99';
-              const tid = (o.naar.match(/kl\. (\d{2}:\d{2})/) || [])[1] || '';
-              const dagerIgjen = harDato ? daysUntil(o.sortDato) : null;
-              const pilleTekst = dagerIgjen === null ? o.naar
-                : (dagerIgjen < 0 ? `Forfalt ${Math.abs(dagerIgjen)} dag${Math.abs(dagerIgjen)===1?'':'er'}`
-                : (dagerIgjen === 0 ? 'I dag' : `${dagerIgjen} dag${dagerIgjen===1?'':'er'}`));
-              const pilleHast = o.hast === 0 || (dagerIgjen !== null && dagerIgjen <= 2);
-              return `
-              <div class="p38-task" ${nav}>
-                <span class="flis sm" style="--tint:${tint};">${o.ikon}</span>
-                <div>
-                  <div class="p38-task-t1">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(o.tittel)}</div>
-                  ${o.detalj ? `<div class="p38-task-t2">${esc(o.detalj)}</div>` : ''}
-                </div>
-                <div class="p38-task-right">
-                  <div class="p38-task-dato">${harDato ? fmt(o.sortDato) + (tid ? ' kl. ' + tid : '') : ''}</div>
-                  <span class="p38-pill" style="--tint:${pilleHast ? 'var(--red-soft)' : 'var(--surface-3)'};--tone:${pilleHast ? 'var(--red)' : 'var(--muted)'};">${esc(pilleTekst)}</span>
-                </div>
-              </div>`;
-            }).join('')}
+            ${kommendeOppgaverTop.map(kommendeOppgaveRadHtml).join('')}
           </div>
           ${kommendeOppgaver.length > kommendeOppgaverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeOppgaverTop.length} av ${kommendeOppgaver.length} — +${kommendeOppgaver.length - kommendeOppgaverTop.length} flere i Kalender.</div>` : ''}
           `}
@@ -6431,20 +6740,7 @@ function renderDashboard(){
       <div>
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
-          ${['operativ','oppfolging','verksted','kritisk','ikke-kontrollert','reserve','ute-av-drift'].filter(k => hbp[k] > 0 || ['operativ','oppfolging','verksted','kritisk'].includes(k)).map(k => {
-            const st = P38_STATUS_STIL[k] || {tint:'var(--surface-3)', tone:'var(--muted)'};
-            const nav = k === 'ikke-kontrollert' ? 'data-stat-nav="mangler-kontroll"'
-              : k === 'reserve' ? 'data-goto-register-kategori="reserve"'
-              : k === 'ute-av-drift' ? 'data-quick-page="register"'
-              : `data-goto-biloversikt-filter="${k}"`;
-            return `
-            <div class="p38-statrow" ${nav}>
-              <span class="flis sm" style="--tint:${st.tint};">${HOVEDSTATUS_IKON[k]}</span>
-              <span class="n" style="color:${st.tone};">${hbp[k]}</span>
-              <span class="l">${HOVEDSTATUS_LABEL[k]}</span>
-            </div>`;
-          }).join('')}
-          <div class="required-hint" style="margin-top:10px;">🚚 <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
+          ${bilparkStatusInnholdHtml(hbp, hDriftCount)}
         </div>
 
         <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);' : ''}">
@@ -6455,19 +6751,7 @@ function renderDashboard(){
           ${dashKreverListe.length === 0 ? `
           <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
           ` : `
-          ${dashKreverTop5.map(item => {
-            const v = vehicles.find(x => x.id === item.vehicleId);
-            const tone = item.prioritet === 'Kritisk' ? 'var(--red)' : (item.prioritet === 'Høy' ? 'var(--orange)' : 'var(--amber)');
-            const tint = item.prioritet === 'Kritisk' ? 'var(--red-soft)' : (item.prioritet === 'Høy' ? 'var(--orange-soft)' : 'var(--amber-soft)');
-            return `
-            <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
-              <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
-              <span>
-                <b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} · ${esc(item.linje1)}</b>
-                <span>${item.linje2 ? esc(item.linje2) + ' · ' : ''}<span style="color:${tone};font-weight:600;">${item.prioritet}</span> · ➡️ ${esc(item.aksjon)}</span>
-              </span>
-            </div>`;
-          }).join('')}
+          ${dashKreverTop5.map(dashKreverRadHtml).join('')}
           ${dashKreverListe.length > dashKreverTop5.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${dashKreverTop5.length} av ${dashKreverListe.length} — +${dashKreverListe.length - dashKreverTop5.length} flere.</div>` : ''}
           ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
           `}
@@ -6746,33 +7030,44 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // Prioritet 26.7: vehicleSisteSjafor() i stedet for vehicleAktivSjafor() — viser sist
-  // kjente sjåfør (aktiv biløkt ELLER siste kontroll i dag), ikke bare aktiv biløkt.
-  const aktivSjafor = vehicleSisteSjafor(v.id);
+  // PRIORITET 39 (Mobil Design 4.1): kortet viser nå «Aktiv sjåfør» på nøyaktig samme måte
+  // som desktopens biltabell allerede gjør (jf. Prioritet 33): 👤 = live biløkt
+  // (vehicleAktivSjafor), 🕓 = kun kontrollert i dag (vehicleSisteSjafor), ellers ⚪.
+  // BEGGE lesefunksjonene er UENDRET — kun etiketten er presisert, slik at kortet aldri
+  // sier «Aktiv sjåfør» om en bil som ikke dukker opp i filteret «Har aktiv sjåfør».
+  const sjaforNa = vehicleAktivSjafor(v.id);
+  const sjaforIdag = vehicleSisteSjafor(v.id);
+  const hs = vehicleHovedstatus(v.id);
+  const st = P38_STATUS_STIL[hs] || {tint:'var(--surface-3)', tone:'var(--muted)'};
   return `
-    <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);border-width:2px;"' : ''}>
+    <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);"' : ''}>
       <div class="gcard-head">
+        <span class="flis" style="--tint:${st.tint};">${v.kategori === 'lastebil' ? '🚛' : '🚐'}</span>
+        <div style="flex:1;min-width:0;">
+          <div class="gcard-navn">${esc(v.bilnummer || '–')}${erMinAktiveBil ? ' ⭐' : ''}</div>
+          <div class="gcard-sub">${esc(v.merke || '')} ${esc(v.modell || '')}${v.km ? ' · ' + Number(v.km).toLocaleString('nb-NO') + ' km' : ' · Km ikke satt'}${v.arsmodell ? ' · ' + esc(v.arsmodell) : ''}${v.drivstoff ? ' · ' + esc(drivstoffTekst(v)) : ''}</div>
+        </div>
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-        <div class="gcard-titles">
-          ${erMinAktiveBil ? `<div class="vl-indicator amber" style="margin-bottom:4px;font-weight:700;">⭐ Min aktive bil</div>` : ''}
-          <div class="model">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
-          <div class="model-sub">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}${v.arsmodell ? ' · Årsmodell ' + esc(v.arsmodell) : ''}${v.drivstoff ? ' · ' + esc(drivstoffTekst(v)) : ''}</div>
-          <div class="vl-indicator ${v.loyvenummer ? 'green' : 'amber'}" style="margin-top:3px;">${v.loyvenummer ? '🪪 Løyvenummer: ' + esc(v.loyvenummer) : '🪪 Løyvenummer mangler'}</div>
-          <div class="vl-indicator ${aktiveVarsler.length > 0 ? 'red' : 'green'}" style="margin-top:4px;">
-            ${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} aktiv${aktiveVarsler.length===1?'':'e'} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen aktive varsellamper'}
-          </div>
-          <div class="vl-indicator ${reserveUnntatt ? 'green' : (kontrollertIdag ? 'green' : 'amber')}" style="margin-top:2px;">
-            ${reserveUnntatt ? '🚐 Reservebil — ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag')}
-          </div>
-          <div class="vl-indicator ${aktivSjafor ? 'amber' : 'green'}" style="margin-top:2px;">
-            ${aktivSjafor ? `👤 Aktiv sjåfør: ${esc(aktivSjafor)}` : '⚪ Tilgjengelig'}
-          </div>
+      </div>
+      <div class="gcard-rader">
+        <div class="gcard-rad">
+          <span class="k">Løyvenummer</span>
+          <span class="gcard-loyve ${v.loyvenummer ? '' : 'mangler'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span>
+        </div>
+        <div class="gcard-rad">
+          <span class="k">Status</span>
+          <span class="p38-pill" style="--tint:${st.tint};--tone:${st.tone};">${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}</span>
+        </div>
+        <div class="gcard-rad">
+          <span class="k">Aktiv sjåfør</span>
+          <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 ' + esc(sjaforIdag) + ' (i dag)' : '⚪ Tilgjengelig')}</span>
         </div>
       </div>
       <div class="gcard-badges">
-        <span class="badge ${v.status}">${STATUS_LABEL[v.status] || 'OK'}</span>
-        <span class="badge unset">${KATEGORI_LABEL[v.kategori] || '—'}</span>
-        ${totalCount > 0 ? `<span class="badge ${openCount > 0 ? 'overdue' : 'unset'}">${totalCount} skade${totalCount === 1 ? '' : 'r'}</span>` : ''}
+        <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
+        <span class="p38-pill" style="--tint:${aktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${aktiveVarsler.length > 0 ? 'var(--red)' : 'var(--green-ink)'};">${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen varsellamper'}</span>
+        ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
+        <span class="p38-pill">${KATEGORI_LABEL[v.kategori] || '—'}</span>
       </div>
     </div>
   `;
@@ -8009,14 +8304,8 @@ function renderBilkort(){
             <div class="tittel">🚐 Kjøretøyinformasjon</div>
             <button type="button" class="p38-lenke" id="profil-rediger-btn-2">Rediger →</button>
           </div>
-          <div class="p38-loyve-rad">
-            <span class="flis sm" style="--tint:rgba(90,150,245,.2);">🪪</span>
-            <span>
-              <span class="l">Løyvenummer</span>
-              <span class="v" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:15px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span>
-            </span>
-          </div>
           <div class="ov-grid">
+            <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
             <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span></div>
             <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${esc(v.regnr)}</span></div>
             <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>

@@ -429,3 +429,10 @@ prosjektet gikk over fra Firebase til Airtable:
    CLAUDE.md).
 4. Åpne appen og bekreft i Innstillinger → Database status at
    versjonsmerket og skjemasjekken er grønne.
+
+## 11. Prioritet 39 (Mobil Design 4.1) — ingen databaseendring
+
+Mobil Design 4.1 er en ren layout-/CSS-/komponent-/navigasjonsendring. Runden
+har **ikke** lagt til, endret eller fjernet noen Airtable-tabell eller noe felt,
+og `storage.airtable.js` er uendret (`versjon` og `?v=`-parameteren står begge
+på `2.9.0`). `LIST_TABLES` er derfor uendret, og ingen migrering kreves.

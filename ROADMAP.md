@@ -1,7 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-08 (Prioritet 39 — navigasjon og ferdigstilt
-designretning).
+Sist oppdatert: 2026-09-09 (Prioritet 39 — Mobil Design 4.1).
 Forrige: Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender). Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -17,6 +16,44 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 39 — Mobil Design 4.1 (2026-09-09):** ✅ Implementert og verifisert
+med dynamisk simulering (101 sjekker, 0 feil). Mobilen er løftet til Desktop
+4.1 sitt designsystem — ingen ny funksjonalitet, ingen ny logikk, ingen nye
+Airtable-felt, ingen endring i `storage.airtable.js` (`?v=2.9.0` uendret).
+
+Levert:
+- Ny mobilforside (`renderMobilHjem()`): topplinje med «Dine biler. Full
+  kontroll.» + 🔔 Varsler + 👤 Konto (åpner eksisterende drawer), søkefelt
+  koblet til eksisterende `filterSearch`, to KPI-kort, fire store
+  bestillingskort, Kommende oppgaver, Bilpark status og Krever handling nå.
+  Det gamle ikonrutenettet (`MOBIL_HJEM_IKONER`) er fjernet.
+- Ny bunnmeny (kun mobil): 🏠 Hjem · 🚐 Biler · ➕ Bestill · 📅 Kalender ·
+  ☰ Mer. Ren navigasjon til eksisterende skjermer.
+- Delte funksjoner i stedet for duplisering: `dashboardBeregning()`,
+  `kommendeOppgaveRadHtml()`, `dashKreverRadHtml()`,
+  `bilparkStatusInnholdHtml()` — mobil og desktop viser garantert samme tall.
+- Biloversikt: `galleryCard()` redesignet til 4.1-kort med løyvenummer,
+  status og aktiv sjåfør synlig uten ekstra klikk.
+- Kjøretøyprofil: den store løyvenummerseksjonen fjernet; løyvenummer ligger
+  nå fremhevet i Kjøretøyinformasjon sammen med Aktiv sjåfør.
+- Kontroll og Registrer avvik flyttet til ☰ Mer (i tillegg til Min bil og
+  Kjøretøyprofil). Drawer-rekkefølgen følger desktopmenyen.
+- `sw.js`: `CACHE_VERSION` → `bilpark-v34`. `kontroll.html` resynkronisert.
+
+Simulering kjørt (Node-harness mot faktisk app-JS, DOM- og Airtable-stub):
+Mobil Dashboard · Desktop Dashboard (uendret) · Mobil Biloversikt · Søk fra
+forsiden · Kjøretøyprofil inkl. alle fem faner · Kalender · Bestill Service ·
+Bestill EU-kontroll · Bestill Dekkskifte · Bestill Verkstedtime · Kontroll og
+aktiv sjåfør · kilometerregelen · alle 15 skjermer på både mobil og desktop.
+
+🔧 **Funn under simulering (ikke rettet — utenfor bestillingen):**
+`settAktivSjaforForKontroll()`, som CLAUDE.md sin Prioritet 34-tekst beskriver
+som implementert, finnes IKKE i koden. `v.aktivSjafor` settes fortsatt kun via
+`startBilokt()` i sjåførmodus. En kontroll registrert fra administrasjonsdelen
+gir «🕓 Sjåfør i dag», ikke «👤 Aktiv sjåfør». Dokumentasjonen er rettet;
+selve oppførselen er uendret siden aktiv sjåfør sto på «ikke rør»-listen.
+Bør bestilles som egen sak dersom den dokumenterte oppførselen er ønsket.
 
 **Prioritet 29 — Kritisk datasikkerhet og stabilisering (2026-09-07):**
 Lukket de kritiske datatap-/samtidighetsrisikoene som ble avdekket i

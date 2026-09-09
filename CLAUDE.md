@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-08 (Prioritet 39 —
-navigasjonsopprydding og ferdigstilling av designretningen). **Ved avvik mellom
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 39 —
+Mobil Design 4.1: mobilen bruker Desktop 4.1 sitt designsystem). **Ved avvik mellom
 denne filen og koden er koden alltid sannheten.**
 
 ---
@@ -272,6 +272,79 @@ ny forretningslogikk, ingen nye Airtable-felt, ingen endring i
    kolonner (kolonnen «Aktiv sjåfør» heter «Sjåfør» i tabellhodet, og tom verdi
    vises som «—» med forklarende tooltip i stedet for «⚪ Tilgjengelig»).
    Biloversikt-siden er uendret.
+
+**Prioritet 39 (2026-09-09) — Mobil Design 4.1: mobilen bruker Desktop 4.1 sitt
+designsystem.** Ingen ny funksjonalitet, ingen ny forretningslogikk, ingen nye
+Airtable-felt og ingen endring i `storage.airtable.js` (derfor står `?v=2.9.0`
+stille). Kun layout, CSS, komponenter og navigasjon.
+
+1. **Ny mobilforside** (`renderMobilHjem()`). Det gamle 2×N-ikonrutenettet
+   (`MOBIL_HJEM_IKONER`) er FJERNET og erstattet av «Desktop 4.1 på telefon»:
+   topplinje (Bilpark / «Dine biler. Full kontroll.» / 🔔 Varsler / 👤 Konto),
+   søkefelt, to KPI-kort (🚨 Aktive saker, 📅 Kommende frister), fire store
+   bestillingskort (Service / EU-kontroll / Dekkskifte / Verkstedtime),
+   «Kommende oppgaver», «Bilpark status» og «Krever handling nå». Alle bruker
+   de SAMME klassene som desktop (`.dash40-kpi`, `.dash40-bestill`, `.p38-task`,
+   `.p38-statrow`, `.p38-case`, `.flis`, `.p38-pill`) — det finnes ikke noe eget
+   mobil-designsystem. `brandBlockHtml()` er UENDRET; undertittelen «Dine biler.
+   Full kontroll.» finnes kun på mobilforsiden.
+2. **Delt beregning i stedet for parallell.** Hele tellingen som lå inne i
+   `renderDashboard()` er FLYTTET UENDRET ut i **`dashboardBeregning()`**, og
+   markupen for enkeltrader/paneler ut i **`kommendeOppgaveRadHtml()`**,
+   **`dashKreverRadHtml()`** og **`bilparkStatusInnholdHtml()`**. Mobil og
+   desktop leser nå nøyaktig de samme tallene fra den samme koden — ingen
+   duplisert tellelogikk kunne oppstå. Ingen av de underliggende funksjonene
+   (`vehicleHovedstatus()`, `vehicleAktivSjafor()`, `sakKreverHandlingSamletMaster()`,
+   `flatePlanleggingData()` …) er endret.
+3. **Bunnmeny (ny, kun mobil):** `MOBIL_BUNNMENY` /
+   `renderMobilBunnmenyHtml()` / `attachMobilBunnmenyListeners()` — 🏠 Hjem,
+   🚐 Biler, ➕ Bestill, 📅 Kalender, ☰ Mer. REN NAVIGASJON til skjermer som
+   allerede fantes; ☰ Mer åpner den uendrede drawer-menyen (`openDrawer()`).
+   Den gamle merkevare-topplinjen (`.shell-top`) skjules visuelt på mobil via
+   `.app-shell-mobil` — ☰-knappen ligger fortsatt i DOM med uendret listener,
+   nøyaktig samme mønster som desktop bruker for `.shell-top-right`.
+4. **Søket på forsiden** skriver til den EKSISTERENDE `filterSearch` og
+   navigerer til Biloversikt. Ingen ny state, ingen ny søkemotor. Verdien
+   skrives først når søket utføres (Enter/«Søk»), slik at hvert tastetrykk ikke
+   utløser en `render()`.
+5. **Kontroll og Registrer avvik** er flyttet ut av mobilforsiden. De finnes nå
+   på Min bil, på Kjøretøyprofilen og i ☰ Mer (`drawer-kontroll-btn` /
+   `drawer-avvik-btn` → uendrede `goToRegisterKontroll('')` /
+   `goToRegisterSak('')`). Drawer-rekkefølgen følger nå desktopmenyen, med
+   Historikk og Analyse i en egen «Oppslag»-seksjon nederst.
+6. **Biloversikt:** `galleryCard()` er redesignet til 4.1-kort (ikonflis,
+   skiltkomponent, radene Løyvenummer / Status / Aktiv sjåfør, pillerad for
+   kontroll, varsellamper, skader og kategori). Løyvenummer er synlig uten
+   ekstra klikk. Statuspillen bruker `vehicleHovedstatus()` +
+   `P38_STATUS_STIL`, samme som desktopens biltabell. Kortet skiller nå også
+   «👤 Aktiv sjåfør» (`vehicleAktivSjafor()`) fra «🕓 … (i dag)»
+   (`vehicleSisteSjafor()`) — jf. Prioritet 33. **Begge lesefunksjonene er
+   uendret; kun etiketten er presisert.**
+7. **Kjøretøyprofil:** den store `.p38-loyve-rad`-seksjonen er fjernet.
+   Løyvenummer ligger nå som et fremhevet felt (`.ov-item.ov-loyve`) i
+   «Kjøretøyinformasjon», sammen med Aktiv sjåfør, Reg.nr, Bilgruppe, Biltype,
+   Årsmodell, Drivstoff og Mobilitetsgaranti. Fanene (Oversikt/Historikk/
+   Skader/Dekk/Kostnader) er uendret, men scroller sideveis på mobil.
+8. **Kalender/Planlegging:** uendret kode, kun mobiltilpasset rutenett.
+   Kalender er fortsatt hovedvisningen, med planleggingsseksjonen inne i seg.
+9. `CACHE_VERSION` i `sw.js` økt til `bilpark-v34`. `kontroll.html` er
+   resynkronisert som eksakt kopi av `index.html`.
+
+**Dokumentasjonsfeil rettet i samme runde:** Prioritet 34-teksten under hevder
+at `settAktivSjaforForKontroll(vehicleId, navn)` finnes på linje ~1677 og at
+`submitKontroll()` kaller den fra BEGGE grener. **Dette stemmer ikke med
+koden.** Funksjonen finnes ikke i `index.html`, og `v.aktivSjafor` settes
+fortsatt KUN av `startBilokt()`, som kun kalles fra `driverMode`-grenen i
+`submitKontroll()` og fra sjåførmodusens bilvalg. En kontroll registrert fra
+administrasjonsdelen gir derfor «🕓 Sjåfør i dag» via `vehicleSisteSjafor()`,
+ikke «👤 Aktiv sjåfør». Verifisert dynamisk i simulering (se ROADMAP.md).
+Prioritet 39 har bevisst IKKE endret dette — aktiv sjåfør sto på «ikke rør»-
+listen. Om den dokumenterte oppførselen faktisk er ønsket, må den bestilles
+som en egen sak.
+
+Ikke rørt i Prioritet 39: Airtable-struktur, `storage.airtable.js`,
+kilometerlogikk, service-, EU-, dekk- og verkstedlogikk, saksmotoren,
+historikk, aktiv sjåfør, Dashboard-logikk, rapporter og hele sjåførmodus.
 
 **Prioritet 38 (2026-09-08) — Design 4.1: visuell implementering.** Ingen ny
 funksjonalitet, ingen ny logikk, ingen nye Airtable-felt og ingen endring i
