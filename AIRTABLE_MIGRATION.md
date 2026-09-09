@@ -436,3 +436,10 @@ Mobil Design 4.1 er en ren layout-/CSS-/komponent-/navigasjonsendring. Runden
 har **ikke** lagt til, endret eller fjernet noen Airtable-tabell eller noe felt,
 og `storage.airtable.js` er uendret (`versjon` og `?v=`-parameteren står begge
 på `2.9.0`). `LIST_TABLES` er derfor uendret, og ingen migrering kreves.
+
+## 12. Prioritet 40 (Aktiv sjåfør) — ingen databaseendring
+
+Prioritet 40 bruker de EKSISTERENDE feltene `Vehicles.aktivSjafor` og
+`Vehicles.aktivSjaforSiden` (begge allerede registrert i `LIST_TABLES.vehicles`).
+Ingen nye tabeller, ingen nye felt, ingen migrering. `storage.airtable.js` er
+uendret (`versjon` og `?v=` står begge på `2.9.0`).

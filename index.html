@@ -2073,7 +2073,10 @@ let driverActiveVehicleId = '';
 let driverVelgBilId = '';
 let driverNavn = '';
 // Min Bil — hvilken av de tre hurtigregistreringene som er åpen (kun én av gangen)
-let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt'
+let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt' | 'nysjafor'
+// PRIORITET 40: melding i «👤 Ny sjåfør»-panelet på Min Bil (validering/bekreftelse/
+// kryss-bil-utsjekking). Ren UI-tilstand, lagres ingen steder.
+let minBilNySjaforMsg = '';
 let minBilSkadeBeskrivelse = '';
 let minBilSkadeAlvorlighet = 'middels';
 let minBilSkadeKommentar = '';
@@ -2129,21 +2132,58 @@ function vehicleSisteSjafor(vehicleId){
   const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
   return siste.sjafor || null;
 }
-// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
-// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
-async function startBilokt(vehicleId, navn){
+// ================= PRIORITET 40 — Aktiv sjåfør: ÉN skriver =================
+// `settAktivSjafor()` er nå det ENESTE stedet i appen som TILDELER v.aktivSjafor/
+// v.aktivSjaforSiden. Innholdet er FLYTTET UENDRET ut av startBilokt() — samme
+// kryss-bil-utsjekking («én sjåfør, én aktiv biløkt»), samme feltskriving, samme
+// saveVehicles(). De tre kallerne under legger kun til sitt eget, ekstra steg:
+//   startBilokt()                 → + lokal enhets-sesjon (sjåførmodus)  = biløkt
+//   settAktivSjaforForKontroll()  → ingenting ekstra (kontroll fra administrasjonen)
+//   overforAktivSjafor()          → ingenting ekstra (👤 Ny sjåfør på Min Bil)
+// Nullstilling skjer fortsatt kun i avsluttBilokt() og ryddOppBiloktDagskille().
+// Returnerer navnet på en ev. ANNEN bil samme sjåfør ble sjekket ut av, slik at
+// den som kaller kan gjøre kryss-bil-utsjekkingen synlig (uten blokkerende alert).
+async function settAktivSjafor(vehicleId, navn){
   const navnTrim = (navn || '').trim();
+  let utsjekketFra = '';
   vehicles.forEach(v => {
     if(v.id !== vehicleId && navnTrim && v.aktivSjafor && v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase()){
+      utsjekketFra = vehicleLabel(v);
       v.aktivSjafor = ''; v.aktivSjaforSiden = '';
     }
   });
   const v = vehicles.find(x => x.id === vehicleId);
   if(v){ v.aktivSjafor = navnTrim; v.aktivSjaforSiden = new Date().toISOString(); }
   await saveVehicles();
+  return utsjekketFra;
+}
+// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
+// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
+// UENDRET oppførsel: tildelingen skjer nå via settAktivSjafor(), og denne funksjonen
+// står igjen med det som er unikt for sjåførmodus — den lokale enhets-sesjonen.
+async function startBilokt(vehicleId, navn){
+  const utsjekketFra = await settAktivSjafor(vehicleId, navn);
   driverActiveVehicleId = vehicleId;
-  driverNavn = navnTrim;
+  driverNavn = (navn || '').trim();
   saveDriverLocalSession();
+  return utsjekketFra;
+}
+// PRIORITET 40: den funksjonen CLAUDE.md sin Prioritet 34-tekst allerede beskrev, men som
+// aldri fantes i koden. Kalles fra submitKontroll() sin ADMINISTRASJONS-gren, slik at en
+// kontroll registrert via det vanlige ✅ Kontroll-ikonet setter aktiv sjåfør akkurat som en
+// kontroll registrert i sjåførmodus. Rører BEVISST ikke den lokale enhets-sesjonen
+// (driverActiveVehicleId/driverNavn): en driftskoordinator som registrerer på vegne av
+// noen andre skal ikke overstyre sin egen enhets sjåførtilstand.
+async function settAktivSjaforForKontroll(vehicleId, navn){
+  return await settAktivSjafor(vehicleId, navn);
+}
+// PRIORITET 40: «👤 Ny sjåfør» på Min Bil — ren OVERFØRING av aktiv sjåfør.
+// Registrerer INGEN kontroll, oppretter INGEN historikk og starter INGEN ny biløkt
+// (den lokale enhets-sesjonen røres ikke). Eneste effekt er at v.aktivSjafor peker på
+// den nye sjåføren — derfor oppdateres Biler i drift, Dashboard, Biloversikt og
+// Kjøretøyprofil umiddelbart, siden alle disse leser vehicleAktivSjafor() live.
+async function overforAktivSjafor(vehicleId, navn){
+  return await settAktivSjafor(vehicleId, navn);
 }
 // "Sjekk ut bil": avslutter biløkten. Kontrollstatus skal IKKE påvirkes — den står
 // fortsatt som kontrollert resten av den operative dagen (isKontrollertIdag er uendret).
@@ -5162,9 +5202,14 @@ async function submitKontroll(ev){
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
     const antallValgteBilder = pendingKontrollPhotos.length;
     pendingKontrollPhotos = [];
-    if(antallValgteBilder > 0 && antallBilderLagret < antallValgteBilder){
+    const bildeAdvarsel = antallValgteBilder > 0 && antallBilderLagret < antallValgteBilder;
+    if(bildeAdvarsel){
       alert('Kontroll registrert for ' + vehicleLabel(v) + '. OBS: ' + (antallValgteBilder - antallBilderLagret) + ' av ' + antallValgteBilder + ' bilder kunne ikke lagres (for stort eller nettverksfeil).');
-    } else {
+    } else if(!driverMode){
+      // PRIORITET 40: den vanlige «Kontroll registrert»-bekreftelsen beholdes for
+      // administrasjonen, men er FJERNET i sjåførmodus — der er den ett ekstra trykk på
+      // veien til Min Bil, og Min Bil åpnes uansett umiddelbart og viser bilen som
+      // bekreftelse. En reell FEIL (bilder som ikke ble lagret) varsles fortsatt.
       alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
     }
     if(driverMode){
@@ -5172,8 +5217,13 @@ async function submitKontroll(ev){
       // send videre til Min Bil (sjåførens arbeidsflate resten av den operative dagen).
       await startBilokt(vehicleId, sjafor);
       driverScreen = 'min-bil';
+      minBilAksjon = ''; minBilNySjaforMsg = '';
       render();
     } else {
+      // PRIORITET 40: en kontroll registrert fra administrasjonsdelen setter nå aktiv
+      // sjåfør på nøyaktig samme måte som en kontroll registrert i sjåførmodus — samme
+      // regel, uansett registreringskanal. Den lokale enhets-sesjonen røres ikke.
+      await settAktivSjaforForKontroll(vehicleId, sjafor);
       goTo('bilkort', vehicleId);
     }
   }catch(err){
@@ -5965,10 +6015,17 @@ function renderDriverMinBil(){
   const activeVarsellysList = activeVarsellysForVehicle(v.id);
   const activeVarselTypes = new Set(activeVarsellysList.map(w => w.type));
   const activeAvvikTypes = new Set(aktiveSaker.filter(s => s.vehicleId === v.id && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId));
+  // PRIORITET 40: overskriften viser BILENS aktive sjåfør (vehicleAktivSjafor — samme
+  // kilde som Dashboard, Biler i drift, Biloversikt og Kjøretøyprofil), ikke bare navnet
+  // som ligger i denne enhetens lokale sesjon. Er bilen overført til en ny sjåfør via
+  // «👤 Ny sjåfør», sier skjermen tydelig fra i stedet for å vise et navn som ikke lenger
+  // stemmer med systemet.
+  const mbAktivSjafor = vehicleAktivSjafor(v.id);
+  const mbOverfort = !!(mbAktivSjafor && driverNavn && mbAktivSjafor.trim().toLowerCase() !== driverNavn.trim().toLowerCase());
 
   return `
     <h2 style="font-size:19px;margin-bottom:2px;">Min Bil</h2>
-    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(driverNavn)}</div>
+    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(mbAktivSjafor || driverNavn)}${mbOverfort ? ' — bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.' : ''}</div>
 
     <div class="panel" style="margin-bottom:16px;">
       <div class="plate" style="margin-bottom:10px;"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
@@ -6049,6 +6106,18 @@ function renderDriverMinBil(){
         </ul>`}
       </div>` : ''}
 
+      <button type="button" class="btn secondary" id="mb-nysjafor-btn" style="width:100%;justify-content:flex-start;min-height:52px;">👤 Ny sjåfør</button>
+      ${minBilAksjon === 'nysjafor' ? `
+      <div class="panel">
+        <div class="required-hint" style="margin-bottom:12px;">Overfører bilen til en ny sjåfør. Det registreres INGEN ny kontroll, og det opprettes ingen historikk — kun aktiv sjåfør oppdateres.</div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Navn</label>
+          <input id="mb-nysjafor-navn" type="text" placeholder="Navn på ny sjåfør" autocomplete="off">
+        </div>
+        ${minBilNySjaforMsg ? `<div class="form-msg" id="mb-nysjafor-msg">${esc(minBilNySjaforMsg)}</div>` : ''}
+        <div class="panel-actions"><button type="button" class="btn" id="mb-nysjafor-lagre-btn">Oppdater</button></div>
+      </div>` : ''}
+
       <button type="button" class="btn danger-outline" id="mb-sjekk-ut-btn" style="width:100%;justify-content:center;min-height:52px;margin-top:6px;">✓ Sjekk ut bil</button>
     </div>
   `;
@@ -6062,6 +6131,28 @@ function attachDriverMinBilListeners(){
   if(avvikBtn) avvikBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'avvik' ? '' : 'avvik'; render(); });
   const kontaktBtn = document.getElementById('mb-kontakt-btn');
   if(kontaktBtn) kontaktBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'kontakt' ? '' : 'kontakt'; render(); });
+  // PRIORITET 40 — «👤 Ny sjåfør»: REN overføring av aktiv sjåfør. Ingen kontroll,
+  // ingen historikk, ingen ny biløkt (den lokale enhets-sesjonen røres ikke).
+  const nySjaforBtn = document.getElementById('mb-nysjafor-btn');
+  if(nySjaforBtn) nySjaforBtn.addEventListener('click', () => {
+    minBilAksjon = minBilAksjon === 'nysjafor' ? '' : 'nysjafor';
+    minBilNySjaforMsg = '';
+    render();
+  });
+  const nySjaforLagreBtn = document.getElementById('mb-nysjafor-lagre-btn');
+  if(nySjaforLagreBtn) nySjaforLagreBtn.addEventListener('click', beskyttKlikk('overforAktivSjafor:' + driverActiveVehicleId, nySjaforLagreBtn, async () => {
+    const navnEl = document.getElementById('mb-nysjafor-navn');
+    const navn = ((navnEl ? navnEl.value : '') || '').trim();
+    if(!navn){
+      minBilNySjaforMsg = 'Skriv inn navnet på den nye sjåføren.';
+      render();
+      return;
+    }
+    const utsjekketFra = await overforAktivSjafor(driverActiveVehicleId, navn);
+    minBilNySjaforMsg = '✅ Bilen er overført til ' + navn + '.'
+      + (utsjekketFra ? ' ' + navn + ' var allerede aktiv sjåfør på ' + utsjekketFra + ' — den bilen er derfor sjekket ut (én sjåfør, én aktiv bil).' : '');
+    render();
+  }));
   const sjekkUtBtn = document.getElementById('mb-sjekk-ut-btn');
   if(sjekkUtBtn) sjekkUtBtn.addEventListener('click', async () => {
     if(!confirm('Sjekke ut denne bilen? Kontrollstatus beholdes — du trenger ikke kontrollere den på nytt i dag.')) return;

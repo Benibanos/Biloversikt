@@ -1,6 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-09 (Prioritet 39 — Mobil Design 4.1).
+Sist oppdatert: 2026-09-09 (Prioritet 40 — Aktiv sjåfør fullført).
 Forrige: Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender). Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -16,6 +16,37 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 40 — Aktiv sjåfør fullført (2026-09-09):** ✅ Implementert og
+verifisert med dynamisk simulering (68 sjekker, 0 feil) + full regresjonskjøring
+av Prioritet 39-suiten (101 sjekker, 0 feil).
+
+Kartlegging: `v.aktivSjafor` ble tildelt kun i `startBilokt()`, som kun ble
+kalt fra sjåførmodus. Kontroll registrert fra administrasjonen satte derfor
+aldri aktiv sjåfør, og en allerede kontrollert bil krevde ett ekstra trykk
+(«Gå til Min Bil»). `settAktivSjaforForKontroll()` fantes ikke, tross
+dokumentasjonen.
+
+Levert:
+- `settAktivSjafor()` er nå eneste tildeler av `v.aktivSjafor`. `startBilokt()`,
+  `settAktivSjaforForKontroll()` og `overforAktivSjafor()` er de tre kallerne.
+- Kontroll lagret → aktiv sjåfør settes → Min Bil åpnes (sjåførmodus) /
+  Kjøretøyprofil åpnes (administrasjon). Bekreftelsesdialogen er fjernet i
+  sjåførmodus — ingen ekstra trykk. Feilvarsel om bilder beholdt.
+- Ny knapp «👤 Ny sjåfør» på Min Bil: navn + Oppdater = ren overføring av aktiv
+  sjåfør. Ingen kontroll, ingen historikk, ingen ny biløkt.
+- Min Bil viser bilens faktiske aktive sjåfør, og sier fra ved overføring.
+- `sw.js`: `CACHE_VERSION` → `bilpark-v35`. `kontroll.html` resynkronisert.
+
+Simulerte scenarioer: kontroll utført (administrasjon og sjåførmodus) ·
+automatisk åpning av Min Bil · ny sjåfør (inkl. tomt navn og kryss-bil-regel) ·
+Dashboard · Biler i drift · Biloversikt · Kjøretøyprofil · dagskille kl. 04:00 ·
+utsjekk · kilometerregelen · alle skjermer på desktop, mobil og sjåførmodus.
+
+🔧 **Gjenstår (ikke bestilt):** kryss-bil-utsjekkingsvarselet som Prioritet
+32-teksten beskriver som en `alert()` finnes fortsatt ikke. Selve utsjekkingen
+skjer (uendret regel) og vises nå som tekst i «👤 Ny sjåfør»-panelet, men en
+blokkerende dialog ville vært i konflikt med kravet «ingen ekstra trykk».
 
 **Prioritet 39 — Mobil Design 4.1 (2026-09-09):** ✅ Implementert og verifisert
 med dynamisk simulering (101 sjekker, 0 feil). Mobilen er løftet til Desktop

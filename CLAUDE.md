@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 39 —
-Mobil Design 4.1: mobilen bruker Desktop 4.1 sitt designsystem). **Ved avvik mellom
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 40 —
+Aktiv sjåfør fullført). **Ved avvik mellom
 denne filen og koden er koden alltid sannheten.**
 
 ---
@@ -273,6 +273,72 @@ ny forretningslogikk, ingen nye Airtable-felt, ingen endring i
    vises som «—» med forklarende tooltip i stedet for «⚪ Tilgjengelig»).
    Biloversikt-siden er uendret.
 
+**Prioritet 40 (2026-09-09) — Aktiv sjåfør fullført: én skriver, riktig flyt.**
+Ingen nye Airtable-felt, ingen endring i `storage.airtable.js` (`?v=2.9.0` står
+stille), ingen endring i kilometerlogikk, saksmotor eller historikk.
+
+**Kartlegging (verifisert i kode, ikke antatt):**
+- `v.aktivSjafor`/`v.aktivSjaforSiden` ble FØR denne runden TILDELT kun ett sted:
+  `startBilokt()`. Nullstilt tre steder: kryss-bil-utsjekkingen inne i
+  `startBilokt()`, `avsluttBilokt()` og `ryddOppBiloktDagskille()` (dagskille
+  kl. 04:00).
+- `startBilokt()` ble kun kalt fra sjåførmodus: etter innsendt kontroll
+  (`submitKontroll()` sin `driverMode`-gren) og fra knappen «Gå til Min Bil» på
+  skjermen «allerede kontrollert i dag».
+- Derfor: en kontroll registrert via administrasjonens ✅ Kontroll-ikon satte
+  ALDRI aktiv sjåfør — bilen fikk kun «🕓 Sjåfør i dag» via `vehicleSisteSjafor()`
+  sin fallback til dagens siste kontroll. Og en bil som allerede var kontrollert
+  krevde ett ekstra trykk («Gå til Min Bil») før sjåføren ble aktiv.
+- `settAktivSjaforForKontroll()`, som Prioritet 34-teksten under beskrev som
+  implementert, fantes ikke. Det samme gjaldt kryss-bil-utsjekkingsvarselet
+  Prioritet 32-teksten beskrev — `startBilokt()` sjekket ut den andre bilen
+  stille, uten `alert()`.
+
+**Løsning:**
+1. **`settAktivSjafor(vehicleId, navn)` er nå den ENESTE tildeleren** av
+   `v.aktivSjafor`/`v.aktivSjaforSiden`. Innholdet er flyttet UENDRET ut av
+   `startBilokt()` (samme kryss-bil-utsjekking, samme feltskriving, samme
+   `saveVehicles()`). Den returnerer navnet på en ev. annen bil samme sjåfør ble
+   sjekket ut av, slik at kryss-bil-utsjekkingen kan gjøres synlig uten en
+   blokkerende dialog.
+2. **Tre kallere, hver med sitt ene ekstra steg:**
+   - `startBilokt()` = tildeling + lokal enhets-sesjon (`driverActiveVehicleId`/
+     `driverNavn`/`saveDriverLocalSession()`) = en faktisk biløkt i sjåførmodus.
+     Oppførselen er uendret.
+   - `settAktivSjaforForKontroll()` = kun tildeling. Kalles fra
+     `submitKontroll()` sin ADMINISTRASJONS-gren. Rører bevisst IKKE den lokale
+     enhets-sesjonen — en driftskoordinator som registrerer på vegne av noen
+     andre skal ikke overstyre sin egen enhets sjåførtilstand.
+   - `overforAktivSjafor()` = kun tildeling. Brukes av «👤 Ny sjåfør».
+3. **Flyt etter kontroll:** Kontroll lagret → aktiv sjåfør settes → Min Bil
+   åpnes (sjåførmodus) / Kjøretøyprofilen åpnes (administrasjon). Den vanlige
+   «Kontroll registrert»-dialogen er FJERNET i sjåførmodus (ett ekstra trykk på
+   veien til Min Bil, som uansett åpnes umiddelbart og er bekreftelsen). En reell
+   FEIL — bilder som ikke ble lagret — varsles fortsatt med dialog, i begge
+   moduser. Administrasjonen beholder bekreftelsesdialogen uendret.
+4. **Ny knapp «👤 Ny sjåfør» på Min Bil** (`minBilAksjon === 'nysjafor'`, samme
+   trekkspillmønster som Registrer skade/varsellampe/avvik). Navn + «Oppdater»
+   → `overforAktivSjafor()`. Dette er REN OVERFØRING: ingen kontroll, ingen
+   historikk, ingen ny biløkt. Fordi Dashboard, «Biler i drift», Biloversikt og
+   Kjøretøyprofil alle leser `vehicleAktivSjafor()` live, oppdateres alle fire
+   umiddelbart uten noen egen synkronisering.
+5. **Min Bil-overskriften viser nå BILENS aktive sjåfør** (`vehicleAktivSjafor()`),
+   ikke bare navnet i enhetens lokale sesjon. Er bilen overført videre, sier
+   skjermen tydelig fra i stedet for å vise et navn som ikke lenger stemmer.
+6. `CACHE_VERSION` i `sw.js` økt til `bilpark-v35`. `kontroll.html` resynkronisert.
+
+**Uendret:** `vehicleAktivSjafor()` og `vehicleSisteSjafor()` (kun lesefunksjoner),
+dagskillet kl. 04:00, «én sjåfør, én aktiv bil»-regelen, `avsluttBilokt()`,
+kontrollstatus etter utsjekk, kilometerregelen (`v.km` skrives fortsatt kun fra
+`submitKontroll()`, `performKontrollDeletion()` og `resetFleetData()`), saksmotoren,
+historikk og alt Airtable-skjema.
+
+**Fortsatt IKKE implementert (bevisst, ikke bestilt):** kryss-bil-utsjekkings-
+varselet Prioritet 32-teksten beskriver som en `alert()`. Utsjekkingen SKJER
+(uendret regel), og er nå synlig som tekst i «👤 Ny sjåfør»-panelet, men det
+finnes ingen blokkerende dialog ved kontrollinnsending — det ville vært i direkte
+konflikt med «ingen ekstra trykk». Bestill som egen sak dersom en dialog ønskes.
+
 **Prioritet 39 (2026-09-09) — Mobil Design 4.1: mobilen bruker Desktop 4.1 sitt
 designsystem.** Ingen ny funksjonalitet, ingen ny forretningslogikk, ingen nye
 Airtable-felt og ingen endring i `storage.airtable.js` (derfor står `?v=2.9.0`
@@ -338,9 +404,9 @@ fortsatt KUN av `startBilokt()`, som kun kalles fra `driverMode`-grenen i
 `submitKontroll()` og fra sjåførmodusens bilvalg. En kontroll registrert fra
 administrasjonsdelen gir derfor «🕓 Sjåfør i dag» via `vehicleSisteSjafor()`,
 ikke «👤 Aktiv sjåfør». Verifisert dynamisk i simulering (se ROADMAP.md).
-Prioritet 39 har bevisst IKKE endret dette — aktiv sjåfør sto på «ikke rør»-
-listen. Om den dokumenterte oppførselen faktisk er ønsket, må den bestilles
-som en egen sak.
+Prioritet 39 endret bevisst ikke dette — aktiv sjåfør sto på «ikke rør»-listen.
+**RETTET I PRIORITET 40:** funksjonen finnes nå, og en kontroll registrert fra
+administrasjonsdelen setter aktiv sjåfør. Se Prioritet 40 over.
 
 Ikke rørt i Prioritet 39: Airtable-struktur, `storage.airtable.js`,
 kilometerlogikk, service-, EU-, dekk- og verkstedlogikk, saksmotoren,
