@@ -1,9 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 42 —
-PWA-installasjon: rotårsak funnet og bekreftet live mot GitHub Pages).
-Forrige: Prioritet 41 — Redigerbare bilkategorier + systemstyrt Ute av
-drift. **Ved avvik mellom denne filen og koden er koden alltid
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 43 —
+Kilometerstand følger nå alltid siste sjåførkontroll: race condition i
+`storage.airtable.js` sin lesing funnet og rettet).
+Forrige: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
+mot GitHub Pages. **Ved avvik mellom denne filen og koden er koden alltid
 sannheten.**
 
 ---
@@ -690,6 +691,62 @@ for repo-fiksen.
 
 ---
 
+## Prioritet 43 (2026-09-09) — Kilometerstand følger nå alltid siste
+sjåførkontroll (race condition i lesing funnet og rettet, ikke en feil i
+skrivereglene)
+
+Bestilling: kilometerstanden på et kjøretøy stemte ikke alltid overens med
+den siste registrerte sjåførkontrollen (eksempel: Bil 7 viste 183 100 km i
+Kjøretøyprofilen etter at en kontroll hadde registrert 184 220 km).
+
+**Kartlegging (kun kodelesing, ingen antakelser — se PRIORITET_43_ANALYSE.md
+for full detalj):** `v.km` skrives fra eksakt fire steder, og disse
+stemte fra før nøyaktig med det denne filen allerede dokumenterte:
+`submitKontroll()` (normal drift), `saveVehicleForm()` (eksplisitt
+admin-korreksjon, bekreftelsesdialog), `performKontrollDeletion()`
+(rekalkulering ved sletting, fra kronologisk nyeste gjenværende kontroll —
+ikke høyeste km-verdi) og `resetFleetData()` (admin-nullstilling). Ingen
+femte, udokumentert skrivevei ble funnet. Service- og
+verkstedfunksjonene rører aldri `v.km` (kun sitt eget `service.km`-felt) —
+bekreftet uendret siden Prioritet 29.
+
+**Rotårsak (bekreftet med en kjørt simulering av selve kø-mekanismen, ikke
+bare kodelesing):** `storage.airtable.js` sin `get()`-funksjon gikk, FØR
+denne rettingen, IKKE gjennom den serialiserte per-ressurs-skrivekøen
+(`_koKjor()`) som `set()`/`delete()` har brukt siden Prioritet 29. Appens
+bakgrunnspoll (`window.subscribeLiveSync()`, hvert 45. sekund) kaller
+`get('vehicles')` (via `reloadOne('vehicles')` i `index.html`) helt
+uavhengig av om en `set('vehicles')`-skriving fra nettopp en
+`submitKontroll()` fortsatt er underveis mot Airtable. Krysset de to
+hendelsene hverandre, kunne pollens lesing få svar FØR skrivingen faktisk var
+forpliktet, og returnere den GAMLE kilometerstanden — `reloadOne()` erstatter
+da HELE det lokale `vehicles`-arrayet ubetinget (`vehicles = parsed`), og
+sletter dermed den nettopp korrekt skrevne verdien fra det viste bildet i
+appen, helt til neste pollrunde (opptil 45 sekunder) tilfeldigvis traff etter
+at skrivingen var ferdig. Selve Airtable-raden var hele tiden korrekt — feilen
+lå kun i det lokale, viste øyeblikksbildet.
+
+**Løsning:** `get()` sendes nå gjennom SAMME `_koKjor()`-kø og samme
+ressursnøkkel (`_ressursNokkelForKey()`) som `set()`/`delete()` allerede
+brukte — ingen ny kø, ingen ny mekanisme, kun en utvidelse av en eksisterende
+Prioritet 29-løsning til også å dekke lesing. En lesing mot en gitt
+tabell/Settings-rad kan dermed aldri lenger starte midt i en ikke-fullført
+skriving mot akkurat den ressursen. **Ingen endring i selve `v.km`-
+skrivereglene i `index.html` var nødvendig** — de var allerede korrekte.
+`storage.airtable.js` `versjon` økt til `v2.10.0`, `?v=` i `index.html`/
+`kontroll.html` til `2.10.0`, `CACHE_VERSION` i `sw.js` til `bilpark-v39`.
+
+**Ikke rørt:** Dashboard, Mobil Design 4.1, Kjøretøyprofil (markup/visning),
+Aktiv sjåfør, Service-/verksted-/EU-/dekk-arbeidsflatene, `LIST_TABLES`/
+Airtable-skjema, PWA/manifest/service worker sin `APP_SHELL`-liste (kun
+cache-versjonstallet endret).
+
+Se PRIORITET_43_ANALYSE.md for full kartlegging (alle km-skrivere punkt for
+punkt), rotårsaksanalyse, simuleringsresultat (4 scenarioer) og
+testresultater.
+
+---
+
 ## Produktvisjon
 
 - Operativt styringssystem for bilparken til Bring Larvik (ca. 16 kjøretøy,
@@ -731,7 +788,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v38'`, Prioritet 42). To
+  offline-fallback (`CACHE_VERSION = 'bilpark-v39'`, Prioritet 43). To
   separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`), begge nå
   med et eksplisitt `id`-felt (Prioritet 42). Ikoner skal ligge i `icons/`
@@ -740,9 +797,11 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   publiserte siden; må rettes i selve GitHub-repoet, se
   PRIORITET_42_ANALYSE.md.** Se også ny seksjon "PWA og installasjon" under.
 - **Autoritativ storage-fil:** `storage.airtable.js` (nåværende versjon
-  `v2.9.0`, cache-bustet via `?v=2.9.0` på script-taggen i `index.html` OG
+  `v2.10.0`, cache-bustet via `?v=2.10.0` på script-taggen i `index.html` OG
   `kontroll.html` — se "Versjonskontroll (permanent løsning)" under for
-  hvordan Database status verifiserer dette automatisk). Dette er den
+  hvordan Database status verifiserer dette automatisk). Siden Prioritet 43
+  serialiserer filen også `get()`-lesinger gjennom samme per-ressurs-kø som
+  `set()`/`delete()` (se "Dataintegritet" under) — dette er den
   ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
   `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
@@ -958,7 +1017,17 @@ kostnadsmotor er innført.
     ved et uhell. Samme funksjon lagrer nå kun ÉN gang (den tidligere
     duplikate `saveVehicles()`-kallingen er fjernet).
   - Ingen andre steder i koden skriver til `v.km` — verifisert ved
-    kodegjennomgang i Prioritet 29-revisjonen.
+    kodegjennomgang i Prioritet 29-revisjonen, og re-verifisert (uttømmende
+    `grep`-basert kartlegging) i Prioritet 43 uten å finne noen femte,
+    udokumentert skrivevei.
+  - **Prioritet 43:** disse fire skrivepunktene var allerede korrekte og
+    fulgte allerede ønsket prioritering ("siste sjåførkontroll vinner").
+    Bugen som meldte at `v.km` ikke alltid stemte overens med siste
+    kontroll, lå IKKE i skrivereglene, men i en race condition i
+    `storage.airtable.js` sin LESING (`get()`), som kunne la bakgrunnspollen
+    (`window.subscribeLiveSync()`) midlertidig overskrive det lokale, viste
+    `v.km` med en gammel verdi fra Airtable — se "Dataintegritet" under og
+    PRIORITET_43_ANALYSE.md for full rotårsak og fiks.
 - `servicehistorikk[].km` er historisk kilometerstand ved utført service —
   skal ALDRI overskrive `v.km`. **Historisk kritisk feil** (rettet): en
   tidligere versjon av `submitService()` overskrev `v.km` når en historisk
@@ -1071,6 +1140,18 @@ Alle følger: Overskrift → Filtre → Forhåndsvisning → Excel-eksport
   gjenoppretter forrige, korrekte lokale tilstand og re-rendrer — slik at
   brukergrensesnittet ALDRI kan vise en endring som "lagret" når den faktisk
   feilet.
+- **Lesing serialisert i samme kø som skriving (Prioritet 43, regresjonsfiks):**
+  `_koKjor()` beskyttet frem til Prioritet 43 KUN `set()`/`delete()` — `get()`
+  leste Airtable direkte, uavhengig av pågående skrivinger mot samme ressurs.
+  `window.subscribeLiveSync()` sin 45-sekunders bakgrunnspoll kunne dermed
+  (via `reloadOne()` i `index.html`) lese en GAMMEL verdi midt i en
+  ikke-fullført `set()`, og ubetinget overskrive det lokale, viste
+  datasettet med den — dette var rotårsaken til at `v.km` ikke alltid
+  stemte overens med siste sjåførkontroll (se "Prioritet 43" og
+  PRIORITET_43_ANALYSE.md). `get()` går nå gjennom SAMME `_koKjor()`-kø og
+  ressursnøkkel som `set()`/`delete()`, slik at en lesing mot en gitt
+  tabell/Settings-rad aldri lenger kan starte midt i en ikke-fullført
+  skriving mot akkurat den ressursen.
 - **Korrupt Settings-JSON (Prioritet 29, Del 4):** `parseJsonTrygt()` gir et
   eksplisitt `{ok: true, value}` / `{ok: false, error}`-resultat ved
   innlasting av `servicehistorikk`/`planlagteservicer`. Ved korrupt JSON
@@ -1223,3 +1304,10 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
   `cache.addAll()` i `sw.js` er alt-eller-ingenting — én manglende fil i
   `APP_SHELL` blokkerer HELE service worker-installasjonen, ikke bare den
   ene filen.**
+- **Nytt i Prioritet 43: en `get()`-lesing mot en Airtable-tabell/Settings-rad
+  som ikke er serialisert mot pågående `set()`-skrivinger til SAMME ressurs
+  kan tilfeldigvis returnere en gammel verdi og ubetinget overskrive korrekt,
+  nettopp lagret lokal tilstand — særlig farlig i kombinasjon med en
+  periodisk bakgrunnspoll (`window.subscribeLiveSync()`). Enhver fremtidig
+  lesefunksjon i `storage.airtable.js` bør gå gjennom `_koKjor()` på samme
+  måte som `get()`/`set()`/`delete()` nå gjør, ikke lese Airtable direkte.**

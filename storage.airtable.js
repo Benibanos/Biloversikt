@@ -248,6 +248,33 @@
   // En feil i én operasjon stopper ALDRI køen for senere operasjoner for samme nøkkel
   // (se .catch(()=>{}) i _koKjor under) — permanent låsing etter én feilet skriving
   // er eksplisitt uønsket.
+  //
+  // PRIORITET 43 (2026-09-09) — UTVIDET til også å serialisere get() (regresjonsfiks,
+  // km fulgte ikke alltid siste sjåførkontroll): frem til nå gikk KUN set()/delete()
+  // gjennom denne køen — get() leste Airtable direkte, helt UAVHENGIG av om en
+  // set()/delete() mot SAMME ressurs allerede sto og ventet i køen eller pågikk. Se
+  // CLAUDE.md "Prioritet 43" og PRIORITET_43_ANALYSE.md for full rotårsaksanalyse —
+  // kort fortalt: window.subscribeLiveSync() sin bakgrunnspoll (index.html,
+  // reloadOne()) kaller get('vehicles') hvert 45. sekund, HELT uavhengig av om
+  // submitKontroll() (eller saveVehicleForm()/resetFleetData()/
+  // performKontrollDeletion()) akkurat da står midt i en IKKE FERDIG set('vehicles').
+  // Vant pollens get() denne racen (dvs. Airtable-svaret på GET kom tilbake FØR den
+  // pågående PATCH-en faktisk var forpliktet), fikk index.html sin
+  // reloadOne('vehicles') en GAMMEL kilometerstand tilbake og erstattet HELE det
+  // lokale `vehicles`-arrayet med den (ubetinget `vehicles = parsed`) — inkludert på
+  // det kjøretøyet en sjåfør akkurat hadde registrert ny km på. Den faktiske
+  // Airtable-raden ble likevel korrekt til slutt (selve PATCH-en var uberørt av
+  // dette — den var allerede underveis med riktig verdi), men det lokale, viste
+  // bildet i appen (Kjøretøyprofil/Dashboard/Min bil) sto igjen med feil tall helt
+  // til NESTE pollrunde (opptil 45 sekunder senere) tilfeldigvis traff etter at
+  // skrivingen var ferdig. Løsning: get() sendes nå gjennom SAMME _koKjor()-kø, med
+  // SAMME ressursnøkkel (_ressursNokkelForKey()), som set()/delete() allerede brukte.
+  // Dermed kan en lesing mot en gitt tabell/Settings-rad ALDRI lenger starte midt i en
+  // ikke-fullført skriving mot akkurat den ressursen — den kjøres enten helt FØR
+  // skrivingen starter, eller helt ETTER den er ferdig (og dermed alltid med riktig,
+  // ferdig committed data). Andre, ubeslektede tabeller/nøkler er fortsatt helt
+  // uavhengige køer, akkurat som før — denne endringen påvirker kun rekkefølgen
+  // INNENFOR samme ressurs, ikke mellom ulike ressurser.
   const _skriveKoer = {}; // { [ressursNokkel]: Promise }
   function _ressursNokkelForKey(key) {
     if (LIST_TABLES[key]) return 'table:' + LIST_TABLES[key].table;
@@ -342,28 +369,39 @@
     return true;
   }
 
-  // ---- Offentlig grensesnitt: get/set/delete/list (uendret fra før) ----
+  // ---- Offentlig grensesnitt: get/set/delete/list (uendret utad — samme kall,
+  // samme returverdier — kun get() sin INTERNE synkronisering er endret, se Prioritet
+  // 43-kommentaren ved _koKjor over) ----
   async function get(key, shared) {
-    try {
-      if (LIST_TABLES[key]) {
-        const arr = await readList(key);
-        return { key, value: JSON.stringify(arr), shared: !!shared };
-      }
-      if (key.startsWith('photo:')) {
-        const v = await readSettingsRow('Photos', key);
+    // PRIORITET 43: get() serialiseres nå gjennom SAMME per-ressurs-kø som set()/
+    // delete() (se _koKjor over) — en lesing kan dermed aldri lenger starte midt i en
+    // ikke-fullført skriving mot akkurat denne tabellen/Settings-raden, og leser derfor
+    // alltid enten helt FØR eller helt ETTER en pågående skriving, aldri et tilstand
+    // midt i mellom.
+    return _koKjor(_ressursNokkelForKey(key), async () => {
+      try {
+        if (LIST_TABLES[key]) {
+          const arr = await readList(key);
+          return { key, value: JSON.stringify(arr), shared: !!shared };
+        }
+        if (key.startsWith('photo:')) {
+          const v = await readSettingsRow('Photos', key);
+          return v === null ? null : { key, value: v, shared: !!shared };
+        }
+        // theme-preference og andre enkeltnøkler → Settings-tabellen
+        const v = await readSettingsRow('Settings', key);
         return v === null ? null : { key, value: v, shared: !!shared };
+      } catch (e) {
+        console.error('[storage.airtable.get] Feilet for', key, e);
+        throw e;
       }
-      // theme-preference og andre enkeltnøkler → Settings-tabellen
-      const v = await readSettingsRow('Settings', key);
-      return v === null ? null : { key, value: v, shared: !!shared };
-    } catch (e) {
-      console.error('[storage.airtable.get] Feilet for', key, e);
-      throw e;
-    }
+    });
   }
   async function set(key, value, shared) {
     // Prioritet 29: serialisert per ressurs (tabell/Settings-rad), se _koKjor over —
     // hindrer at to samtidige set()-kall mot SAMME tabell/rad kan krysse hverandre.
+    // Prioritet 43: samme kø brukes nå også av get() over, slik at lesing og skriving
+    // mot samme ressurs aldri lenger kan overlappe.
     return _koKjor(_ressursNokkelForKey(key), async () => {
       try {
         if (LIST_TABLES[key]) {
@@ -412,8 +450,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.9.0',
-    bygget: '08.09.2026 11:30',
+    versjon: 'v2.10.0',
+    bygget: '09.09.2026 11:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 
@@ -428,6 +466,10 @@
   // ut et skjema — se subscribeLiveSync-kallet i loadAll()). Airtables
   // gratisnivå tillater 5 kall/sekund per base, så ikke sett dette (eller
   // antall åpne faner/enheter) for lavt uten å vurdere antall samtidige brukere.
+  // PRIORITET 43: get()-kallene denne funksjonen trigger (via index.html sin
+  // reloadOne()) går nå gjennom samme per-ressurs-kø som skrivinger (se _koKjor
+  // over) — pollen kan derfor aldri lenger lese en tabell midt i en ikke-fullført
+  // skriving mot akkurat den tabellen.
   const POLL_INTERVAL_MS = 45000;
   window.subscribeLiveSync = function (onRemoteChange) {
     setInterval(() => {

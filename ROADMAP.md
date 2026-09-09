@@ -1,8 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-09 (Prioritet 42 — PWA-installasjon: rotårsak
-funnet og bekreftet live mot GitHub Pages).
-Forrige: Prioritet 41 — Redigerbare bilkategorier. Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
+Sist oppdatert: 2026-09-09 (Prioritet 43 — Kilometerstand følger nå alltid
+siste sjåførkontroll: race condition i lesing funnet og rettet).
+Forrige: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
+mot GitHub Pages. Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
@@ -17,6 +18,60 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll
+(2026-09-09):** ✅ Fikset og verifisert med en kjørt simulering av
+race-mekanismen (se PRIORITET_43_ANALYSE.md) — ikke en live flerbruker-test
+mot ekte Airtable (utenfor denne øktens nettverkstilgang, se "Kjente
+begrensninger" i analysen).
+
+Bestilling: kilometerstanden på et kjøretøy stemte ikke alltid overens med
+siste registrerte sjåførkontroll (eksempel: Bil 7 viste 183 100 km i
+Kjøretøyprofilen etter at en kontroll hadde registrert 184 220 km).
+
+Kartlegging (uttømmende `grep`-basert gjennomgang av `index.html`, ingen
+antakelser): `v.km` skrives fra eksakt fire steder —
+`submitKontroll()` (normal drift), `saveVehicleForm()` (admin-korreksjon,
+bekreftelsesdialog), `performKontrollDeletion()` (rekalkulering ved
+sletting, fra kronologisk nyeste gjenværende kontroll) og `resetFleetData()`
+(admin-nullstilling). Disse stemte allerede nøyaktig med det CLAUDE.md
+dokumenterte, og fulgte allerede ønsket prioritering ("siste kontroll
+vinner") — ingen femte, udokumentert skrivevei ble funnet. Service-/
+verkstedfunksjonene rører aldri `v.km` (kun sitt eget `service.km`),
+bekreftet uendret siden Prioritet 29.
+
+Rotårsak: `storage.airtable.js` sin `get()`-funksjon gikk IKKE gjennom den
+serialiserte per-ressurs-skrivekøen (`_koKjor()`, Prioritet 29) som
+`set()`/`delete()` allerede brukte. Bakgrunnspollen
+(`window.subscribeLiveSync()`, hvert 45. sekund) kunne dermed lese en gammel
+kilometerstand fra Airtable MENS en `submitKontroll()`-skriving fortsatt
+pågikk, og `reloadOne('vehicles')` i `index.html` erstattet da HELE det
+lokale `vehicles`-arrayet ubetinget med den gamle verdien — selve
+Airtable-raden var hele tiden korrekt, feilen lå kun i det lokale, viste
+øyeblikksbildet i appen, og varte til neste pollrunde (opptil 45 sekunder)
+tilfeldigvis traff etter at skrivingen var ferdig. Bekreftet med en isolert,
+kjørt Node.js-simulering av nøyaktig denne kø-mekanismen (se
+PRIORITET_43_ANALYSE.md, seksjon 3), ikke bare kodelesing.
+
+Levert: `get()` sendes nå gjennom SAMME `_koKjor()`-kø og ressursnøkkel som
+`set()`/`delete()` — ingen ny mekanisme, en presis utvidelse av en
+eksisterende Prioritet 29-løsning. Ingen endring i `v.km`-skrivereglene i
+`index.html` var nødvendig — kun `?v=2.10.0` på script-taggen.
+`storage.airtable.js` `versjon` → `v2.10.0`. `sw.js`: `CACHE_VERSION` →
+`bilpark-v39`. `kontroll.html` resynkronisert.
+
+Simulerte scenarioer (se PRIORITET_43_ANALYSE.md, seksjon 3): (1) Bil 7
+183 100 → kontroll registrerer 184 220 → `v.km` = 184 220, bekreftet med
+kjørt race-simulering (feil FØR fiksen, riktig ETTER); (2) service +
+verkstedtime + dashboard-rendering + reload etter kontrollen → `v.km`
+forblir 184 220 gjennom hele sekvensen; (3) ny kontroll registrerer
+184 890 → `v.km` = 184 890; (4) kontrollhistorikkens nyeste oppføring er
+184 890 → Kjøretøyprofilen viser 184 890 (samme kildevariabel skriver begge
+feltene i `submitKontroll()`, kronologisk sortering i `vehicleKontroller()`,
+ikke sortering på km-størrelse).
+
+Se PRIORITET_43_ANALYSE.md for full kartlegging, rotårsak, simuleringslogg
+og testresultater.
 
 **Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet LIVE
 (2026-09-09):** 🔧 **Rotårsak funnet og dokumentert, men krever en
@@ -659,6 +714,15 @@ Airtable-oppsett) dersom dette skal gjennomføres.
 `icons/`-mappen mangler på det publiserte GitHub Pages-repoet selv om all
 kode forventer den der. Krever en manuell opplasting av tre ikonfiler til
 `icons/` for å lukkes helt — se PRIORITET_42_ANALYSE.md.
+
+📋 **Kilometerstand-racet (Prioritet 43):** fiksen (`get()` serialisert i
+`_koKjor()`) er verifisert med en isolert, kjørt simulering av selve
+kø-mekanismen — IKKE med en observert, levende flerbruker-test mot den
+faktiske Airtable-basen (krever nettverkstilgang denne økten ikke har).
+Anbefales fulgt opp med en reell test (to samtidige enheter/faner, én som
+registrerer kontroll mens den andres bakgrunnspoll fyrer) ved neste
+anledning noen har tilgang til den kjørende siden. Se PRIORITET_43_ANALYSE.md,
+"Kjente begrensninger".
 
 ## Neste prioriterte arbeid
 
