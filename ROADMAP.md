@@ -36,12 +36,18 @@ Levert:
 - Ny knapp «👤 Ny sjåfør» på Min Bil: navn + Oppdater = ren overføring av aktiv
   sjåfør. Ingen kontroll, ingen historikk, ingen ny biløkt.
 - Min Bil viser bilens faktiske aktive sjåfør, og sier fra ved overføring.
-- `sw.js`: `CACHE_VERSION` → `bilpark-v35`. `kontroll.html` resynkronisert.
+- Forenklet sjåførflyt: BIL FØRST, deretter navn. Navnefeltet er fjernet fra
+  toppen av «Velg bil»; ved bilvalg åpnes dialogen «Hvem kjører denne bilen?»
+  (Navn + Fortsett). Alt etter navnet er uendret. Ny, ren UI-tilstand:
+  `driverNavnDialogBilId` / `driverNavnDialogMsg`.
+- `sw.js`: `CACHE_VERSION` → `bilpark-v36`. `kontroll.html` resynkronisert.
 
-Simulerte scenarioer: kontroll utført (administrasjon og sjåførmodus) ·
-automatisk åpning av Min Bil · ny sjåfør (inkl. tomt navn og kryss-bil-regel) ·
-Dashboard · Biler i drift · Biloversikt · Kjøretøyprofil · dagskille kl. 04:00 ·
-utsjekk · kilometerregelen · alle skjermer på desktop, mobil og sjåførmodus.
+Simulerte scenarioer: velg bil → skriv navn → kontroll (inkl. tomt navn, avbryt
+og allerede kontrollert bil) · kontroll → Min Bil · ny sjåfør · Dashboard ·
+Biler i drift · Biloversikt · Kjøretøyprofil · dagskille kl. 04:00 · utsjekk ·
+kilometerregelen · alle skjermer på desktop, mobil og sjåførmodus.
+Tre simuleringssuiter kjøres samlet: forenklet sjåførflyt (56 sjekker),
+aktiv sjåfør (68 sjekker) og Mobil 4.1-regresjon (101 sjekker) — alle grønne.
 
 🔧 **Gjenstår (ikke bestilt):** kryss-bil-utsjekkingsvarselet som Prioritet
 32-teksten beskriver som en `alert()` finnes fortsatt ikke. Selve utsjekkingen

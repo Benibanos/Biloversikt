@@ -325,7 +325,25 @@ stille), ingen endring i kilometerlogikk, saksmotor eller historikk.
 5. **Min Bil-overskriften viser nå BILENS aktive sjåfør** (`vehicleAktivSjafor()`),
    ikke bare navnet i enhetens lokale sesjon. Er bilen overført videre, sier
    skjermen tydelig fra i stedet for å vise et navn som ikke lenger stemmer.
-6. `CACHE_VERSION` i `sw.js` økt til `bilpark-v35`. `kontroll.html` resynkronisert.
+6. `CACHE_VERSION` i `sw.js` økt til `bilpark-v36`. `kontroll.html` resynkronisert.
+
+7. **Forenklet sjåførflyt — BIL FØRST, deretter navn (etter tilbakemelding fra
+   sjåførene).** Den gamle flyten (åpne app → skriv navn → velg bil → kontroll)
+   hadde navnefeltet øverst på «Velg bil», og bilvalget var BLOKKERT til navnet
+   var fylt ut («Skriv inn navnet ditt før du velger bil»). Ny flyt: åpne app →
+   velg bil → skriv navn → kontroll → Min Bil. Navnefeltet er fjernet fra
+   toppen av skjermen; når en bil velges åpnes i stedet dialogen «Hvem kjører
+   denne bilen?» (`.modal-overlay`/`.modal-sheet` — eksisterende modal-CSS,
+   ingen ny komponent) med Navn + «Fortsett» + «← Velg en annen bil». Ny UI-
+   tilstand: `driverNavnDialogBilId` / `driverNavnDialogMsg` (ren visningstilstand,
+   lagres ingen steder). **Alt ETTER navnet er uendret:** samme
+   `isKontrollertIdag()`-sjekk, samme «allerede kontrollert»-skjerm, samme
+   `kontrollFormVehicleId`/`kontrollFormSjaforNavn`-forhåndsutfylling, samme
+   `syncKontrollAnnetFromActive()`, samme `submitKontroll()`. Ingenting lagres,
+   ingen biløkt opprettes og ingen kontroll åpnes før «Fortsett» trykkes.
+   `avsluttBilokt()` nullstiller også dialogtilstanden, slik at den ikke kan bli
+   stående åpen fra en tidligere økt. `kontrollApenDriftslag`/`lagreSistDriftslag()`
+   (Prioritet 27.7) skjer nå ved bilvalget, som før.
 
 **Uendret:** `vehicleAktivSjafor()` og `vehicleSisteSjafor()` (kun lesefunksjoner),
 dagskillet kl. 04:00, «én sjåfør, én aktiv bil»-regelen, `avsluttBilokt()`,

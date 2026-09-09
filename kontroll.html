@@ -2077,6 +2077,11 @@ let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt' | 'nysja
 // PRIORITET 40: melding i «👤 Ny sjåfør»-panelet på Min Bil (validering/bekreftelse/
 // kryss-bil-utsjekking). Ren UI-tilstand, lagres ingen steder.
 let minBilNySjaforMsg = '';
+// PRIORITET 40 (forenklet sjåførflyt): hvilken bil som venter på «Hvem kjører denne
+// bilen?»-dialogen, og en ev. valideringsmelding i den. Ren UI-tilstand — ingen data
+// lagres, og ingen biløkt opprettes før sjåføren faktisk trykker Fortsett.
+let driverNavnDialogBilId = '';
+let driverNavnDialogMsg = '';
 let minBilSkadeBeskrivelse = '';
 let minBilSkadeAlvorlighet = 'middels';
 let minBilSkadeKommentar = '';
@@ -2193,6 +2198,9 @@ async function avsluttBilokt(vehicleId){
   clearDriverLocalSession();
   driverScreen = 'velg-bil';
   driverVelgBilId = '';
+  // PRIORITET 40: sørg for at «Hvem kjører denne bilen?»-dialogen ikke står igjen åpen
+  // fra en tidligere økt når sjåføren sendes tilbake til bilvalget.
+  driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
 }
 // Rydder opp biløkter fra en tidligere operativ dag (dagskille kl. 04:00). Skriving til
 // Airtable her er kun for å holde dataene ryddige — selve statusen er uansett alltid
@@ -5925,37 +5933,68 @@ function renderDriverShell(){
 // ---- Ny funksjon: Aktiv Biløkt / Min Bil — sjåførskjermer ----
 // Steg 1: Velg bil. Kontrollen tilhører bilen — appen sjekker selv om dagens kontroll
 // allerede er utført, og sender sjåføren rett videre uten å be om unødvendig dobbeltarbeid.
+// PRIORITET 40 — forenklet sjåførflyt: BIL FØRST, deretter navn.
+// Tidligere sto navnefeltet øverst og blokkerte bilvalget («Skriv inn navnet ditt før du
+// velger bil»), noe sjåførene opplevde som unaturlig. Nå er bilvalget det første og eneste
+// på skjermen; navnet spørres om i en dialog rett etter at bilen er valgt. Ingen data
+// lagres, ingen biløkt opprettes og ingen kontroll åpnes før Fortsett trykkes — selve
+// stegene etter navnet (allerede kontrollert / kontrollskjema) er UENDRET.
 function renderDriverVelgBil(){
+  const dialogBil = driverNavnDialogBilId ? vehicles.find(x => x.id === driverNavnDialogBilId) : null;
   return `
     <h2 style="font-size:19px;margin-bottom:6px;">Velg bil</h2>
-    <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag.</div>
-    <div class="field" style="margin-bottom:18px;">
-      <label>Ditt navn</label>
-      <input id="db-navn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(driverNavn)}" required>
-    </div>
-    <div id="db-navn-msg" class="form-msg"></div>
+    <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag. Du skriver navnet ditt i neste steg.</div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${renderDriftslagGruppertBilvalg('data-velg-bil')}
+    </div>
+
+    <div class="modal-overlay ${dialogBil ? 'open' : ''}" id="db-navn-overlay">
+      <div class="modal-sheet">
+        <div class="modal-title">Hvem kjører denne bilen?</div>
+        ${dialogBil ? `<div class="required-hint" style="margin-bottom:14px;">${esc(vehicleLabel(dialogBil))}</div>` : ''}
+        <div class="field" style="margin-bottom:10px;">
+          <label>Navn</label>
+          <input id="db-navn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(driverNavn)}" autocomplete="name">
+        </div>
+        ${driverNavnDialogMsg ? `<div class="form-msg" id="db-navn-msg">${esc(driverNavnDialogMsg)}</div>` : ''}
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+          <button type="button" class="btn" id="db-navn-fortsett-btn" style="width:100%;min-height:52px;">Fortsett</button>
+          <button type="button" class="btn secondary small" id="db-navn-avbryt-btn" style="width:100%;min-height:48px;">← Velg en annen bil</button>
+        </div>
+      </div>
     </div>
   `;
 }
 function attachDriverVelgBilListeners(){
   attachDriftslagGruppeListeners();
+  // Steg 1: bilen velges. Åpner kun navnedialogen — ingenting lagres ennå.
   document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
+    driverNavnDialogBilId = el.dataset.velgBil;
+    driverNavnDialogMsg = '';
+    // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
+    // gruppe åpnes automatisk neste gang sjåførkontrollen åpnes på denne enheten.
+    const valgtBil = vehicles.find(x => x.id === driverNavnDialogBilId);
+    if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
+    render();
+    const navnInput = document.getElementById('db-navn');
+    if(navnInput) navnInput.focus();
+  }));
+  // Steg 2: navnet skrives inn. Herfra og videre er flyten UENDRET fra før.
+  const fortsettBtn = document.getElementById('db-navn-fortsett-btn');
+  if(fortsettBtn) fortsettBtn.addEventListener('click', () => {
     const navnInput = document.getElementById('db-navn');
     const navn = ((navnInput ? navnInput.value : driverNavn) || '').trim();
     if(!navn){
-      const msg = document.getElementById('db-navn-msg');
-      if(msg) msg.textContent = 'Skriv inn navnet ditt før du velger bil.';
-      if(navnInput) navnInput.focus();
+      driverNavnDialogMsg = 'Skriv inn navnet ditt for å fortsette.';
+      render();
+      const el2 = document.getElementById('db-navn');
+      if(el2) el2.focus();
       return;
     }
     driverNavn = navn;
-    driverVelgBilId = el.dataset.velgBil;
-    // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
-    // gruppe åpnes automatisk neste gang sjåførkontrollen åpnes på denne enheten.
-    const valgtBil = vehicles.find(x => x.id === driverVelgBilId);
-    if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
+    driverVelgBilId = driverNavnDialogBilId;
+    driverNavnDialogBilId = '';
+    driverNavnDialogMsg = '';
     if(isKontrollertIdag(driverVelgBilId)){
       driverScreen = 'allerede-kontrollert';
     } else {
@@ -5965,7 +6004,13 @@ function attachDriverVelgBilListeners(){
       driverScreen = 'kontroll';
     }
     render();
-  }));
+  });
+  const avbrytBtn = document.getElementById('db-navn-avbryt-btn');
+  if(avbrytBtn) avbrytBtn.addEventListener('click', () => {
+    driverNavnDialogBilId = '';
+    driverNavnDialogMsg = '';
+    render();
+  });
 }
 
 // Steg 2a (kun hvis bilen IKKE er kontrollert i dag): gjenbruker det ordinære
@@ -6001,7 +6046,10 @@ function attachDriverAlleredeKontrollertListeners(){
     render();
   });
   const byttBilBtn = document.getElementById('db-bytt-bil-btn');
-  if(byttBilBtn) byttBilBtn.addEventListener('click', () => { driverVelgBilId = ''; driverScreen = 'velg-bil'; render(); });
+  if(byttBilBtn) byttBilBtn.addEventListener('click', () => {
+    driverVelgBilId = ''; driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
+    driverScreen = 'velg-bil'; render();
+  });
 }
 
 // Steg 3: Min Bil — sjåførens arbeidsflate resten av den operative dagen.
