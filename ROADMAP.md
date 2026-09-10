@@ -1,14 +1,17 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-10 (Prioritet 46 — Rapporter (full historikk ved
-bilfiltrering), Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport,
-Verkstedtime 2.0, telefonnummer i Kjøretøyprofil).
-Forrige: Prioritet 45 — Omstrukturering av Innstillinger: fire grupperte
-hovedseksjoner, «⚙️ Innstillinger» flyttet nederst i sidemenyen, ny 👤
-Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder. Før det: Prioritet
-44 — 🎨 Layout Editor under Innstillinger. Før det igjen: Prioritet 43 —
-Kilometerstand følger nå alltid siste sjåførkontroll: race condition i
-lesing funnet og rettet.
+Sist oppdatert: 2026-09-10 (Prioritet 47, Del 1 — fjernet «Andre
+kontrollavvik» fra valgbare lister, ny «📨 Nye kommentarer»-seksjon i Aktive
+saker, bestillingstjenester samlet på én rad. Del 2 — bunnmeny/Ringeliste/
+Oppgaver/"Sjekk ut bil"-tekst i sjåførmodus — IKKE implementert, venter på
+avklaring av et kode-/live-avvik, se CLAUDE.md og PRIORITET_47_ANALYSE.md).
+Forrige: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
+Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport, Verkstedtime 2.0,
+telefonnummer i Kjøretøyprofil. Før det: Prioritet 45 — Omstrukturering av
+Innstillinger: fire grupperte hovedseksjoner, «⚙️ Innstillinger» flyttet
+nederst i sidemenyen, ny 👤 Sjåførside med 📞 Ringeliste, ny 📘
+Informasjonsveileder. Før det igjen: Prioritet 44 — 🎨 Layout Editor under
+Innstillinger.
 Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -24,6 +27,56 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 47, Del 1 — Sjåførside 2.0 / Dashboard-komprimering: kommentar-
+håndtering og bestillingsrad (2026-09-10):** ✅ Del 1 implementert og
+verifisert (statisk/isolert, se PRIORITET_47_ANALYSE.md). 🔧 **Del 2
+(bunnmeny, Ringeliste/Oppgaver i sjåførmodus, «Sjekk ut bil»-tekst) er
+bevisst IKKE implementert** — bestillingens referansebilder viser UI-elementer
+(en bunnmeny «Min Bil · Velg bil · Oppgaver · Mer», kortbasert Min Bil) som
+ikke finnes noe sted i `index.html`/`kontroll.html` slik de foreligger i
+dette Claude-prosjektet. Bruker har eksplisitt bedt om at den faktiske,
+kjørende `index.html` lastes opp før Del 2 forsøkes — «ikke gjett».
+
+Kartlegging (FØR implementering, se PRIORITET_47_ANALYSE.md): en fritekst-
+kommentar i sjåførkontrollskjemaet har aldri alene opprettet en aktiv sak —
+den lagres kun på kontroll-oppføringen (`kontroller[].kommentar`). Den
+reelle mekanismen bak opplevelsen "kommentar blir sak" var avkrysningsboksen
+«Andre kontrollavvik» (`annet-avvik` i `KONTROLLAVVIK_ORDER`) — eneste sted
+en sjåfør kunne signalisere noe som faktisk ble synlig for driftskoordinator
+som en ny rad i Aktive saker. Videre var alle fire forekomster av "➕ Bestill
+tjenester" allerede utvidet til fem knapper (Prioritet 46), men fortsatt
+bundet til `.dash40-grid4` (fast 4 kolonner) — femte kort havnet alltid
+alene på en ny rad.
+
+Løsning: (1) `annet-avvik` fjernet fra `KONTROLLAVVIK_ORDER` (valgbare
+lister), men BEHOLDT i `KONTROLLAVVIK_LABEL`/`KONTROLLAVVIK_IKON` for
+historisk visning — samme mønster som `UTE_AV_DRIFT_KATEGORI_ID` (Prioritet
+41). Skade, Varsellampe og de fire gjenværende avvikstypene oppretter
+fortsatt aktive saker uendret. (2) Ny «📨 Nye kommentarer»-seksjon øverst i
+Aktive saker (`nyeKommentarerListe()`/`nyeKommentarerSectionHtml()`) — rent
+visningsfilter over eksisterende `kontroller[]`, ingen ny tabell/felt/
+sakskobling, sortert nyeste først, bevisst INGEN "lest/kvittert"-tilstand
+(kun én lokal, uendret visnings-toggle) — "dette er informasjon, ikke
+oppgaver". (3) Ny `.dash40-grid5`-klasse (5 kolonner, med responsiv
+nedtrapping på samme brytepunkter som `.dash40-grid4`) satt på alle fire
+reelle "➕ Bestill tjenester"-forekomster — `.dash40-grid4` er URØRT
+(KPI-radene bruker den fortsatt uendret). Service, EU-kontroll, Dekkskifte,
+Verkstedtime og Ruteskift ligger nå på én rad.
+
+Ingen nye Airtable-felt, ingen `LIST_TABLES`-endring — `storage.airtable.js`
+uendret på `v2.11.0`. `sw.js` `CACHE_VERSION` → `bilpark-v43`. `kontroll.html`
+resynkronisert som eksakt kopi.
+
+Testet: `node --check` på begge script-blokker — ingen syntaksfeil. Isolert
+Node.js-simulering av `nyeKommentarerListe()`-logikken (filtrering av tomme/
+whitespace-kommentarer, sortering nyeste først) og av
+`KONTROLLAVVIK_ORDER`-fjerningen (4 valgbare typer, historisk label-oppslag
+intakt) — begge bestått. Kun statisk/isolert testet denne runden (ingen
+kjørende nettleser/Airtable).
+
+Se PRIORITET_47_ANALYSE.md for full kartlegging, kode-/live-avviket i
+detalj, og simuleringslogg.
 
 **Prioritet 46 — Rapporter, Carglass Ruteskift og Verkstedtime 2.0
 (2026-09-10):** ✅ Implementert og verifisert (se PRIORITET_46_ANALYSE.md).
@@ -617,12 +670,17 @@ dekkskift, EU-kontroll og verkstedtimer. Se CLAUDE.md.
 ✅ Implementert og verifisert — samlet sak per bil, flere avvikspunkter,
 selektiv verkstedbehandling/fullføring, full livssyklus Ny→Vurderes→Tiltak
 planlagt→Verksted bestilt→Delvis utført→Utført→Lukket. Kun aktive avvik
-påvirker bilstatus.
+påvirker bilstatus. **Nytt i Prioritet 47, Del 1:** en egen «📨 Nye
+kommentarer»-seksjon øverst viser sjåførkommentarer som ren, uredigerbar
+informasjonslogg — disse oppretter ALDRI en sak (se over).
 
 ## Automatisk saksgenerering
 
 ✅ Implementert og verifisert — kontrollavvik/varsellamper/skader oppretter
-saker automatisk, bekreftet i kodeflyten fra `submitKontroll()`.
+saker automatisk, bekreftet i kodeflyten fra `submitKontroll()`. **Endret i
+Prioritet 47, Del 1:** «Andre kontrollavvik» er fjernet fra valgbare
+kontrollavvik (kun Skade, Varsellampe, Defekt lys, Manglende utstyr, Feil på
+kjøretøy og Slitte dekk oppretter nå saker) — se over.
 
 ## Verkstedflyt
 
@@ -666,7 +724,10 @@ funnet — se merknad under Dashboard-optimaliseringer).
 
 ✅ Implementert og verifisert — Prioritet 26.2 (Dashboard Nullstilling):
 svarer kun på tre spørsmål (hva må gjøres nå / hva kommer snart / hvilken
-bil starte med), lesbart på under 5 sekunder.
+bil starte med), lesbart på under 5 sekunder. **Nytt i Prioritet 47, Del 1:**
+alle "➕ Bestill tjenester"-forekomster (Dashboard, Kjøretøyprofil, egen
+skjerm) bruker nå `.dash40-grid5` slik at fem hurtigbestillingskort (Service,
+EU-kontroll, Dekkskifte, Verkstedtime, Ruteskift) vises på én rad — se over.
 
 🔧 **Kjent, dokumentert avvik fra tidligere spesifikasjon:** en tidligere
 spesifikasjon forutsatte at service-/kontrollprognoser og en "Operativ
@@ -893,7 +954,23 @@ registrerer kontroll mens den andres bakgrunnspoll fyrer) ved neste
 anledning noen har tilgang til den kjørende siden. Se PRIORITET_43_ANALYSE.md,
 "Kjente begrensninger".
 
+🔧 **Kode-/live-avvik i sjåførmodus (Prioritet 47):** referansebilder mottatt
+fra bruker viser en bunnmeny («Min Bil · Velg bil · Oppgaver · Mer») og en
+kortbasert Min Bil-visning som IKKE finnes noe sted i `index.html`/
+`kontroll.html` slik de foreligger i dette Claude-prosjektet — samme type
+avvik som tidligere sett i Prioritet 36/42 (levert/dokumentert kode matchet
+ikke det faktisk publiserte GitHub Pages-repoet). PRIORITET 47, Del 2
+(bunnmeny, Ringeliste/Oppgaver i sjåførmodus, «Sjekk ut bil»-tekst) er
+bevisst IKKE implementert inntil dette er avklart — se CLAUDE.md og
+PRIORITET_47_ANALYSE.md.
+
 ## Neste prioriterte arbeid
+
+📋 **Avklar kode-/live-avviket i sjåførmodus (Prioritet 47, Del 2):** bruker
+må laste opp den faktiske, kjørende `index.html` (fra GitHub Pages eller det
+reelle repoet) slik at bunnmeny/Sjåførside 2.0/"Sjekk ut bil"-teksten kan
+kartlegges og implementeres mot faktisk kode — ikke gjettes. Se advarselen i
+CLAUDE.md og PRIORITET_47_ANALYSE.md.
 
 📋 Last opp `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` til en
 `icons/`-mappe i GitHub-repoet (Prioritet 42 — se PRIORITET_42_ANALYSE.md).

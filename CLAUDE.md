@@ -1,16 +1,28 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 46 —
-Rapporter (full historikk ved bilfiltrering), Carglass Ruteskift-hurtigknapp,
-ny 💥 Ruteglassrapport, Verkstedtime 2.0 (EU-kontroll/Ruteskift som egne,
-samtidig-avkryssbare felt), telefonnummer i Kjøretøyprofil).
-Forrige: Prioritet 45 — Omstrukturering av Innstillinger (fire grupperte
-hovedseksjoner, «⚙️ Innstillinger» nederst i sidemenyen, ny 👤 Sjåførside med
-📞 Ringeliste, ny 📘 Informasjonsveileder). Før det: Prioritet 44 — 🎨 Layout
-Editor under Innstillinger. Før det igjen: Prioritet 43 — Kilometerstand
-følger nå alltid siste sjåførkontroll (race condition i `storage.airtable.js`
-sin lesing funnet og rettet). **Ved avvik mellom denne filen og koden er
-koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 47,
+Del 1 — fjernet «Andre kontrollavvik» fra valgbare lister, ny «📨 Nye
+kommentarer»-seksjon i Aktive saker, bestillingstjenester samlet på én rad).
+Forrige: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
+Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport, Verkstedtime 2.0
+(EU-kontroll/Ruteskift som egne, samtidig-avkryssbare felt), telefonnummer i
+Kjøretøyprofil. Før det: Prioritet 45 — Omstrukturering av Innstillinger
+(fire grupperte hovedseksjoner, «⚙️ Innstillinger» nederst i sidemenyen, ny
+👤 Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder). **Ved avvik
+mellom denne filen og koden er koden alltid sannheten.**
+
+⚠️ **VIKTIG, uavklart avvik oppdaget i Prioritet 47 (se PRIORITET_47_ANALYSE.md):**
+referansebilder av sjåførmodus (mottatt fra bruker) viser en bunnmeny
+(«Min Bil · Velg bil · Oppgaver · Mer») og en kortbasert Min Bil-visning med
+undertekster som IKKE finnes noe sted i `index.html`/`kontroll.html` slik de
+ligger i dette Claude-prosjektet — verken som skjerm, funksjon eller
+navigasjonsnøkkel. `renderDriverShell()` har i denne koden ingen bunnmeny i
+det hele tatt. Dette kan bety at det finnes en nyere `index.html` på GitHub
+Pages enn den dette prosjektet analyserer (samme type avvik som Prioritet
+36/42 — kode levert/dokumentert her matchet ikke det faktisk publiserte
+repoet). **Bruker har bedt om at den faktiske, kjørende `index.html` lastes
+opp før bunnmeny/Sjåførside 2.0/"Sjekk ut bil"-tekst (PRIORITET 47, Del 2)
+implementeres — IKKE gjett eller gjenskap skjermbildet mot antatt kode.**
 
 ---
 
@@ -44,6 +56,91 @@ desktopvisning" er bekreftet IKKE implementert i kode (verifisert tre
 ganger uavhengig, se ROADMAP.md) — ikke anta at den finnes. Eksisterende
 km-data bør kontrolleres manuelt for historiske feil fra en nå rettet
 service-km-overskrivingsbug (se "Service" under).
+
+**Prioritet 47, Del 1 (2026-09-10) — Sjåførside 2.0 / Dashboard-komprimering:
+kommentarhåndtering og bestillingsrad.** Bestilt som en todeling: Del 1
+(kartlagt og implementert her) og Del 2 (bunnmeny/Ringeliste/Oppgaver/"Sjekk
+ut bil"-tekst i sjåførmodus — **IKKE implementert**, se advarselen øverst i
+denne filen og PRIORITET_47_ANALYSE.md).
+
+**Kartlegging (før implementering, se PRIORITET_47_ANALYSE.md):** en fritekst-
+kommentar i sjåførkontrollskjemaet (`kt-kommentar`/`kontrollFormKommentar`)
+har ALDRI opprettet en aktiv sak alene — den lagres kun på selve
+kontroll-oppføringen (`kontroller[].kommentar`) og var kun synlig nedgravd i
+Kontrollhistorikk. Den reelle mekanismen bak opplevelsen "kommentar blir sak"
+var avkrysningsboksen **«Andre kontrollavvik»** (`annet-avvik` i
+`KONTROLLAVVIK_ORDER`) — det eneste stedet en sjåfør kunne signalisere "jeg
+har noe å si" på en måte som faktisk ble synlig for driftskoordinator (en ny
+rad i Aktive saker), med en generisk tittel og selve innholdet gjemt i det
+atskilte kommentarfeltet. `annet-avvik` ble brukt fire steder: sjåfør-
+kontrollskjemaets avvikschips, Min Bil sin "➕ Registrer avvik"-hurtigflyt,
+saksmotoren (`registrerKontrollAvvikSomSak()`/`registrerAvvikSomSak()`), og
+label-oppslag for eksisterende saker/historikk/rapporter. Videre var alle
+fire forekomster av "➕ Bestill tjenester" (Mobil Dashboard, Desktop
+Dashboard, Kjøretøyprofil/Bilkort, den dedikerte Bestill tjenester-skjermen)
+allerede utvidet til fem knapper (Service/EU-kontroll/Dekkskifte/
+Verkstedtime/Ruteskift, Prioritet 46), men fortsatt bundet til
+`.dash40-grid4` (fast `repeat(4,1fr)`) — femte kort (Ruteskift) havnet derfor
+alltid alene på en ny rad.
+
+**Løsning:**
+1. **«Andre kontrollavvik» fjernet fra alle valgbare lister, ikke fra
+   historikken.** `KONTROLLAVVIK_ORDER` er nå
+   `['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy']` —
+   `annet-avvik` er BEVISST fjernet herfra, men BEHOLDT uendret i
+   `KONTROLLAVVIK_LABEL`/`KONTROLLAVVIK_IKON` slik at allerede lagrede saker/
+   kontroller med `sourceId: 'annet-avvik'` fortsatt viser riktig tittel/ikon
+   i Aktive saker, Historikk og Rapporter. Samme mønster som
+   `UTE_AV_DRIFT_KATEGORI_ID` (Prioritet 41): fjernet fra det valgbare
+   settet, beholdt for lesing av eksisterende data. Siden både
+   sjåførkontrollskjemaets avvikschips og Min Bil sin avvikschips bygges
+   dynamisk fra `KONTROLLAVVIK_ORDER.map(...)`, forsvinner «Andre
+   kontrollavvik» automatisk fra begge steder uten noen egen UI-endring.
+   Skade, Varsellampe og de fire gjenværende kontrollavvikstypene (Slitte
+   dekk, Defekt lys, Manglende utstyr, Feil på kjøretøy) oppretter fortsatt
+   aktive saker helt uendret.
+2. **Ny «📨 Nye kommentarer»-seksjon øverst i Aktive saker**
+   (`nyeKommentarerListe()`/`nyeKommentarerSectionHtml()`). RENT
+   VISNINGSFILTER over den eksisterende `kontroller[]`-listen — ingen ny
+   tabell, ingen nytt Airtable-felt, ingen kobling til saksmotoren. Viser
+   Dato/Bil/Sjåfør/Kommentar for enhver kontroll med ikke-tom `kommentar`,
+   sortert nyeste først. Bevisst **ingen "lest/kvittert"-tilstand** (kun en
+   åpen/lukket visnings-toggle, `nyeKommentarerApen`, tilbakestilt når man
+   forlater Aktive saker-skjermen) — dette er en ren logg, ikke en oppgave.
+   En kommentar her oppretter aldri en sak, endrer aldri status og påvirker
+   aldri bilstatus.
+3. **Ny `.dash40-grid5`-klasse** (`repeat(5,1fr)`, med tilhørende
+   responsive nedtrapping til 3 kolonner ≤1199px og 2 kolonner ≤640px —
+   samme brytepunkter som `.dash40-grid4` allerede bruker) satt på alle fire
+   reelle "➕ Bestill tjenester"-forekomster. **`.dash40-grid4` er URØRT** —
+   KPI-radene (som fortsatt kun har fire kort) bruker fortsatt nøyaktig
+   samme klasse og oppførsel som før. Service, EU-kontroll, Dekkskifte,
+   Verkstedtime og Ruteskift ligger nå på én rad på desktop-bredde.
+   (Den ubrukte, foreldede `bestillKortHtml`-konstanten fra Prioritet 37,
+   som fortsatt kun har fire knapper og ikke er referert noe sted i koden,
+   er bevisst IKKE rørt — dødt, urelatert restkode.)
+4. `CACHE_VERSION` i `sw.js` økt til `bilpark-v43` (app-shell-innhold
+   endret). `storage.airtable.js` er IKKE endret — ingen nye Airtable-felt,
+   ingen `LIST_TABLES`-endring — så `versjon`/`?v=` er uendret på `v2.11.0`.
+
+**Testet:** `node --check` på begge script-blokkene i `index.html` — ingen
+syntaksfeil. Isolert Node.js-simulering av `nyeKommentarerListe()`-logikken
+(filtrering av tomme/whitespace-kommentarer, sortering nyeste først) og av
+`KONTROLLAVVIK_ORDER`-fjerningen (bekrefter 4 valgbare typer, `annet-avvik`
+fortsatt slår opp riktig historisk tittel) — begge simuleringer bestått. Kun
+statisk/isolert testet (ingen kjørende nettleser/Airtable i denne økten).
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()` sin
+kjernelogikk for kilometerstand/varsellamper/skade er uendret — kun hvilke
+avvikstyper som kan VELGES er endret), `v.km`-skriveregler, Layout Editor,
+Bilkategorier, `.dash40-grid4`/KPI-kortene, sjåførmodus sitt app-skall
+(`renderDriverShell()`), «Sjekk ut bil»-teksten. **Del 2 av bestillingen
+(bunnmeny «Min Bil · Ringeliste · Oppgaver · Mer», «Sjekk ut bil»-tekst) er
+bevisst IKKE implementert** — venter på avklaring av kode-/live-avviket
+beskrevet øverst i denne filen.
+
+Se PRIORITET_47_ANALYSE.md for full kartlegging, kode-/live-avviket i detalj,
+og simuleringslogg.
 
 **Prioritet 29 (2026-09-07) — kritisk datasikkerhet og stabilisering:**
 felles dobbel-innsendingsbeskyttelse (`beskyttSubmit()`/`beskyttKlikk()`),

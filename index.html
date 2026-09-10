@@ -839,10 +839,12 @@
 
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
+    .dash40-grid5{grid-template-columns:repeat(3,1fr);}
     .dash40-split{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
     .dash40-grid4{grid-template-columns:1fr;}
+    .dash40-grid5{grid-template-columns:1fr 1fr;}
     .profil-ident{flex-direction:column;align-items:stretch;}
     .kal-dag{min-height:54px;}
   }
@@ -899,6 +901,12 @@
 
   /* ---- KPI-kort ---- */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+  /* PRIORITET 47 — egen rad kun for de fem bestillingskortene (Service/EU-kontroll/
+     Dekkskifte/Verkstedtime/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
+     .dash40-grid4 — KPI-radene (som fortsatt kun har fire kort) skal forbli uendret. */
+  .dash40-grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
+  .dash40-grid5 .dash40-bestill{padding:14px 12px;min-height:112px;gap:3px;}
+  .dash40-grid5 .dash40-bestill-sub{font-size:11px;}
   .dash40-kpi{
     background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:17px 18px;
     box-shadow:var(--sh-card);display:flex;flex-direction:column;gap:3px;text-align:left;
@@ -1140,6 +1148,9 @@
     /* Desktop 4.1 sine firekolonners rutenett blir to kolonner paa telefon —
        store touch-kort, ikke sma knapper. */
     .dash40-grid4{grid-template-columns:1fr 1fr;}
+    /* PRIORITET 47 — femkolonners bestillingsrad blir ogsaa to kolonner paa telefon,
+       samme touch-kort-storrelse som .dash40-grid4 sin mobiloverstyring. */
+    .dash40-grid5{grid-template-columns:1fr 1fr;}
     .dash40-bestill{min-height:126px;padding:15px;gap:3px;}
     .dash40-bestill-sub{font-size:11px;}
     .dash40-kpi{padding:15px 16px;}
@@ -1382,6 +1393,10 @@ let showSakFilterMeny = false;
 let showAddSak = false;
 let sakPrefillVehicleId = '';
 let editingSakId = null;
+// PRIORITET 47 — «📨 Nye kommentarer»: ren visnings-toggle (åpen/lukket), ingen lagret
+// tilstand. Panelet leser direkte fra eksisterende kontroller[] — ingen ny sak, ingen nytt
+// Airtable-felt, ingen "lest/kvittert"-mekanikk (bevisst — dette er en logg, ikke en oppgave).
+let nyeKommentarerApen = false;
 // ---- Saksbehandling Wizard ----
 // Erstatter det tidligere flate ett-skjema-redigeringsvinduet i sakCard() med en
 // 4-stegs arbeidsflyt i samme boks. editingSakId angir fortsatt HVILKEN sak som er
@@ -2053,7 +2068,14 @@ function sakHarBlittViderebehandlet(sak){
   if(sakAvvikListe(sak).some(a => a.status !== 'aktiv' || (a.reportCount || 1) > 1)) return true;
   return false;
 }
-const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy', 'annet-avvik'];
+// PRIORITET 47 — «annet-avvik» («Andre kontrollavvik») er BEVISST fjernet fra denne valgbare
+// listen: den overlappet med kommentarfeltet, Skade og Varsellampe, og ble i praksis brukt
+// som en uoffisiell snarvei for frie kommentarer (se «Nye kommentarer» og PRIORITET_47_ANALYSE.md).
+// Nøkkelen er BEHOLDT i KONTROLLAVVIK_LABEL/-IKON under, utelukkende for at allerede lagrede
+// saker/kontroller med sourceId 'annet-avvik' fortsatt skal vise riktig tittel/ikon i Aktive
+// saker, Historikk og Rapporter — samme mønster som UTE_AV_DRIFT_KATEGORI_ID (Prioritet 41):
+// fjernet fra det valgbare settet, beholdt for lesing av eksisterende, historiske data.
+const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy'];
 const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
 const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
 
@@ -4043,7 +4065,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; nyeKommentarerApen = false; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -6862,7 +6884,7 @@ function renderMobilHjem(){
     </div>`,
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
-    <div class="dash40-grid4">
+    <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">🔧</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -7338,7 +7360,7 @@ function renderDashboard(){
     </div>`,
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
-    <div class="dash40-grid4">
+    <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">🔧</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -8988,7 +9010,7 @@ function renderBilkort(){
     </div>
 
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
-    <div class="dash40-grid4">
+    <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">🔧</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Planlegg service</span><span class="dash40-bestill-pil">→</span>
       </button>
@@ -10444,7 +10466,7 @@ function renderBestillTjenester(){
          Informasjonsveilederen, ikke ligge spredt rundt i appen». -->
     <div class="required-hint" style="margin-bottom:18px;">${kommende} kommende avtale${kommende===1?'':'r'} de neste 7 dagene.</div>
 
-    <div class="dash40-grid4">
+    <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">🔧</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -10721,6 +10743,42 @@ function attachKalenderListeners(){
   }));
 }
 
+// PRIORITET 47 — «📨 Nye kommentarer»: RENT VISNINGSFILTER over den eksisterende
+// kontroller[]-listen (samme kilde Kontrollhistorikk allerede leser k.kommentar fra).
+// Ingen ny tabell, ingen nytt Airtable-felt, ingen kobling til saksmotoren — en kommentar
+// her oppretter aldri en sak og påvirker aldri bilstatus (jf. bestillingen: "Kommentarer er
+// ren informasjon"). Sortert nyeste først (dato+tidspunkt), ingen "lest/kvittert"-tilstand.
+function nyeKommentarerListe(){
+  return kontroller
+    .filter(k => k.kommentar && k.kommentar.trim())
+    .map(k => ({
+      id: k.id, dato: k.dato, tidspunkt: k.tidspunkt || '',
+      bilTekst: (() => { const v = vehicles.find(x => x.id === k.vehicleId); return v ? vehicleLabel(v) : 'Ukjent bil'; })(),
+      sjafor: k.sjafor || 'Ukjent', kommentar: k.kommentar.trim()
+    }))
+    .sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
+}
+function nyeKommentarerSectionHtml(){
+  const liste = nyeKommentarerListe();
+  return `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="p38-panel-head">
+        <div class="tittel">📨 Nye kommentarer${liste.length > 0 ? ` (${liste.length})` : ''}</div>
+        ${liste.length > 0 ? `<button type="button" class="p38-lenke" id="nye-kommentarer-toggle-btn">${nyeKommentarerApen ? 'Skjul' : 'Vis'} →</button>` : ''}
+      </div>
+      ${liste.length === 0
+        ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
+        : (nyeKommentarerApen
+          ? `<div>
+              ${liste.map((k, i) => `
+                <div style="padding:10px 0;${i > 0 ? 'border-top:1px solid var(--line-soft);' : ''}">
+                  <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}</div>
+                  <div style="font-size:13.5px;">${esc(k.kommentar)}</div>
+                </div>`).join('')}
+            </div>`
+          : `<div class="required-hint">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} fra sjåfører — ren informasjon, oppretter ikke saker.</div>`)}
+    </div>`;
+}
 function renderAktiveSaker(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   const visning = aktiveSaker.filter(s => {
@@ -10753,6 +10811,8 @@ function renderAktiveSaker(){
       <button class="btn small" id="add-sak-btn" style="margin-left:auto;">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
     </div>
     <h2 style="font-size:19px;margin-bottom:16px;">🗂️ Aktive Saker</h2>
+
+    ${nyeKommentarerSectionHtml()}
 
     <div class="toolbar">
       <div class="count">${visning.length} / ${aktiveSaker.length} aktive saker</div>
@@ -10844,6 +10904,8 @@ function renderAktiveSaker(){
 }
 function attachAktiveSakerListeners(){
   document.getElementById('sak-back').addEventListener('click', () => goBack());
+  const nyeKommentarerBtn = document.getElementById('nye-kommentarer-toggle-btn');
+  if(nyeKommentarerBtn) nyeKommentarerBtn.addEventListener('click', () => { nyeKommentarerApen = !nyeKommentarerApen; render(); });
   document.getElementById('sak-filter-toggle-btn').addEventListener('click', () => {
     showSakFilterMeny = !showSakFilterMeny;
     render();
