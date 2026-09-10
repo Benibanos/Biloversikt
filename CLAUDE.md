@@ -1,13 +1,21 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 47,
-Del 2, redefinert av bruker — sjåførens bunnmeny 🚐 Min Bil · 📞 Ringeliste ·
-💬 Kommentarer · ☰ Mer, Ringeliste flyttet ut av Min Bil, Kommentarer viser
-Del 1 sin «📨 Nye kommentarer»-logg). Forrige: Prioritet 47, Del 1 — fjernet
-«Andre kontrollavvik» fra valgbare lister, ny «📨 Nye kommentarer»-seksjon i
-Aktive saker, bestillingstjenester samlet på én rad. Før det: Prioritet 46 —
-Rapporter (full historikk ved bilfiltrering), Carglass Ruteskift-hurtigknapp,
-ny 💥 Ruteglassrapport, Verkstedtime 2.0, telefonnummer i Kjøretøyprofil.
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 48.1 —
+kontrastfeil på «Registrer varsellampe»/«Registrer avvik» funnet og rettet:
+`.chip`/`.chip-text` manglet eksplisitt tekstfarge og falt tilbake på
+nettleserens standard knappefarge i stedet for appens `--ink`-token). Før det:
+Prioritet 48 — premium-polish av sjåførside, implementert direkte i faktisk
+prosjektkode: nytt linjeikonsystem, restylet Min Bil/Velg Bil etter godkjent
+referansebilde, ren visuell finpuss uten endring av navigasjon/funksjonalitet/
+Airtable. Før det igjen:
+Prioritet 47, Del 2, redefinert av bruker — sjåførens bunnmeny 🚐 Min Bil ·
+📞 Ringeliste · 💬 Kommentarer · ☰ Mer, Ringeliste flyttet ut av Min Bil,
+Kommentarer viser Del 1 sin «📨 Nye kommentarer»-logg. Før det: Prioritet 47,
+Del 1 — fjernet «Andre kontrollavvik» fra valgbare lister, ny «📨 Nye
+kommentarer»-seksjon i Aktive saker, bestillingstjenester samlet på én rad.
+Før det igjen: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
+Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport, Verkstedtime 2.0,
+telefonnummer i Kjøretøyprofil.
 **Ved avvik mellom denne filen og koden er koden alltid sannheten.**
 
 ⚠️ **Fortsatt uavklart, ikke løst av Del 2-redefineringen under:** de
@@ -56,6 +64,112 @@ desktopvisning" er bekreftet IKKE implementert i kode (verifisert tre
 ganger uavhengig, se ROADMAP.md) — ikke anta at den finnes. Eksisterende
 km-data bør kontrolleres manuelt for historiske feil fra en nå rettet
 service-km-overskrivingsbug (se "Service" under).
+
+**Prioritet 48.1 (2026-09-10) — Kontrastfeil på «Registrer varsellampe»/
+«Registrer avvik» funnet og rettet.** Bruker oppdaget, rett etter levering av
+Prioritet 48, at teksten i disse to handlingskortene så «nesten svart ut mot
+mørk bakgrunn», i motsetning til de tre andre kortene. Kartlegging (kodeverifisert):
+selve korttitlene (`.p48-action-title`/`.p48-action-sub`) var allerede korrekte
+og identiske for alle fem kort — feilen lå i `.chip`/`.chip-text`
+(varsellampe-/avvikstype-velgeren inne i disse to kortenes utvidede panel,
+den ENESTE komponenten disse to kortene har som de tre andre ikke har). Denne
+knappen manglet en eksplisitt `color`-egenskap, i motsetning til alle andre
+tekstkomponenter i designsystemet, og kunne derfor falle tilbake på
+nettleserens egen standard knappefarge i stedet for appens `--ink`-token.
+Rettet med to nye `color:var(--ink)`-linjer (på `.chip` og `.chip-text`) —
+gjelder automatisk alle tilstander (normal/valgt/hover/aktiv/fokus), siden
+ingen av dem overstyrer `color` fra før (bortsett fra den allerede korrekte,
+mer spesifikke grønne fargen for «allerede aktiv»-chips, som er uendret).
+Verifisert med målrettede skjermbilder av begge paneler i mørk og lys modus,
+pluss hele den 25-punkts regresjonstesten og 8-punkts responsivitetstesten
+fra Prioritet 48 kjørt på nytt (alle fortsatt bestått). `CACHE_VERSION` i
+`sw.js` økt til `bilpark-v46`. Se PRIORITET_48_ANALYSE.md, kapittel 8, for
+full detalj.
+
+**Prioritet 48 (2026-09-10) — Siste premium-polish av Sjåførside (ren visuell
+finpuss, implementert direkte i faktisk prosjektkode).** Etter at Prioritet
+47 Del 2 sin bunnmeny-struktur var på plass, ba bruker om én siste
+premium-polish av hele sjåførmodus mot de samme to referansebildene som lå
+til grunn for Prioritet 47 (Min Bil / Velg bil) — denne gangen eksplisitt
+avgrenset til presentasjon: **«Ikke endre funksjonalitet. Ikke endre
+navigasjon. Ikke flytt innhold. Ikke legg til eller fjern funksjoner. Ikke
+endre Airtable. Ikke endre Aktiv sjåfør-, kontroll- eller
+kilometerlogikk.»** Prosessen fulgte tre runder: (1) avvik mellom
+referansebilde og daværende kode kartlagt og godkjent, (2) mockup bygget og
+godkjent, (3) denne runden — direkte implementering i den ekte `index.html`,
+verifisert med Playwright-simulering mot faktisk kjørende kode (ikke bare
+kodelesing) før levering.
+
+**Løsning (full detalj i PRIORITET_48_ANALYSE.md):**
+1. **Nytt linjeikonsystem** — `sjaforIkonSvg(navn, storrelse)`, en ny,
+   håndtegnet SVG-ikonfunksjon (14 ikoner: `car`, `phone`, `chat`, `menu`,
+   `calendar`, `gauge`, `folder`, `wrench`, `plus`, `alert`, `user`,
+   `logout`, `chevronRight`, `chevronLeft`), erstatter emoji nøyaktig der
+   bestillingen listet det: bunnmeny, nøkkeltallene på Min Bil, alle
+   handlingskort, Sjekk ut bil. Varsellampe-/avvikschips, `HOVEDSTATUS_IKON`
+   og kontrollert-pillens ✅/⚪ er BEVISST urørt (ikke del av den eksplisitte
+   listen, delt med administrasjonsdelen).
+2. **Ingen parallelt designsystem** — ett nytt tonepar, `--teal`/`--teal-soft`
+   (samme mønster som `--purple`, Prioritet 38), lagt til utelukkende for å
+   gi CURBSIDE en egen farge adskilt fra LAG 3. Alt annet (radius, skygger,
+   spacing, typografi) gjenbruker Desktop/Mobil 4.1 sine eksisterende tokens
+   uendret.
+3. **Min Bil:** ny, større avatarflate for sjåføridentitet; kjøretøykortet
+   fikk et ekte 2×2-nøkkeltallsgrid med lik ikonstørrelse, større/skarpere
+   skilt (`.plate.p48-plate-lg`), og egen statuslinje adskilt fra
+   nøkkeltallene. Alle fem handlingskort (skade/varsellampe/avvik/kontakt/
+   ny sjåfør) fikk samme kortstil (ikonflate/tittel/undertekst/pil) — ingen
+   kort fjernet, ingen handling endret, samme `id`-er som før. «Sjekk ut
+   bil» fikk eksakt teksten **«Sjekk ut bil» / «Avslutt arbeidsdagen og
+   frigjør bilen»** (ikke «Sjekk ut bilen og start kjøring») med en
+   kontrollert rødaksent (kant, ikke heldekket flate).
+4. **Velg Bil:** ny tilbakepil — funksjonell (går til Min Bil) kun når en
+   aktiv biløkt faktisk finnes å returnere til, ellers vist deaktivert
+   (samme betingelse `loadAll()` selv bruker for startskjerm-routing; en
+   bevisst, dokumentert tolkning siden bestillingen selv ikke definerte
+   pilens mål uten biløkt). Driftslag-gruppenes bilkort bruker samme
+   skilt-komponent som Min Bil, med kontrollstatus-pille, klokkeslett og
+   navigasjonspil. LAG 3/CURBSIDE har nå distinkte fargeprikker
+   (`P48_DRIFTSLAG_FARGE`), og en åpen gruppe skiller seg visuelt fra
+   lukkede via en scoped inline-stil i selve rendringsfunksjonen (de delte
+   CSS-klassene `.dash-group-card`/`.group-card-head`, brukt bredt i
+   Biloversikt/Rapporter/Analyse, er IKKE rørt på klassenivå).
+5. **Delt komponent, bevisst gjenbruk:** `renderDriftslagGruppertBilvalg()`
+   brukes av BÅDE Velg Bil og administrasjonens «Bytt bil»-fallback i den
+   delte `renderKontroll()` — restylingen gjelder derfor begge steder, i
+   tråd med «ikke dupliser eksisterende funksjoner», ikke en utilsiktet
+   bivirkning.
+6. `CACHE_VERSION` i `sw.js` økt til `bilpark-v45` (app-shell-innhold
+   endret betydelig). `storage.airtable.js` er IKKE endret — ingen nye
+   Airtable-felt, ingen `LIST_TABLES`-endring — `versjon`/`?v=` uendret på
+   `v2.11.0`.
+
+**Testet (se PRIORITET_48_ANALYSE.md for full detalj):** `node --check` på
+begge script-blokkene (OK), `diff index.html kontroll.html` (identiske), en
+25-punkts Playwright-regresjonstest kjørt mot den faktisk implementerte
+koden med mock-Airtable (25/25 bestått — Velg bil, navnedialog,
+kontrollregistrering, automatisk Min Bil-åpning, aktiv sjåfør, ny sjåfør,
+ringeliste, kommentarer, registrer skade/varsellampe/avvik, sjekk ut bil,
+kilometerstand fra kontroll, biler i drift, tilbakefunksjon, bunnmeny, lys
+og mørk modus), og en responsivitetstest ved 320/360/390/430 px (8/8
+bestått — ingen horisontal scroll, ingen skilt/pille-kollisjon, bunnmeny
+dekker ikke innhold). Ni skjermer rendret og visuelt kontrollert mot
+referansebildet.
+
+**Kjente, dokumenterte gjenstående visuelle avvik (ikke skjult, se
+PRIORITET_48_ANALYSE.md punkt 2):** skiltets font er appens eksisterende
+delte `.plate`-komponent, ikke en ekte skiltfont; avataravataret bruker
+samme generiske linjeikon som resten av ikonsettet fremfor et unikt
+avatarikon; handlingskortenes ikonflate-farger og Sjekk ut bil sin
+rødaksent-tone er tilnærmet, ikke pikselmålt mot referansebildet. Ingen av
+disse påvirker funksjon, lesbarhet eller designprinsippene.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Kontrolllogikk (`submitKontroll()`),
+Kilometerlogikk (`v.km`-skriveregler), Saker/saksmotoren,
+`storage.airtable.js`, `LIST_TABLES`/Airtable-skjema, `driverScreen`-
+tilstandsmaskinen, antall/rekkefølge på bunnmeny og handlingskort,
+administrasjonens øvrige skjermer (utover den delte bilvalg-restylingen
+nevnt i punkt 5 over).
 
 **Prioritet 47, Del 2 (2026-09-10, redefinert av bruker) — Sjåførside
 bunnmeny.** Etter at Del 1 (under) var levert, ba bruker om en NY, eksplisitt

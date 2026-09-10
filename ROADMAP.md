@@ -1,14 +1,19 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-10 (Prioritet 47, Del 2, redefinert av bruker —
-sjåførens bunnmeny 🚐 Min Bil · 📞 Ringeliste · 💬 Kommentarer · ☰ Mer;
-Ringeliste flyttet ut av Min Bil; Kommentarer viser Del 1 sin «📨 Nye
-kommentarer»-logg. «Sjekk ut bil»-teksten er fortsatt ikke vurdert/endret —
-det opprinnelige kode-/live-avviket i referansebildene, se
-PRIORITET_47_ANALYSE.md punkt 0, er uendret uavklart).
-Forrige: Prioritet 47, Del 1 — fjernet «Andre kontrollavvik» fra valgbare
+Sist oppdatert: 2026-09-10 (Prioritet 48.1 — kontrastfeil på «Registrer
+varsellampe»/«Registrer avvik» funnet og rettet: `.chip`/`.chip-text` manglet
+eksplisitt tekstfarge og falt tilbake på nettleserens standard knappefarge).
+Før det: Prioritet 48 — siste premium-polish av
+sjåførside: nytt linjeikonsystem, restylet Min Bil/Velg Bil, implementert
+direkte i faktisk prosjektkode og verifisert med Playwright-simulering.
+«Sjekk ut bil»-teksten er nå satt eksplisitt til «Sjekk ut bil» / «Avslutt
+arbeidsdagen og frigjør bilen» som del av denne runden.
+Før det igjen: Prioritet 47, Del 2, redefinert av bruker — sjåførens bunnmeny
+🚐 Min Bil · 📞 Ringeliste · 💬 Kommentarer · ☰ Mer; Ringeliste flyttet ut av
+Min Bil; Kommentarer viser Del 1 sin «📨 Nye kommentarer»-logg. Før det:
+Prioritet 47, Del 1 — fjernet «Andre kontrollavvik» fra valgbare
 lister, ny «📨 Nye kommentarer»-seksjon i Aktive saker, bestillingstjenester
-samlet på én rad. Før det: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
+samlet på én rad. Før det igjen: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
 Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport, Verkstedtime 2.0,
 telefonnummer i Kjøretøyprofil. Før det: Prioritet 45 — Omstrukturering av
 Innstillinger: fire grupperte hovedseksjoner, «⚙️ Innstillinger» flyttet
@@ -30,6 +35,51 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 48.1 — Kontrastfeil på «Registrer varsellampe»/«Registrer avvik»
+(2026-09-10):** ✅ Funnet, rettet og verifisert.
+
+Bruker oppdaget rett etter levering av Prioritet 48 at teksten i disse to
+handlingskortene så nesten svart ut mot mørk bakgrunn. Rotårsak: `.chip`
+(varsellampe-/avvikstype-velgeren inne i akkurat disse to kortenes panel —
+den eneste komponenten som skiller dem fra de tre andre, fungerende kortene)
+manglet en eksplisitt `color`-egenskap og kunne falle tilbake på nettleserens
+standard knappefarge i stedet for appens `--ink`-token. Rettet med to nye
+`color:var(--ink)`-linjer — gjelder automatisk i alle tilstander. Verifisert
+med skjermbilder i mørk og lys modus, pluss hele Prioritet 48 sin
+regresjons-/responsivitetstest kjørt på nytt (alle bestått). `CACHE_VERSION`
+→ `bilpark-v46`. Se PRIORITET_48_ANALYSE.md, kapittel 8.
+
+**Prioritet 48 — Siste premium-polish av Sjåførside (2026-09-10):**
+✅ Implementert og verifisert direkte mot faktisk kjørende kode (Playwright,
+ikke bare statisk kodelesing — se PRIORITET_48_ANALYSE.md).
+
+Ren visuell finpuss av sjåførmodus (Min Bil + Velg Bil) mot de samme to
+referansebildene som lå til grunn for Prioritet 47 — eksplisitt avgrenset
+til presentasjon, ingen endring i navigasjon, funksjonalitet, Airtable,
+Aktiv sjåfør-, kontroll- eller kilometerlogikk.
+
+Levert: (1) nytt linjeikonsystem (`sjaforIkonSvg()`, 14 ikoner) erstatter
+emoji i bunnmeny, nøkkeltall, handlingskort og Sjekk ut bil; (2) ett nytt
+fargepar (`--teal`/`--teal-soft`, samme mønster som `--purple`) for å skille
+CURBSIDE fra LAG 3 — ingen parallelt designsystem; (3) Min Bil sitt
+kjøretøykort fikk et ekte 2×2-nøkkeltallsgrid, større skilt og egen
+statuslinje; alle fem handlingskort fikk samme kortstil uten at noen
+handling/`id` er endret; (4) «Sjekk ut bil» fikk eksakt teksten «Sjekk ut
+bil» / «Avslutt arbeidsdagen og frigjør bilen»; (5) Velg Bil fikk en
+tilbakepil (funksjonell kun når en aktiv biløkt finnes å returnere til,
+ellers deaktivert — dokumentert tolkning), samme skilt-komponent på
+bilkortene, og distinkte fargeprikker for LAG 3/CURBSIDE; (6) den delte
+`renderDriftslagGruppertBilvalg()` (brukt av både Velg Bil og admin sin
+«Bytt bil»-fallback) fikk samme restyling begge steder, bevisst gjenbruk.
+
+25/25 Playwright-regresjonssjekker og 8/8 responsivitetssjekker (320-430 px)
+bestått. `storage.airtable.js` uendret (`v2.11.0`), `CACHE_VERSION` i
+`sw.js` → `bilpark-v45`, `kontroll.html` resynkronisert.
+
+Se PRIORITET_48_ANALYSE.md for full kartlegging, simuleringsresultat,
+regresjonstest og dokumenterte gjenstående visuelle avvik (skiltfont,
+avatarikon, ikonflate-fargenyanser — ingen påvirker funksjon).
 
 **Prioritet 47, Del 2 — Sjåførside bunnmeny, redefinert av bruker
 (2026-09-10):** ✅ Implementert og verifisert (statisk/isolert, se
@@ -997,24 +1047,35 @@ anledning noen har tilgang til den kjørende siden. Se PRIORITET_43_ANALYSE.md,
 "Kjente begrensninger".
 
 🔧 **Kode-/live-avvik i sjåførmodus (Prioritet 47) — fortsatt uavklart, ikke
-løst av Del 2-redefineringen:** referansebilder mottatt fra bruker viser en
-bunnmeny («Min Bil · Velg bil · Oppgaver · Mer») og en kortbasert Min
-Bil-visning som IKKE finnes noe sted i `index.html`/`kontroll.html` slik de
-lå i dette Claude-prosjektet før Del 2 — samme type avvik som tidligere sett
-i Prioritet 36/42. Bruker valgte i stedet å gi en ny, egen bunnmeny-
-spesifikasjon (implementert, se Prioritet 47 Del 2 over) fremfor å laste opp
-den faktiske, kjørende `index.html` — kode-/live-avviket i seg selv er
-derfor fortsatt uavklart, og «Sjekk ut bil»-teksten (opprinnelig Del 2, punkt
-3) er fortsatt ikke vurdert. Se CLAUDE.md og PRIORITET_47_ANALYSE.md.
+løst av Del 2-redefineringen eller Prioritet 48:** referansebilder mottatt
+fra bruker viste opprinnelig en bunnmeny («Min Bil · Velg bil · Oppgaver ·
+Mer») som IKKE fantes noe sted i `index.html`/`kontroll.html` slik de lå i
+dette Claude-prosjektet før Del 2 — samme type avvik som tidligere sett i
+Prioritet 36/42. Bruker valgte i stedet å gi en ny, egen bunnmeny-
+spesifikasjon (Prioritet 47 Del 2) og senere et konkret, godkjent
+referansebilde for selve visningen (Prioritet 48) — dette har løst den
+PRAKTISKE konsekvensen (sjåførsiden matcher nå et godkjent referansebilde),
+men det opprinnelige spørsmålet om HVORFOR referansebildene i utgangspunktet
+viste en struktur som ikke fantes i dette prosjektets kode, er aldri
+oppklart. **«Sjekk ut bil»-teksten er nå satt eksplisitt i Prioritet 48**
+(«Sjekk ut bil» / «Avslutt arbeidsdagen og frigjør bilen») — se CLAUDE.md og
+PRIORITET_47_ANALYSE.md/PRIORITET_48_ANALYSE.md.
 
 ## Neste prioriterte arbeid
 
-📋 **Vurder om «Sjekk ut bil»-teksten fortsatt skal endres (opprinnelig
-Prioritet 47, Del 2, punkt 3):** bestillingen påsto denne var feil («impliserer
-'start kjøring' der den skal bety 'avslutt arbeidsdagen'»), men det kunne
-ikke bekreftes mot koden (se PRIORITET_47_ANALYSE.md punkt 0) og var ikke del
-av brukerens senere, redefinerte Del 2-bunnmeny. Avklar om dette fortsatt er
-ønsket, eventuelt mot faktisk kjørende `index.html`.
+📋 **Vurder en oppfølgende, fullstendig skriftlig kontrastgjennomgang av
+sjåførmodus (Prioritet 48):** denne runden spot-sjekket kontrast visuelt via
+ni skjermbilder, men gjorde ikke en punkt-for-punkt-verifisering av samtlige
+elleve tilstander bestillingen listet (inputfelt, placeholder-tekst,
+feilmeldinger, bekreftelsesdialoger, deaktiverte felt, modalvinduer utover
+navnedialogen) — se PRIORITET_48_ANALYSE.md, punkt 5, for hvorfor dette
+vurderes lav risiko (delt, urørt kode, allerede dekket av Prioritet 38) og
+hvilke tilstander som gjenstår.
+
+📋 **Vurder en oppfølgende finpuss av de fire dokumenterte, gjenstående
+visuelle avvikene fra Prioritet 48** (skiltfont, avatarikon, ikonflate-
+fargenyanser, rødaksent-tone — se PRIORITET_48_ANALYSE.md punkt 2), dersom
+en enda tettere 1:1-match mot referansebildet fortsatt er ønsket.
 
 📋 Last opp `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` til en
 `icons/`-mappe i GitHub-repoet (Prioritet 42 — se PRIORITET_42_ANALYSE.md).

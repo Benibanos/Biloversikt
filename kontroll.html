@@ -57,6 +57,11 @@
     --purple-soft:#EDE7FB;
     --sh-card:0 1px 2px rgba(16,24,40,.06), 0 8px 20px rgba(16,24,40,.06);
     --sh-hover:0 2px 4px rgba(16,24,40,.08), 0 14px 30px rgba(16,24,40,.10);
+    /* PRIORITET 48 — ett nytt tonepar (samme mønster som --purple over, Prioritet 38)
+       for å kunne skille CURBSIDE visuelt fra LAG 3 i sjåførens driftslag-grupper
+       (se P48_DRIFTSLAG_FARGE) uten å gjenbruke en farge som allerede betyr noe annet. */
+    --teal:#0E9488;
+    --teal-soft:#DFF3F1;
   }
   /* PRIORITET 38 (Design 4.1) — mørk premium-drakt, NY STANDARD.
      Samme variabelnavn som før, kun nye verdier, pluss et lite sett nye tokens
@@ -86,6 +91,8 @@
     --blue-soft:rgba(90,150,245,.14);
     --purple:#9B7BF2;
     --purple-soft:rgba(155,123,242,.14);
+    --teal:#3ECCC0;
+    --teal-soft:rgba(62,204,192,.16);
     --plate-blue:#0B3AA8;
     --chrome-bg:#19A66B;
     --chrome-text:#04150E;
@@ -483,7 +490,96 @@
   .plate{flex-shrink:0;display:flex;height:34px;border-radius:5px;overflow:hidden;border:1.5px solid #1C2024;font-family:'Space Grotesk',sans-serif;}
   .plate .cc{background:var(--plate-blue);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;width:16px;}
   .plate .num{background:#fff;color:#111;font-weight:700;font-size:15px;letter-spacing:.06em;display:flex;align-items:center;padding:0 8px;white-space:nowrap;}
+  /* PRIORITET 48 — større/skarpere skiltvariant, KUN brukt i sjåførmodus (Min Bil-kortet
+     og Velg bil sine bilkort). Modifier på samme .plate-komponent — ikke en ny/parallell
+     skiltstil — slik at Kjøretøyprofil, Biloversikt osv. beholder sin eksisterende .plate
+     uendret. */
+  .plate.p48-plate-lg{height:40px;border-radius:6px;}
+  .plate.p48-plate-lg .cc{width:19px;font-size:10px;}
+  .plate.p48-plate-lg .num{font-size:17px;padding:0 10px;}
   .gcard-titles{min-width:0;flex:1;}
+
+  /* ================= PRIORITET 48 — Sjåførside: premium visuell finpuss =================
+     Kun presentasjon (farger/typografi/spacing/ikoner) — ingen ny funksjonalitet, ingen
+     endret navigasjon, ingen endret Aktiv sjåfør-/kontroll-/kilometerlogikk. Bruker
+     UTELUKKENDE eksisterende designtokens (--surface/--surface-2/--line/--line-soft/
+     --muted/--ink/--ink-2/--green/--red/--purple/--orange/--blue/--radius osv., se
+     :root/:root[data-theme="dark"] øverst) — ETT designsystem, ikke et eget parallelt sett
+     for sjåførsiden, slik Desktop 4.1/Mobil 4.1 (Prioritet 38/39) allerede gjør det. */
+  .p48-svg-ikon{display:inline-flex;flex-shrink:0;}
+
+  /* -- Topplinje: grønn statusprikk ved "Sjåførmodus" (kun sjåførmodus sitt shell-top) -- */
+  .p48-status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-left:7px;box-shadow:0 0 0 3px var(--green-soft);}
+
+  /* -- Sjåføridentitet øverst på Min Bil -- */
+  .p48-sjafor-row{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .p48-sjafor-avatar{
+    width:52px;height:52px;border-radius:50%;flex-shrink:0;
+    background:var(--surface-2);border:1px solid var(--line-soft);color:var(--green-ink);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .p48-sjafor-name{font-weight:700;font-size:18px;font-family:'Space Grotesk',sans-serif;line-height:1.25;color:var(--ink);}
+  .p48-sjafor-sub{font-size:12px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+
+  /* -- Kjøretøykort (viktigste kortet på Min Bil) -- */
+  .p48-vehicle-card{padding:18px;}
+  .p48-vehicle-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;}
+  .p48-vehicle-title{font-weight:700;font-size:18px;font-family:'Space Grotesk',sans-serif;color:var(--ink);}
+  .p48-vehicle-model{font-size:13px;color:var(--muted);margin-top:2px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line-soft);}
+  .p48-pill{border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:4px;}
+  .p48-pill-ok{background:var(--green-soft);color:var(--green-ink);}
+  .p48-pill-off{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-soft);}
+  .p48-stats-grid{display:grid;grid-template-columns:1fr 1fr;row-gap:18px;column-gap:14px;margin-bottom:16px;}
+  .p48-stat{display:flex;gap:10px;align-items:flex-start;min-width:0;}
+  .p48-stat-icon{color:var(--muted);flex-shrink:0;margin-top:1px;}
+  .p48-stat-label{font-size:10.5px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;font-weight:600;}
+  .p48-stat-value{font-weight:700;font-size:14.5px;margin-top:3px;color:var(--ink);}
+  .p48-status-line{border-top:1px solid var(--line-soft);padding-top:14px;display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px;color:var(--ink);}
+
+  /* -- Handlingskort (Registrer skade/varsellampe/avvik, Kontakt driftskoordinator, Ny sjåfør) -- */
+  .p48-action-card{
+    display:flex;align-items:center;gap:13px;padding:14px 16px;min-height:64px;
+    border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+    cursor:pointer;width:100%;text-align:left;font-family:inherit;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .p48-action-card:active{background:var(--surface-2);}
+  .p48-action-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .p48-action-icon.purple{background:var(--purple-soft);color:var(--purple);}
+  .p48-action-icon.orange{background:var(--orange-soft);color:var(--orange);}
+  .p48-action-icon.blue{background:var(--blue-soft);color:var(--blue);}
+  .p48-action-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .p48-action-title{font-weight:700;font-size:14.5px;color:var(--ink);}
+  .p48-action-sub{font-size:12.5px;color:var(--ink-2);}
+  .p48-action-chevron{color:var(--muted);flex-shrink:0;display:flex;}
+
+  /* -- Sjekk ut bil: kontrollert rødt aksentkort, ikke en solid rød flate -- */
+  .p48-checkout-card{
+    display:flex;align-items:center;gap:13px;padding:14px 16px;min-height:64px;margin-top:6px;
+    border:1.5px solid var(--red-soft);border-radius:var(--radius);background:var(--surface);
+    cursor:pointer;width:100%;text-align:left;font-family:inherit;
+    transition:background .15s ease;
+  }
+  .p48-checkout-card:active{background:var(--red-soft);}
+  .p48-checkout-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--red-soft);color:var(--red);}
+  .p48-checkout-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .p48-checkout-title{font-weight:700;font-size:14.5px;color:var(--red);}
+  .p48-checkout-sub{font-size:12.5px;color:var(--ink-2);}
+
+  /* -- Velg bil: bilkort i driftslag-gruppene -- */
+  .p48-velg-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line-soft);border-radius:10px;background:var(--bg);cursor:pointer;}
+  .p48-velg-card:active{background:var(--surface-2);}
+  .p48-velg-main{flex:1;min-width:0;}
+  .p48-velg-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:9px;}
+  .p48-velg-title{font-weight:700;font-size:15px;font-family:'Space Grotesk',sans-serif;color:var(--ink);}
+  .p48-velg-sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .p48-velg-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+  .p48-velg-time{font-size:11px;color:var(--muted);}
+  .p48-velg-chevron{color:var(--muted);flex-shrink:0;align-self:center;display:flex;}
+  .p48-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .p48-back{background:none;border:none;color:var(--ink);padding:6px 8px 6px 0;cursor:pointer;line-height:1;display:flex;align-items:center;}
+  .p48-back[disabled]{opacity:.35;cursor:default;}
+  .p48-velgbil-heading{display:flex;align-items:center;margin-bottom:6px;gap:2px;}
   .gcard-titles .model{font-weight:700;font-size:15px;overflow-wrap:break-word;}
   .gcard-titles .model-sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
   .gcard-badges{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 16px;}
@@ -566,10 +662,20 @@
     display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;min-height:56px;
     border:1.5px solid var(--line);background:var(--surface);cursor:pointer;user-select:none;
     font-size:14.5px;font-weight:600;transition:border-color .1s, background .1s;
+    /* PRIORITET 48.1 — kontrastfiks: .chip er et <button>, og manglet tidligere en
+       eksplisitt "color". Uten den falt teksten tilbake på nettleserens egen
+       standardfarge for knapper (ikke appens --ink-token), som kan vise som svært
+       mørk/nesten svart uavhengig av mørk/lys modus — nøyaktig symptomet som ble
+       meldt for "Registrer varsellampe"/"Registrer avvik" (de eneste to
+       handlingskortene som bruker denne .chip-komponenten). Alle andre tekstkomponenter
+       i designsystemet setter allerede color eksplisitt (se .p48-action-title osv.) —
+       dette bringer .chip i samsvar med det mønsteret. Gjelder automatisk i alle
+       tilstander (normal/hover/aktiv/fokus/valgt), siden ingen av dem overstyrer color. */
+    color:var(--ink);
   }
   .chip input{width:22px;height:22px;flex-shrink:0;accent-color:var(--ink);}
   .chip-icon{font-size:19px;line-height:1;flex-shrink:0;width:24px;text-align:center;}
-  .chip-text{flex:1;}
+  .chip-text{flex:1;color:var(--ink);}
   .chip:has(input:checked){border-color:var(--ink);background:var(--amber-soft);}
   .chip.checked{border-color:var(--ink);background:var(--amber-soft);}
   .chip.chip-active-lamp{border-color:var(--green);background:var(--green-soft);cursor:not-allowed;opacity:1;}
@@ -1116,7 +1222,7 @@
     align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:6px 2px;border-radius:12px;
     position:relative;cursor:pointer;min-height:52px;
   }
-  .p41-bunn button .ik{font-size:20px;line-height:1;}
+  .p41-bunn button .ik{font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;}
   .p41-bunn button.aktiv{color:var(--green-ink);background:var(--surface-2);}
   .p41-bunn button .n{position:absolute;top:2px;right:calc(50% - 22px);background:var(--red);color:#fff;font-size:9.5px;font-weight:700;border-radius:100px;padding:0 5px;line-height:1.5;}
   /* PRIORITET 47, Del 2 — sjåførens bunnmeny har fire punkter, ikke fem. Samme .p41-bunn
@@ -2805,6 +2911,12 @@ function layoutForhandsvisningHtml(flateKey){
 // forkastet.
 const DRIFTSLAG_ORDER = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Curbside', 'Montering', 'Lastebil'];
 const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔵', 'Montering':'🟣', 'Lastebil':'🟠'};
+// PRIORITET 48 — presentasjonen i sjåførmodus sitt bilvalg (renderDriftslagGruppertBilvalg)
+// bruker nå en fargeprikk (CSS) i stedet for DRIFTSLAG_IKON sin emoji, nettopp for å kunne
+// gi CURBSIDE en egen farge i stedet for å dele 🔵 med LAG 3 (bestilt eksplisitt). DRIFTSLAG_IKON
+// selv er UENDRET — kun denne ene visningen (dot-fargen) er lagt til ved siden av, ikke i stedet.
+const P48_DRIFTSLAG_FARGE = {'Lag 1':'var(--green)', 'Lag 2':'var(--red)', 'Lag 3':'var(--blue)', 'Lag 4':'var(--amber)', 'Curbside':'var(--teal)', 'Montering':'var(--purple)', 'Lastebil':'var(--orange)'};
+function p48DriftslagFarge(navn){ return P48_DRIFTSLAG_FARGE[navn] || 'var(--muted)'; }
 // "Pick Up Point Larvik" skal ALDRI vises ved bilvalg i Sjåførkontroll — uansett om det
 // står skrevet med andre mellomrom/store-små bokstaver, sammenlignes normalisert.
 const DRIFTSLAG_SKJULT_I_KONTROLL = ['pick up point larvik'];
@@ -2871,10 +2983,14 @@ let kontrollApenDriftslag = lastSistDriftslag();
 function renderDriftslagGruppertBilvalg(velgAttr){
   return kontrollDriftslagGrupper().map(gruppe => {
     const open = gruppe.navn === kontrollApenDriftslag;
+    // PRIORITET 48 — "åpen gruppe skal skille seg visuelt fra lukkede grupper": et rent
+    // inline-stilattributt på DENNE spesifikke overskriften, ikke en endring av den delte
+    // .group-card-head CSS-regelen (som også brukes av Biloversikt/Rapporter/Analyse sine
+    // egne akkordioner et helt annet sted i koden) — de påvirkes derfor ikke av dette.
     return `
     <div class="panel dash-group-card">
-      <div class="group-card-head" data-toggle-driftslag-gruppe="${esc(gruppe.navn)}">
-        <div class="group-card-title">${gruppe.ikon} ${esc(gruppe.navn.toUpperCase())} (${gruppe.biler.length})</div>
+      <div class="group-card-head" data-toggle-driftslag-gruppe="${esc(gruppe.navn)}" style="${open ? 'background:var(--surface-2);' : ''}">
+        <div class="group-card-title"><span class="p48-dot" style="background:${p48DriftslagFarge(gruppe.navn)};margin-right:9px;"></span>${esc(gruppe.navn.toUpperCase())} (${gruppe.biler.length})</div>
         <span class="chevron ${open?'open':''}">⌄</span>
       </div>
       <div class="vehicle-group-body ${open?'open':''}">
@@ -2901,15 +3017,26 @@ function renderDriftslagGruppertBilvalg(velgAttr){
               }
               const kontrollert = isKontrollertIdag(v.id);
               const aktivSjafor = vehicleAktivSjafor(v.id);
+              // PRIORITET 48 — samme skiltkomponent (.plate) som Min Bil, kontrollstatus som
+              // pille øverst til høyre, klokkeslett under pillen når kontrollert, og en
+              // navigasjonspil (SVG chevron-right) helt til høyre. Ren presentasjon — samme
+              // ${velgAttr}-attributt og samme klikk-håndtering (attachDriftslagGruppeListeners/
+              // data-velg-bil/data-velg-kontroll-bil) som før, uendret.
+              const sisteKontroll = kontrollert ? lastKontrollForVehicle(v.id) : null;
               return `
-              <div style="cursor:pointer;padding:14px 16px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);" ${velgAttr}="${v.id}">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-                  <div>
-                    <div style="font-weight:700;font-size:15.5px;font-family:'Space Grotesk',sans-serif;">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
-                    <div class="required-hint" style="margin-top:2px;">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
+              <div class="p48-velg-card" ${velgAttr}="${v.id}">
+                <div class="p48-velg-main">
+                  <div class="p48-velg-top">
+                    <div class="plate p48-plate-lg"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+                    <div class="p48-velg-right">
+                      <span class="p48-pill ${kontrollert ? 'p48-pill-ok' : 'p48-pill-off'}">${kontrollert ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert'}</span>
+                      ${sisteKontroll && sisteKontroll.tidspunkt ? `<span class="p48-velg-time">${esc(sisteKontroll.tidspunkt)}</span>` : ''}
+                    </div>
                   </div>
-                  <span class="badge ${kontrollert ? 'ok' : 'unset'}">${kontrollert ? '✅ Kontrollert' : '⚪ Ikke kontrollert'}</span>
+                  <div class="p48-velg-title">${esc(v.bilnummer)}${aktivSjafor ? ' · 👤 ' + esc(aktivSjafor) : ''}</div>
+                  <div class="p48-velg-sub">${esc(v.merke)} ${esc(v.modell)}</div>
                 </div>
+                <span class="p48-velg-chevron">${sjaforIkonSvg('chevronRight', 19)}</span>
               </div>`;
             }).join('')}
           </div>
@@ -6456,7 +6583,7 @@ function renderDriverShell(){
   app.innerHTML = `
     <div class="shell-top">
       ${brandBlockHtml()}
-      <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span></div>
+      <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span><span class="p48-status-dot"></span></div>
     </div>
     ${body}
     ${renderDriverBunnmenyHtml()}
@@ -6471,6 +6598,34 @@ function renderDriverShell(){
   attachDriverBunnmenyListeners();
 }
 
+// ---- PRIORITET 48 — enkle, ensartede linjeikoner for sjåførmodus ----
+// Rent visuelt: erstatter emoji med håndtegnede SVG-er (24×24, strokeWidth 1.7, avrundede
+// ender/hjørner) i de stedene bruker eksplisitt ba om det (bunnmeny, nøkkeltallene og
+// handlingskortene på Min Bil, samt navigasjonspilene). IKKE brukt til varsellampe-/
+// avvikschips, status-emoji eller andre steder utenfor denne listen — det var bevisst ikke
+// en del av bestillingen, og disse skal ikke endres. `currentColor` gjør at ikonet alltid
+// arver samme farge som teksten/ikonflaten rundt det, uten noen egen fargelogikk.
+function sjaforIkonSvg(navn, storrelse){
+  const s = storrelse || 20;
+  const P48_IKON_PATHS = {
+    car: '<path d="M3 16V9.5a1 1 0 0 1 1-1h8.5L17 12h3a1 1 0 0 1 1 1v3"/><path d="M3 16h1.5M17.5 16h3.5"/><line x1="9" y1="16" x2="14.5" y2="16"/><circle cx="7" cy="16.5" r="1.6"/><circle cx="17" cy="16.5" r="1.6"/>',
+    phone: '<path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 9 9 0 0 0 2.8.45 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A16.5 16.5 0 0 1 3 4.5 1 1 0 0 1 4 3.5h3.3a1 1 0 0 1 1 1 9 9 0 0 0 .45 2.8 1 1 0 0 1-.25 1L6.6 10.8Z"/>',
+    chat: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5v-9Z"/>',
+    menu: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+    gauge: '<path d="M4 15a8 8 0 1 1 16 0"/><line x1="12" y1="15" x2="15.5" y2="10.5"/><circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none"/>',
+    folder: '<path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5v-11Z"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 4.6L4 16.2V19h2.8l5.3-5.3a4 4 0 0 0 4.6-5.4l-2.6 2.6-2-2 2.6-2.6Z"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    alert: '<path d="M12 4 21 19H3L12 4Z"/><line x1="12" y1="10" x2="12" y2="14.3"/><circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"/>',
+    user: '<circle cx="12" cy="8" r="3.3"/><path d="M5 19.5a7 7 0 0 1 14 0"/>',
+    logout: '<path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><line x1="13" y1="12" x2="21" y2="12"/><path d="M17.5 8.5 21 12l-3.5 3.5"/>',
+    chevronRight: '<path d="M9 5l7 7-7 7"/>',
+    chevronLeft: '<path d="M15 5l-7 7 7 7"/>'
+  };
+  return `<svg class="p48-svg-ikon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P48_IKON_PATHS[navn] || ''}</svg>`;
+}
+
 // ---- Bunnmeny (kun sjåførmodus) ----
 // REN NAVIGASJON mellom fire faste punkter, samme mønster som MOBIL_BUNNMENY (administrasjon)
 // under — men et eget, atskilt array/rendring siden sjåførmodus har sin egen navigasjonsstat
@@ -6479,18 +6634,20 @@ function renderDriverShell(){
 // allerede planlagte «📨 Nye kommentarer»-visningen, se nyeKommentarerListe()), og 📞
 // Ringeliste er flyttet ut av Min Bil hit, slik at den alltid er tilgjengelig — uten å
 // duplisere den samme funksjonen to steder i sjåførmodus.
+// PRIORITET 48: emoji byttet til `ikon` (linjeikon-navn til sjaforIkonSvg()) — rekkefølge,
+// nøkler og navigasjon er UENDRET, kun selve glyfen.
 const DRIVER_BUNNMENY = [
-  {key:'min-bil',     ikon:'🚐', label:'Min Bil'},
-  {key:'ringeliste',  ikon:'📞', label:'Ringeliste'},
-  {key:'kommentarer', ikon:'💬', label:'Kommentarer'},
-  {key:'mer',         ikon:'☰',  label:'Mer'}
+  {key:'min-bil',     ikon:'car',   label:'Min Bil'},
+  {key:'ringeliste',  ikon:'phone', label:'Ringeliste'},
+  {key:'kommentarer', ikon:'chat',  label:'Kommentarer'},
+  {key:'mer',         ikon:'menu',  label:'Mer'}
 ];
 function renderDriverBunnmenyHtml(){
   return `
     <nav class="p41-bunn p41-bunn-4">
       ${DRIVER_BUNNMENY.map(x => `
         <button type="button" class="${driverScreen === x.key ? 'aktiv' : ''}" data-driverbunn="${x.key}">
-          <span class="ik">${x.ikon}</span>${x.label}
+          <span class="ik">${sjaforIkonSvg(x.ikon, 21)}</span>${x.label}
         </button>
       `).join('')}
     </nav>
@@ -6514,8 +6671,20 @@ function attachDriverBunnmenyListeners(){
 // stegene etter navnet (allerede kontrollert / kontrollskjema) er UENDRET.
 function renderDriverVelgBil(){
   const dialogBil = driverNavnDialogBilId ? vehicles.find(x => x.id === driverNavnDialogBilId) : null;
+  // PRIORITET 48 — tilbakepil (kun visuell finpuss, "ikke endre navigasjon"): denne skjermen
+  // har ingen egen "forrige skjerm" å gå tilbake til i seg selv (den er selve startpunktet i
+  // sjåførflyten, eller nås via "🔁 Bytt bil" i ☰ Mer). Pilen er derfor bevisst koblet til en
+  // destinasjon som ALLEREDE finnes (Min Bil, nøyaktig samme sted som bunnmenyens 🚐 Min Bil-
+  // knapp peker på) — ikke en ny skjerm/rute — og kun aktiv når det faktisk finnes en aktiv
+  // biløkt å gå tilbake til (samme betingelse loadAll() selv bruker til å avgjøre startskjerm).
+  // Uten en aktiv biløkt er det ingenting reelt å gå "tilbake" til, så pilen vises deaktivert
+  // i stedet for å late som en funksjon som ikke finnes.
+  const kanGaTilbake = !!(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId));
   return `
-    <h2 style="font-size:19px;margin-bottom:6px;">Velg bil</h2>
+    <div class="p48-velgbil-heading">
+      <button type="button" class="p48-back" id="db-tilbake-btn" ${kanGaTilbake ? '' : 'disabled'} aria-label="Tilbake til Min Bil">${sjaforIkonSvg('chevronLeft', 22)}</button>
+      <h2 style="font-size:19px;">Velg bil</h2>
+    </div>
     <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag. Du skriver navnet ditt i neste steg.</div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${renderDriftslagGruppertBilvalg('data-velg-bil')}
@@ -6540,6 +6709,10 @@ function renderDriverVelgBil(){
 }
 function attachDriverVelgBilListeners(){
   attachDriftslagGruppeListeners();
+  // PRIORITET 48 — tilbakepil: går til Min Bil (samme destinasjon som bunnmenyen), kun når
+  // det finnes en aktiv biløkt å gå tilbake til (se render-funksjonen for begrunnelse).
+  const tilbakeBtn = document.getElementById('db-tilbake-btn');
+  if(tilbakeBtn && !tilbakeBtn.disabled) tilbakeBtn.addEventListener('click', () => { driverScreen = 'min-bil'; render(); });
   // Steg 1: bilen velges. Åpner kun navnedialogen — ingenting lagres ennå.
   document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
     driverNavnDialogBilId = el.dataset.velgBil;
@@ -6648,21 +6821,32 @@ function renderDriverMinBil(){
   // uendret i komponentHtml, slik at layoutFlateHtml('minbil', ...) alene avgjør rekkefølge
   // og synlighet. Tittel/sjåfør-hint og «✓ Sjekk ut bil» holdes UTENFOR som fast innhold
   // (sistnevnte er en sikkerhetskritisk avslutningshandling og skal alltid være synlig/sist).
+  // PRIORITET 48 — brukt både for kontrollert-i-dag-pillen på kortet og for selve pillens
+  // farge/tekst (samme kilde som "KONTROLLSTATUS" alltid har vist, kun ny presentasjon).
+  const p48Kontrollert = isKontrollertIdag(v.id);
   const komponentHtml = {
     bilkort: `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="plate" style="margin-bottom:10px;"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-      <div style="font-weight:700;font-size:17px;font-family:'Space Grotesk',sans-serif;margin-bottom:10px;">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
-      <div class="ov-grid">
-        <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">✅ Kontrollert i dag</span></div>
-        <div class="ov-item"><span class="ov-label">Kontroll utført</span><span class="ov-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</span></div>
-        <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSaker.length}</span></div>
-        <div class="ov-item"><span class="ov-label">Neste verksted</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) : 'Ingen planlagt'}</span></div>
-        <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
+    <div class="panel p48-vehicle-card" style="margin-bottom:16px;">
+      <div class="p48-vehicle-head">
+        <div class="plate p48-plate-lg"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <span class="p48-pill ${p48Kontrollert ? 'p48-pill-ok' : 'p48-pill-off'}">${p48Kontrollert ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert'}</span>
       </div>
+      <div class="p48-vehicle-title">${esc(v.bilnummer)}</div>
+      <div class="p48-vehicle-model">${esc(v.merke)} ${esc(v.modell)}</div>
+      <div class="p48-stats-grid">
+        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('calendar', 18)}</span><div><div class="p48-stat-label">Kontroll utført</div><div class="p48-stat-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</div></div></div>
+        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('gauge', 18)}</span><div><div class="p48-stat-label">Kilometerstand</div><div class="p48-stat-value">${v.km !== '' && v.km != null ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</div></div></div>
+        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('folder', 18)}</span><div><div class="p48-stat-label">Aktive saker</div><div class="p48-stat-value">${vAktiveSaker.length}</div></div></div>
+        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('wrench', 18)}</span><div><div class="p48-stat-label">Neste verksted</div><div class="p48-stat-value">${vNesteVT ? fmt(vNesteVT.dato) : 'Ingen planlagt'}</div></div></div>
+      </div>
+      <div class="p48-status-line">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</div>
     </div>`,
     skade: `
-      <button type="button" class="btn secondary" id="mb-skade-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer skade</button>
+      <button type="button" class="p48-action-card" id="mb-skade-btn">
+        <span class="p48-action-icon purple">${sjaforIkonSvg('plus', 18)}</span>
+        <span class="p48-action-text"><span class="p48-action-title">Registrer skade</span><span class="p48-action-sub">Rapporter skade på kjøretøy</span></span>
+        <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+      </button>
       ${minBilAksjon === 'skade' ? `
       <div class="panel">
         <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="mb-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(minBilSkadeBeskrivelse)}</textarea></div>
@@ -6684,7 +6868,11 @@ function renderDriverMinBil(){
         <div class="panel-actions"><button type="button" class="btn" id="mb-skade-lagre-btn">Lagre skade</button></div>
       </div>` : ''}`,
     varsel: `
-      <button type="button" class="btn secondary" id="mb-varsel-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer varsellampe</button>
+      <button type="button" class="p48-action-card" id="mb-varsel-btn">
+        <span class="p48-action-icon orange">${sjaforIkonSvg('alert', 18)}</span>
+        <span class="p48-action-text"><span class="p48-action-title">Registrer varsellampe</span><span class="p48-action-sub">Rapporter aktiv varsellampe</span></span>
+        <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+      </button>
       ${minBilAksjon === 'varsel' ? `
       <div class="panel">
         <div class="chip-grid">
@@ -6702,7 +6890,11 @@ function renderDriverMinBil(){
         <div class="panel-actions"><button type="button" class="btn" id="mb-varsel-lagre-btn">Lagre varsellampe</button></div>
       </div>` : ''}`,
     avvik: `
-      <button type="button" class="btn secondary" id="mb-avvik-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer avvik</button>
+      <button type="button" class="p48-action-card" id="mb-avvik-btn">
+        <span class="p48-action-icon orange">${sjaforIkonSvg('wrench', 18)}</span>
+        <span class="p48-action-text"><span class="p48-action-title">Registrer avvik</span><span class="p48-action-sub">Rapporter annet avvik</span></span>
+        <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+      </button>
       ${minBilAksjon === 'avvik' ? `
       <div class="panel">
         <div class="chip-grid">
@@ -6719,7 +6911,11 @@ function renderDriverMinBil(){
         <div class="panel-actions"><button type="button" class="btn" id="mb-avvik-lagre-btn">Lagre avvik</button></div>
       </div>` : ''}`,
     kontakt: `
-      <button type="button" class="btn secondary" id="mb-kontakt-btn" style="width:100%;justify-content:flex-start;min-height:52px;">📞 Kontakt driftskoordinator</button>
+      <button type="button" class="p48-action-card" id="mb-kontakt-btn">
+        <span class="p48-action-icon blue">${sjaforIkonSvg('phone', 18)}</span>
+        <span class="p48-action-text"><span class="p48-action-title">Kontakt driftskoordinator</span><span class="p48-action-sub">Se hvem du kan kontakte</span></span>
+        <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+      </button>
       ${minBilAksjon === 'kontakt' ? `
       <div class="panel">
         ${adminUsers.length === 0 ? `<div class="empty-note">Ingen driftskoordinatorer registrert.</div>` : `
@@ -6731,7 +6927,11 @@ function renderDriverMinBil(){
     // sjåførens bunnmeny (renderDriverRingeliste()), slik at den er tilgjengelig uansett hvor
     // sjåføren er i appen, uten å ligge gjemt bak et Min Bil-kort. Se DRIVER_BUNNMENY under.
     nysjafor: `
-      <button type="button" class="btn secondary" id="mb-nysjafor-btn" style="width:100%;justify-content:flex-start;min-height:52px;">👤 Ny sjåfør</button>
+      <button type="button" class="p48-action-card" id="mb-nysjafor-btn">
+        <span class="p48-action-icon blue">${sjaforIkonSvg('user', 18)}</span>
+        <span class="p48-action-text"><span class="p48-action-title">Ny sjåfør</span><span class="p48-action-sub">Overfør bilen til en annen sjåfør</span></span>
+        <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+      </button>
       ${minBilAksjon === 'nysjafor' ? `
       <div class="panel">
         <div class="required-hint" style="margin-bottom:12px;">Overfører bilen til en ny sjåfør. Det registreres INGEN ny kontroll, og det opprettes ingen historikk — kun aktiv sjåfør oppdateres.</div>
@@ -6745,12 +6945,22 @@ function renderDriverMinBil(){
   };
 
   return `
-    <h2 style="font-size:19px;margin-bottom:2px;">Min Bil</h2>
-    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(mbAktivSjafor || driverNavn)}${mbOverfort ? ' — bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.' : ''}</div>
+    <h2 style="font-size:19px;margin-bottom:16px;">Min Bil</h2>
+    <div class="p48-sjafor-row">
+      <div class="p48-sjafor-avatar">${sjaforIkonSvg('user', 24)}</div>
+      <div>
+        <div class="p48-sjafor-name">${esc(mbAktivSjafor || driverNavn)}</div>
+        <div class="p48-sjafor-sub">Aktiv sjåfør</div>
+      </div>
+    </div>
+    ${mbOverfort ? `<div class="required-hint" style="margin-bottom:16px;">Bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.</div>` : ''}
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
       ${layoutFlateHtml('minbil', komponentHtml)}
-      <button type="button" class="btn danger-outline" id="mb-sjekk-ut-btn" style="width:100%;justify-content:center;min-height:52px;margin-top:6px;">✓ Sjekk ut bil</button>
+      <button type="button" class="p48-checkout-card" id="mb-sjekk-ut-btn">
+        <span class="p48-checkout-icon">${sjaforIkonSvg('logout', 18)}</span>
+        <span class="p48-checkout-text"><span class="p48-checkout-title">Sjekk ut bil</span><span class="p48-checkout-sub">Avslutt arbeidsdagen og frigjør bilen</span></span>
+      </button>
     </div>
   `;
 }
