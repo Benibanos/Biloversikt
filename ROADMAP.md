@@ -1,8 +1,11 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-09 (Prioritet 43 — Kilometerstand følger nå alltid
-siste sjåførkontroll: race condition i lesing funnet og rettet).
-Forrige: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
+Sist oppdatert: 2026-09-10 (Prioritet 44 — 🎨 Layout Editor under
+Innstillinger: rekkefølge/synlighet for Desktop Dashboard, Mobil Dashboard
+og Min Bil, uten kodeendring).
+Forrige: Prioritet 43 — Kilometerstand følger nå alltid siste
+sjåførkontroll: race condition i lesing funnet og rettet. Før det:
+Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
 mot GitHub Pages. Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -18,6 +21,60 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 44 — 🎨 Layout Editor under Innstillinger (2026-09-10):** ✅
+Implementert og verifisert med en kjørt simulering av selve
+lagrings-/gjenopprettingsmekanismen (se PRIORITET_44_ANALYSE.md) — ikke en
+live flerbruker-test mot ekte Airtable (utenfor denne øktens
+nettverkstilgang, se "Kjente begrensninger" i analysen).
+
+Bestilling: redusere behovet for kodeendringer ved layoutjusteringer. Egen
+«🎨 Layout Editor» under Innstillinger som lar brukeren dra/endre
+rekkefølge, skjule/vise komponenter og nullstille til standard — for
+Desktop Dashboard, Mobil Dashboard og Min Bil. Lagres i Settings, ingen ny
+Airtable-tabell. Komponentene selv skal IKKE bli redigerbare — kun
+plassering og synlighet.
+
+Kartlegging (uttømmende gjennomgang av `renderDashboard()`,
+`renderMobilHjem()` og `renderDriverMinBil()` i `index.html`, ingen
+antakelser — se PRIORITET_44_ANALYSE.md): Desktop Dashboard har 7
+håndterbare komponenter fordelt på den eksisterende to-kolonne CSS-gridden
+(`dash40-split`, Prioritet 37/38); Mobil Dashboard har 5 i én kolonne; Min
+Bil har 6. Faste, ikke-håndterbare elementer holdes utenfor på alle tre
+flater (topplinjer/søk/varselbanner, samt Min Bil sin sikkerhetskritiske
+«✓ Sjekk ut bil»-knapp, som alltid forblir synlig og sist).
+
+Løsning: én ny Settings-nøkkel `dashboard-layout` (delt/globalt, samme
+generiske get()/set()-spor som `theme-preference`/`bilkategorier` — ingen
+endring i `storage.airtable.js`, ingen `LIST_TABLES`-registrering
+nødvendig). Rendringsfunksjonene bygger fortsatt EKSAKT samme markup som
+før i et `komponentHtml`-oppslag; en ny, delt `layoutFlateHtml()`-funksjon
+avgjør kun hvilke nøkler som vises og i hvilken rekkefølge —
+komponentinnholdet er aldri rørt. Lagret layout slås sammen med
+standardlisten slik at en fremtidig ny komponent aldri blir silent-hidden.
+Desktop sin to-kolonne-grid bevares uendret via en fast
+gruppe-partisjonering (`DESKTOP_LAYOUT_KOLONNER`): omsortering skjer
+innenfor egen kolonne, ikke på tvers — en bevisst avveining for å unngå et
+fullt redesign av en fungerende layout. Rekkefølge endres med opp/ned-
+knapper (samme mønster som `bilkategorier`, Prioritet 41), ikke ekte
+dra-og-slipp — valgt av brukeren selv, både for gjenbruk av et etablert
+mønster og fordi native drag-and-drop er upålitelig på mobil/touch.
+
+Simulerte scenarioer (se PRIORITET_44_ANALYSE.md): (1) Desktop — endret
+rekkefølge + skjult komponent overlever full tilstandsnullstilling
+(«Oppdater app»/Reload/Ny innlogging); (2) Mobil — skjult komponent
+overlever nullstilling, «Nullstill til standard» gir tilbake nøyaktig
+standardoppsettet; (3) Min Bil — endret rekkefølge overlever nullstilling,
+ingen komponent tapt; (4) fremtidssikring — en ny komponentnøkkel lagt til
+i koden etter at en layout ble lagret, dukker automatisk opp (aldri
+silent-hidden). Alle fire besto.
+
+`sw.js`: `CACHE_VERSION` → `bilpark-v40` (app-shell-innhold endret
+betydelig). `storage.airtable.js` uendret i denne prioriteten — ingen
+`?v=`-økning nødvendig. `kontroll.html` resynkronisert.
+
+Se PRIORITET_44_ANALYSE.md for full komponentkartlegging, lagringsdesign og
+simuleringslogg.
 
 **Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll
 (2026-09-09):** ✅ Fikset og verifisert med en kjørt simulering av

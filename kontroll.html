@@ -1441,7 +1441,7 @@ function formInProgress(){
 
 // Innstillinger: sammenleggbare seksjoner (alle lukket som standard, jf. "unngå lange
 // lister som alltid er åpne") — og tilstand for legg-til-administrator-skjemaet.
-let settingsOpenSections = new Set(); // delmengde av: 'admin' | 'verksted' | 'system'
+let settingsOpenSections = new Set(); // delmengde av: 'admin' | 'verksted' | 'kategorier' | 'layout' | 'system' | 'database'
 
 // Bilkort: tre hovedseksjoner (Bilinformasjon/Kontrollhistorikk/Skadehistorikk), alle
 // lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
@@ -2266,6 +2266,11 @@ async function fetchWeather(){
 // 'system' (standard) følger enhetens innstilling live; 'light'/'dark' er et eksplisitt
 // valg som huskes til neste innlogging (lagres per enhet, ikke delt mellom brukere).
 let themePreference = 'system'; // 'light' | 'dark' | 'system'
+// PRIORITET 44 — 🎨 Layout Editor sin lagrede tilstand: { [flateKey]: {order, hidden} }.
+// null = ikke lastet ennå / ingenting lagret (getLayoutFlate() faller da tilbake til
+// standardrekkefølgen, se DASHBOARD_LAYOUT_FLATER lenger ned i denne filen). Delt/global på
+// samme måte som themePreference/bilkategorier/verksteder — ikke personlig per bruker.
+let dashboardLayout = null;
 function resolveTheme(){
   if(themePreference === 'light' || themePreference === 'dark') return themePreference;
   try{
@@ -2546,6 +2551,165 @@ function kategoriIkon(katId){
 function kategoriOptionsHtml(valgt, tomTekst){
   return (tomTekst !== null && tomTekst !== undefined ? `<option value="">${esc(tomTekst)}</option>` : '')
     + bilkategorier.map(k => `<option value="${esc(k.id)}" ${valgt === k.id ? 'selected' : ''}>${k.ikon || ''} ${esc(k.navn)}</option>`).join('');
+}
+
+// ================= PRIORITET 44 — 🎨 Layout Editor =================
+// Lar driftskoordinator styre REKKEFØLGE og SYNLIGHET (aldri innholdet) på komponentene i
+// Desktop Dashboard, Mobil Dashboard og Min Bil, uten kodeendring. Lagres som ÉN JSON-blob
+// i den eksisterende Settings-tabellen (nøyaktig samme mønster som `bilkategorier`/
+// `verksteder`/`theme-preference` over — INGEN ny Airtable-tabell, ingen `LIST_TABLES`-
+// endring). Se PRIORITET_44_ANALYSE.md for full kartlegging av alle komponentene og
+// begrunnelsen for hvilke som er inkludert/holdt utenfor.
+//
+// Datamodell (dashboardLayout): { [flateKey]: { order: [komponentKey, ...], hidden: [komponentKey, ...] } }
+// — «order» er den FULLSTENDIGE rekkefølgen (også skjulte komponenter blir stående i order,
+// slik at de dukker opp igjen på riktig plass dersom de vises på nytt). Kun komponent-ID-er
+// og deres rekkefølge/synlighet lagres — aldri komponentenes eget innhold/markup.
+const DASHBOARD_LAYOUT_FLATER = {
+  desktop: {
+    label: 'Desktop Dashboard',
+    komponenter: [
+      {key:'kpi',            label:'Nøkkeltall (4 kort)'},
+      {key:'bestill',        label:'➕ Bestill tjenester'},
+      {key:'kommende',       label:'📋 Kommende oppgaver'},
+      {key:'biloversikt',    label:'🚐 Biloversikt (biltabell)'},
+      {key:'bilparkstatus',  label:'🚚 Bilpark status'},
+      {key:'kreverhandling', label:'⚠️ Krever handling nå'},
+      {key:'prioriterte',    label:'🎯 Prioriterte biler'}
+    ]
+  },
+  mobil: {
+    label: 'Mobil Dashboard',
+    komponenter: [
+      {key:'kpi',            label:'Nøkkeltall (2 kort)'},
+      {key:'bestill',        label:'➕ Bestill tjenester'},
+      {key:'kommende',       label:'📋 Kommende oppgaver'},
+      {key:'bilparkstatus',  label:'🚚 Bilpark status'},
+      {key:'kreverhandling', label:'⚠️ Krever handling nå'}
+    ]
+  },
+  minbil: {
+    label: 'Min Bil',
+    komponenter: [
+      {key:'bilkort',   label:'Kjøretøystatus (skilt/nøkkeltall)'},
+      {key:'skade',     label:'➕ Registrer skade'},
+      {key:'varsel',    label:'➕ Registrer varsellampe'},
+      {key:'avvik',     label:'➕ Registrer avvik'},
+      {key:'kontakt',   label:'📞 Kontakt driftskoordinator'},
+      {key:'nysjafor',  label:'👤 Ny sjåfør'}
+    ]
+  }
+};
+// Desktop Dashboard beholder sitt eksisterende to-kolonners CSS-oppsett UENDRET (Prioritet
+// 37/38 sin `dash40-split`) — å gjøre om hele Dashboard til én stablet kolonne ville vært en
+// unødvendig visuell redesign langt utover det denne saken ber om. Layout Editoren gir
+// driftskoordinator ÉN samlet liste per flate (slik bestillingen beskriver «3 flater»), men
+// for Desktop bestemmer denne faste kolonne-tilhørigheten hvilken av de to kolonnene en
+// komponent faktisk tegnes i — kun REKKEFØLGEN *innenfor* egen kolonne, og synlighet på tvers
+// av alle, styres av Layout Editoren. Se PRIORITET_44_ANALYSE.md, "Kjente begrensninger".
+const DESKTOP_LAYOUT_KOLONNER = {
+  full:    ['kpi', 'bestill'],
+  venstre: ['kommende', 'biloversikt'],
+  hoyre:   ['bilparkstatus', 'kreverhandling', 'prioriterte']
+};
+function defaultLayoutForFlate(flateKey){
+  const flate = DASHBOARD_LAYOUT_FLATER[flateKey];
+  return { order: flate.komponenter.map(k => k.key), hidden: [] };
+}
+// Slår sammen lagret layout med standarden. Fremtidssikring (samme prinsipp som
+// rebyggKategoriOppslag() sitt sikkerhetsnett over): en komponent-ID som finnes i standarden
+// men IKKE i en tidligere lagret layout (f.eks. en ny komponent lagt til i en senere
+// prioritet), legges automatisk til på slutten av rekkefølgen — ALDRI skjult utilsiktet. En
+// ID i lagret layout som ikke lenger finnes i standarden (f.eks. en fjernet komponent)
+// forkastes stille, i stedet for å ligge igjen som en "spøkelses"-rad i editoren.
+function getLayoutFlate(flateKey){
+  const def = defaultLayoutForFlate(flateKey);
+  const saved = dashboardLayout && dashboardLayout[flateKey];
+  if(!saved || !Array.isArray(saved.order)) return def;
+  const order = saved.order.filter(k => def.order.includes(k));
+  def.order.forEach(k => { if(!order.includes(k)) order.push(k); });
+  const hidden = Array.isArray(saved.hidden) ? saved.hidden.filter(k => def.order.includes(k)) : [];
+  return { order, hidden };
+}
+async function saveDashboardLayout(){
+  try{ await window.storage.set('dashboard-layout', JSON.stringify(dashboardLayout || {}), true); }
+  catch(e){ alert('Kunne ikke lagre layout. Prøv igjen.'); console.error(e); }
+}
+function flyttLayoutKomponent(flateKey, key, retning){
+  const layout = getLayoutFlate(flateKey);
+  const i = layout.order.indexOf(key);
+  const j = retning === 'opp' ? i - 1 : i + 1;
+  if(i === -1 || j < 0 || j >= layout.order.length) return;
+  [layout.order[i], layout.order[j]] = [layout.order[j], layout.order[i]];
+  if(!dashboardLayout) dashboardLayout = {};
+  dashboardLayout[flateKey] = layout;
+  saveDashboardLayout();
+  render();
+}
+function toggleLayoutSynlighet(flateKey, key){
+  const layout = getLayoutFlate(flateKey);
+  const idx = layout.hidden.indexOf(key);
+  if(idx === -1) layout.hidden.push(key); else layout.hidden.splice(idx, 1);
+  if(!dashboardLayout) dashboardLayout = {};
+  dashboardLayout[flateKey] = layout;
+  saveDashboardLayout();
+  render();
+}
+function resetLayoutFlate(flateKey){
+  if(!confirm('Nullstille «' + DASHBOARD_LAYOUT_FLATER[flateKey].label + '» til standard rekkefølge og synlighet?')) return;
+  if(!dashboardLayout) dashboardLayout = {};
+  dashboardLayout[flateKey] = defaultLayoutForFlate(flateKey);
+  saveDashboardLayout();
+  render();
+}
+// Gitt en flate og et objekt {komponentKey: htmlString, ...} (allerede ferdig rendret
+// markup for hver komponent, UENDRET fra før denne prioriteten): returnerer HTML for de
+// synlige komponentene i lagret rekkefølge. Selve komponent-markupen røres aldri her — kun
+// hvilke som tas med, og i hvilken rekkefølge.
+function layoutFlateHtml(flateKey, komponentHtml){
+  const layout = getLayoutFlate(flateKey);
+  return layout.order
+    .filter(key => !layout.hidden.includes(key) && komponentHtml[key] !== undefined)
+    .map(key => komponentHtml[key])
+    .join('');
+}
+// Samme som over, men returnerer kun komponent-nøklene (brukt av Desktop Dashboard for å
+// dele opp i venstre-/høyre-kolonne uten å bygge HTML to ganger).
+function layoutFlateSynligeNokler(flateKey){
+  const layout = getLayoutFlate(flateKey);
+  return layout.order.filter(key => !layout.hidden.includes(key));
+}
+// Administrasjons-UI for ÉN flate i 🎨 Layout Editor (Innstillinger). Samme
+// opp/ned-knapp-mønster som ⚙️ Administrer bilkategorier bruker for rekkefølge (Prioritet
+// 41) — bevisst gjenbrukt i stedet for en ny dra-og-slipp-mekanikk, som fungerer upålitelig
+// på mobil/touch og ville vært en ny, ikke tidligere brukt interaksjonsmekanikk i appen ved
+// siden av et allerede etablert mønster.
+function layoutEditorFlateHtml(flateKey){
+  const flate = DASHBOARD_LAYOUT_FLATER[flateKey];
+  const layout = getLayoutFlate(flateKey);
+  const labelForKey = {}; flate.komponenter.forEach(k => labelForKey[k.key] = k.label);
+  return `
+    <div style="margin-bottom:22px;">
+      <div class="p38-panel-head" style="margin-bottom:8px;">
+        <div class="tittel" style="font-size:13.5px;">${esc(flate.label)}</div>
+        <button type="button" class="p38-lenke" data-layout-reset="${flateKey}">↺ Nullstill til standard</button>
+      </div>
+      <div class="settings-list">
+        ${layout.order.map((key, i) => {
+          const skjult = layout.hidden.includes(key);
+          return `
+          <div class="settings-row" style="${skjult ? 'opacity:.55;' : ''}">
+            <span>${esc(labelForKey[key] || key)}${skjult ? ' <span class="required-hint" style="margin-left:6px;">skjult</span>' : ''}</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn secondary small" data-layout-opp="${flateKey}:${key}" ${i === 0 ? 'disabled' : ''} title="Flytt opp">↑</button>
+              <button class="btn secondary small" data-layout-ned="${flateKey}:${key}" ${i === layout.order.length - 1 ? 'disabled' : ''} title="Flytt ned">↓</button>
+              <button class="btn secondary small" data-layout-vis="${flateKey}:${key}" title="${skjult ? 'Vis komponent' : 'Skjul komponent'}">${skjult ? '🙈 Vis' : '👁️ Skjul'}</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 // Prioritet 27.1 (Driftslag i Sjåførkontroll) — gjelder KUN bilvalget i Kontroll-skjermen,
 // ikke Biloversikt/Historikk/Rapporter/Planlegging (disse grupperer fortsatt uendret etter
@@ -2843,6 +3007,13 @@ async function loadAll(){
     themePreference = (th && th.value) ? th.value : 'dark';
   }catch(e){ themePreference = 'system'; }
   applyTheme();
+  // PRIORITET 44 — 🎨 Layout Editor: samme enkle Settings-lesing som theme-preference over.
+  // Manglende/korrupt verdi faller trygt tilbake til null, som getLayoutFlate() igjen
+  // tolker som "bruk standard rekkefølge/synlighet" — aldri en krasjende feil.
+  try{
+    const dl = await window.storage.get('dashboard-layout', true);
+    dashboardLayout = (dl && dl.value) ? JSON.parse(dl.value) : null;
+  }catch(e){ dashboardLayout = null; }
   if(driverMode){
     // Rydd opp ev. biløkter fra en tidligere operativ dag (dagskille kl. 04:00) FØR vi
     // avgjør hvilken skjerm denne enheten skal starte på.
@@ -6257,10 +6428,12 @@ function renderDriverMinBil(){
   const mbAktivSjafor = vehicleAktivSjafor(v.id);
   const mbOverfort = !!(mbAktivSjafor && driverNavn && mbAktivSjafor.trim().toLowerCase() !== driverNavn.trim().toLowerCase());
 
-  return `
-    <h2 style="font-size:19px;margin-bottom:2px;">Min Bil</h2>
-    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(mbAktivSjafor || driverNavn)}${mbOverfort ? ' — bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.' : ''}</div>
-
+  // PRIORITET 44 — 🎨 Layout Editor: markup for hver håndterbar Min Bil-komponent samlet
+  // uendret i komponentHtml, slik at layoutFlateHtml('minbil', ...) alene avgjør rekkefølge
+  // og synlighet. Tittel/sjåfør-hint og «✓ Sjekk ut bil» holdes UTENFOR som fast innhold
+  // (sistnevnte er en sikkerhetskritisk avslutningshandling og skal alltid være synlig/sist).
+  const komponentHtml = {
+    bilkort: `
     <div class="panel" style="margin-bottom:16px;">
       <div class="plate" style="margin-bottom:10px;"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
       <div style="font-weight:700;font-size:17px;font-family:'Space Grotesk',sans-serif;margin-bottom:10px;">${esc(v.bilnummer)} · ${esc(v.merke)} ${esc(v.modell)}</div>
@@ -6271,9 +6444,8 @@ function renderDriverMinBil(){
         <div class="ov-item"><span class="ov-label">Neste verksted</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) : 'Ingen planlagt'}</span></div>
         <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
       </div>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+    </div>`,
+    skade: `
       <button type="button" class="btn secondary" id="mb-skade-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer skade</button>
       ${minBilAksjon === 'skade' ? `
       <div class="panel">
@@ -6294,8 +6466,8 @@ function renderDriverMinBil(){
           </div>
         </div>
         <div class="panel-actions"><button type="button" class="btn" id="mb-skade-lagre-btn">Lagre skade</button></div>
-      </div>` : ''}
-
+      </div>` : ''}`,
+    varsel: `
       <button type="button" class="btn secondary" id="mb-varsel-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer varsellampe</button>
       ${minBilAksjon === 'varsel' ? `
       <div class="panel">
@@ -6312,8 +6484,8 @@ function renderDriverMinBil(){
         </div>
         ${minBilVarselType === 'annet' ? `<div class="field" style="margin-top:10px;"><label>Beskriv «Annet»</label><input id="mb-varsel-annet-tekst" type="text" value="${esc(minBilVarselAnnetTekst)}"></div>` : ''}
         <div class="panel-actions"><button type="button" class="btn" id="mb-varsel-lagre-btn">Lagre varsellampe</button></div>
-      </div>` : ''}
-
+      </div>` : ''}`,
+    avvik: `
       <button type="button" class="btn secondary" id="mb-avvik-btn" style="width:100%;justify-content:flex-start;min-height:52px;">➕ Registrer avvik</button>
       ${minBilAksjon === 'avvik' ? `
       <div class="panel">
@@ -6329,8 +6501,8 @@ function renderDriverMinBil(){
           }).join('')}
         </div>
         <div class="panel-actions"><button type="button" class="btn" id="mb-avvik-lagre-btn">Lagre avvik</button></div>
-      </div>` : ''}
-
+      </div>` : ''}`,
+    kontakt: `
       <button type="button" class="btn secondary" id="mb-kontakt-btn" style="width:100%;justify-content:flex-start;min-height:52px;">📞 Kontakt driftskoordinator</button>
       ${minBilAksjon === 'kontakt' ? `
       <div class="panel">
@@ -6338,8 +6510,8 @@ function renderDriverMinBil(){
         <ul class="dmg-simple-list">
           ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
         </ul>`}
-      </div>` : ''}
-
+      </div>` : ''}`,
+    nysjafor: `
       <button type="button" class="btn secondary" id="mb-nysjafor-btn" style="width:100%;justify-content:flex-start;min-height:52px;">👤 Ny sjåfør</button>
       ${minBilAksjon === 'nysjafor' ? `
       <div class="panel">
@@ -6350,8 +6522,15 @@ function renderDriverMinBil(){
         </div>
         ${minBilNySjaforMsg ? `<div class="form-msg" id="mb-nysjafor-msg">${esc(minBilNySjaforMsg)}</div>` : ''}
         <div class="panel-actions"><button type="button" class="btn" id="mb-nysjafor-lagre-btn">Oppdater</button></div>
-      </div>` : ''}
+      </div>` : ''}`
+  };
 
+  return `
+    <h2 style="font-size:19px;margin-bottom:2px;">Min Bil</h2>
+    <div class="required-hint" style="margin-bottom:16px;">👤 ${esc(mbAktivSjafor || driverNavn)}${mbOverfort ? ' — bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.' : ''}</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+      ${layoutFlateHtml('minbil', komponentHtml)}
       <button type="button" class="btn danger-outline" id="mb-sjekk-ut-btn" style="width:100%;justify-content:center;min-height:52px;margin-top:6px;">✓ Sjekk ut bil</button>
     </div>
   `;
@@ -6491,6 +6670,87 @@ function renderMobilHjem(){
   const aktiveVarslerAntall = allActiveVarsellys().length;
   const kommendeTop = d.kommendeOppgaver.slice(0, 4);
   const kreverTop = d.dashKreverListe.slice(0, 4);
+  // PRIORITET 44 — 🎨 Layout Editor. Samme prinsipp som renderDashboard(): UENDRET markup
+  // per komponent, kun flyttet inn i et navngitt objekt slik at layoutFlateHtml() kan velge
+  // rekkefølge/synlighet. Mobilforsiden er allerede én stablet kolonne, så her trengs ingen
+  // kolonne-partisjonering slik Desktop Dashboard har (DESKTOP_LAYOUT_KOLONNER) — hele
+  // rekkefølgen fra Layout Editor brukes direkte.
+  const komponentHtml = {
+    kpi: `
+    <div class="dash40-grid4">
+      <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis">🚨</span>
+        <span class="dash40-kpi-num" style="${d.krHarKritisk ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
+        <span class="dash40-kpi-label">Aktive saker</span>
+        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} kritisk${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
+      </button>
+      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
+        <span class="flis">📅</span>
+        <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
+        <span class="dash40-kpi-label">Kommende frister</span>
+        <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
+      </button>
+    </div>`,
+    bestill: `
+    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
+    <div class="dash40-grid4">
+      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
+        <span class="flis lg">🔧</span>
+        <span class="dash40-bestill-tittel">Service</span>
+        <span class="dash40-bestill-sub">Velg bil → Planlegg</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
+        <span class="flis lg">🚦</span>
+        <span class="dash40-bestill-tittel">EU-kontroll</span>
+        <span class="dash40-bestill-sub">Verkstedtime for EU</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
+        <span class="flis lg">🛞</span>
+        <span class="dash40-bestill-tittel">Dekkskifte</span>
+        <span class="dash40-bestill-sub">Planlegg dekkskift</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
+        <span class="flis lg">🏭</span>
+        <span class="dash40-bestill-tittel">Verkstedtime</span>
+        <span class="dash40-bestill-sub">Ny verkstedtime</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+    </div>`,
+    kommende: `
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="p38-panel-head">
+        <div class="tittel">📋 Kommende oppgaver</div>
+        <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${d.kommendeOppgaver.length}) →</button>
+      </div>
+      ${d.kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
+      ${kommendeTop.map(kommendeOppgaveRadHtml).join('')}
+      ${d.kommendeOppgaver.length > kommendeTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeTop.length} av ${d.kommendeOppgaver.length} — +${d.kommendeOppgaver.length - kommendeTop.length} flere i Kalender.</div>` : ''}
+      `}
+    </div>`,
+    bilparkstatus: `
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
+      ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
+    </div>`,
+    kreverhandling: `
+    <div class="panel" style="margin-bottom:14px;${d.krHarKritisk ? 'border-color:var(--red);' : ''}">
+      <div class="p38-panel-head">
+        <div class="tittel">${d.krHarKritisk ? '🔴' : (d.dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
+        ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
+      </div>
+      ${d.dashKreverListe.length === 0 ? `
+      <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
+      ` : `
+      ${kreverTop.map(dashKreverRadHtml).join('')}
+      ${d.dashKreverListe.length > kreverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kreverTop.length} av ${d.dashKreverListe.length} — +${d.dashKreverListe.length - kreverTop.length} flere.</div>` : ''}
+      ${(d.uteAvDriftBiler.length > 0 || d.manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[d.uteAvDriftBiler.length > 0 ? `${d.uteAvDriftBiler.length} bil${d.uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', d.manglerKontrollCount > 0 ? `${d.manglerKontrollCount} bil${d.manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
+      `}
+    </div>`
+  };
+
   return `
     <div class="p41-head">
       <div>
@@ -6519,78 +6779,7 @@ function renderMobilHjem(){
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
 
-    <div class="dash40-grid4">
-      <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis">🚨</span>
-        <span class="dash40-kpi-num" style="${d.krHarKritisk ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
-        <span class="dash40-kpi-label">Aktive saker</span>
-        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} kritisk${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">📅</span>
-        <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
-        <span class="dash40-kpi-label">Kommende frister</span>
-        <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
-      </button>
-    </div>
-
-    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
-    <div class="dash40-grid4">
-      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">🔧</span>
-        <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">🚦</span>
-        <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Verkstedtime for EU</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">🛞</span>
-        <span class="dash40-bestill-tittel">Dekkskifte</span>
-        <span class="dash40-bestill-sub">Planlegg dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">🏭</span>
-        <span class="dash40-bestill-tittel">Verkstedtime</span>
-        <span class="dash40-bestill-sub">Ny verkstedtime</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-    </div>
-
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="p38-panel-head">
-        <div class="tittel">📋 Kommende oppgaver</div>
-        <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${d.kommendeOppgaver.length}) →</button>
-      </div>
-      ${d.kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
-      ${kommendeTop.map(kommendeOppgaveRadHtml).join('')}
-      ${d.kommendeOppgaver.length > kommendeTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeTop.length} av ${d.kommendeOppgaver.length} — +${d.kommendeOppgaver.length - kommendeTop.length} flere i Kalender.</div>` : ''}
-      `}
-    </div>
-
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
-      ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
-    </div>
-
-    <div class="panel" style="margin-bottom:14px;${d.krHarKritisk ? 'border-color:var(--red);' : ''}">
-      <div class="p38-panel-head">
-        <div class="tittel">${d.krHarKritisk ? '🔴' : (d.dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
-        ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
-      </div>
-      ${d.dashKreverListe.length === 0 ? `
-      <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
-      ` : `
-      ${kreverTop.map(dashKreverRadHtml).join('')}
-      ${d.dashKreverListe.length > kreverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kreverTop.length} av ${d.dashKreverListe.length} — +${d.dashKreverListe.length - kreverTop.length} flere.</div>` : ''}
-      ${(d.uteAvDriftBiler.length > 0 || d.manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[d.uteAvDriftBiler.length > 0 ? `${d.uteAvDriftBiler.length} bil${d.uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', d.manglerKontrollCount > 0 ? `${d.manglerKontrollCount} bil${d.manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
-      `}
-    </div>
+    ${layoutFlateHtml('mobil', komponentHtml)}
 
     ${d.totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
   `;
@@ -6936,22 +7125,16 @@ function renderDashboard(){
   // og aksentfarge), ingen kobling til status- eller saksberegning.
   const aktiveVarslerAntall = allActiveVarsellys().length;
 
-  return `
-    <div class="p38-tophead">
-      <div>
-        <div class="p38-hi">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
-        <div class="p38-hi-sub">${displayTittel ? esc(displayTittel) + ' · ' : ''}${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">🔔${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
-      </div>
-    </div>
-
-    ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
-    <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
-      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
-    </div>` : ''}
-
+  // ================= PRIORITET 44 — 🎨 Layout Editor =================
+  // Hver seksjon under er UENDRET markup fra før denne prioriteten — kun flyttet inn i et
+  // navngitt objekt (komponentHtml) slik at layoutFlateHtml()/layoutFlateSynligeNokler()
+  // (se lenger opp i filen) kan avgjøre HVILKE som vises og i hvilken REKKEFØLGE, uten å
+  // røre selve innholdet. «kpi» og «bestill» («full»-gruppen i DESKTOP_LAYOUT_KOLONNER)
+  // vises øverst i sin innbyrdes rekkefølge; «kommende»/«biloversikt» («venstre») og
+  // «bilparkstatus»/«kreverhandling»/«prioriterte» («hoyre») beholder det eksisterende
+  // to-kolonners oppsettet (dash40-split), men i sin innbyrdes rekkefølge innad i kolonnen.
+  const komponentHtml = {
+    kpi: `
     <div class="dash40-grid4">
       <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis">🚨</span>
@@ -6977,8 +7160,8 @@ function renderDashboard(){
         <span class="dash40-kpi-label">Planlagte timer</span>
         <span class="dash40-kpi-link">${nearestVT ? '⭐ Neste: ' + fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'} →</span>
       </button>
-    </div>
-
+    </div>`,
+    bestill: `
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
     <div class="dash40-grid4">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
@@ -7005,10 +7188,8 @@ function renderDashboard(){
         <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
-    </div>
-
-    <div class="dash40-split">
-      <div>
+    </div>`,
+    kommende: `
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head">
             <div class="tittel">📋 Kommende oppgaver</div>
@@ -7020,9 +7201,9 @@ function renderDashboard(){
           </div>
           ${kommendeOppgaver.length > kommendeOppgaverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeOppgaverTop.length} av ${kommendeOppgaver.length} — +${kommendeOppgaver.length - kommendeOppgaverTop.length} flere i Kalender.</div>` : ''}
           `}
-        </div>
-
-            <div class="panel" style="margin-bottom:16px;">
+        </div>`,
+    biloversikt: `
+        <div class="panel" style="margin-bottom:16px;">
         <div class="p38-panel-head">
           <div class="tittel">🚐 Biloversikt</div>
           <button type="button" class="p38-lenke" data-quick-page="register">Se alle biler →</button>
@@ -7059,15 +7240,13 @@ function renderDashboard(){
         </div>
         <div class="required-hint" style="margin-top:10px;">Viser alle ${biloversiktBiler.length} biler. Trykk på en rad for å åpne kjøretøyprofilen.</div>
         `}
-        </div>
-      </div>
-
-      <div>
+        </div>`,
+    bilparkstatus: `
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
           ${bilparkStatusInnholdHtml(hbp, hDriftCount)}
-        </div>
-
+        </div>`,
+    kreverhandling: `
         <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);' : ''}">
           <div class="p38-panel-head">
             <div class="tittel">${krHarKritisk ? '🔴' : (dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
@@ -7080,8 +7259,8 @@ function renderDashboard(){
           ${dashKreverListe.length > dashKreverTop5.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${dashKreverTop5.length} av ${dashKreverListe.length} — +${dashKreverListe.length - dashKreverTop5.length} flere.</div>` : ''}
           ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
           `}
-        </div>
-
+        </div>`,
+    prioriterte: `
         <div class="panel" id="dash-prioriterte-biler-card" style="margin-bottom:16px;">
           <div class="p38-panel-head"><div class="tittel">🎯 Prioriterte biler</div></div>
           ${prioriterteBilerListe.length === 0 ? `
@@ -7098,9 +7277,36 @@ function renderDashboard(){
           }).join('')}
           ${prioriterteBilerMap.size > prioriterteBilerListe.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${prioriterteBilerListe.length} av ${prioriterteBilerMap.size} — +${prioriterteBilerMap.size - prioriterteBilerListe.length} flere.</div>` : ''}
           `}
-        </div>
+        </div>`
+  };
+  const synligeDesktop = layoutFlateSynligeNokler('desktop');
+  const fullHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.full.includes(k)).map(k => komponentHtml[k]).join('');
+  const venstreHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.venstre.includes(k)).map(k => komponentHtml[k]).join('');
+  const hoyreHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.hoyre.includes(k)).map(k => komponentHtml[k]).join('');
+
+  return `
+    <div class="p38-tophead">
+      <div>
+        <div class="p38-hi">${g.hilsen}, ${esc(displayNavn)} ${g.ikon}</div>
+        <div class="p38-hi-sub">${displayTittel ? esc(displayTittel) + ' · ' : ''}${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">🔔${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
       </div>
     </div>
+
+    ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
+    <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
+      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
+    </div>` : ''}
+
+    ${fullHtml}
+
+    ${(venstreHtml || hoyreHtml) ? `
+    <div class="dash40-split">
+      ${venstreHtml ? `<div>${venstreHtml}</div>` : ''}
+      ${hoyreHtml ? `<div>${hoyreHtml}</div>` : ''}
+    </div>` : ''}
 
     ${totalVehicles === 0 ? `<div class="empty-note" style="margin-top:8px;">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : ''}
   `;
@@ -12711,12 +12917,35 @@ function renderInnstillinger(){
     `;
   })();
 
+  // PRIORITET 44 — 🎨 Layout Editor. Én liste per flate (samme opp/ned-mønster som
+  // ⚙️ Administrer bilkategorier over) — se layoutEditorFlateHtml()/DASHBOARD_LAYOUT_FLATER
+  // lenger opp i denne filen. Kun rekkefølge/synlighet; komponentenes eget innhold er
+  // ikke redigerbart herfra.
+  const layoutBody = `
+    <div class="required-hint" style="margin-bottom:16px;">
+      Endre rekkefølgen på og skjul/vis komponenter i Desktop Dashboard, Mobil Dashboard og
+      Min Bil — uten kodeendring. Dette påvirker KUN plassering og synlighet; selve
+      komponentene (tallene, listene, knappene) er uendret og fungerer likt uansett rekkefølge.
+      <br><br>
+      Desktop Dashboard beholder sitt faste to-kolonners oppsett — rekkefølgen du setter her
+      gjelder innad i hver kolonne (og for de to øverste, fulle radene «Nøkkeltall» og
+      «➕ Bestill tjenester»), mens synlighet (👁️ Skjul/🙈 Vis) gjelder alle komponenter likt.
+      <br><br>
+      Innstillingen er felles for hele bilparken (delt, samme prinsipp som f.eks. tema), ikke
+      personlig per innlogget bruker.
+    </div>
+    ${layoutEditorFlateHtml('desktop')}
+    ${layoutEditorFlateHtml('mobil')}
+    ${layoutEditorFlateHtml('minbil')}
+  `;
+
   return `
     <div class="backrow"><button class="backbtn" id="innstillinger-back">← Tilbake</button></div>
     <div class="acc-list">
       ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
       ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
       ${settingsAccordionRow('kategorier', '⚙️ Administrer bilkategorier', bilkategorier.length, kategoriBody)}
+      ${settingsAccordionRow('layout', '🎨 Layout Editor', null, layoutBody)}
       ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
       ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
     </div>
@@ -12779,6 +13008,28 @@ function attachInnstillingerListeners(){
   document.querySelectorAll('[data-flytt-kategori-opp]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); flyttKategori(el.dataset.flyttKategoriOpp, -1); }));
   document.querySelectorAll('[data-flytt-kategori-ned]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); flyttKategori(el.dataset.flyttKategoriNed, 1); }));
   document.querySelectorAll('[data-flytt-bil-kategori]').forEach(el => el.addEventListener('change', (e) => { e.stopPropagation(); flyttBilTilKategori(el.dataset.flyttBilKategori, e.target.value); }));
+
+  // PRIORITET 44 — 🎨 Layout Editor. data-attributtene er "flateKey:komponentKey" (samme
+  // to-delt mønster som andre sammensatte data-attributter i appen), splittet her.
+  document.querySelectorAll('[data-layout-opp]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const [flateKey, key] = el.dataset.layoutOpp.split(':');
+    flyttLayoutKomponent(flateKey, key, 'opp');
+  }));
+  document.querySelectorAll('[data-layout-ned]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const [flateKey, key] = el.dataset.layoutNed.split(':');
+    flyttLayoutKomponent(flateKey, key, 'ned');
+  }));
+  document.querySelectorAll('[data-layout-vis]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const [flateKey, key] = el.dataset.layoutVis.split(':');
+    toggleLayoutSynlighet(flateKey, key);
+  }));
+  document.querySelectorAll('[data-layout-reset]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetLayoutFlate(el.dataset.layoutReset);
+  }));
 
   const addVerkstedBtn = document.getElementById('add-verksted-btn');
   if(addVerkstedBtn) addVerkstedBtn.addEventListener('click', addVerksted);

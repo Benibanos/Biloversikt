@@ -1,11 +1,13 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-09 (Prioritet 43 —
-Kilometerstand følger nå alltid siste sjåførkontroll: race condition i
-`storage.airtable.js` sin lesing funnet og rettet).
-Forrige: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
-mot GitHub Pages. **Ved avvik mellom denne filen og koden er koden alltid
-sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 44 —
+🎨 Layout Editor under Innstillinger: administrer rekkefølge/synlighet for
+Desktop Dashboard, Mobil Dashboard og Min Bil, uten kodeendring).
+Forrige: Prioritet 43 — Kilometerstand følger nå alltid siste
+sjåførkontroll (race condition i `storage.airtable.js` sin lesing funnet og
+rettet). Før det: Prioritet 42 — PWA-installasjon: rotårsak funnet og
+bekreftet live mot GitHub Pages. **Ved avvik mellom denne filen og koden er
+koden alltid sannheten.**
 
 ---
 
@@ -747,6 +749,102 @@ testresultater.
 
 ---
 
+## Prioritet 44 (2026-09-10) — 🎨 Layout Editor under Innstillinger
+
+Bestilling: redusere behovet for kodeendringer ved layoutjusteringer. Egen
+«🎨 Layout Editor» under Innstillinger som lar brukeren administrere
+rekkefølge og synlighet for Desktop Dashboard, Mobil Dashboard og Min Bil —
+uten å gjøre selve komponentene redigerbare (kun plassering/synlighet),
+lagret i Settings, ingen ny Airtable-tabell.
+
+**Kartlegging (før implementering, se PRIORITET_44_ANALYSE.md for full
+detalj):** Desktop Dashboard har 7 håndterbare komponenter (`kpi`,
+`bestill`, `kommende`, `biloversikt`, `bilparkstatus`, `kreverhandling`,
+`prioriterte`) fordelt på den eksisterende to-kolonne CSS-gridden
+(`dash40-split` fra Prioritet 37/38). Mobil Dashboard har 5 (`kpi`,
+`bestill`, `kommende`, `bilparkstatus`, `kreverhandling`) i én kolonne. Min
+Bil har 6 (`bilkort`, `skade`, `varsel`, `avvik`, `kontakt`, `nysjafor`).
+Faste elementer («chrome») holdes UTENFOR layoutsystemet på alle tre
+flater: Desktop sin hilsen/topplinje og DB-varselbanner; Mobil sin
+merkevare-header, søkefelt og DB-varselbanner; Min Bil sin tittel/
+sjåfør-hint og den sikkerhetskritiske «✓ Sjekk ut bil»-knappen (alltid
+synlig og sist).
+
+**Lagring:** Én ny Settings-nøkkel, `dashboard-layout`, lest/skrevet via
+det allerede eksisterende generiske get()/set()-sporet i
+`storage.airtable.js` (samme mekanisme som `theme-preference`/
+`bilkategorier`/`verksteder` — ingen ny Airtable-tabell, ingen endring i
+`storage.airtable.js` selv, ingen `LIST_TABLES`-registrering nødvendig
+siden dette IKKE er en `LIST_TABLES`-ressurs). Verdien er én JSON-blob:
+`{ [flateKey]: { order: [...], hidden: [...] } }` for `desktop`/`mobil`/
+`minbil`. Delt/globalt for alle brukere (samme prinsipp som
+`theme-preference`), lastes i `loadAll()` og er dermed automatisk med i
+appens eksisterende Airtable-synk.
+
+**Løsning:**
+- `DASHBOARD_LAYOUT_FLATER` definerer standard komponentliste (rekkefølge +
+  label) per flate. `getLayoutFlate()` slår sammen lagret layout med
+  standarden: enhver komponentnøkkel som finnes i standarden men IKKE i en
+  lagret `order` legges automatisk til på slutten (aldri silent-hidden —
+  samme fremtidssikringsprinsipp som `rebyggKategoriOppslag()` bruker for
+  `bilkategorier`). En lagret nøkkel som ikke lenger finnes i standarden
+  (f.eks. etter en fremtidig fjernet komponent) filtreres bort.
+- `layoutFlateHtml(flateKey, komponentHtml)` er den eneste nye
+  rendering-mekanismen: rendringsfunksjonene bygger fortsatt EKSAKT samme
+  markup som før i et `komponentHtml`-oppslagsobjekt (`{key: '<html>'}`) —
+  layoutsystemet avgjør kun HVILKE nøkler som vises og i HVILKEN
+  rekkefølge, og rører aldri komponentenes eget innhold. Dette er selve
+  garantien for «Ikke gjør komponentene redigerbare. Kun plassering og
+  synlighet.»
+- Desktop Dashboard sin eksisterende to-kolonne-grid bevares uendret (ikke
+  redesignet til én kolonne): hver komponentnøkkel er permanent tilordnet
+  én av tre grupper i `DESKTOP_LAYOUT_KOLONNER` (`full`, `venstre`,
+  `hoyre`). Layout Editoren viser fortsatt ÉN samlet, sorterbar liste for
+  "Desktop Dashboard" (matcher brukerens mentale modell av "3 flater"), men
+  selve renderingen filtrerer den ene rekkefølgen ned per kolonnegruppe.
+  Konsekvens: en komponent kan flyttes opp/ned INNENFOR sin kolonne og
+  skjules/vises fritt, men kan ikke flyttes over i en annen kolonne — en
+  bevisst avveining for å unngå et fullt redesign av en fungerende layout
+  («endre minst mulig»).
+- Rekkefølge endres med opp/ned-knapper — samme mønster som allerede brukes
+  for å sortere `bilkategorier` (Prioritet 41), ikke ekte HTML5
+  dra-og-slipp. Valgt eksplisitt av brukeren (fremfor drag-and-drop eller en
+  hybrid) fordi det gjenbruker et etablert mønster («ikke dupliser
+  eksisterende funksjoner») og fordi native drag-and-drop er upålitelig på
+  mobil/touch — Innstillinger er også nåbar fra mobil.
+- Ny accordion-rad «🎨 Layout Editor» i `renderInnstillinger()`, med egen
+  seksjon per flate og en «↺ Nullstill til standard»-knapp per flate
+  (bekreftelsesdialog, tilbakestiller kun den ene flaten sin lagrede
+  rekkefølge/synlighet — ikke de andre to).
+
+**Simulering (se PRIORITET_44_ANALYSE.md for full kjøring og resultat):**
+Fire scenarioer kjørt i en frittstående Node.js-simulering av selve
+lagrings-/gjenopprettingsmekanismen (kopiert 1:1 fra `index.html`): (1)
+Desktop — endre rekkefølge + skjule en komponent, overlever full
+tilstandsnullstilling (dvs. «Oppdater app»/Reload/Ny innlogging, som alle
+fører til at `loadAll()` bygger `dashboardLayout` helt på nytt fra
+Settings); (2) Mobil — skjule en komponent, overlever nullstilling, og
+«Nullstill til standard» gir tilbake nøyaktig standard rekkefølge/synlighet;
+(3) Min Bil — endre rekkefølge, overlever nullstilling, ingen komponent tapt;
+(4) fremtidssikring — en ny komponentnøkkel lagt til i koden ETTER at en
+layout ble lagret, dukker automatisk opp i visningen (aldri silent-hidden).
+Alle fire besto.
+
+`CACHE_VERSION` i `sw.js` økt til `bilpark-v40` (app-shell-innhold i
+`index.html`/`kontroll.html` endret betydelig). `storage.airtable.js`
+UENDRET i denne prioriteten — ingen versjonsøkning av `?v=`-parameteren var
+nødvendig.
+
+**Ikke rørt:** `storage.airtable.js` (ingen endring i denne filen for
+Prioritet 44), `LIST_TABLES`/Airtable-skjema (ingen ny tabell/felt),
+`v.km`-skriveregler, service-/verksted-/EU-/dekk-arbeidsflatene, Aktiv
+sjåfør, PWA/manifest-filene (kun `CACHE_VERSION`-tallet i `sw.js` endret).
+
+Se PRIORITET_44_ANALYSE.md for full komponentkartlegging (alle tre flater
+punkt for punkt), lagringsdesign og simuleringsresultat.
+
+---
+
 ## Produktvisjon
 
 - Operativt styringssystem for bilparken til Bring Larvik (ca. 16 kjøretøy,
@@ -788,7 +886,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v39'`, Prioritet 43). To
+  offline-fallback (`CACHE_VERSION = 'bilpark-v40'`, Prioritet 44). To
   separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`), begge nå
   med et eksplisitt `id`-felt (Prioritet 42). Ikoner skal ligge i `icons/`
