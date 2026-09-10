@@ -1119,6 +1119,9 @@
   .p41-bunn button .ik{font-size:20px;line-height:1;}
   .p41-bunn button.aktiv{color:var(--green-ink);background:var(--surface-2);}
   .p41-bunn button .n{position:absolute;top:2px;right:calc(50% - 22px);background:var(--red);color:#fff;font-size:9.5px;font-weight:700;border-radius:100px;padding:0 5px;line-height:1.5;}
+  /* PRIORITET 47, Del 2 — sjåførens bunnmeny har fire punkter, ikke fem. Samme .p41-bunn
+     grunnstil (fast bunnplassering, farger, padding) — kun kolonneantallet overstyres. */
+  .p41-bunn.p41-bunn-4{grid-template-columns:repeat(4,1fr);}
 
   /* Biloversikt paa mobil: kort, ikke tabell. Bilnummer, reg.nr, loyvenummer,
      status og aktiv sjafor skal vaere lesbart uten ekstra klikk. */
@@ -2117,7 +2120,7 @@ function driverLink(){
 // Dashboard fra hvilken som helst enhet. driverScreen/driverActiveVehicleId/driverNavn
 // er kun DENNE enhetens lokale posisjon i sjåførflyten, husket i localStorage slik at en
 // gjenåpnet PWA havner rett tilbake på riktig skjerm.
-let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil'
+let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil' | 'ringeliste' | 'kommentarer' | 'mer'
 let driverActiveVehicleId = '';
 let driverVelgBilId = '';
 let driverNavn = '';
@@ -2628,13 +2631,18 @@ const DASHBOARD_LAYOUT_FLATER = {
   },
   minbil: {
     label: 'Min Bil Dashboard',
+    // PRIORITET 47, Del 2 — 📞 Ringeliste er FLYTTET UT av Min Bil og er nå et eget,
+    // alltid tilgjengelig punkt i sjåførens bunnmeny (se DRIVER_BUNNMENY/
+    // renderDriverRingeliste()) i stedet for et Layout Editor-styrt Min Bil-kort. Fjernet
+    // herfra for å unngå dobbel plassering. getLayoutFlate() forkaster automatisk
+    // 'ringeliste' fra enhver tidligere lagret Min Bil-layout (samme fremtidssikring som
+    // håndterer enhver fjernet komponent) — ingen egen migrering nødvendig.
     komponenter: [
       {key:'bilkort',     label:'Kjøretøystatus (skilt/nøkkeltall)'},
       {key:'skade',       label:'➕ Registrer skade'},
       {key:'varsel',      label:'➕ Registrer varsellampe'},
       {key:'avvik',       label:'➕ Registrer avvik'},
       {key:'kontakt',     label:'📞 Kontakt driftskoordinator'},
-      {key:'ringeliste',  label:'📞 Ringeliste'},
       {key:'nysjafor',    label:'👤 Ny sjåfør'}
     ]
   }
@@ -6432,11 +6440,18 @@ function attachKontrollSlettModalListeners(){
 }
 
 // ================= Sjåførmodus: minimal skall med kun kontrollskjemaet =================
+// PRIORITET 47, Del 2 (redefinert av bruker — se DRIVER_BUNNMENY under) — sjåførmodus har
+// fått en egen, alltid synlig bunnmeny (🚐 Min Bil · 📞 Ringeliste · 💬 Kommentarer · ☰ Mer).
+// Bunnmenyen vises på ALLE sjåførskjermer (også Velg bil/Kontroll/Allerede kontrollert), slik
+// at Ringeliste og Kommentarer alltid er tilgjengelige, uansett hvor i flyten sjåføren er.
 function renderDriverShell(){
   let body = '';
   if(driverScreen === 'kontroll') body = renderKontroll();
   else if(driverScreen === 'allerede-kontrollert') body = renderDriverAlleredeKontrollert();
   else if(driverScreen === 'min-bil') body = renderDriverMinBil();
+  else if(driverScreen === 'ringeliste') body = renderDriverRingeliste();
+  else if(driverScreen === 'kommentarer') body = renderDriverKommentarer();
+  else if(driverScreen === 'mer') body = renderDriverMer();
   else body = renderDriverVelgBil();
   app.innerHTML = `
     <div class="shell-top">
@@ -6444,11 +6459,48 @@ function renderDriverShell(){
       <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span></div>
     </div>
     ${body}
+    ${renderDriverBunnmenyHtml()}
   `;
   if(driverScreen === 'kontroll') attachKontrollListeners();
   else if(driverScreen === 'allerede-kontrollert') attachDriverAlleredeKontrollertListeners();
   else if(driverScreen === 'min-bil') attachDriverMinBilListeners();
+  else if(driverScreen === 'ringeliste') attachDriverRingelisteListeners();
+  else if(driverScreen === 'kommentarer') attachDriverKommentarerListeners();
+  else if(driverScreen === 'mer') attachDriverMerListeners();
   else attachDriverVelgBilListeners();
+  attachDriverBunnmenyListeners();
+}
+
+// ---- Bunnmeny (kun sjåførmodus) ----
+// REN NAVIGASJON mellom fire faste punkter, samme mønster som MOBIL_BUNNMENY (administrasjon)
+// under — men et eget, atskilt array/rendring siden sjåførmodus har sin egen navigasjonsstat
+// (driverScreen) og ikke deler skjermrom med administrasjonens screen/goTo()/drawer. Bestilt
+// av bruker som en bevisst forenkling: ingen ny "Oppgaver"-funksjon (💬 Kommentarer ER den
+// allerede planlagte «📨 Nye kommentarer»-visningen, se nyeKommentarerListe()), og 📞
+// Ringeliste er flyttet ut av Min Bil hit, slik at den alltid er tilgjengelig — uten å
+// duplisere den samme funksjonen to steder i sjåførmodus.
+const DRIVER_BUNNMENY = [
+  {key:'min-bil',     ikon:'🚐', label:'Min Bil'},
+  {key:'ringeliste',  ikon:'📞', label:'Ringeliste'},
+  {key:'kommentarer', ikon:'💬', label:'Kommentarer'},
+  {key:'mer',         ikon:'☰',  label:'Mer'}
+];
+function renderDriverBunnmenyHtml(){
+  return `
+    <nav class="p41-bunn p41-bunn-4">
+      ${DRIVER_BUNNMENY.map(x => `
+        <button type="button" class="${driverScreen === x.key ? 'aktiv' : ''}" data-driverbunn="${x.key}">
+          <span class="ik">${x.ikon}</span>${x.label}
+        </button>
+      `).join('')}
+    </nav>
+  `;
+}
+function attachDriverBunnmenyListeners(){
+  document.querySelectorAll('[data-driverbunn]').forEach(el => el.addEventListener('click', () => {
+    driverScreen = el.dataset.driverbunn;
+    render();
+  }));
 }
 
 // ---- Ny funksjon: Aktiv Biløkt / Min Bil — sjåførskjermer ----
@@ -6675,30 +6727,9 @@ function renderDriverMinBil(){
           ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
         </ul>`}
       </div>` : ''}`,
-    // PRIORITET 45 — 📞 Ringeliste: telefonnummer registrert PÅ KJØRETØYET (v.telefon, satt
-    // under Innstillinger → 👤 Sjåførside → 📞 Ringeliste). Viser andre biler i parken som har
-    // et registrert nummer (egen bil ekskludert — å ringe sin egen bil er meningsløst), hver
-    // rad tappbar med en ekte tel:-lenke for direkte oppringing. Kun visning — ingen ny
-    // registrering/lagring skjer herfra.
-    ringeliste: `
-      <button type="button" class="btn secondary" id="mb-ringeliste-btn" style="width:100%;justify-content:flex-start;min-height:52px;">📞 Ringeliste</button>
-      ${minBilAksjon === 'ringeliste' ? `
-      <div class="panel">
-        ${(() => {
-          const andreMedTelefon = sortedVehicles(vehicles).filter(x => x.id !== v.id && x.telefon);
-          if(andreMedTelefon.length === 0) return `<div class="empty-note">Ingen andre kjøretøy har registrert telefonnummer ennå.</div>`;
-          return `
-          <ul class="dmg-simple-list">
-            ${andreMedTelefon.map(x => `
-              <li>
-                <a href="tel:${esc(x.telefon.replace(/[^+0-9]/g,''))}" class="dmg-simple-main" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;">
-                  <span>🚐 ${esc(vehicleLabel(x))}</span>
-                  <span class="btn secondary small" style="pointer-events:none;">📞 Ring</span>
-                </a>
-              </li>`).join('')}
-          </ul>`;
-        })()}
-      </div>` : ''}`,
+    // PRIORITET 47, Del 2 — 📞 Ringeliste er flyttet ut av Min Bil til sin egen skjerm i
+    // sjåførens bunnmeny (renderDriverRingeliste()), slik at den er tilgjengelig uansett hvor
+    // sjåføren er i appen, uten å ligge gjemt bak et Min Bil-kort. Se DRIVER_BUNNMENY under.
     nysjafor: `
       <button type="button" class="btn secondary" id="mb-nysjafor-btn" style="width:100%;justify-content:flex-start;min-height:52px;">👤 Ny sjåfør</button>
       ${minBilAksjon === 'nysjafor' ? `
@@ -6732,9 +6763,8 @@ function attachDriverMinBilListeners(){
   if(avvikBtn) avvikBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'avvik' ? '' : 'avvik'; render(); });
   const kontaktBtn = document.getElementById('mb-kontakt-btn');
   if(kontaktBtn) kontaktBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'kontakt' ? '' : 'kontakt'; render(); });
-  // PRIORITET 45 — 📞 Ringeliste: samme toggle-mønster som de andre Min Bil-knappene.
-  const ringelisteBtn = document.getElementById('mb-ringeliste-btn');
-  if(ringelisteBtn) ringelisteBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'ringeliste' ? '' : 'ringeliste'; render(); });
+  // PRIORITET 47, Del 2 — 📞 Ringeliste-knappen er fjernet herfra (flyttet til egen skjerm,
+  // se renderDriverRingeliste()/attachDriverRingelisteListeners()).
   // PRIORITET 40 — «👤 Ny sjåfør»: REN overføring av aktiv sjåfør. Ingen kontroll,
   // ingen historikk, ingen ny biløkt (den lokale enhets-sesjonen røres ikke).
   const nySjaforBtn = document.getElementById('mb-nysjafor-btn');
@@ -6797,6 +6827,82 @@ function attachDriverMinBilListeners(){
   }));
   const avvikLagreBtn = document.getElementById('mb-avvik-lagre-btn');
   if(avvikLagreBtn) avvikLagreBtn.addEventListener('click', submitMinBilAvvik);
+}
+
+// PRIORITET 47, Del 2 — 📞 Ringeliste som egen sjåførskjerm (flyttet ut av Min Bil, se
+// DASHBOARD_LAYOUT_FLATER.minbil over). Samme innhold/markup som det tidligere Min Bil-kortet
+// hadde — kun flyttet til en alltid-synlig destinasjon i bunnmenyen, ingen ny logikk. Egen bil
+// ekskluderes fra listen når en aktiv biløkt finnes; uten aktiv bil (f.eks. før dagens
+// kontroll er utført) vises hele listen, siden det ikke finnes noen "egen bil" å ekskludere.
+function renderDriverRingeliste(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  const andreMedTelefon = sortedVehicles(vehicles).filter(x => (!v || x.id !== v.id) && x.telefon);
+  return `
+    <h2 style="font-size:19px;margin-bottom:16px;">📞 Ringeliste</h2>
+    <div class="panel">
+      ${andreMedTelefon.length === 0 ? `<div class="empty-note">Ingen kjøretøy har registrert telefonnummer ennå.</div>` : `
+      <ul class="dmg-simple-list">
+        ${andreMedTelefon.map(x => `
+          <li>
+            <a href="tel:${esc(x.telefon.replace(/[^+0-9]/g,''))}" class="dmg-simple-main" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;">
+              <span>🚐 ${esc(vehicleLabel(x))}</span>
+              <span class="btn secondary small" style="pointer-events:none;">📞 Ring</span>
+            </a>
+          </li>`).join('')}
+      </ul>`}
+    </div>
+  `;
+}
+function attachDriverRingelisteListeners(){
+  // Ren visning — tel:-lenker trenger ingen JS-håndtering.
+}
+
+// PRIORITET 47, Del 2 — 💬 Kommentarer som egen sjåførskjerm. Erstatter det opprinnelige
+// bestillingsforslaget "📋 Oppgaver" (som ikke finnes som funksjon i koden, se
+// PRIORITET_47_ANALYSE.md punkt 0/3) med den ALLEREDE planlagte «📨 Nye kommentarer»-
+// visningen fra Del 1 (nyeKommentarerListe(), delt med Aktive saker sin seksjon — se
+// nyeKommentarRadHtml() for den delte radmarkupen). Ingen ny logikk, ingen ny Airtable-
+// struktur: ren, alltid-utvidet visning av samme data. Ingen kvittering, ingen status,
+// ingen aktiv sak — kun en informasjonslogg, slik bruker eksplisitt ba om.
+function renderDriverKommentarer(){
+  const liste = nyeKommentarerListe();
+  return `
+    <h2 style="font-size:19px;margin-bottom:16px;">💬 Kommentarer</h2>
+    <div class="panel">
+      ${liste.length === 0
+        ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
+        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0)).join('')}</div>`}
+    </div>
+  `;
+}
+function attachDriverKommentarerListeners(){
+  // Ren visning — ingen interaktive elementer.
+}
+
+// PRIORITET 47, Del 2 — ☰ Mer. Bevisst minimal: gjenbruker KUN det eneste stedet i koden som
+// allerede lar en sjåfør bytte hvilken bil de representerer («← Bytt bil», samme mønster som
+// kt-back-knappen i Kontroll-skjemaet og «← Velg en annen bil» i Allerede kontrollert-skjermen)
+// — ingen ny funksjon er lagt til. Selve bilbyttet går gjennom samme, eksisterende
+// kryss-bil-utsjekkingslogikk som allerede finnes (startBilokt()/settAktivSjafor()), siden
+// sjåføren uansett må velge bil og bekrefte navn på nytt før en ny kontroll/Min Bil-økt.
+function renderDriverMer(){
+  return `
+    <h2 style="font-size:19px;margin-bottom:16px;">☰ Mer</h2>
+    <div class="panel">
+      <button type="button" class="btn secondary" id="dm-bytt-bil-btn" style="width:100%;justify-content:flex-start;min-height:52px;">🔁 Bytt bil</button>
+    </div>
+  `;
+}
+function attachDriverMerListeners(){
+  const byttBilBtn = document.getElementById('dm-bytt-bil-btn');
+  if(byttBilBtn) byttBilBtn.addEventListener('click', () => {
+    kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormAnnetTekst = '';
+    kontrollFormVarsellamper = []; kontrollVarsellamperOpen = false;
+    kontrollFormAvvik = []; kontrollAvvikOpen = false;
+    driverVelgBilId = '';
+    driverScreen = 'velg-bil';
+    render();
+  });
 }
 
 // ================= scrLogin (kun administrasjonsdelen) =================
@@ -10758,6 +10864,17 @@ function nyeKommentarerListe(){
     }))
     .sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
 }
+// PRIORITET 47, Del 2 — radmarkupen for én kommentar er delt ut i en egen funksjon, slik at
+// Aktive saker sin ekspanderbare seksjon og sjåførens egen, alltid-utvidede «💬 Kommentarer»-
+// skjerm (renderDriverKommentarer()) viser NØYAKTIG samme rad fra samme kode — ingen duplisert
+// markup som kan komme ut av synk.
+function nyeKommentarRadHtml(k, isFirst){
+  return `
+    <div style="padding:10px 0;${isFirst ? '' : 'border-top:1px solid var(--line-soft);'}">
+      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}</div>
+      <div style="font-size:13.5px;">${esc(k.kommentar)}</div>
+    </div>`;
+}
 function nyeKommentarerSectionHtml(){
   const liste = nyeKommentarerListe();
   return `
@@ -10769,13 +10886,7 @@ function nyeKommentarerSectionHtml(){
       ${liste.length === 0
         ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
         : (nyeKommentarerApen
-          ? `<div>
-              ${liste.map((k, i) => `
-                <div style="padding:10px 0;${i > 0 ? 'border-top:1px solid var(--line-soft);' : ''}">
-                  <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}</div>
-                  <div style="font-size:13.5px;">${esc(k.kommentar)}</div>
-                </div>`).join('')}
-            </div>`
+          ? `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0)).join('')}</div>`
           : `<div class="required-hint">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} fra sjåfører — ren informasjon, oppretter ikke saker.</div>`)}
     </div>`;
 }

@@ -1,28 +1,28 @@
 # CLAUDE.md — Bilpark Operativsystem
 
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 47,
-Del 1 — fjernet «Andre kontrollavvik» fra valgbare lister, ny «📨 Nye
-kommentarer»-seksjon i Aktive saker, bestillingstjenester samlet på én rad).
-Forrige: Prioritet 46 — Rapporter (full historikk ved bilfiltrering),
-Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport, Verkstedtime 2.0
-(EU-kontroll/Ruteskift som egne, samtidig-avkryssbare felt), telefonnummer i
-Kjøretøyprofil. Før det: Prioritet 45 — Omstrukturering av Innstillinger
-(fire grupperte hovedseksjoner, «⚙️ Innstillinger» nederst i sidemenyen, ny
-👤 Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder). **Ved avvik
-mellom denne filen og koden er koden alltid sannheten.**
+Del 2, redefinert av bruker — sjåførens bunnmeny 🚐 Min Bil · 📞 Ringeliste ·
+💬 Kommentarer · ☰ Mer, Ringeliste flyttet ut av Min Bil, Kommentarer viser
+Del 1 sin «📨 Nye kommentarer»-logg). Forrige: Prioritet 47, Del 1 — fjernet
+«Andre kontrollavvik» fra valgbare lister, ny «📨 Nye kommentarer»-seksjon i
+Aktive saker, bestillingstjenester samlet på én rad. Før det: Prioritet 46 —
+Rapporter (full historikk ved bilfiltrering), Carglass Ruteskift-hurtigknapp,
+ny 💥 Ruteglassrapport, Verkstedtime 2.0, telefonnummer i Kjøretøyprofil.
+**Ved avvik mellom denne filen og koden er koden alltid sannheten.**
 
-⚠️ **VIKTIG, uavklart avvik oppdaget i Prioritet 47 (se PRIORITET_47_ANALYSE.md):**
-referansebilder av sjåførmodus (mottatt fra bruker) viser en bunnmeny
-(«Min Bil · Velg bil · Oppgaver · Mer») og en kortbasert Min Bil-visning med
-undertekster som IKKE finnes noe sted i `index.html`/`kontroll.html` slik de
-ligger i dette Claude-prosjektet — verken som skjerm, funksjon eller
-navigasjonsnøkkel. `renderDriverShell()` har i denne koden ingen bunnmeny i
-det hele tatt. Dette kan bety at det finnes en nyere `index.html` på GitHub
-Pages enn den dette prosjektet analyserer (samme type avvik som Prioritet
-36/42 — kode levert/dokumentert her matchet ikke det faktisk publiserte
-repoet). **Bruker har bedt om at den faktiske, kjørende `index.html` lastes
-opp før bunnmeny/Sjåførside 2.0/"Sjekk ut bil"-tekst (PRIORITET 47, Del 2)
-implementeres — IKKE gjett eller gjenskap skjermbildet mot antatt kode.**
+⚠️ **Fortsatt uavklart, ikke løst av Del 2-redefineringen under:** de
+opprinnelige referansebildene av sjåførmodus (bunnmeny «Min Bil · Velg bil ·
+Oppgaver · Mer» + kortbasert Min Bil med undertekster som «Sjekk ut bilen og
+start kjøring») stemte ikke med koden i dette Claude-prosjektet — se
+PRIORITET_47_ANALYSE.md, punkt 0. Bruker har IKKE lastet opp den faktiske,
+kjørende `index.html`. I stedet ga bruker en ny, eksplisitt og fullstendig
+spesifisert bunnmeny-struktur (se Prioritet 47, Del 2 under) som bevisst
+gjenbruker eksisterende funksjonalitet i stedet for å gjenskape
+referansebildet — dette er IKKE et forsøk på å løse kode-/live-avviket, kun
+en alternativ, uavhengig løsning bruker selv valgte. **«Sjekk ut bil»-teksten
+(opprinnelig PRIORITET 47, Del 2, punkt 3) er FORTSATT ikke vurdert/endret**
+— det var aldri del av brukerens nye spesifikasjon, og påstanden om at
+teksten er feil kunne uansett ikke bekreftes mot koden (se punkt 0).
 
 ---
 
@@ -57,11 +57,77 @@ ganger uavhengig, se ROADMAP.md) — ikke anta at den finnes. Eksisterende
 km-data bør kontrolleres manuelt for historiske feil fra en nå rettet
 service-km-overskrivingsbug (se "Service" under).
 
+**Prioritet 47, Del 2 (2026-09-10, redefinert av bruker) — Sjåførside
+bunnmeny.** Etter at Del 1 (under) var levert, ba bruker om en NY, eksplisitt
+spesifisert bunnmeny for sjåførmodus — en bevisst forenkling av det
+opprinnelige referansebildet, IKKE et forsøk på å gjenskape det. Bruker var
+tydelig: «Jeg ønsker ikke at vi introduserer nye funksjoner på sjåførsiden
+dersom vi kan gjenbruke det som allerede finnes.» Dette er derfor en ren
+omorganisering av eksisterende skjermer/funksjoner, ikke ny logikk.
+
+**Løsning:**
+1. **`DRIVER_BUNNMENY`** — ny, egen bunnmeny KUN for sjåførmodus (adskilt fra
+   administrasjonens `MOBIL_BUNNMENY`, som bruker `screen`/`goTo()`/
+   `openDrawer()`; sjåførmodus har sin egen, atskilte navigasjonstilstand
+   `driverScreen`). Fire punkter: 🚐 Min Bil · 📞 Ringeliste ·
+   💬 Kommentarer · ☰ Mer. Vises på ALLE sjåførskjermer (også Velg bil/
+   Kontroll/Allerede kontrollert), slik at Ringeliste og Kommentarer er
+   tilgjengelige uansett hvor i flyten sjåføren er — «på den måten er den
+   alltid tilgjengelig», som bruker formulerte det for Ringeliste spesifikt.
+   Gjenbruker `.p41-bunn` sin CSS (fast bunnplassering/farger/padding) med
+   én ny modifier-klasse (`.p41-bunn-4`) for fire i stedet for fem kolonner.
+2. **📞 Ringeliste flyttet UT av Min Bil**, til en egen skjerm
+   (`renderDriverRingeliste()`) nådd direkte fra bunnmenyen — ikke lenger et
+   Min Bil-kort. Fjernet fra `DASHBOARD_LAYOUT_FLATER.minbil.komponenter`
+   (Layout Editor sin Min Bil-liste); `getLayoutFlate()` sin eksisterende
+   fremtidssikring forkaster automatisk `'ringeliste'` fra enhver tidligere
+   lagret Min Bil-layout — ingen egen migrering var nødvendig. Selve
+   innholdet (andre kjøretøy med registrert telefonnummer, `tel:`-lenker) er
+   UENDRET — kun flyttet, ikke omskrevet. Ingen dobbel plassering: knappen/
+   panelet er fjernet fra Min Bil sin `komponentHtml`.
+3. **💬 Kommentarer erstatter det opprinnelige, ikke-eksisterende
+   «📋 Oppgaver»-forslaget.** Viser nøyaktig den samme «📨 Nye
+   kommentarer»-logikken fra Del 1 (`nyeKommentarerListe()`), alltid utvidet
+   (ingen skjul/vis-toggle, siden dette nå er skjermens eneste formål).
+   Radmarkupen er skilt ut i en delt funksjon, **`nyeKommentarRadHtml(k,
+   isFirst)`**, brukt av BÅDE Aktive saker sin ekspanderbare seksjon og denne
+   nye sjåførskjermen — samme kode, ingen duplisert markup. Fortsatt ingen
+   ny Airtable-struktur, ingen kobling til saksmotoren, ingen lest/kvittert-
+   tilstand — ren informasjonslogg, slik bruker presiserte.
+4. **☰ Mer** er bevisst holdt minimal: viser kun «🔁 Bytt bil», som
+   gjenbruker EKSAKT samme tilbakestillingslogikk som allerede fantes to
+   andre steder (kt-back-knappen i Kontroll-skjemaet i sjåførmodus, og
+   «← Velg en annen bil» i Allerede kontrollert-skjermen) — ingen ny
+   funksjon. Selve bilbyttet går gjennom den eksisterende kryss-bil-
+   utsjekkingslogikken (`startBilokt()`/`settAktivSjafor()`), siden sjåføren
+   uansett velger bil og bekrefter navn på nytt.
+5. `CACHE_VERSION` i `sw.js` økt til `bilpark-v44` (app-shell-innhold
+   endret). `storage.airtable.js` er IKKE endret — ingen nye Airtable-felt,
+   ingen `LIST_TABLES`-endring.
+
+**Testet:** `node --check` på begge script-blokkene — ingen syntaksfeil.
+Isolert Node.js-simulering av bunnmeny-navigasjon (alle fire punkter
+navigerer korrekt til riktig `driverScreen`), Ringeliste sin egen-bil-
+ekskludering (ekskluderer aktiv bil når satt, viser alle når ingen aktiv bil
+finnes ennå), og at `nyeKommentarRadHtml()` gir identisk markup uansett
+hvilken skjerm som kaller den — alle bestått. `diff index.html
+kontroll.html`: bekreftet identiske. Kun statisk/isolert testet.
+
+**Ikke rørt:** «Sjekk ut bil»-knappen/-teksten i Min Bil (uendret, urørt av
+denne redefineringen — se advarselen øverst i denne filen), Sjåførkontroll
+(`submitKontroll()`), Aktiv sjåfør-logikk, `v.km`-skriveregler,
+`storage.airtable.js`, administrasjonens `MOBIL_BUNNMENY`/drawer (helt
+uendret og atskilt fra `DRIVER_BUNNMENY`), Bilkategorier, Layout Editor sin
+mekanikk for øvrig (kun `minbil`-komponentlisten er redusert med én).
+
 **Prioritet 47, Del 1 (2026-09-10) — Sjåførside 2.0 / Dashboard-komprimering:
 kommentarhåndtering og bestillingsrad.** Bestilt som en todeling: Del 1
-(kartlagt og implementert her) og Del 2 (bunnmeny/Ringeliste/Oppgaver/"Sjekk
-ut bil"-tekst i sjåførmodus — **IKKE implementert**, se advarselen øverst i
-denne filen og PRIORITET_47_ANALYSE.md).
+(kartlagt og implementert her) og Del 2 (opprinnelig bunnmeny/Ringeliste/
+Oppgaver/"Sjekk ut bil"-tekst i sjåførmodus, basert på referansebilder som
+ikke stemte med koden — se advarselen øverst i denne filen). **Del 2 ble
+senere redefinert av bruker og implementert med en annen, eksplisitt
+spesifisert bunnmeny — se Prioritet 47, Del 2 over.** «Sjekk ut bil»-teksten
+er fortsatt ikke endret.
 
 **Kartlegging (før implementering, se PRIORITET_47_ANALYSE.md):** en fritekst-
 kommentar i sjåførkontrollskjemaet (`kt-kommentar`/`kontrollFormKommentar`)
@@ -1219,7 +1285,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v41'`, Prioritet 45). To
+  offline-fallback (`CACHE_VERSION = 'bilpark-v44'`, Prioritet 47 Del 2). To
   separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`), begge nå
   med et eksplisitt `id`-felt (Prioritet 42). Ikoner skal ligge i `icons/`
