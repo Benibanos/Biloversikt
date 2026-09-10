@@ -1,12 +1,14 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-10 (Prioritet 45 — Omstrukturering av Innstillinger:
-fire grupperte hovedseksjoner, «⚙️ Innstillinger» flyttet nederst i
-sidemenyen, ny 👤 Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder).
-Forrige: Prioritet 44 — 🎨 Layout Editor under Innstillinger. Før det:
-Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll: race
-condition i lesing funnet og rettet. Før det igjen: Prioritet 42 —
-PWA-installasjon: rotårsak funnet og bekreftet live mot GitHub Pages.
+Sist oppdatert: 2026-09-10 (Prioritet 46 — Rapporter (full historikk ved
+bilfiltrering), Carglass Ruteskift-hurtigknapp, ny 💥 Ruteglassrapport,
+Verkstedtime 2.0, telefonnummer i Kjøretøyprofil).
+Forrige: Prioritet 45 — Omstrukturering av Innstillinger: fire grupperte
+hovedseksjoner, «⚙️ Innstillinger» flyttet nederst i sidemenyen, ny 👤
+Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder. Før det: Prioritet
+44 — 🎨 Layout Editor under Innstillinger. Før det igjen: Prioritet 43 —
+Kilometerstand følger nå alltid siste sjåførkontroll: race condition i
+lesing funnet og rettet.
 Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
@@ -22,6 +24,61 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 46 — Rapporter, Carglass Ruteskift og Verkstedtime 2.0
+(2026-09-10):** ✅ Implementert og verifisert (se PRIORITET_46_ANALYSE.md).
+
+Bestilling: bedre rapporter (full historikk ved bilfiltrering), bedre
+håndtering av ruteskift (Carglass), enklere verkstedbestilling (strukturerte
+felt istedenfor fritekst), bedre synlighet av telefonnummer. IKKE ENDRE:
+Aktiv sjåfør, Kontrollflyt, Kilometerlogikk, Layout Editor, Bilkategorier —
+alle bekreftet urørt.
+
+Kartlegging (FØR implementering, se PRIORITET_46_ANALYSE.md): grundig
+gjennomgang fant INGEN `.find()`-basert «kun siste registrering»-bug i
+Kontrollhistorikk/Servicehistorikk/Verkstedhistorikk/Skadehistorikk/
+Kostnadshistorikk — disse viste allerede full historikk. De to reelle
+avvikene: (1) Dekkoversikt sin dekkskifteliste var kappet til 5 med
+`.slice(0, 5)`; (2) Rapporthub sine tre statusrapporter (Kilometerstand-/
+Service-/Dekkrapport) er ett-rad-per-kjøretøy-flåteoversikter som IKKE
+skiftet til full historikk når filtrert til ett spesifikt kjøretøy — dette
+er nøyaktig det ticket sitt Bil 7-eksempel beskriver.
+
+Løsning: (1) `.slice(0, 5)`-kappen i Dekkoversikt fjernet. (2)
+Kilometerstands-, Service- og Dekkrapport viser nå full historikk for det
+filtrerte kjøretøyet (`vehicleKontroller()`/`vehicleServiceHistorikk()`/
+`dekkhistorikk`) når `rapportFilterBil` peker på ETT kjøretøy — både i
+skjermvisning og Excel-eksport; flåteoversikten uten bilfilter er uendret.
+(3) Ny 💥 Ruteskift-hurtigknapp i alle «Bestill tjenester»-forekomster,
+samme mønster som 🚦 EU-kontroll (`bestillRuteskift()` →
+`vtRuteskiftForhandskrysset`). (4) Ny 💥 Ruteglassrapport i Rapporthub
+(`rapportRuteglassRader()`/`renderRapportRuteglass()`/
+`eksporterRapportRuteglass()`, samme mal som Skaderapport) — Dato/Bil/
+Verksted/Kommentar/Kostnad/Status, filtrerbar på Bil/Periode/Verksted (nytt
+Verksted-filter, `RAPPORT_HAR_VERKSTED_FILTER`). (5) Verkstedtime 2.0: to
+uavhengige avkrysningsbokser (🚦 EU-kontroll/💥 Ruteskift) øverst i Ny
+verkstedtime, begge kan krysses samtidig; `WorkshopAppointments.Type`
+lagres kommaseparert (`vtHarType()`/`vtTypeIkon()`/`vtTypeTittel()` — én
+delt lesefunksjon istedenfor fire spredte `=== 'eu-kontroll'`-sjekker);
+beskrivelsesfeltet brukes ikke lenger til å identifisere disse typene. (6)
+`v.telefon` vises nå som klikkbar `tel:`-lenke i Kjøretøyprofil →
+Kjøretøyinformasjon.
+
+Ingen nye Airtable-felt (`Type` og `Telefon` allerede registrert fra
+tidligere prioriteter) — `storage.airtable.js` uendret på `v2.11.0`. `sw.js`
+`CACHE_VERSION` → `bilpark-v42`. `kontroll.html` resynkronisert.
+
+Simulert (se PRIORITET_46_ANALYSE.md): 27 automatiserte assert-sjekker i en
+isolert Node.js-simulering — Kilometerrapport (Bil 7-eksempelet: 4 av 4
+registreringer), Servicehistorikk, Verkstedhistorikk, Ruteglassrapport
+(riktige rader + Bil-/Verksted-filter + status), Ruteskift-bestilling,
+EU-bestilling, begge samtidig (kombinert type/ikon/tittel),
+Kjøretøyprofil-telefonnummer, dekk-cap-regresjon — alle bestått. `node
+--check` på begge script-blokker: ingen syntaksfeil. `diff index.html
+kontroll.html`: bekreftet identiske.
+
+Se PRIORITET_46_ANALYSE.md for full kartlegging, rotårsaksfunn, simulerings-
+logg og testresultater.
 
 **Prioritet 45 — Omstrukturering av Innstillinger (2026-09-10):** ✅
 Implementert og verifisert (se PRIORITET_45_ANALYSE.md) — strukturell/

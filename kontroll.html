@@ -1366,6 +1366,8 @@ let rapportFilterGruppe = '';
 // Rapporthub 2.0: ETT delt statusfilter, gjenbrukt av alle fem detaljerte rapportene
 // (kilometerstand/service/dekk/eukontroll/skade) — se RAPPORT_STATUS_FILTER_OPTIONS.
 let rapportStatusFilter = '';
+// Prioritet 46 — Verksted-filter, kun brukt av Ruteglassrapport (se RAPPORT_HAR_VERKSTED_FILTER).
+let rapportFilterVerksted = '';
 
 // ---- Fase 9 (Analyse og Prediktiv Oppfølging) ----
 let analyseType = ''; // '' (kortoversikt) | 'gjentakende' | 'bilanalyse' | 'verkstedtrender' | 'sakstyper' | 'behandlingstid' | 'utvikling'
@@ -1620,6 +1622,7 @@ let kalenderValgtDato = '';
 // EKSISTERENDE Ny verkstedtime-skjemaet (verkstedtime.type = 'eu-kontroll'). Ingen ny
 // datamodell — se vehicleHarRegistrertEuTime().
 let vtEuForhandskrysset = false;
+let vtRuteskiftForhandskrysset = false; // Prioritet 46 — se bestillRuteskift()
 let fullforingPlanlagtDekkskiftId = null;
 // Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
 // (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
@@ -3866,8 +3869,36 @@ function vehicleEuKontrollStatus(v){
 // beskrivelse-feltet, som ville vært en gjetning på ustrukturert data. Samme "aktiv"-prinsipp
 // som vehicleHarAktivPlanlagtService() over: kun kommende (dato >= i dag) timer teller: en
 // passert, ikke-fullført EU-time faller tilbake til Krever handling nå.
+//
+// PRIORITET 46 — Verkstedtime 2.0: type-feltet kan nå inneholde FLERE kommaseparerte verdier
+// ('eu-kontroll', 'ruteskift') istedenfor kun én streng, siden EU-kontroll og Ruteskift kan
+// krysses av samtidig på samme verkstedtime (se submitAddVT()). vtHarType()/vtTypeIkon()/
+// vtTypeTittel() er ÉN delt kilde til sannhet for lesing av feltet — brukes overalt (Bestill
+// tjenester/Kalender/Planlegging/Bilkort) istedenfor spredte, separate t.type === '...'-sjekker.
+function vtHarType(t, kode){
+  return !!(t && t.type && String(t.type).split(',').includes(kode));
+}
+function vtTypeIkon(t){
+  const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
+  if(eu && rs) return '🚦💥';
+  if(eu) return '🚦';
+  if(rs) return '💥';
+  return '🏭';
+}
+function vtTypeTittel(t){
+  const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
+  if(eu && rs) return 'EU-kontroll + Ruteskift (verkstedtime)';
+  if(eu) return 'EU-kontroll (verkstedtime)';
+  if(rs) return 'Ruteskift (verkstedtime)';
+  return 'Verkstedtime';
+}
 function vehicleHarRegistrertEuTime(vehicleId){
-  return verkstedtimer.some(t => t.vehicleId === vehicleId && t.type === 'eu-kontroll' && t.dato >= todayISO());
+  return verkstedtimer.some(t => t.vehicleId === vehicleId && vtHarType(t, 'eu-kontroll') && t.dato >= todayISO());
+}
+// Ruteskift-speilbilde av vehicleHarRegistrertEuTime() over — samme "aktiv"-prinsipp
+// (kun kommende, ikke-passerte timer teller).
+function vehicleHarRegistrertRuteskiftTime(vehicleId){
+  return verkstedtimer.some(t => t.vehicleId === vehicleId && vtHarType(t, 'ruteskift') && t.dato >= todayISO());
 }
 function fmtDateObj(d){
   return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
@@ -4009,7 +4040,7 @@ function goTo(scr, vehicleId, _isBack){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; }
@@ -5130,8 +5161,19 @@ async function submitAddVT(ev){
   // ikke er koblet til en Aktiv Sak (EU-kontroll-frister oppretter ingen sak). Feltet er
   // allerede registrert i LIST_TABLES i storage.airtable.js (historisk, se CLAUDE.md), så
   // ingen ny databasekolonne trengs — kun aktiv bruk av et eksisterende felt.
+  //
+  // PRIORITET 46 — Verkstedtime 2.0: to UAVHENGIGE avkrysningsbokser (🚦 EU-kontroll og
+  // 💥 Ruteskift) kan nå begge være krysset av på samme verkstedtime samtidig. type-feltet
+  // lagres da som en kommaseparert streng ('eu-kontroll,ruteskift') — ALDRI ved å gjette ut
+  // fra beskrivelsesfeltet, kun fra de strukturerte avkrysningsboksene selv (ticket-krav:
+  // "Beskrivelsesfeltet skal ikke brukes til å identifisere EU-kontroll/Ruteskift"). Lesing av
+  // feltet skjer alltid via vtHarType()/vtTypeIkon()/vtTypeTittel() (se vehicleHarRegistrertEuTime()).
   const euKontrollEl = document.getElementById('vt-eu-kontroll');
-  const type = (euKontrollEl && euKontrollEl.checked) ? 'eu-kontroll' : '';
+  const ruteskiftEl = document.getElementById('vt-ruteskift');
+  const typeDeler = [];
+  if(euKontrollEl && euKontrollEl.checked) typeDeler.push('eu-kontroll');
+  if(ruteskiftEl && ruteskiftEl.checked) typeDeler.push('ruteskift');
+  const type = typeDeler.join(',');
   const msgEl = document.getElementById('vt-msg');
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
@@ -5287,7 +5329,8 @@ function goToRegisterVT(vehicleId){
 // samme UI-staten brukeren ellers ville satt manuelt, og navigerer til den arbeidsflaten som
 // allerede eier flyten. Flyten videre (Planlegging → Utført → Historikk) er derfor uendret:
 //   Service      → renderServiceSkjerm() → submitPlanlagtService() → fullforPlanlagtService()
-//   EU-kontroll  → renderVerksted()      → submitVT() med type='eu-kontroll'
+//   EU-kontroll  → renderVerksted()      → submitVT() med type inneholder 'eu-kontroll'
+//   Ruteskift    → renderVerksted()      → submitVT() med type inneholder 'ruteskift' (Prioritet 46)
 //   Dekkskifte   → renderDekkSkjerm()    → submitPlanlagtDekkskift() → submitFullforPlanlagtDekkskift()
 //   Verkstedtime → renderVerksted()      → submitVT()
 // vehicleId = '' betyr "ingen bil valgt ennå" — brukeren velger bil i skjermens egen,
@@ -5308,13 +5351,22 @@ function bestillDekkskift(vehicleId){
 }
 function bestillEuKontroll(vehicleId){
   // Eneste eksisterende EU-bestillingsvei i koden: en verkstedtime med det strukturerte
-  // feltet type='eu-kontroll' (se vehicleHarRegistrertEuTime()). Her forhåndskrysses kun
-  // avkryssingsboksen i det uendrede skjemaet — ingen ny sakstype, ingen ny tabell.
+  // feltet type (inneholder 'eu-kontroll', se vehicleHarRegistrertEuTime()). Her forhåndskrysses
+  // kun avkryssingsboksen i det uendrede skjemaet — ingen ny sakstype, ingen ny tabell.
   vtEuForhandskrysset = true;
+  vtRuteskiftForhandskrysset = false;
+  goToRegisterVT(vehicleId || '');
+}
+// Prioritet 46 — samme mønster som bestillEuKontroll(), for 💥 Ruteskift-hurtigknappen under
+// 🛠 Bestill tjenester ("Samme logikk som 🚦 EU-kontroll" — ticket-krav).
+function bestillRuteskift(vehicleId){
+  vtRuteskiftForhandskrysset = true;
+  vtEuForhandskrysset = false;
   goToRegisterVT(vehicleId || '');
 }
 function bestillVerkstedtime(vehicleId){
   vtEuForhandskrysset = false;
+  vtRuteskiftForhandskrysset = false;
   goToRegisterVT(vehicleId || '');
 }
 function attachBestillListeners(scopeVehicleId){
@@ -5324,6 +5376,7 @@ function attachBestillListeners(scopeVehicleId){
     switch(el.dataset.bestill){
       case 'service': bestillService(bil); break;
       case 'eu': bestillEuKontroll(bil); break;
+      case 'ruteskift': bestillRuteskift(bil); break;
       case 'dekk': bestillDekkskift(bil); break;
       case 'verksted': bestillVerkstedtime(bil); break;
     }
@@ -6834,6 +6887,12 @@ function renderMobilHjem(){
         <span class="dash40-bestill-sub">Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
+      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis lg">💥</span>
+        <span class="dash40-bestill-tittel">Ruteskift</span>
+        <span class="dash40-bestill-sub">Carglass — ruteskift</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
     </div>`,
     kommende: `
     <div class="panel" style="margin-bottom:14px;">
@@ -7156,8 +7215,8 @@ function dashboardBeregning(){
     hast:1, sortDato:t.dato, ikon:'🛞', tittel:'Planlagt dekkskift',
     vehicleId:t.vehicleId, naar:fmt(t.dato) + (t.tidspunkt ? ' kl. ' + t.tidspunkt : ''), detalj:t.verksted || '', mal:'dekk'}));
   plan7.verksted.forEach(t => kommendeOppgaver.push({
-    hast: t.dato === today ? 0 : 1, sortDato:t.dato, ikon: t.type === 'eu-kontroll' ? '🚦' : '🏭',
-    tittel: t.type === 'eu-kontroll' ? 'EU-kontroll (verkstedtime)' : 'Verkstedtime',
+    hast: t.dato === today ? 0 : 1, sortDato:t.dato, ikon: vtTypeIkon(t),
+    tittel: vtTypeTittel(t),
     vehicleId:t.vehicleId, naar:fmt(t.dato) + (t.tidspunkt ? ' kl. ' + t.tidspunkt : ''), detalj:t.verksted || '',
     mal:'verksted', vtId:t.id, sakId:t.sakId}));
   plan7.euKontroll.forEach(x => kommendeOppgaver.push({
@@ -7302,6 +7361,12 @@ function renderDashboard(){
         <span class="flis lg">🏭</span>
         <span class="dash40-bestill-tittel">Verkstedtime</span>
         <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
+      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis lg">💥</span>
+        <span class="dash40-bestill-tittel">Ruteskift</span>
+        <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
     </div>`,
@@ -8059,7 +8124,9 @@ function renderDekkoversikt(){
             const open = dekkOversiktOpenVehicles.has(v.id);
             const sAlder = dekkAlderStatus(v.sommerdekkDot);
             const wAlder = dekkAlderStatus(v.vinterdekkDot);
-            const vHist = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato)).slice(0, 5);
+            // Prioritet 46: full historikk vises alltid — ingen cap. Filtrering/visning på ett
+            // kjøretøy skal aldri redusere til kun siste hendelse (se CLAUDE.md "Rapporter — full historikk").
+            const vHist = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
             const vKostnader = dekkkostnader.filter(dk => dk.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
             const varselIkon = (sAlder && sAlder.status==='gammel') || (wAlder && wAlder.status==='gammel') ? '🔴' : (!sAlder || !wAlder || (sAlder&&sAlder.status!=='ok') || (wAlder&&wAlder.status!=='ok')) ? '🟡' : '🟢';
             return `
@@ -8077,7 +8144,7 @@ function renderDekkoversikt(){
                   <div class="ov-item"><span class="ov-label">❄️ Vinterdekk — produksjon</span><span class="ov-value">${formatProduksjonsdato(v.vinterdekkDot) || '—'}</span></div>
                   <div class="ov-item"><span class="ov-label">❄️ Vinterdekk — status</span><span class="ov-value">${wAlder ? wAlder.ikon + ' ' + wAlder.tekst : '—'}</span></div>
                 </div>
-                <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Siste dekkskifter</h4>
+                <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Dekkskifter (${vHist.length})</h4>
                 ${vHist.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert.</div>` : `
                 <ul class="dmg-simple-list">
                   ${vHist.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} — ${d.retning === 'sommer-vinter' ? 'Sommer → Vinter' : 'Vinter → Sommer'}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
@@ -8786,6 +8853,7 @@ function renderBilkort(){
       <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · ${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + ' — ' + esc(vPlanlagtService.verksted || '') : ''}</span></li>
       <li style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="dmg-simple-main">🛞 Dekk · ${DEKK_LABEL[v.dekk] || 'Ikke satt'}${vDekkAlder ? ' · ' + vDekkAlder.ikon + ' ' + esc(vDekkAlder.tekst) : ''}${vPlanlagtDekkskift ? '<br>📅 Dekkskift ' + fmt(vPlanlagtDekkskift.dato) + (vPlanlagtDekkskift.tidspunkt ? ' kl. ' + esc(vPlanlagtDekkskift.tidspunkt) : '') : ''}</span></li>
       <li><span class="dmg-simple-main">🚦 EU-kontroll · ${euKontrollStatus.ikon} ${v.euGodkjentTil ? esc(euKontrollStatus.tekst) : 'Mangler registrering'}${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
+      ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
       <li${vNesteVT ? ` style="cursor:pointer;" data-goto-vt="${v.id}"` : ''}><span class="dmg-simple-main">🏭 Verkstedtime · ${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + esc(vNesteVT.tidspunkt) : '') : 'Ingen planlagt'}</span></li>
     </ul>`;
 
@@ -8933,6 +9001,9 @@ function renderBilkort(){
       <button type="button" class="dash40-bestill" data-bestill="verksted" data-bestill-bil="${v.id}" style="--tint:var(--purple-soft);--tone:var(--purple);">
         <span class="flis lg">🏭</span><span class="dash40-bestill-tittel">Verkstedtime</span><span class="dash40-bestill-sub">Ny verkstedtime</span><span class="dash40-bestill-pil">→</span>
       </button>
+      <button type="button" class="dash40-bestill" data-bestill="ruteskift" data-bestill-bil="${v.id}" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis lg">💥</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Carglass ruteskift</span><span class="dash40-bestill-pil">→</span>
+      </button>
     </div>
 
     <div class="dash-quick-links" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
@@ -8985,6 +9056,7 @@ function renderBilkort(){
             <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
             <div class="ov-item"><span class="ov-label">Driftslag</span><span class="ov-value">${esc(v.driftslag || '–')}</span></div>
             <div class="ov-item"><span class="ov-label">🛟 Mobilitetsgaranti</span><span class="ov-value">${v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : '–'}</span></div>
+            <div class="ov-item"><span class="ov-label">📞 Telefon</span><span class="ov-value">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;text-decoration:none;">📞 Ring ${esc(v.telefon)}</a>` : '–'}</span></div>
           </div>
         </div>
       </div>
@@ -10397,6 +10469,12 @@ function renderBestillTjenester(){
         <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
+      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
+        <span class="flis lg">💥</span>
+        <span class="dash40-bestill-tittel">Ruteskift</span>
+        <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
+        <span class="dash40-bestill-pil">→</span>
+      </button>
     </div>
 
     <div class="panel">
@@ -10419,8 +10497,8 @@ function renderBestillTjenester(){
         </div>`; }).join('')}
       ${plan7.verksted.map(t => { const tv = vtVehicle(t); return `
         <div class="p38-task" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
-          <span class="flis sm" style="--tint:var(--purple-soft);">${t.type === 'eu-kontroll' ? '🚦' : '🏭'}</span>
-          <div><div class="p38-task-t1">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${t.type === 'eu-kontroll' ? 'EU-kontroll (verkstedtime)' : 'Verkstedtime'}</div><div class="p38-task-t2">${esc(t.verksted || '')}</div></div>
+          <span class="flis sm" style="--tint:var(--purple-soft);">${vtTypeIkon(t)}</span>
+          <div><div class="p38-task-t1">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${vtTypeTittel(t)}</div><div class="p38-task-t2">${esc(t.verksted || '')}</div></div>
           <div class="p38-task-right"><div class="p38-task-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div></div>
         </div>`; }).join('')}
       `}
@@ -10460,8 +10538,8 @@ function kalenderAktiviteterKart(){
   const kart = {};
   const legg = (dato, akt) => { if(!dato) return; (kart[dato] = kart[dato] || []).push(akt); };
   verkstedtimer.forEach(t => legg(t.dato, {
-    tid: t.tidspunkt || '', ikon: t.type === 'eu-kontroll' ? '🚦' : '🏭',
-    tittel: t.type === 'eu-kontroll' ? 'EU-kontroll (verkstedtime)' : 'Verkstedtime',
+    tid: t.tidspunkt || '', ikon: vtTypeIkon(t),
+    tittel: vtTypeTittel(t),
     vehicleId: t.vehicleId, detalj: [t.verksted, t.beskrivelse].filter(Boolean).join(' · '),
     mal: 'verksted', vtId: t.id, sakId: t.sakId
   }));
@@ -10591,7 +10669,7 @@ function planleggingSeksjonHtml(){
     data.planlagtDekkskift.map(t => { const tv = vtVehicle(t); return rad('var(--orange-soft)', '📅', tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy', fmt(t.dato) + (t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : '') + ' — ' + esc(t.verksted || '') + ' · ' + (DEKK_RETNING_LABEL[t.retning] || esc(t.retning)), `data-goto-dekk="${t.vehicleId}"`); }).join(''));
 
   const verkstedHtml = kolonne('🏭 Verksted', data.verksted.length,
-    data.verksted.map(t => { const tv = vtVehicle(t); return rad('var(--purple-soft)', t.type === 'eu-kontroll' ? '🚦' : '🏭', tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy', fmt(t.dato) + (t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : '') + (t.verksted ? ' — ' + esc(t.verksted) : ''), t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`); }).join(''));
+    data.verksted.map(t => { const tv = vtVehicle(t); return rad('var(--purple-soft)', vtTypeIkon(t), tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy', fmt(t.dato) + (t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : '') + (t.verksted ? ' — ' + esc(t.verksted) : ''), t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`); }).join(''));
 
   const euHtml = kolonne('🚦 EU-kontroll', data.euKontroll.length,
     data.euKontroll.map(x => rad('var(--blue-soft)', '🚦', esc(vehicleLabel(x.v)), x.status.ikon + ' ' + esc(x.status.tekst), `data-goto-bilkort="${x.v.id}"`)).join(''));
@@ -11029,6 +11107,12 @@ function renderVerksted(){
       return `
     <form class="panel" id="add-vt-form">
       <h3>${linkedSak ? 'Registrer verkstedtime for sak' : 'Ny verkstedtime'}</h3>
+      ${linkedSak ? '' : `
+      <div class="row2" style="margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;"><input type="checkbox" id="vt-eu-kontroll" style="width:auto;" ${vtEuForhandskrysset ? 'checked' : ''}> 🚦 EU-kontroll</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;"><input type="checkbox" id="vt-ruteskift" style="width:auto;" ${vtRuteskiftForhandskrysset ? 'checked' : ''}> 💥 Ruteskift</label>
+      </div>
+      `}
       ${linkedSak ? `
       <div class="required-hint" style="margin-bottom:14px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">
         🗂️ ${esc(linkedSak.caseId)} — ${esc(linkedSak.title)}<br>
@@ -11062,8 +11146,7 @@ function renderVerksted(){
         <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
-      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. EU-kontroll, skifte av bremser..." required></div>`}
-      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label style="display:flex;align-items:center;gap:8px;font-weight:400;"><input type="checkbox" id="vt-eu-kontroll" style="width:auto;" ${vtEuForhandskrysset ? 'checked' : ''}> 🚦 Gjelder EU-kontroll</label></div>`}
+      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." required></div>`}
       <div class="row2">
         <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
         <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
@@ -11337,9 +11420,9 @@ function kostCardHtml(icon, label, verdi, storFont){
 // Viktig prinsipp: rapportene er rene VISNINGER av eksisterende data (Aktive Saker,
 // Kontroller, Verksted, Skader, Kostnader, Bilstatus) — ingen egne rapporttabeller,
 // ingen parallelle datastrukturer, og det operative Dashboardet er urørt.
-const RAPPORT_ORDER = ['kilometerstand', 'service', 'dekk', 'eukontroll', 'skade', 'avvik', 'kostnad', 'bilpark', 'verksted', 'bilhelse', 'maned', 'kontroll'];
-const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', service:'Servicerapport', dekk:'Dekkrapport', eukontroll:'EU-kontrollrapport', skade:'Skaderapport', avvik:'Saksrapport', kostnad:'Kostnadsrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', bilhelse:'Bilhelserapport', maned:'Månedsrapport', kontroll:'Kontrollrapport'};
-const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', skade:'🚨', avvik:'📋', kostnad:'💰', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
+const RAPPORT_ORDER = ['kilometerstand', 'service', 'dekk', 'eukontroll', 'ruteglass', 'skade', 'avvik', 'kostnad', 'bilpark', 'verksted', 'bilhelse', 'maned', 'kontroll'];
+const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', service:'Servicerapport', dekk:'Dekkrapport', eukontroll:'EU-kontrollrapport', ruteglass:'Ruteglassrapport', skade:'Skaderapport', avvik:'Saksrapport', kostnad:'Kostnadsrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', bilhelse:'Bilhelserapport', maned:'Månedsrapport', kontroll:'Kontrollrapport'};
+const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', ruteglass:'💥', skade:'🚨', avvik:'📋', kostnad:'💰', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
 const RAPPORT_PERIODE_LABEL = {'':'Alle', 'denne-maned':'Denne måneden', 'forrige-maned':'Forrige måned', 'dette-aret':'Dette året'};
 
 function goToRapport(type){
@@ -11427,8 +11510,12 @@ const RAPPORT_STATUS_FILTER_OPTIONS = {
   service: {'':'Alle', ok:'🟢 OK', 'snart-gul':'🟡 Nærmer seg', 'snart-rod':'🔴 Snart forfall', forfalt:'🔴 Forfalt', ukjent:'⚪ Intervall ikke satt'},
   dekk: {'':'Alle', ok:'🟢 Under 3 år', aldring:'🟡 3–5 år', gammel:'🔴 Over 5 år', ukjent:'⚪ DOT ikke registrert'},
   eukontroll: {'':'Alle', ok:'🟢 Mer enn 90 dager', 'snart-gul':'🟡 Under 90 dager', 'snart-rod':'🔴 Under 30 dager', forfalt:'🔴 Utløpt', ukjent:'⚪ Ikke registrert'},
-  skade: {'':'Alle', registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'}
+  skade: {'':'Alle', registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'},
+  ruteglass: {'':'Alle', planlagt:'📅 Planlagt', utfort:'✅ Utført'}
 };
+// Prioritet 46 — rapporter som i tillegg har et Verksted-filter (kun Ruteglassrapport per nå).
+// Delt med rapportFilterPanelHtml()/attachRapporterListeners(), samme mønster som status-filteret over.
+const RAPPORT_HAR_VERKSTED_FILTER = {ruteglass: true};
 
 // ---- Kilometerstandsrapport ----
 // Bruker UTELUKKENDE v.km som autoritativ kilometerkilde — aldri servicehistorikk,
@@ -11459,12 +11546,35 @@ function rapportKilometerstandRader(){
     })
     .filter(r => !rapportStatusFilter || r.datakvalitet.status === rapportStatusFilter);
 }
+// Prioritet 46: "Filter på bil skal aldri redusere visningen til kun siste hendelse."
+// Kilometerstandsrapporten er normalt ÉN rad per kjøretøy (nåværende status — flåteoversikt,
+// nødvendig for <10 sek-forståelse av hele flåten). Men når rapporten er filtrert til ETT
+// spesifikt kjøretøy, erstattes denne enkeltraden med full kilometerhistorikk for akkurat det
+// kjøretøyet (én rad per sjåførkontroll — samme datakilde som Kontrollhistorikk, se
+// vehicleKontroller()). Ingen ny sannhet: bruker samme kontroller-array, kun annen visning.
+function rapportKilometerstandHistorikkRader(vehicleId){
+  return vehicleKontroller(vehicleId); // allerede sortert nyeste først
+}
 function renderRapportKilometerstand(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = rapportKilometerstandHistorikkRader(v.id);
+      const header = ['Dato', 'Kilometerstand', 'Sjåfør', 'Klokkeslett'];
+      return `
+        ${rapportHeaderHtml()}
+        <div class="required-hint" style="margin-bottom:16px;">Full kilometerhistorikk for ${esc(vehicleLabel(v))} — ${historikk.length} registrering${historikk.length===1?'':'er'} (fra sjåførkontroller). Nåværende kilometerstand: <b>${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'ikke registrert'}</b>.</div>
+        ${rapportTabellHtml(header, historikk.map(k => ({vehicleId: v.id, cells: [
+          fmt(k.dato), `<b>${Number(k.km||0).toLocaleString('nb-NO')} km</b>`, esc(k.sjafor || '–'), esc(k.tidspunkt || '–')
+        ]})))}
+      `;
+    }
+  }
   const rader = rapportKilometerstandRader();
   const header = ['Bilnummer', 'Reg.nr', 'Bilgruppe', 'Kilometerstand', 'Sist km-registrering', 'Sist kontrollert', 'Kontrollert av', 'Aktiv sjåfør', 'Operativ status', 'Datakvalitet'];
   return `
     ${rapportHeaderHtml()}
-    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy. Kilometerstand hentes utelukkende fra kjøretøyets registrerte km (v.km) — ikke fra service- eller verkstedhistorikk.</div>
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy. Kilometerstand hentes utelukkende fra kjøretøyets registrerte km (v.km) — ikke fra service- eller verkstedhistorikk. Filtrer på ett kjøretøy for å se full kilometerhistorikk.</div>
     ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
       esc(r.bilnummer), esc(r.regnr), (GRUPPE_IKON[r.kategori]||'') + ' ' + (KATEGORI_GROUP_LABEL[r.kategori]||r.kategori),
       `<b>${r.km ? Number(r.km).toLocaleString('nb-NO') + ' km' : '–'}</b>`,
@@ -11476,6 +11586,16 @@ function renderRapportKilometerstand(){
   `;
 }
 function eksporterRapportKilometerstand(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = rapportKilometerstandHistorikkRader(v.id);
+      const header = ['Dato', 'Kilometerstand', 'Sjåfør', 'Klokkeslett'];
+      const rows = historikk.map(k => [fmt(k.dato), Number(k.km||0), k.sjafor || '', k.tidspunkt || '']);
+      rapportEksporterExcel(header, rows, 'Kilometerhistorikk', `Kilometerhistorikk_${(v.bilnummer||v.regnr||'bil').replace(/[^a-zA-Z0-9]/g,'_')}.xlsx`, [1]);
+      return;
+    }
+  }
   const rader = rapportKilometerstandRader();
   const header = ['Bilnummer', 'Registreringsnummer', 'Bilgruppe', 'Kilometerstand', 'Dato for siste kilometerregistrering', 'Sist kontrollert', 'Kontrollert av', 'Aktiv sjåfør', 'Operativ status', 'Datakvalitetsstatus'];
   const rows = rader.map(r => [
@@ -11504,12 +11624,28 @@ function rapportServiceRader(){
     })
     .filter(r => !rapportStatusFilter || r.status.status === rapportStatusFilter);
 }
+// Prioritet 46: samme prinsipp som Kilometerstandsrapport — filtrert til ETT kjøretøy skal
+// hele servicehistorikken (vehicleServiceHistorikk()) vises, ikke bare siste service.
 function renderRapportService(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = vehicleServiceHistorikk(v.id);
+      const header = ['Dato', 'Kilometerstand', 'Type', 'Verksted', 'Kommentar'];
+      return `
+        ${rapportHeaderHtml()}
+        <div class="required-hint" style="margin-bottom:16px;">Full servicehistorikk for ${esc(vehicleLabel(v))} — ${historikk.length} registrering${historikk.length===1?'':'er'}.</div>
+        ${rapportTabellHtml(header, historikk.map(s => ({vehicleId: v.id, cells: [
+          fmt(s.dato), `<b>${Number(s.km||0).toLocaleString('nb-NO')} km</b>`, esc(s.type || '–'), esc(s.verksted || '–'), esc(s.kommentar || '–')
+        ]})))}
+      `;
+    }
+  }
   const rader = rapportServiceRader();
   const header = ['Bilnummer', 'Reg.nr', 'Siste service', 'Serviceintervall', 'Neste service', 'Km igjen', 'Serviceindikator', 'Verksted', 'Kommentar'];
   return `
     ${rapportHeaderHtml()}
-    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy.</div>
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy. Filtrer på ett kjøretøy for å se full servicehistorikk.</div>
     ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
       esc(r.bilnummer), esc(r.regnr),
       r.sisteServiceDato ? fmt(r.sisteServiceDato) + ' — ' + Number(r.sisteServiceKm).toLocaleString('nb-NO') + ' km' : 'Ingen registrert',
@@ -11521,6 +11657,16 @@ function renderRapportService(){
   `;
 }
 function eksporterRapportService(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = vehicleServiceHistorikk(v.id);
+      const header = ['Dato', 'Kilometerstand', 'Type', 'Verksted', 'Kommentar'];
+      const rows = historikk.map(s => [fmt(s.dato), Number(s.km||0), s.type || '', s.verksted || '', s.kommentar || '']);
+      rapportEksporterExcel(header, rows, 'Servicehistorikk', `Servicehistorikk_${(v.bilnummer||v.regnr||'bil').replace(/[^a-zA-Z0-9]/g,'_')}.xlsx`, [1]);
+      return;
+    }
+  }
   const rader = rapportServiceRader();
   const header = ['Bilnummer', 'Registreringsnummer', 'Siste service dato', 'Siste service km', 'Serviceintervall', 'Neste service', 'Km igjen', 'Serviceindikator', 'Verksted', 'Kommentar'];
   const rows = rader.map(r => [
@@ -11552,12 +11698,28 @@ function rapportDekkRader(){
     })
     .filter(r => !rapportStatusFilter || (r.status ? r.status.status === rapportStatusFilter : rapportStatusFilter === 'ukjent'));
 }
+// Prioritet 46: samme prinsipp — filtrert til ETT kjøretøy vises full dekkhistorikk
+// (dekkhistorikk-arrayet, alle registrerte dekkskifter), ikke bare siste skifte.
 function renderRapportDekk(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
+      const header = ['Dato', 'Retning', 'Kommentar'];
+      return `
+        ${rapportHeaderHtml()}
+        <div class="required-hint" style="margin-bottom:16px;">Full dekkhistorikk for ${esc(vehicleLabel(v))} — ${historikk.length} dekkskifte${historikk.length===1?'':'r'}.</div>
+        ${rapportTabellHtml(header, historikk.map(d => ({vehicleId: v.id, cells: [
+          fmt(d.dato), d.retning === 'sommer-vinter' ? 'Sommer → Vinter' : 'Vinter → Sommer', esc(d.kommentar || '–')
+        ]})))}
+      `;
+    }
+  }
   const rader = rapportDekkRader();
   const header = ['Bilnummer', 'Reg.nr', 'Dekktype', 'Siste dekkskifte', 'Dekkstatus', 'Alder', 'Datakvalitet'];
   return `
     ${rapportHeaderHtml()}
-    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy.</div>
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} kjøretøy. Filtrer på ett kjøretøy for å se full dekkhistorikk.</div>
     ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v.id, cells: [
       esc(r.bilnummer), esc(r.regnr), esc(r.dekktype), r.sisteSkifteDato ? fmt(r.sisteSkifteDato) : 'Ingen registrert',
       r.status ? r.status.ikon + ' ' + r.status.tekst : '⚪ Ukjent', r.status ? r.status.tekst : '–',
@@ -11566,6 +11728,16 @@ function renderRapportDekk(){
   `;
 }
 function eksporterRapportDekk(){
+  if(rapportFilterBil){
+    const v = vehicles.find(x => x.id === rapportFilterBil);
+    if(v){
+      const historikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
+      const header = ['Dato', 'Retning', 'Kommentar'];
+      const rows = historikk.map(d => [fmt(d.dato), d.retning === 'sommer-vinter' ? 'Sommer → Vinter' : 'Vinter → Sommer', d.kommentar || '']);
+      rapportEksporterExcel(header, rows, 'Dekkhistorikk', `Dekkhistorikk_${(v.bilnummer||v.regnr||'bil').replace(/[^a-zA-Z0-9]/g,'_')}.xlsx`, []);
+      return;
+    }
+  }
   const rader = rapportDekkRader();
   const header = ['Bilnummer', 'Registreringsnummer', 'Dekktype', 'Siste dekkskifte', 'Dekkstatus', 'Alder', 'Datakvalitet'];
   const rows = rader.map(r => [
@@ -11647,6 +11819,48 @@ function eksporterRapportSkade(){
   rapportEksporterExcel(header, rows, 'Skaderapport', 'Skaderapport_Eksport.xlsx', [6]);
 }
 
+// ---- Ruteglass-rapport (Prioritet 46) ----
+// Datakilde: verkstedtimer med type inneholder 'ruteskift' (satt via 💥 Ruteskift-avkrysningen
+// i Ny verkstedtime, se submitAddVT()/vtHarType()) — INGEN ny tabell, ingen parallell
+// historikkmotor. Samme mal som Skaderapport (per-hendelse, ikke per-bil), men med Periode- OG
+// Verksted-filter faktisk anvendt (ticket-krav: "Filtrering: Bil, Dato, Verksted"), i
+// motsetning til de fem statusrapportene over der Periode kun er kosmetisk.
+function rapportRuteglassRader(){
+  const range = rapportPeriodeRange(rapportFilterPeriode);
+  const today = todayISO();
+  let liste = verkstedtimer.filter(t => vtHarType(t, 'ruteskift') && rapportVehicleMatch(t.vehicleId) && datoInnenfor(t.dato, range));
+  if(rapportFilterVerksted) liste = liste.filter(t => t.verksted === rapportFilterVerksted);
+  if(rapportStatusFilter) liste = liste.filter(t => (t.dato < today ? 'utfort' : 'planlagt') === rapportStatusFilter);
+  return liste.slice().sort((a,b) => (b.dato||'').localeCompare(a.dato||'')).map(t => {
+    const v = vehicles.find(x => x.id === t.vehicleId);
+    const status = t.dato < today ? {status:'utfort', ikon:'✅', tekst:'Utført'} : {status:'planlagt', ikon:'📅', tekst:'Planlagt'};
+    return {
+      t, v, bilnummer: v ? v.bilnummer : '', regnr: v ? v.regnr : '',
+      dato: t.dato, verksted: t.verksted || '', kommentar: t.notater || t.beskrivelse || '',
+      kostnad: t.pris, status
+    };
+  });
+}
+function renderRapportRuteglass(){
+  const rader = rapportRuteglassRader();
+  const header = ['Bilnummer', 'Reg.nr', 'Dato', 'Verksted', 'Kommentar', 'Kostnad', 'Status'];
+  return `
+    ${rapportHeaderHtml()}
+    <div class="required-hint" style="margin-bottom:16px;">${rader.length} ruteskift${rader.length===1?'':'er'}.</div>
+    ${rapportTabellHtml(header, rader.map(r => ({vehicleId: r.v ? r.v.id : null, cells: [
+      esc(r.bilnummer), esc(r.regnr), r.dato ? fmt(r.dato) : '–', esc(r.verksted || '–'), esc(r.kommentar || '–'),
+      r.kostnad !== null && r.kostnad !== undefined ? fmtKr(r.kostnad) : '–', r.status.ikon + ' ' + r.status.tekst
+    ]}))) }
+  `;
+}
+function eksporterRapportRuteglass(){
+  const rader = rapportRuteglassRader();
+  const header = ['Bilnummer', 'Registreringsnummer', 'Dato', 'Verksted', 'Kommentar', 'Kostnad', 'Status'];
+  const rows = rader.map(r => [
+    r.bilnummer, r.regnr, fmtExcelDato(r.dato), r.verksted || '', r.kommentar || '', r.kostnad || 0, r.status.ikon + ' ' + r.status.tekst
+  ]);
+  rapportEksporterExcel(header, rows, 'Ruteglassrapport', 'Ruteglassrapport_Eksport.xlsx', [5]);
+}
 
 function rapportKontrollData(){
   const range = rapportPeriodeRange(rapportFilterPeriode);
@@ -11757,6 +11971,7 @@ function exportRapportExcel(){
   if(rapportType === 'service'){ eksporterRapportService(); return; }
   if(rapportType === 'dekk'){ eksporterRapportDekk(); return; }
   if(rapportType === 'eukontroll'){ eksporterRapportEuKontroll(); return; }
+  if(rapportType === 'ruteglass'){ eksporterRapportRuteglass(); return; }
   if(rapportType === 'skade'){ eksporterRapportSkade(); return; }
   if(rapportType === 'kontroll'){
     const d = rapportKontrollData();
@@ -11844,19 +12059,27 @@ function rapportFilterPanelHtml(){
           </select>
         </div>
       </div>
-      ${statusAlternativer ? `
+      ${(statusAlternativer || RAPPORT_HAR_VERKSTED_FILTER[rapportType]) ? `
       <div class="row3" style="margin-top:12px;">
+        ${statusAlternativer ? `
         <div class="field"><label>Status</label>
           <select id="rapport-f-status">
             ${Object.keys(statusAlternativer).map(k => `<option value="${k}" ${rapportStatusFilter===k?'selected':''}>${statusAlternativer[k]}</option>`).join('')}
           </select>
-        </div>
+        </div>` : ''}
+        ${RAPPORT_HAR_VERKSTED_FILTER[rapportType] ? `
+        <div class="field"><label>🏭 Verksted</label>
+          <select id="rapport-f-verksted">
+            <option value="">Alle verksteder</option>
+            ${verkstedSelectOptions(rapportFilterVerksted)}
+          </select>
+        </div>` : ''}
       </div>` : ''}
     </div>
   `;
 }
 function rapportHeaderHtml(){
-  const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (RAPPORT_STATUS_FILTER_OPTIONS[rapportType] && rapportStatusFilter ? 1 : 0);
+  const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (RAPPORT_STATUS_FILTER_OPTIONS[rapportType] && rapportStatusFilter ? 1 : 0) + (RAPPORT_HAR_VERKSTED_FILTER[rapportType] && rapportFilterVerksted ? 1 : 0);
   return `
     <div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
@@ -12222,6 +12445,7 @@ function renderRapporter(){
   if(rapportType === 'service') return renderRapportService();
   if(rapportType === 'dekk') return renderRapportDekk();
   if(rapportType === 'eukontroll') return renderRapportEuKontroll();
+  if(rapportType === 'ruteglass') return renderRapportRuteglass();
   if(rapportType === 'skade') return renderRapportSkade();
   if(rapportType === 'kontroll') return renderRapportKontroll();
   if(rapportType === 'bilpark') return renderRapportBilpark();
@@ -12251,6 +12475,8 @@ function attachRapporterListeners(){
   if(fGruppe) fGruppe.addEventListener('change', e => { rapportFilterGruppe = e.target.value; render(); });
   const fStatus = document.getElementById('rapport-f-status');
   if(fStatus) fStatus.addEventListener('change', e => { rapportStatusFilter = e.target.value; render(); });
+  const fVerksted = document.getElementById('rapport-f-verksted');
+  if(fVerksted) fVerksted.addEventListener('change', e => { rapportFilterVerksted = e.target.value; render(); });
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
 }
 

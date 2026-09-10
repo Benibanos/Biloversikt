@@ -1,15 +1,16 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 45 —
-Omstrukturering av Innstillinger: fire grupperte hovedseksjoner, «⚙️
-Innstillinger» flyttet nederst i sidemenyen, ny 👤 Sjåførside med 📞
-Ringeliste, ny 📘 Informasjonsveileder).
-Forrige: Prioritet 44 — 🎨 Layout Editor under Innstillinger. Før det:
-Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll (race
-condition i `storage.airtable.js` sin lesing funnet og rettet). Før det
-igjen: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
-mot GitHub Pages. **Ved avvik mellom denne filen og koden er koden alltid
-sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 46 —
+Rapporter (full historikk ved bilfiltrering), Carglass Ruteskift-hurtigknapp,
+ny 💥 Ruteglassrapport, Verkstedtime 2.0 (EU-kontroll/Ruteskift som egne,
+samtidig-avkryssbare felt), telefonnummer i Kjøretøyprofil).
+Forrige: Prioritet 45 — Omstrukturering av Innstillinger (fire grupperte
+hovedseksjoner, «⚙️ Innstillinger» nederst i sidemenyen, ny 👤 Sjåførside med
+📞 Ringeliste, ny 📘 Informasjonsveileder). Før det: Prioritet 44 — 🎨 Layout
+Editor under Innstillinger. Før det igjen: Prioritet 43 — Kilometerstand
+følger nå alltid siste sjåførkontroll (race condition i `storage.airtable.js`
+sin lesing funnet og rettet). **Ved avvik mellom denne filen og koden er
+koden alltid sannheten.**
 
 ---
 
@@ -24,7 +25,7 @@ sjåfører registrerer kontroll/avvik/skader via en egen, innloggingsfri URL.
 
 Arkitektur: **GitHub Pages (frontend) + Airtable (backend)**, PWA-støtte,
 ett samlet `index.html`-dokument, autoritativ storage-fil
-`storage.airtable.js` (v2.8.1). Mobil = handlingsdrevet. Desktop =
+`storage.airtable.js` (v2.11.0). Mobil = handlingsdrevet. Desktop =
 kontrollsenter. Ingen Android/APK/TWA/Netlify/Vercel-distribusjon — se
 "Arkitektur" under for full måldefinisjon.
 
@@ -953,6 +954,130 @@ nye `Vehicles.Telefon`-feltet.
 Se PRIORITET_45_ANALYSE.md for full kartlegging (gammel struktur → ny
 struktur, alle flyttede felt, alle flyttede hjelpetekster), simuleringslogg
 og testresultater.
+
+---
+
+## Prioritet 46 (2026-09-10) — Rapporter, Carglass Ruteskift og Verkstedtime 2.0
+
+Bestilling: fem delmål — bedre rapporter (full historikk ved bilfiltrering),
+bedre håndtering av ruteskift (Carglass), enklere verkstedbestilling
+(strukturerte EU-kontroll/Ruteskift-felt istedenfor fritekst), bedre
+synlighet av telefonnummer i Kjøretøyprofil. IKKE ENDRE: Aktiv sjåfør,
+Kontrollflyt, Kilometerlogikk, Layout Editor, Bilkategorier — alle bekreftet
+urørt.
+
+**Kartlegging (før implementering, se PRIORITET_46_ANALYSE.md) — funnet, IKKE
+antatt:** en grundig gjennomgang av samtlige historikk-/rapportvisninger
+(Kontrollhistorikk, Servicehistorikk, Verkstedhistorikk, Skadehistorikk,
+Kostnadshistorikk) viste at disse ALLEREDE bruker `.filter()` og viser full,
+ukappet historikk — INGEN `.find()`-basert «kun siste»-bug ble funnet der.
+De faktiske, bekreftede avvikene fra ticket-kravet «Filter på bil skal aldri
+redusere visningen til kun siste hendelse» var kun to: (1) Dekkoversikt sin
+«dekkskifter»-underliste var hardkodet kappet til 5 (`.slice(0, 5)` på
+`dekkhistorikk`); (2) Rapporthub sine tre statusrapporter (Kilometerstand-,
+Service- og Dekkrapport) er ETT-rad-per-kjøretøy-flåteoversikter av design
+(nødvendig for <10 sek-forståelse av hele flåten) — men da uten unntak selv
+når filtrert til ETT spesifikt kjøretøy, noe som i praksis ga nøyaktig den
+opplevelsen ticket-eksempelet beskriver («Bil 7 kontroller 01.09→184890» —
+kun siste kontroll vist, ikke alle fire). Dette er dokumentert ærlig i
+PRIORITET_46_ANALYSE.md istedenfor å bli stille omtolket.
+
+**Løsning — Del 1 (Rapporter, full historikk ved bilfiltrering):**
+- Dekkoversikt: `.slice(0, 5)`-kappingen på dekkskiftelisten er fjernet —
+  viser nå ALLE registrerte dekkskifter for kjøretøyet (overskrift endret
+  fra «Siste dekkskifter» til «Dekkskifter (N)»).
+- Kilometerstandsrapport, Servicerapport og Dekkrapport (under 📈 Rapporter):
+  når `rapportFilterBil` er satt til ETT spesifikt kjøretøy, erstattes den
+  vanlige ett-rad-per-bil-oversikten med FULL historikk for akkurat det
+  kjøretøyet — kilometerhistorikk fra `vehicleKontroller()` (samme datakilde
+  som Kontrollhistorikk, ingen ny sannhet), servicehistorikk fra
+  `vehicleServiceHistorikk()`, dekkhistorikk fra `dekkhistorikk`-arrayet.
+  Uten bilfilter (eller ved gruppefilter på flere biler) er flåteoversikten
+  uendret — nødvendig for at rapportene fortsatt er lesbare på flåtenivå.
+  Gjelder både skjermvisning og Excel-eksport.
+- Kontrollhistorikk (Bilkort → Historikk → Kontroller, `vKontroller`),
+  Kontrolloversikt (flåtebred), Servicehistorikk (`renderServiceSkjerm()`),
+  Verkstedhistorikk (`getFilteredVerkstedtimer()`), Skaderapport
+  (`rapportSkadeRader()`) og Kostnadsoversikt (`renderKostnadsoversikt()`) er
+  IKKE endret — bekreftet allerede uten cap, allerede full historikk.
+
+**Løsning — Del 2 (💥 Ruteskift-hurtigknapp):** ny 5. knapp lagt til i ALLE
+eksisterende «➕ Bestill tjenester»-forekomster (Mobil Dashboard- og Desktop
+Dashboard-komponentet under Layout Editor, Bilkort sin per-bil-variant, og
+den dedikerte 🛠️ Bestill tjenester-skjermen) — samme mønster som 🚦
+EU-kontroll: `data-bestill="ruteskift"` → `bestillRuteskift(vehicleId)` →
+`vtRuteskiftForhandskrysset = true` → `goToRegisterVT()` → forhåndskrysser
+den nye Ruteskift-boksen i Ny verkstedtime-skjemaet. Ingen ny sakstype, ingen
+ny tabell, ingen ny navigasjonsflate.
+
+**Løsning — Del 3 (💥 Ruteglassrapport, ny):** lagt til i Rapporthub
+(`RAPPORT_ORDER`/`RAPPORT_LABEL`/`RAPPORT_IKON`), bygget etter nøyaktig samme
+mal som Skaderapport (`rapportRuteglassRader()`/`renderRapportRuteglass()`/
+`eksporterRapportRuteglass()`, delt `rapportTabellHtml()`/
+`rapportEksporterExcel()` — ingen parallell rapportmotor). Datakilde:
+`verkstedtimer` der `type` inneholder `'ruteskift'` — INGEN ny tabell. Viser
+Dato/Bil/Verksted/Kommentar/Kostnad/Status. Filtrering: Bil og Periode
+(gjenbruker de delte filtrene alle rapporter har) PLUS et nytt Verksted-filter
+(`rapportFilterVerksted`, kun vist for Ruteglassrapport via
+`RAPPORT_HAR_VERKSTED_FILTER`) — i motsetning til de fem eldre
+statusrapportene er Periode- og det nye Verksted-filteret her faktisk
+anvendt på dataene (ticket-krav), ikke bare vist i UI.
+
+**Løsning — Del 4 (Verkstedtime 2.0 — strukturerte felt):** to uavhengige
+avkrysningsbokser («🚦 EU-kontroll» og «💥 Ruteskift») flyttet til ØVERST i
+Ny verkstedtime-skjemaet (over Bil/Verksted-valget), og kan begge krysses av
+samtidig. `WorkshopAppointments.Type` (allerede registrert felt, ingen ny
+Airtable-kolonne) lagres nå som en kommaseparert streng
+(`'eu-kontroll'`/`'ruteskift'`/`'eu-kontroll,ruteskift'`/`''`) — ALDRI
+gjettet fra beskrivelsesfeltet. Beskrivelsesfeltets placeholder-tekst er
+endret fra å foreslå «F.eks. EU-kontroll» til nøytral tekst, siden feltet
+ikke lenger skal brukes til å identifisere disse typene. Ny, delt
+lesefunksjon `vtHarType(t, kode)` (+ `vtTypeIkon()`/`vtTypeTittel()` for
+kombinert 🚦💥-visning) erstatter fire tidligere spredte, separate
+`t.type === 'eu-kontroll'`-sjekker (Bestill tjenester sin «kommende
+avtaler»-liste, Kalender, Planlegging, en indre kalenderfunksjon) — SAMME
+lesemåte overalt, ikke fire ulike. `vehicleHarRegistrertRuteskiftTime()`
+speiler den eksisterende `vehicleHarRegistrertEuTime()` og vises på Bilkort.
+
+**Løsning — Del 5 (telefonnummer i Kjøretøyprofil):** `v.telefon` (registrert
+i Prioritet 45 sin 📞 Ringeliste) vises nå også i 🚐 Kjøretøyprofil under
+Kjøretøyinformasjon, ved siden av Reg.nr/Bilgruppe/Aktiv sjåfør/
+Mobilitetsgaranti — som en klikkbar `tel:`-lenke («📞 Ring …») når registrert,
+ellers «–». Samme saniteringsmønster (`replace(/[^+0-9]/g,'')`) som den
+eksisterende Ringeliste-visningen — ingen ny logikk.
+
+**Simulering (se PRIORITET_46_ANALYSE.md):** 27 automatiserte
+assert-sjekker i en isolert Node.js-simulering av nøkkellogikken (siden
+appen for øvrig krever nettleser-DOM/Airtable/XLSX) — alle bestått: (1)
+Kilometerrapport filtrert på ett kjøretøy viser alle historiske registreringer
+(ticket sitt Bil 7-eksempel: 4 av 4 kontroller, ikke bare siste); (2)
+Servicehistorikk uendret full; (3) Verkstedhistorikk viser alle timer for
+filtrert bil; (4) Ruteglassrapport viser korrekt kun ruteskift-typer, med
+virkende Bil- og Verksted-filter og riktig utledet Planlagt/Utført-status;
+(5) Ruteskift-bestilling forhåndskrysser korrekt boks og setter riktig type
+alene; (6) EU-bestilling uendret; (7) begge avkrysset samtidig registrerer
+BEGGE typene på samme verkstedtime med korrekt kombinert ikon/tittel; (8)
+Kjøretøyprofil viser korrekt `tel:`-lenke når nummer finnes, «–» når det
+mangler; (9) Dekkoversikt viser alle 8 (ikke kun 5) i en regresjonstest av
+den fjernede kappingen. I tillegg: `node --check` på begge script-blokkene —
+ingen syntaksfeil; `diff index.html kontroll.html` — bekreftet identiske.
+
+`CACHE_VERSION` i `sw.js` økt til `bilpark-v42` (app-shell-innhold endret
+betydelig). `storage.airtable.js` er IKKE endret (ingen nye Airtable-felt —
+`Type` og `Telefon` var allerede registrert fra tidligere prioriteter), så
+`versjon`/`?v=` er uendret på `v2.11.0`.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`renderKontroll()`/
+`submitKontroll()`), `v.km`-skriveregler, Layout Editor (mekanikken —
+knappene i Bestill tjenester-komponentet er innholdsendringer INNI et
+eksisterende, administrerbart komponent, ikke en endring av selve
+reorganiserings-/synlighetsmekanismen), Bilkategorier, redigeringsskjemaet
+for eksisterende verkstedtimer (`saveVTEdit()` — type settes kun ved
+opprettelse, som før Prioritet 46).
+
+Se PRIORITET_46_ANALYSE.md for full kartlegging, rotårsaksfunn på
+«kun siste hendelse»-avviket, designbegrunnelse for det kommaseparerte
+type-feltet, simuleringslogg og testresultater.
 
 ---
 

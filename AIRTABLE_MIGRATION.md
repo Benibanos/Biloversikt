@@ -1,7 +1,9 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist konsolidert: 2026-09-10 (Prioritet 45 — nytt felt `Telefon` på `Vehicles`
-for 📞 Ringeliste). Kilde: faktisk `LIST_TABLES`-konfigurasjon i
+Sist konsolidert: 2026-09-10 (Prioritet 46 — ingen nye felt; gjenbruker
+`WorkshopAppointments.Type` og `Vehicles.Telefon`, se seksjon 16). Forrige
+feltendring: Prioritet 45 — nytt felt `Telefon` på `Vehicles` for 📞
+Ringeliste. Kilde: faktisk `LIST_TABLES`-konfigurasjon i
 `storage.airtable.js` (v2.11.0), kryssjekket mot faktiske feltreferanser i
 `index.html`. Den tidligere, separate oppsettsguiden for
 Firebase→Airtable-migreringen er ikke lenger bevart som egen fil i
@@ -487,3 +489,25 @@ Se seksjon 3, `dashboard-layout`. Ingen `LIST_TABLES`-endring — Settings-
 nøkler krever ingen kodeendring i `storage.airtable.js` utover det
 allerede-generiske get()/set()-sporet som `theme-preference`/`bilkategorier`
 allerede bruker.
+
+## 16. Prioritet 46 (Rapporter, Carglass Ruteskift, Verkstedtime 2.0) — ingen databaseendring
+
+Ingen nye Airtable-tabeller eller -felt. To allerede-registrerte felt
+gjenbrukes med UTVIDET betydning på applikasjonsnivå, uten noen endring i
+`LIST_TABLES` eller Airtable-skjemaet:
+
+- **`WorkshopAppointments.Type`** (app-felt `type`, registrert siden en
+  tidligere EU-kontroll-prioritet): lagret verdi kan nå være en
+  kommaseparert liste (`'eu-kontroll'`, `'ruteskift'`, eller
+  `'eu-kontroll,ruteskift'`) istedenfor kun `'eu-kontroll'`/`''`. Feltet er
+  fortsatt `singleLineText` i Airtable — ingen skjemaendring, kun en ny måte
+  å tolke tekstinnholdet på i `index.html` (`vtHarType()`). Eksisterende
+  rader med `'eu-kontroll'` eller tom streng leses uendret riktig
+  (`'eu-kontroll'.split(',')` gir `['eu-kontroll']`, som fortsatt inneholder
+  `'eu-kontroll'` — ingen migrering av eksisterende data nødvendig).
+- **`Vehicles.Telefon`** (app-felt `telefon`, registrert i Prioritet 45):
+  ingen endring i selve feltet — kun en ny visningsplass (Kjøretøyprofil →
+  Kjøretøyinformasjon, i tillegg til den eksisterende Ringeliste-visningen).
+
+`storage.airtable.js` `versjon` forblir `v2.11.0`; `?v=` i
+`index.html`/`kontroll.html` forblir `2.11.0`.
