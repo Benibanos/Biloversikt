@@ -1,13 +1,15 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 44 —
-🎨 Layout Editor under Innstillinger: administrer rekkefølge/synlighet for
-Desktop Dashboard, Mobil Dashboard og Min Bil, uten kodeendring).
-Forrige: Prioritet 43 — Kilometerstand følger nå alltid siste
-sjåførkontroll (race condition i `storage.airtable.js` sin lesing funnet og
-rettet). Før det: Prioritet 42 — PWA-installasjon: rotårsak funnet og
-bekreftet live mot GitHub Pages. **Ved avvik mellom denne filen og koden er
-koden alltid sannheten.**
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 45 —
+Omstrukturering av Innstillinger: fire grupperte hovedseksjoner, «⚙️
+Innstillinger» flyttet nederst i sidemenyen, ny 👤 Sjåførside med 📞
+Ringeliste, ny 📘 Informasjonsveileder).
+Forrige: Prioritet 44 — 🎨 Layout Editor under Innstillinger. Før det:
+Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll (race
+condition i `storage.airtable.js` sin lesing funnet og rettet). Før det
+igjen: Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
+mot GitHub Pages. **Ved avvik mellom denne filen og koden er koden alltid
+sannheten.**
 
 ---
 
@@ -845,6 +847,115 @@ punkt for punkt), lagringsdesign og simuleringsresultat.
 
 ---
 
+## Prioritet 45 (2026-09-10) — Omstrukturering av Innstillinger
+
+Bestilling: redusere visuell støy i Innstillinger (som hadde vokst til en
+lang, flat liste med seks topplinje-seksjoner) og samle relaterte funksjoner
+i logiske grupper — «mindre scrolling, mindre støy, lettere å finne
+funksjoner, bedre struktur». Eksplisitt avgrenset til struktur/navigasjon/
+Innstillinger/opprydding av informasjonsfelt — Dashboard, Mobil Dashboard,
+Sjåførkontroll, Aktiv sjåfør-logikk, kilometerlogikk, Service, Dekk og EU
+skulle IKKE endres.
+
+**Kartlegging (før implementering, se PRIORITET_45_ANALYSE.md):** seks
+tidligere topplinje-seksjoner i Innstillinger (Administratorbrukere,
+Verkstedregister, ⚙️ Administrer bilkategorier, 🎨 Layout Editor,
+Systeminnstillinger, Database status), der Systeminnstillinger alene
+inneholdt fem urelaterte ting (Tema, Lenke for sjåfører, Om appen, Installer
+app, Oppdater app, Nullstill bilparkdata).
+
+**Løsning — sidemeny:** «⚙️ Innstillinger» flyttet fra desktop-sidebarens
+primærliste (`DESKTOP_NAV_PRIMARY`) til sekundærseksjonen, som siste punkt
+etter Historikk/Analyse; i mobilens ☰ Meny flyttet fra hovedlisten til
+`drawer-footer`, som siste navigasjonspunkt rett over «🚪 Logg ut» (logg ut
+beholdt som aller siste handling — universell konvensjon, se «Kjente
+begrensninger»). «📱 Bytt til Mobil-visning»/«🖥️ Bytt til Desktop-visning» —
+tidligere to separate menypunkter, ett i hver visning — er slått sammen til
+ÉN bryter inne i Innstillinger → ⚙️ Systeminnstillinger
+(`attachDeviceOverrideToggleListener()`), som leser/setter samme
+`deviceOverride`-variabel som før.
+
+**Løsning — Innstillinger, fire grupperte hovedseksjoner** (samme
+`settingsAccordionRow()`-funksjon gjenbrukt REKURSIVT for nesting — ingen ny
+akkordion-mekanisme, ingen ny lytterkode, siden den eksisterende delegerte
+`[data-toggle-settings]`-lytteren allerede fanger opp nestede rader):
+
+1. **📦 Register** — ⚙️ Administrer bilkategorier (med ny «Alle kjøretøy»-
+   overskrift over kategorilisten) + Verkstedregister, nestet under én
+   dropdown.
+2. **🎨 Layout Editor** — Tema (flyttet hit fra Systeminnstillinger) +
+   Desktop Dashboard, Mobil Dashboard, Min Bil Dashboard (Prioritet 44,
+   uendret funksjon). Nytt: en lett, SKJEMATISK forhåndsvisning under hver
+   flates liste (`layoutForhandsvisningHtml()`) — kort med komponentnavn i
+   riktig rekkefølge/gruppering, bevisst IKKE en pikselnøyaktig kopi av det
+   ekte Dashboardet (det ville krevd å duplisere rendringslogikken inne i
+   Innstillinger, i strid med «ikke dupliser eksisterende funksjoner»).
+3. **👤 Sjåførside** (ny) — 🚐 Min bil (åpner sjåførsidens faktiske
+   inngangslenke i ny fane, samme `driverLink()` som under), ✅
+   Sjåførkontroll (lenke + «Kopier lenke», flyttet uendret fra
+   Systeminnstillinger), 📞 Ringeliste (ny, se under).
+4. **⚙️ Systeminnstillinger** — nå selv en nestet dropdown-gruppe: 🔄
+   Oppdater app (inkl. 📲 Installer app), 📡 Database status, 👤
+   Administratorbrukere, 📘 Informasjonsveileder (ny, se under), 📱🖥️
+   Enhetsvisning, 🗑️ Nullstill bilparkdata.
+
+**Ny funksjon — 📞 Ringeliste:** telefonnummer registreres PER KJØRETØY
+(nytt felt `v.telefon` → `Vehicles.Telefon`, registrert i `LIST_TABLES` i
+`storage.airtable.js`, `versjon` økt til `v2.11.0`, `?v=` i
+`index.html`/`kontroll.html` til `2.11.0`) fra Innstillinger → 👤
+Sjåførside → 📞 Ringeliste (legg til/rediger/fjern, samme inline
+rediger-mønster som Verkstedregisteret, lagres via `saveVehicles()` — samme
+vei som eksisterende `flyttBilTilKategori()`). Vises hos sjåførene som en
+ny, håndterbar Min Bil-komponent («📞 Ringeliste», automatisk lagt til i
+`DASHBOARD_LAYOUT_FLATER.minbil` og dermed automatisk med i EKSISTERENDE
+lagrede Layout Editor-oppsett via samme fremtidssikring som Prioritet 44
+allerede har — verifisert med en kjørt simulering, se PRIORITET_45_ANALYSE.md):
+lister andre kjøretøy med registrert nummer (egen bil ekskludert), hver rad
+en ekte `tel:`-lenke for direkte oppringing. Rører IKKE Sjåførkontroll eller
+Aktiv sjåfør-logikk — kun Min Bil, som ikke er på den forbudte listen.
+
+**Ny seksjon — 📘 Informasjonsveileder:** samler forklarende hjelpetekst som
+tidligere lå spredt i appen. 🛟 Mobilitetsgaranti sin forklaring (tidligere
+vist i Kjøretøyprofilen når feltet var tomt: «Ikke registrert — legg den inn
+under Rediger informasjon») er kortet ned i Kjøretøyprofilen til «Ikke
+registrert — se Informasjonsveilederen i Innstillinger», med full forklaring
+flyttet hit. 🛠️ Bestill tjenester sin forklaringssetning («Velg tjeneste, så
+velger du bil i neste steg…») er fjernet fra selve Bestill tjenester-skjermen
+(kun den dynamiske telleren «X kommende avtaler» står igjen der) og flyttet
+hit i sin helhet. «Om appen» flyttet hit fra Systeminnstillinger. Ingen av
+de underliggende datafeltene (`v.mobilitetsgaranti` osv.) eller noen
+funksjonalitet er endret — kun forklaringsteksten er samlet.
+
+**Simulering (se PRIORITET_45_ANALYSE.md):** (1) hver av de tolv tidligere
+selvstendige innholdsblokkene (adminBody/verkstedBody/kategoriBody/
+databaseBody/layoutBody/sjaforsideBody/registerBody/systemBody m.fl.) er
+bekreftet brukt NØYAKTIG ÉN GANG i den nye returnerte HTML-en — ingen
+innstilling forsvant eller ble duplisert; (2) kjørt Node.js-simulering av
+`getLayoutFlate()`-sammenslåingen bekrefter at «ringeliste» automatisk
+dukker opp (aldri silent-hidden) i en Min Bil-layout lagret FØR Prioritet
+45, med brukerens øvrige rekkefølge/skjulte komponenter urørt; (3)
+`node --check` på begge script-blokkene og `storage.airtable.js`: ingen
+syntaksfeil; (4) `diff index.html kontroll.html`: bekreftet identiske; (5)
+manuell gjennomgang bekrefter «⚙️ Innstillinger» forekommer nøyaktig én
+gang i både desktop-sidebar og mobil-drawer, plassert sist i begge.
+
+`CACHE_VERSION` i `sw.js` økt til `bilpark-v41` (app-shell-innhold i
+`index.html`/`kontroll.html` endret betydelig — meny/Innstillinger-
+restrukturering).
+
+**Ikke rørt:** Dashboard, Mobil Dashboard (kun Bestill tjenester-skjermens
+forklaringssetning er kortet ned, selve `renderDashboard()`/
+`renderMobilHjem()` er urørt), Sjåførkontroll (`renderKontroll()`/
+`submitKontroll()`), Aktiv sjåfør-logikk, `v.km`-skriveregler, Service-/
+Dekk-/EU-arbeidsflatene, `LIST_TABLES` for alle andre tabeller enn det ene
+nye `Vehicles.Telefon`-feltet.
+
+Se PRIORITET_45_ANALYSE.md for full kartlegging (gammel struktur → ny
+struktur, alle flyttede felt, alle flyttede hjelpetekster), simuleringslogg
+og testresultater.
+
+---
+
 ## Produktvisjon
 
 - Operativt styringssystem for bilparken til Bring Larvik (ca. 16 kjøretøy,
@@ -886,7 +997,7 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   nettleseren.
 - **Hosting:** GitHub Pages — den eneste plattformen prosjektet publiseres på.
 - **PWA/service worker:** `sw.js`, nettverk-først-strategi med cache som
-  offline-fallback (`CACHE_VERSION = 'bilpark-v40'`, Prioritet 44). To
+  offline-fallback (`CACHE_VERSION = 'bilpark-v41'`, Prioritet 45). To
   separate manifester: `manifest.json` (hovedapp) og `manifest-sjafor.json`
   (sjåfør-snarvei via `kontroll.html`, `start_url` med `?sjafor=1`), begge nå
   med et eksplisitt `id`-felt (Prioritet 42). Ikoner skal ligge i `icons/`

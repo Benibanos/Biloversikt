@@ -1,12 +1,13 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist konsolidert: 2026-09-04 (Prioritet 28 — Total Less Is More). Kilde:
-faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js` (v2.8.1),
-kryssjekket mot faktiske feltreferanser i `index.html`. Den tidligere,
-separate oppsettsguiden for Firebase→Airtable-migreringen er ikke lenger
-bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
-`cae279d`. Denne filen beskriver DAGENS FAKTISKE skjema, og seksjon 8 under
-gjengir den fortsatt gyldige oppsettsprosedyren direkte.
+Sist konsolidert: 2026-09-10 (Prioritet 45 — nytt felt `Telefon` på `Vehicles`
+for 📞 Ringeliste). Kilde: faktisk `LIST_TABLES`-konfigurasjon i
+`storage.airtable.js` (v2.11.0), kryssjekket mot faktiske feltreferanser i
+`index.html`. Den tidligere, separate oppsettsguiden for
+Firebase→Airtable-migreringen er ikke lenger bevart som egen fil i
+produksjonsprosjektet — den ligger i git-commit `cae279d`. Denne filen
+beskriver DAGENS FAKTISKE skjema, og seksjon 10 under gjengir den fortsatt
+gyldige oppsettsprosedyren direkte.
 
 **Prinsipp fulgt i denne filen:** kun felt som faktisk finnes i
 `LIST_TABLES` (og dermed faktisk sendes til/leses fra Airtable) er
@@ -19,18 +20,17 @@ kategorier — ingen av dem er Airtable-kolonner.
 ## 1. Autoritativ storage-fil og versjon
 
 - **Fil:** `storage.airtable.js` (eneste Airtable-storage-fil i prosjektet)
-- **Versjon:** `v2.9.0` (`window.storageAirtableInfo.versjon`) — økt i
-  Prioritet 37 fordi `LIST_TABLES.vehicles` fikk to nye felt (`Drivstoff`,
-  `Mobilitetsgaranti`)
-- **Cache-busting:** `<script src="storage.airtable.js?v=2.9.0">` i BÅDE
+- **Versjon:** `v2.11.0` (`window.storageAirtableInfo.versjon`) — økt i
+  Prioritet 45 fordi `LIST_TABLES.vehicles` fikk ett nytt felt (`Telefon`)
+- **Cache-busting:** `<script src="storage.airtable.js?v=2.11.0">` i BÅDE
   `index.html` og `kontroll.html`
 - **Regel (permanent versjonsløsning, Prioritet 36):** øk BÅDE `?v=`-tallet
   på script-taggen i `index.html`/`kontroll.html` OG `versjon`-verdien i
   `storage.airtable.js` samtidig ved enhver fremtidig endring i filen.
-  Database status (Innstillinger) leser "forventet versjon" AUTOMATISK fra
-  `?v=`-parameteren — det finnes ingen egen, tredje `FORVENTET_VERSJON`-
-  konstant å huske å oppdatere. Se CLAUDE.md, "Versjonskontroll (permanent
-  løsning)", for full detalj.
+  Database status (Innstillinger → ⚙️ Systeminnstillinger, Prioritet 45)
+  leser "forventet versjon" AUTOMATISK fra `?v=`-parameteren — det finnes
+  ingen egen, tredje `FORVENTET_VERSJON`-konstant å huske å oppdatere. Se
+  CLAUDE.md, "Versjonskontroll (permanent løsning)", for full detalj.
 
 ## 2. Faktiske Airtable-tabeller og felt
 
@@ -63,9 +63,10 @@ kategorier — ingen av dem er Airtable-kolonner.
 | uteAvDriftDato | UteAvDriftDato | tekst |
 | uteAvDriftKommentar | UteAvDriftKommentar | tekst |
 | statusHistorikk | StatusHistorikk | JSON (tekst) |
-| **driftslag** | **Driftslag** | tekst |
-| **drivstoff** | **Drivstoff** | tekst (Prioritet 37) |
-| **mobilitetsgaranti** | **Mobilitetsgaranti** | tekst (Prioritet 37) |
+| driftslag | Driftslag | tekst |
+| drivstoff | Drivstoff | tekst (Prioritet 37) |
+| mobilitetsgaranti | Mobilitetsgaranti | tekst (Prioritet 37) |
+| **telefon** | **Telefon** | **tekst (Prioritet 45 — 📞 Ringeliste)** |
 
 ### Damages (app-nøkkel: `damages`)
 
@@ -98,7 +99,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 | sakId | SakId | tekst |
 | caseId | CaseId | tekst |
 | kontaktperson | Kontaktperson | tekst |
-| telefon | Telefon | tekst |
+| telefon | Telefon | tekst — **merk:** dette er verkstedtimens EGEN kontakttelefon, en helt annen kolonne (annen tabell) enn det nye `Vehicles.Telefon` fra Prioritet 45 |
 | type | Type | tekst — skiller planlagt service (`'service'`) fra ordinære verkstedtimer |
 
 ### DriverChecks (app-nøkkel: `kontroller`)
@@ -209,7 +210,9 @@ separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
 
 - **Kolonner:** `Key` (tekst), `Value` (tekst/JSON)
 - **Brukes til enkeltverdier**, ikke lister: `theme-preference`,
-  `verksteder` (hele verkstedlisten lagret som én JSON-streng i én rad).
+  `verksteder` (hele verkstedlisten lagret som én JSON-streng i én rad),
+  `bilkategorier` (Prioritet 41), `dashboard-layout` (Prioritet 44 — se
+  seksjon 3 under).
 
 ### Photos (Key/Value-mønster, egen tabell)
 
@@ -223,6 +226,14 @@ separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
 
 - `theme-preference` — brukerens tema-valg
 - `verksteder` — liste over verksteder (JSON i én Settings-rad)
+- `bilkategorier` — liste over kjøretøykategorier (JSON i én Settings-rad,
+  Prioritet 41)
+- `dashboard-layout` — 🎨 Layout Editor (Prioritet 44): ÉN JSON-blob,
+  `{ desktop: {order, hidden}, mobil: {order, hidden}, minbil: {order,
+  hidden} }`, delt/global for hele bilparken. Samme generiske Settings-
+  get()/set()-spor som `theme-preference` — INGEN egen tabell, INGEN
+  `LIST_TABLES`-registrering (gjelder kun `LIST_TABLES`-ressurser, ikke
+  generiske Settings-nøkler).
 - `planlagteservicer` — planlagte servicer (lagres via `window.storage.set`,
   samme Settings-mønster)
 - `servicehistorikk` — **dokumentasjonsrettelse (Prioritet 28):** all
@@ -264,20 +275,25 @@ Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
 ## 6. Nye felt siden forrige dokumenterte migrering
 
+**Prioritet 45 (2026-09-10) — ett nytt felt på `Vehicles`:**
+
+| App-felt | Airtable-felt | Type | Brukes til |
+|---|---|---|---|
+| `telefon` | `Telefon` | singleLineText | 📞 Ringeliste — registreres i Innstillinger → 👤 Sjåførside → 📞 Ringeliste, vises i Min Bil hos sjåførene som en tappbar `tel:`-lenke til andre kjøretøy med registrert nummer. |
+
+Registrert i `LIST_TABLES.vehicles` i `storage.airtable.js` SAMTIDIG som
+feltet tas i bruk i `index.html` (feltregelen). Opprettes automatisk i
+Airtable av «🔄 Synkroniser Airtable» i Innstillinger → ⚙️ Systeminnstillinger
+→ 📡 Database status (krever `schema.bases:write`). Eksisterende kjøretøy
+får tom verdi inntil den fylles ut — ingen migrering nødvendig, ingen
+eksisterende felt endret eller fjernet.
+
 **Prioritet 37 (2026-09-08) — to nye felt på `Vehicles`:**
 
 | App-felt | Airtable-felt | Type | Verdier | Brukes til |
 |---|---|---|---|---|
 | `drivstoff` | `Drivstoff` | singleLineText | `diesel`, `bensin`, `elektrisk`, `hybrid`, `hvo`, `annet` (lagres som nøkkelen, vises via `DRIVSTOFF_LABEL` i `index.html`) | Vises i Kjøretøyprofil (identitetslinje + Kjøretøyinformasjon) og i Biloversikt (bilkort + Dashboardets biltabell) |
-| `mobilitetsgaranti` | `Mobilitetsgaranti` | singleLineText | Fritekst, f.eks. «Mercedes Service24h – gyldig til 14/08/2027» | Operativt felt ved havari/veihjelp. Vises som eget, fremhevet felt øverst i Kjøretøyprofilen |
-
-Begge er registrert i `LIST_TABLES.vehicles` i `storage.airtable.js` SAMTIDIG
-som de tas i bruk i `index.html` (feltregelen). Feltene opprettes automatisk i
-Airtable av «🔄 Synkroniser Airtable» i Innstillinger → Database status (krever
-`schema.bases:write`), siden EXPECTED_SCHEMA utledes direkte fra `LIST_TABLES`.
-Eksisterende kjøretøy får tom verdi inntil den fylles ut — ingen migrering av
-eksisterende data er nødvendig, og ingen eksisterende felt er endret eller
-fjernet.
+| `mobilitetsgaranti` | `Mobilitetsgaranti` | singleLineText | Fritekst, f.eks. «Mercedes Service24h – gyldig til 14/08/2027» | Operativt felt ved havari/veihjelp. Vises som eget, fremhevet felt øverst i Kjøretøyprofilen. Forklarende hjelpetekst for et TOMT felt flyttet til Informasjonsveilederen i Prioritet 45 — selve feltet/visningen er uendret. |
 
 `Driftslag` (Vehicles) var det forrige nye feltet, lagt til i Prioritet 27.1 og
 korrekt registrert i `LIST_TABLES` — sendes og leses korrekt. Ingen
@@ -327,8 +343,9 @@ målet") og er derfor ikke gjort her. Ingen kodeendring er utført for Del 11
 ## 8. Database status — automatisk skjemasjekk (Innstillinger)
 
 `EXPECTED_SCHEMA` bygges automatisk fra `LIST_TABLES` (pluss egne,
-hardkodede oppføringer for `Settings` og `Photos`). Database status i
-Innstillinger viser:
+hardkodede oppføringer for `Settings` og `Photos`). Database status —
+Innstillinger → ⚙️ Systeminnstillinger → 📡 Database status (nestet dropdown
+siden Prioritet 45; funksjonaliteten selv er UENDRET) — viser:
 
 1. Versjonsmerke (`storageAirtableInfo.versjon` vs. forventet versjon i
    `index.html`)
@@ -362,8 +379,9 @@ Settings-blob-tilnærmingen gjort vesentlig tryggere i denne stabiliserings-
 runden (se CLAUDE.md, "Dataintegritet" og "Service"):
 
 - Serialisert skriving per Settings-nøkkel (Del 2 — per-ressurs kø i
-  `storage.airtable.js`) hindrer at to samtidige lagringer av samme
-  JSON-blob kan overskrive hverandre.
+  `storage.airtable.js`, utvidet til også å dekke lesing i Prioritet 43)
+  hindrer at to samtidige lagringer av samme JSON-blob kan overskrive
+  hverandre, og at en lesing kan starte midt i en ikke-fullført skriving.
 - Trygg JSON-parsing med eksplisitt `{ok, value}`/`{ok, error}`-status
   (Del 4, `parseJsonTrygt()`) hindrer at korrupt JSON stille blir til et
   tomt array — datasettet flagges i stedet som korrupt, lagring blokkeres,
@@ -427,22 +445,20 @@ prosjektet gikk over fra Firebase til Airtable:
 3. Fyll inn din egen `baseId` og token i `airtable-config.js` — bruk ALDRI
    ekte verdier i en delt/offentlig kopi av prosjektet (se "Sikkerhet" i
    CLAUDE.md).
-4. Åpne appen og bekreft i Innstillinger → Database status at
-   versjonsmerket og skjemasjekken er grønne.
+4. Åpne appen og bekreft i Innstillinger → ⚙️ Systeminnstillinger → 📡
+   Database status at versjonsmerket og skjemasjekken er grønne.
 
 ## 11. Prioritet 39 (Mobil Design 4.1) — ingen databaseendring
 
 Mobil Design 4.1 er en ren layout-/CSS-/komponent-/navigasjonsendring. Runden
-har **ikke** lagt til, endret eller fjernet noen Airtable-tabell eller noe felt,
-og `storage.airtable.js` er uendret (`versjon` og `?v=`-parameteren står begge
-på `2.9.0`). `LIST_TABLES` er derfor uendret, og ingen migrering kreves.
+har **ikke** lagt til, endret eller fjernet noen Airtable-tabell eller noe felt.
+`LIST_TABLES` er derfor uendret for denne runden, og ingen migrering kreves.
 
 ## 12. Prioritet 40 (Aktiv sjåfør) — ingen databaseendring
 
 Prioritet 40 bruker de EKSISTERENDE feltene `Vehicles.aktivSjafor` og
 `Vehicles.aktivSjaforSiden` (begge allerede registrert i `LIST_TABLES.vehicles`).
-Ingen nye tabeller, ingen nye felt, ingen migrering. `storage.airtable.js` er
-uendret (`versjon` og `?v=` står begge på `2.9.0`).
+Ingen nye tabeller, ingen nye felt, ingen migrering for denne runden.
 
 ## 13. Prioritet 41 (Redigerbare bilkategorier) — ingen strukturendring
 
@@ -450,10 +466,24 @@ Kategoriregisteret lagres som **én rad i den eksisterende `Settings`-tabellen**
 med `Key = 'bilkategorier'` og `Value` = JSON-array `[{id, navn, ikon}]` — nøyaktig
 samme mønster som `verksteder`, `servicehistorikk` og `planlagteservicer`. Dette
 er bevisst valgt fremfor en ny tabell: ingen `LIST_TABLES`-endring, ingen nye felt,
-ingen migrering, og `storage.airtable.js` er uendret (`versjon` og `?v=` står
-begge på `2.9.0`).
+ingen migrering for denne runden.
 
 `Vehicles.Kategori` er UENDRET og inneholder fortsatt kategori-**id-en**
 (`bil`/`lastebil`/`montering`/`reserve`, eller en generert id for nye kategorier).
 Feltet skrives ALDRI om når en bil settes ute av drift — `🚫 Ute av drift` er en
 ren visningsgruppe beregnet fra `Vehicles.UteAvDrift`.
+
+## 14. Prioritet 43 (Kilometerstand-race) — ingen databaseendring
+
+`get()` i `storage.airtable.js` sendes nå gjennom samme skrivekø som
+`set()`/`delete()` (se CLAUDE.md, "Prioritet 43"). Dette er en ren
+synkroniseringsfiks internt i `storage.airtable.js` — ingen tabell eller
+felt er lagt til, endret eller fjernet. `versjon`/`?v=` økt til `2.10.0` for
+selve kodefiksen (senere økt videre til `2.11.0` i Prioritet 45, se seksjon 1).
+
+## 15. Prioritet 44 (🎨 Layout Editor) — ny Settings-nøkkel, ingen ny tabell
+
+Se seksjon 3, `dashboard-layout`. Ingen `LIST_TABLES`-endring — Settings-
+nøkler krever ingen kodeendring i `storage.airtable.js` utover det
+allerede-generiske get()/set()-sporet som `theme-preference`/`bilkategorier`
+allerede bruker.

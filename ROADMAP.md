@@ -1,12 +1,13 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-10 (Prioritet 44 — 🎨 Layout Editor under
-Innstillinger: rekkefølge/synlighet for Desktop Dashboard, Mobil Dashboard
-og Min Bil, uten kodeendring).
-Forrige: Prioritet 43 — Kilometerstand følger nå alltid siste
-sjåførkontroll: race condition i lesing funnet og rettet. Før det:
-Prioritet 42 — PWA-installasjon: rotårsak funnet og bekreftet live
-mot GitHub Pages. Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
+Sist oppdatert: 2026-09-10 (Prioritet 45 — Omstrukturering av Innstillinger:
+fire grupperte hovedseksjoner, «⚙️ Innstillinger» flyttet nederst i
+sidemenyen, ny 👤 Sjåførside med 📞 Ringeliste, ny 📘 Informasjonsveileder).
+Forrige: Prioritet 44 — 🎨 Layout Editor under Innstillinger. Før det:
+Prioritet 43 — Kilometerstand følger nå alltid siste sjåførkontroll: race
+condition i lesing funnet og rettet. Før det igjen: Prioritet 42 —
+PWA-installasjon: rotårsak funnet og bekreftet live mot GitHub Pages.
+Forrige konsolidering: Prioritet 36, basert på faktisk kjørende kode i
 `Benibanos/Biloversikt` (klonet direkte fra GitHub for denne
 konsolideringen).
 Status er verifisert mot koden i `index.html`/`storage.airtable.js`, ikke
@@ -21,6 +22,60 @@ Statuser: ✅ Implementert og verifisert · 🟡 Delvis implementert ·
 **Prosjektet er rendyrket til GitHub Pages + Airtable.** Ingen
 Android/APK/TWA/Bubblewrap/Play Store og ingen Netlify/Vercel-rester finnes
 i prosjektet.
+
+**Prioritet 45 — Omstrukturering av Innstillinger (2026-09-10):** ✅
+Implementert og verifisert (se PRIORITET_45_ANALYSE.md) — strukturell/
+navigasjonsendring, kun ett nytt datafelt (`Vehicles.Telefon`), ingen
+endring i Dashboard, Mobil Dashboard, Sjåførkontroll, Aktiv sjåfør-logikk,
+kilometerlogikk, Service, Dekk eller EU.
+
+Bestilling: redusere visuell støy i Innstillinger og samle relaterte
+funksjoner i logiske grupper for mindre scrolling og bedre struktur.
+
+Kartlegging (uttømmende gjennomgang av `renderInnstillinger()` FØR noen
+endring, se PRIORITET_45_ANALYSE.md): seks flate topplinje-seksjoner ble
+til fire grupperte hovedseksjoner — 📦 Register (bilkategorier +
+verksted), 🎨 Layout Editor (+ Tema flyttet hit, + skjematisk
+forhåndsvisning), 👤 Sjåførside (ny — Min bil-forhåndsvisning, flyttet
+Sjåførkontroll-lenke, ny 📞 Ringeliste), ⚙️ Systeminnstillinger (nå selv
+nestet: Oppdater app/Installer app, Database status, Administratorbrukere,
+ny 📘 Informasjonsveileder, Enhetsvisning, Nullstill bilparkdata). Samme
+`settingsAccordionRow()`-funksjon brukt rekursivt for nesting — ingen ny
+akkordion-mekanisme.
+
+Sidemeny: «⚙️ Innstillinger» flyttet til siste punkt i både desktop-
+sidebaren og mobilens ☰ Meny. «📱 Bytt til Mobil-visning»/«🖥️ Bytt til
+Desktop-visning» — tidligere to separate menypunkter — slått sammen til én
+bryter inne i Innstillinger → ⚙️ Systeminnstillinger.
+
+Nytt felt: `Vehicles.Telefon` (app-nøkkel `telefon`) for 📞 Ringeliste —
+registrert i `LIST_TABLES`, `storage.airtable.js` `versjon` → `v2.11.0`,
+`?v=2.11.0` i `index.html`/`kontroll.html`. Vises hos sjåførene som en ny
+Min Bil-komponent (`tel:`-lenke til andre kjøretøy med registrert nummer),
+automatisk lagt til i alle eksisterende lagrede Layout Editor-oppsett via
+samme fremtidssikring som Prioritet 44 innførte — bekreftet med en kjørt
+simulering.
+
+Informasjonsveileder: 🛟 Mobilitetsgaranti sin forklaringstekst (tidligere i
+Kjøretøyprofilen) og 🛠️ Bestill tjenester sin forklaringssetning (tidligere
+på Bestill tjenester-skjermen) er flyttet dit i sin helhet — begge steder
+sto tidligere med full instruksjonstekst, nå kun kortfattet
+status/telling. Ingen datafelt eller funksjonalitet endret.
+
+`sw.js`: `CACHE_VERSION` → `bilpark-v41` (app-shell-innhold endret
+betydelig). `kontroll.html` resynkronisert.
+
+Simulert (se PRIORITET_45_ANALYSE.md): alle tolv tidligere innholdsblokker
+bekreftet brukt nøyaktig én gang i ny struktur (ingen tapt/duplisert
+innstilling); kjørt Node.js-simulering av `getLayoutFlate()`-sammenslåingen
+for "ringeliste" mot en layout lagret FØR Prioritet 45; `node --check` på
+begge script-blokker og `storage.airtable.js`; `diff index.html
+kontroll.html` bekreftet identiske; manuell verifisering av at
+«⚙️ Innstillinger» forekommer nøyaktig én gang i både sidebar og drawer.
+
+Se PRIORITET_45_ANALYSE.md for full kartlegging (gammel struktur → ny
+struktur, alle flyttede felt/hjelpetekster), simuleringslogg og
+testresultater.
 
 **Prioritet 44 — 🎨 Layout Editor under Innstillinger (2026-09-10):** ✅
 Implementert og verifisert med en kjørt simulering av selve

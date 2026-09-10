@@ -144,7 +144,13 @@
       //                      singleLineText (opprettes automatisk av Database status).
       //   mobilitetsgaranti — fritekst, brukes operativt ved havari/veihjelp.
       drivstoff: ['Drivstoff'],
-      mobilitetsgaranti: ['Mobilitetsgaranti']
+      mobilitetsgaranti: ['Mobilitetsgaranti'],
+      // PRIORITET 45 (📞 Ringeliste, Innstillinger → 👤 Sjåførside) — fritekst telefonnummer
+      // registrert på kjøretøyet, brukt av Min Bil sin «📞 Ringeliste» hos sjåførene
+      // (tel:-lenke). Registrert her SAMTIDIG som feltet tas i bruk i index.html
+      // (FELTREGELEN i CLAUDE.md) — uten dette ville det forsvunnet stille ved neste
+      // Airtable-henting, nøyaktig samme feilmønster som rammet feltene over historisk.
+      telefon: ['Telefon']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -450,8 +456,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.10.0',
-    bygget: '09.09.2026 11:00',
+    versjon: 'v2.11.0',
+    bygget: '10.09.2026 06:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 

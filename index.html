@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.10.0"></script>
+<script src="storage.airtable.js?v=2.11.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -640,6 +640,8 @@
   .settings-row{background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
   .settings-add{display:flex;gap:8px;}
   .settings-add input{flex:1;}
+  /* PRIORITET 45 — 🎨 Layout Editor: skjematisk forhåndsvisnings-kort, se layoutForhandsvisningHtml() */
+  .p45-preview-kort{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--ink-2);}
   .theme-options{display:flex;flex-direction:column;gap:8px;}
   .theme-option{
     display:flex;align-items:center;gap:10px;padding:14px;min-height:44px;
@@ -1433,6 +1435,7 @@ function formInProgress(){
   if(showAddSkade || editingDamageId) return true;
   if(showAddVT || editingVTId) return true;
   if(editingVerkstedId) return true;
+  if(editingTelefonVehicleId) return true;
   if(bilkortOpenSections && bilkortOpenSections.has('info')) return true;
   const active = document.activeElement;
   if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return true;
@@ -1441,7 +1444,17 @@ function formInProgress(){
 
 // Innstillinger: sammenleggbare seksjoner (alle lukket som standard, jf. "unngå lange
 // lister som alltid er åpne") — og tilstand for legg-til-administrator-skjemaet.
-let settingsOpenSections = new Set(); // delmengde av: 'admin' | 'verksted' | 'kategorier' | 'layout' | 'system' | 'database'
+// PRIORITET 45: settingsAccordionRow() gjenbrukes NESTET (samme Set, samme funksjon) for
+// den nye grupperte strukturen — se renderInnstillinger(). Nøklene er nå:
+// 'register' (👆 gruppe) > 'kategorier' | 'verksted'
+// 'layout' (👆 gruppe, uendret siden Prioritet 44)
+// 'sjaforside' (👆 gruppe, ny)
+// 'system' (👆 gruppe) > 'admin' | 'database' | 'veileder'
+let settingsOpenSections = new Set();
+// PRIORITET 45 — 📞 Ringeliste: inline rediger-tilstand for ett kjøretøys telefonnummer
+// om gangen, samme mønster som editingVerkstedId.
+let editingTelefonVehicleId = null;
+let ringelisteAdminMsg = '';
 
 // Bilkort: tre hovedseksjoner (Bilinformasjon/Kontrollhistorikk/Skadehistorikk), alle
 // lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
@@ -2589,14 +2602,15 @@ const DASHBOARD_LAYOUT_FLATER = {
     ]
   },
   minbil: {
-    label: 'Min Bil',
+    label: 'Min Bil Dashboard',
     komponenter: [
-      {key:'bilkort',   label:'Kjøretøystatus (skilt/nøkkeltall)'},
-      {key:'skade',     label:'➕ Registrer skade'},
-      {key:'varsel',    label:'➕ Registrer varsellampe'},
-      {key:'avvik',     label:'➕ Registrer avvik'},
-      {key:'kontakt',   label:'📞 Kontakt driftskoordinator'},
-      {key:'nysjafor',  label:'👤 Ny sjåfør'}
+      {key:'bilkort',     label:'Kjøretøystatus (skilt/nøkkeltall)'},
+      {key:'skade',       label:'➕ Registrer skade'},
+      {key:'varsel',      label:'➕ Registrer varsellampe'},
+      {key:'avvik',       label:'➕ Registrer avvik'},
+      {key:'kontakt',     label:'📞 Kontakt driftskoordinator'},
+      {key:'ringeliste',  label:'📞 Ringeliste'},
+      {key:'nysjafor',    label:'👤 Ny sjåfør'}
     ]
   }
 };
@@ -2708,6 +2722,42 @@ function layoutEditorFlateHtml(flateKey){
           </div>`;
         }).join('')}
       </div>
+    </div>
+    ${layoutForhandsvisningHtml(flateKey)}
+  `;
+}
+// PRIORITET 45 — «Hvis mulig: legg til forhåndsvisning.» En LETT, SKJEMATISK forhåndsvisning
+// (kort med komponentnavn i riktig rekkefølge/gruppering), IKKE en pikselnøyaktig kopi av det
+// virkelige Dashboardet — det ville krevd å duplisere hele rendringslogikken (ekte data,
+// betingede paneler, kolonnebredder) inne i Innstillinger, noe «Ikke dupliser eksisterende
+// funksjoner» eksplisitt advarer mot. Denne bruker KUN informasjon Layout Editoren allerede
+// har (rekkefølge, synlighet, og for Desktop: DESKTOP_LAYOUT_KOLONNER) — ingen ny datakilde.
+function layoutForhandsvisningHtml(flateKey){
+  const flate = DASHBOARD_LAYOUT_FLATER[flateKey];
+  const layout = getLayoutFlate(flateKey);
+  const labelForKey = {}; flate.komponenter.forEach(k => labelForKey[k.key] = k.label);
+  const kortHtml = (key) => `<div class="p45-preview-kort">${esc(labelForKey[key] || key)}</div>`;
+  let indreHtml;
+  if(flateKey === 'desktop'){
+    const synlige = layout.order.filter(k => !layout.hidden.includes(k));
+    const full = synlige.filter(k => DESKTOP_LAYOUT_KOLONNER.full.includes(k));
+    const venstre = synlige.filter(k => DESKTOP_LAYOUT_KOLONNER.venstre.includes(k));
+    const hoyre = synlige.filter(k => DESKTOP_LAYOUT_KOLONNER.hoyre.includes(k));
+    indreHtml = `
+      ${full.map(kortHtml).join('')}
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">${venstre.map(kortHtml).join('') || '<div class="required-hint">Tom</div>'}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">${hoyre.map(kortHtml).join('') || '<div class="required-hint">Tom</div>'}</div>
+      </div>
+    `;
+  } else {
+    const synlige = layout.order.filter(k => !layout.hidden.includes(k));
+    indreHtml = synlige.map(kortHtml).join('') || '<div class="required-hint">Alle komponenter er skjult.</div>';
+  }
+  return `
+    <div class="p45-preview" style="margin:-8px 0 22px;padding:12px;border:1.5px dashed var(--line);border-radius:10px;background:var(--surface-2);">
+      <div class="required-hint" style="margin-bottom:8px;font-weight:600;">👁️ Forhåndsvisning (skjematisk — viser kun rekkefølge/synlighet, ikke ekte innhold)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">${indreHtml}</div>
     </div>
   `;
 }
@@ -5812,6 +5862,37 @@ async function flyttBilTilKategori(vehicleId, katId){
   render();
 }
 
+// ================= PRIORITET 45 — 📞 Ringeliste (Innstillinger → 👤 Sjåførside) =================
+// Telefonnummeret lagres PÅ KJØRETØYET (v.telefon), samme lagringsvei som all annen
+// kjøretøyredigering (saveVehicles() → hele vehicles-arrayet, samme mønster som
+// flyttBilTilKategori() over). Ingen ny lagringsmekanisme, ingen ny tabell.
+function toggleEditTelefon(vehicleId){
+  editingTelefonVehicleId = editingTelefonVehicleId === vehicleId ? null : vehicleId;
+  ringelisteAdminMsg = '';
+  render();
+}
+async function saveVehicleTelefon(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v) return;
+  const input = document.getElementById('ringeliste-telefon-' + vehicleId);
+  const telefon = ((input ? input.value : '') || '').trim();
+  v.telefon = telefon;
+  await saveVehicles();
+  editingTelefonVehicleId = null;
+  ringelisteAdminMsg = telefon ? '✅ Telefonnummer lagret for ' + vehicleLabel(v) + '.' : '✅ Telefonnummer fjernet for ' + vehicleLabel(v) + '.';
+  render();
+}
+async function fjernVehicleTelefon(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v) return;
+  if(!confirm('Fjerne telefonnummeret registrert på ' + vehicleLabel(v) + '?')) return;
+  v.telefon = '';
+  await saveVehicles();
+  editingTelefonVehicleId = null;
+  ringelisteAdminMsg = '✅ Telefonnummer fjernet for ' + vehicleLabel(v) + '.';
+  render();
+}
+
 // ================= Verkstedregister (Innstillinger) =================
 async function addVerksted(){
   const input = document.getElementById('new-verksted-navn');
@@ -5903,6 +5984,10 @@ async function deleteAdminUser(id){
 //   Innstillinger     → renderInnstillinger()
 // Historikk og Analyse er flyttet NED i sekundærseksjonen (fortsatt fullt nåbare),
 // etter bestilling: Historikk nås primært fra Kjøretøyprofil, Aktive saker og Rapporter.
+// PRIORITET 45 — «⚙️ Innstillinger» er FLYTTET UT av denne primærlisten og inn i
+// desktop-sidebarens sekundærseksjon (`.desktop-sidebar-secondary`, se
+// renderDesktopSidebarHtml() under), som siste punkt etter Historikk/Analyse — «helt
+// nederst i sidemenyen», etter bestilling. Ingen av de andre punktene er rørt.
 const DESKTOP_NAV_PRIMARY = [
   {scr:'dashboard', ikon:'🏠', label:'Hjem'},
   {scr:'register', ikon:'🚚', label:'Biler'},
@@ -5911,8 +5996,7 @@ const DESKTOP_NAV_PRIMARY = [
   {scr:'aktivesaker', ikon:'🚨', label:'Aktive saker'},
   {scr:'varsler', ikon:'🔔', label:'Påminnelser'},
   {scr:'kostnadsoversikt', ikon:'📊', label:'Kostnader'},
-  {scr:'rapporter', ikon:'📈', label:'Rapporter'},
-  {scr:'innstillinger', ikon:'⚙️', label:'Innstillinger'}
+  {scr:'rapporter', ikon:'📈', label:'Rapporter'}
 ];
 function renderDesktopSidebarHtml(){
   return `
@@ -5937,8 +6021,8 @@ function renderDesktopSidebarHtml(){
         <button type="button" class="desktop-sidebar-item small ${screen==='analyse'?'active':''}" data-desktop-nav="analyse">
           <span class="desktop-sidebar-ikon">🔍</span><span>Analyse</span>
         </button>
-        <button type="button" class="desktop-sidebar-item small" id="device-override-btn">
-          <span class="desktop-sidebar-ikon">📱</span><span>Bytt til Mobil-visning</span>
+        <button type="button" class="desktop-sidebar-item small ${screen==='innstillinger'?'active':''}" data-desktop-nav="innstillinger">
+          <span class="desktop-sidebar-ikon">⚙️</span><span>Innstillinger</span>
         </button>
       </div>
     </nav>
@@ -5946,15 +6030,18 @@ function renderDesktopSidebarHtml(){
 }
 function attachDesktopSidebarListeners(){
   document.querySelectorAll('[data-desktop-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.desktopNav)));
-  const overrideBtn = document.getElementById('device-override-btn');
-  if(overrideBtn) overrideBtn.addEventListener('click', () => { deviceOverride = 'mobil'; render(); });
 }
-// Prioritet 27 — manuell overstyring TILBAKE til desktop (vist i mobilens ☰ Meny, se
-// renderDrawer/attachDrawerListeners). Egen liten knapp der siden allerede finnes en
-// naturlig plass for sekundære/administrative valg på mobil.
-function attachMobilOverrideListener(){
-  const btn = document.getElementById('mobil-override-btn');
-  if(btn) btn.addEventListener('click', () => { deviceOverride = 'desktop'; render(); });
+// PRIORITET 45 — «📱 Bytt til Mobil-visning»/«🖥️ Bytt til Desktop-visning» er FLYTTET inn i
+// Innstillinger → ⚙️ Systeminnstillinger (ÉN felles knapp, se systemBody i
+// renderInnstillinger() og attachDeviceOverrideToggleListener() under) i stedet for å ligge
+// som to separate menypunkter (ett i desktop-sidebaren, ett i mobilens ☰ Meny). Selve
+// mekanismen (den delte `deviceOverride`-variabelen) er UENDRET.
+function attachDeviceOverrideToggleListener(){
+  const btn = document.getElementById('settings-device-override-btn');
+  if(btn) btn.addEventListener('click', () => {
+    deviceOverride = currentUiExperience() === 'desktop' ? 'mobil' : 'desktop';
+    render();
+  });
 }
 function brandBlockHtml(){
   return `
@@ -6124,7 +6211,6 @@ function renderDrawer(){
       ${drawerItemHtml('varsler', '🔔', 'Påminnelser')}
       ${drawerItemHtml('kostnadsoversikt', '📊', 'Kostnader')}
       ${drawerItemHtml('rapporter', '📈', 'Rapporter')}
-      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Registrer</div>
@@ -6138,8 +6224,12 @@ function renderDrawer(){
       ${drawerItemHtml('historikk', '🕐', 'Historikk')}
       ${drawerItemHtml('analyse', '🔍', 'Analyse')}
     </div>
+    <!-- PRIORITET 45: «⚙️ Innstillinger» flyttet helt nederst (siste navigasjonspunkt i
+         menyen, kun «🚪 Logg ut» under). «🖥️ Bytt til Desktop-visning» er ikke lenger et
+         eget menypunkt her — den bryteren ligger nå inne i Innstillinger → ⚙️ Systeminnstillinger
+         (samme delte deviceOverride-mekanisme, se attachDeviceOverrideToggleListener()). -->
     <div class="drawer-footer">
-      <button class="drawer-item" id="mobil-override-btn"><span class="drawer-icon">🖥️</span><span>Bytt til Desktop-visning</span></button>
+      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
       <button class="drawer-item" id="drawer-logout-btn"><span class="drawer-icon">🚪</span><span>Logg ut</span></button>
     </div>
   `;
@@ -6161,7 +6251,6 @@ function renderDrawer(){
   const drawerAvvikBtn = document.getElementById('drawer-avvik-btn');
   if(drawerAvvikBtn) drawerAvvikBtn.addEventListener('click', () => { closeDrawer(); goToRegisterSak(''); });
   document.getElementById('drawer-logout-btn').addEventListener('click', () => { closeDrawer(); logout(); });
-  attachMobilOverrideListener();
 }
 function openDrawer(){
   headerMenuOpen = true;
@@ -6511,6 +6600,30 @@ function renderDriverMinBil(){
           ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
         </ul>`}
       </div>` : ''}`,
+    // PRIORITET 45 — 📞 Ringeliste: telefonnummer registrert PÅ KJØRETØYET (v.telefon, satt
+    // under Innstillinger → 👤 Sjåførside → 📞 Ringeliste). Viser andre biler i parken som har
+    // et registrert nummer (egen bil ekskludert — å ringe sin egen bil er meningsløst), hver
+    // rad tappbar med en ekte tel:-lenke for direkte oppringing. Kun visning — ingen ny
+    // registrering/lagring skjer herfra.
+    ringeliste: `
+      <button type="button" class="btn secondary" id="mb-ringeliste-btn" style="width:100%;justify-content:flex-start;min-height:52px;">📞 Ringeliste</button>
+      ${minBilAksjon === 'ringeliste' ? `
+      <div class="panel">
+        ${(() => {
+          const andreMedTelefon = sortedVehicles(vehicles).filter(x => x.id !== v.id && x.telefon);
+          if(andreMedTelefon.length === 0) return `<div class="empty-note">Ingen andre kjøretøy har registrert telefonnummer ennå.</div>`;
+          return `
+          <ul class="dmg-simple-list">
+            ${andreMedTelefon.map(x => `
+              <li>
+                <a href="tel:${esc(x.telefon.replace(/[^+0-9]/g,''))}" class="dmg-simple-main" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;">
+                  <span>🚐 ${esc(vehicleLabel(x))}</span>
+                  <span class="btn secondary small" style="pointer-events:none;">📞 Ring</span>
+                </a>
+              </li>`).join('')}
+          </ul>`;
+        })()}
+      </div>` : ''}`,
     nysjafor: `
       <button type="button" class="btn secondary" id="mb-nysjafor-btn" style="width:100%;justify-content:flex-start;min-height:52px;">👤 Ny sjåfør</button>
       ${minBilAksjon === 'nysjafor' ? `
@@ -6544,6 +6657,9 @@ function attachDriverMinBilListeners(){
   if(avvikBtn) avvikBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'avvik' ? '' : 'avvik'; render(); });
   const kontaktBtn = document.getElementById('mb-kontakt-btn');
   if(kontaktBtn) kontaktBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'kontakt' ? '' : 'kontakt'; render(); });
+  // PRIORITET 45 — 📞 Ringeliste: samme toggle-mønster som de andre Min Bil-knappene.
+  const ringelisteBtn = document.getElementById('mb-ringeliste-btn');
+  if(ringelisteBtn) ringelisteBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'ringeliste' ? '' : 'ringeliste'; render(); });
   // PRIORITET 40 — «👤 Ny sjåfør»: REN overføring av aktiv sjåfør. Ingen kontroll,
   // ingen historikk, ingen ny biløkt (den lokale enhets-sesjonen røres ikke).
   const nySjaforBtn = document.getElementById('mb-nysjafor-btn');
@@ -7362,6 +7478,10 @@ function attachDashboardListeners(){
   }));
   const dbBanner = document.getElementById('db-warning-banner');
   if(dbBanner) dbBanner.addEventListener('click', () => {
+    // PRIORITET 45: «Database status» ligger nå NESTET inne i «⚙️ Systeminnstillinger»
+    // (se renderInnstillinger()) — begge nivåer må åpnes, ellers ligger riktig innhold
+    // skjult bak en lukket ytre gruppe selv om 'database' i seg selv står som åpen.
+    settingsOpenSections.add('system');
     settingsOpenSections.add('database');
     goTo('innstillinger');
   });
@@ -8774,7 +8894,7 @@ function renderBilkort(){
       <span class="flis" style="--tint:${v.mobilitetsgaranti ? 'var(--green-soft)' : 'var(--surface-2)'};">🛟</span>
       <span>
         <b>Mobilitetsgaranti</b>
-        <span>${v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : 'Ikke registrert — legg den inn under «Rediger informasjon».'}</span>
+        <span>${v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : 'Ikke registrert — se Informasjonsveilederen i Innstillinger.'}</span>
       </span>
     </div>
 
@@ -10246,7 +10366,11 @@ function renderBestillTjenester(){
   return `
     <div class="backrow"><button class="backbtn" id="bestill-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🛠️ Bestill tjenester</h2>
-    <div class="required-hint" style="margin-bottom:18px;">Velg tjeneste, så velger du bil i neste steg. Bestillingen havner i Kalender, og blir til historikk når arbeidet markeres utført. ${kommende} kommende avtale${kommende===1?'':'r'} de neste 7 dagene.</div>
+    <!-- PRIORITET 45: forklaringen («Velg tjeneste, så velger du bil...») er FLYTTET til
+         Informasjonsveileder i Innstillinger (se veilederBody i renderInnstillinger()) — kun
+         den dynamiske telleren står igjen her, jf. «informative forklaringer skal samles i
+         Informasjonsveilederen, ikke ligge spredt rundt i appen». -->
+    <div class="required-hint" style="margin-bottom:18px;">${kommende} kommende avtale${kommende===1?'':'r'} de neste 7 dagene.</div>
 
     <div class="dash40-grid4">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
@@ -12647,6 +12771,9 @@ function renderInnstillinger(){
       kategorien forsvinner den regelen.
     </div>
     ${kategoriAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(kategoriAdminMsg)}</div>` : ''}
+    <!-- PRIORITET 45: «Alle kjøretøy» som egen overskrift over kategoriene — ren visuell
+         merkelapp (samme h4-stil som resten av Innstillinger), ingen atferdsendring. -->
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Alle kjøretøy</h4>
     <div class="settings-list">
       ${bilkategorier.map((k, i) => {
         const antall = vehicles.filter(v => v.kategori === k.id).length;
@@ -12702,77 +12829,68 @@ function renderInnstillinger(){
     </div>
   `;
 
-  const systemBody = `
-    <div style="margin-bottom:18px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Tema</h4>
-      <div class="theme-options">
-        <label class="theme-option ${themePreference==='light'?'checked':''}">
-          <input type="radio" name="theme-pref" value="light" ${themePreference==='light'?'checked':''}>
-          ☀️ Lysmodus
-        </label>
-        <label class="theme-option ${themePreference==='dark'?'checked':''}">
-          <input type="radio" name="theme-pref" value="dark" ${themePreference==='dark'?'checked':''}>
-          🌙 Mørkemodus (standard)
-        </label>
-        <label class="theme-option ${themePreference==='system'?'checked':''}">
-          <input type="radio" name="theme-pref" value="system" ${themePreference==='system'?'checked':''}>
-          💻 Følg enhetens innstilling
-        </label>
-      </div>
+  // PRIORITET 45: Tema flyttet til 🎨 Layout Editor, «Lenke for sjåfører» flyttet (som
+  // «✅ Sjåførkontroll») til 👤 Sjåførside, og «Om appen» flyttet inn i 📘 Informasjonsveileder
+  // under — se sjaforsideBody/veilederBody. systemBody inneholder nå kun de reelle
+  // systemhandlingene, pluss enhetsvisning-bryteren som tidligere lå som to separate
+  // menypunkter (se attachDeviceOverrideToggleListener()).
+  const enhetsvisningBody = `
+    <div class="required-hint" style="margin-bottom:12px;">
+      Tving frem mobil- eller desktopvisningen uavhengig av skjermbredde — nyttig for å
+      forhåndsvise den andre visningen på denne enheten. Gjelder kun denne enheten/nettleseren.
     </div>
-    <div style="margin-bottom:18px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Lenke for sjåfører</h4>
-      <div class="required-hint" style="margin-bottom:10px;">
-        Del denne lenken med sjåførene. Den åpner et rent kontrollskjema uten meny, dashboard
-        eller annen informasjon i systemet — kun kontrollskjemaet. Sjåføren trenger ikke å logge inn.
-        <br><br>
-        <strong>Viktig:</strong> dette skjuler grensesnittet, men er ikke ekte tilgangskontroll —
-        appen har ingen server. Fjerner noen «?sjafor=1» fra adressen uten å ha en administrator-
-        konto, møter de i stedet innloggingssiden, så administrasjonsdelen er beskyttet selv om
-        lenken deles videre ved en feil.
-      </div>
-      <div class="field" style="margin-bottom:10px;">
-        <input id="driver-link-field" type="text" readonly value="${esc(driverLink())}">
-      </div>
-      <button class="btn secondary small" id="copy-driver-link-btn">Kopier lenke</button>
-      <span class="required-hint" id="copy-driver-link-msg" style="margin-left:8px;"></span>
+    <button class="btn secondary small" id="settings-device-override-btn">${currentUiExperience()==='desktop' ? '📱 Bytt til Mobil-visning' : '🖥️ Bytt til Desktop-visning'}</button>
+  `;
+  const oppdaterAppBody = `
+    <div class="required-hint" style="margin-bottom:12px;">
+      Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
+      app-lageret (Service Worker/PWA-cache) — tilsvarende Ctrl+F5 på PC. Nyttig på mobil,
+      der en slik hurtigtast ikke finnes. <strong>Rører ikke</strong> bilregister, skader,
+      verkstedtimer, sjåførkontroller eller varsellamper — de ligger uansett kun i Airtable,
+      ikke i denne cachen.
     </div>
-    <div>
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Om appen</h4>
-      <div class="required-hint">Bilpark v2.0 — data lagres delt mellom alle som bruker appen. Import fra Excel/CSV er ikke i bruk; alle biler, skader og verkstedtimer registreres direkte i appen.</div>
-    </div>
-    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
-      <!-- PRIORITET 42 — diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
-           lenger ned i denne filen. Leser samme delte deferredInstallPrompt-variabel som
-           toppbanneret (#pwa-install-bar) bruker, slik at det finnes ETT sted å trykke "Installer"
-           selv om banneret er lukket/aldri vist. -->
+    <button class="btn secondary small" id="hard-refresh-btn">🔄 Oppdater app</button>
+    <!-- PRIORITET 42 — diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
+         lenger ned i denne filen. Leser samme delte deferredInstallPrompt-variabel som
+         toppbanneret (#pwa-install-bar) bruker, slik at det finnes ETT sted å trykke "Installer"
+         selv om banneret er lukket/aldri vist. -->
+    <div style="border-top:1.5px solid var(--line);padding-top:16px;margin-top:16px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📲 Installer app</h4>
       <div class="required-hint" style="margin-bottom:12px;">
         Installer Bilpark som en app på denne enheten, for raskere tilgang og bruk uten nett.
       </div>
       ${pwaInstallStatusHtml()}
     </div>
-    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Oppdater app</h4>
-      <div class="required-hint" style="margin-bottom:12px;">
-        Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
-        app-lageret (Service Worker/PWA-cache) — tilsvarende Ctrl+F5 på PC. Nyttig på mobil,
-        der en slik hurtigtast ikke finnes. <strong>Rører ikke</strong> bilregister, skader,
-        verkstedtimer, sjåførkontroller eller varsellamper — de ligger uansett kun i Airtable,
-        ikke i denne cachen.
-      </div>
-      <button class="btn secondary small" id="hard-refresh-btn">🔄 Oppdater app</button>
+  `;
+  const nullstillBody = `
+    <div class="required-hint" style="margin-bottom:12px;">
+      Sletter permanent alle skader, verkstedtimer, sjåførkontroller og varsellamper for
+      samtlige biler, og nullstiller kilometerstand/status — men beholder selve kjøretøyene
+      (regnr, bilnummer, merke, kategori, løyvenummer), Verkstedregisteret, Administratorbrukere
+      og resten av Systeminnstillinger uendret. Bruk dette for å starte med en ren bilpark, f.eks.
+      etter testing. Krever bekreftelse, og kan ikke angres.
     </div>
-    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--red);margin-bottom:10px;">Nullstill bilparkdata</h4>
-      <div class="required-hint" style="margin-bottom:12px;">
-        Sletter permanent alle skader, verkstedtimer, sjåførkontroller og varsellamper for
-        samtlige biler, og nullstiller kilometerstand/status — men beholder selve kjøretøyene
-        (regnr, bilnummer, merke, kategori, løyvenummer), Verkstedregisteret, Administratorbrukere
-        og resten av Systeminnstillinger uendret. Bruk dette for å starte med en ren bilpark, f.eks.
-        etter testing. Krever bekreftelse, og kan ikke angres.
+    <button class="btn danger-outline small" id="reset-fleet-data-btn">🗑️ Nullstill bilparkdata</button>
+  `;
+  // PRIORITET 45 — 📘 Informasjonsveileder: samler forklarende hjelpetekst som tidligere lå
+  // spredt i appen (Kjøretøyprofil/🛟 Mobilitetsgaranti, Bestill tjenester), pluss «Om appen».
+  // Selve DATAFELTENE (v.mobilitetsgaranti osv.) og all funksjonalitet er UENDRET — kun
+  // forklaringsteksten er samlet hit, se renderBilkort()/renderBestillTjenester() for de
+  // nå forkortede visningene som peker hit.
+  const veilederBody = `
+    <div class="settings-list">
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+        <strong>🛟 Mobilitetsgaranti</strong>
+        <span class="required-hint">Registreres per kjøretøy under Kjøretøyprofil → «Rediger informasjon». Vises på Kjøretøyprofilen når den er fylt ut — er feltet tomt, viser profilen «Ikke registrert».</span>
       </div>
-      <button class="btn danger-outline small" id="reset-fleet-data-btn">🗑️ Nullstill bilparkdata</button>
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+        <strong>🛠️ Bestill tjenester</strong>
+        <span class="required-hint">Velg tjeneste, så velger du bil i neste steg. Bestillingen havner i Kalender, og blir til historikk når arbeidet markeres utført.</span>
+      </div>
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+        <strong>Om appen</strong>
+        <span class="required-hint">Bilpark v2.0 — data lagres delt mellom alle som bruker appen. Import fra Excel/CSV er ikke i bruk; alle biler, skader og verkstedtimer registreres direkte i appen.</span>
+      </div>
     </div>
   `;
 
@@ -12917,14 +13035,32 @@ function renderInnstillinger(){
     `;
   })();
 
-  // PRIORITET 44 — 🎨 Layout Editor. Én liste per flate (samme opp/ned-mønster som
-  // ⚙️ Administrer bilkategorier over) — se layoutEditorFlateHtml()/DASHBOARD_LAYOUT_FLATER
+  // PRIORITET 44/45 — 🎨 Layout Editor. Én liste per flate (samme opp/ned-mønster som
+  // ⚙️ Administrer bilkategorier) — se layoutEditorFlateHtml()/DASHBOARD_LAYOUT_FLATER
   // lenger opp i denne filen. Kun rekkefølge/synlighet; komponentenes eget innhold er
-  // ikke redigerbart herfra.
+  // ikke redigerbart herfra. Tema er FLYTTET hit fra Systeminnstillinger (Prioritet 45) —
+  // samme radio-markup/lytter som før, kun ny plassering.
   const layoutBody = `
+    <div style="margin-bottom:22px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Tema</h4>
+      <div class="theme-options">
+        <label class="theme-option ${themePreference==='light'?'checked':''}">
+          <input type="radio" name="theme-pref" value="light" ${themePreference==='light'?'checked':''}>
+          ☀️ Lysmodus
+        </label>
+        <label class="theme-option ${themePreference==='dark'?'checked':''}">
+          <input type="radio" name="theme-pref" value="dark" ${themePreference==='dark'?'checked':''}>
+          🌙 Mørkemodus (standard)
+        </label>
+        <label class="theme-option ${themePreference==='system'?'checked':''}">
+          <input type="radio" name="theme-pref" value="system" ${themePreference==='system'?'checked':''}>
+          💻 Følg enhetens innstilling
+        </label>
+      </div>
+    </div>
     <div class="required-hint" style="margin-bottom:16px;">
       Endre rekkefølgen på og skjul/vis komponenter i Desktop Dashboard, Mobil Dashboard og
-      Min Bil — uten kodeendring. Dette påvirker KUN plassering og synlighet; selve
+      Min Bil Dashboard — uten kodeendring. Dette påvirker KUN plassering og synlighet; selve
       komponentene (tallene, listene, knappene) er uendret og fungerer likt uansett rekkefølge.
       <br><br>
       Desktop Dashboard beholder sitt faste to-kolonners oppsett — rekkefølgen du setter her
@@ -12939,15 +13075,93 @@ function renderInnstillinger(){
     ${layoutEditorFlateHtml('minbil')}
   `;
 
+  // PRIORITET 45 — 👤 Sjåførside: reell administrasjon av sjåføropplevelsen, samlet på ett
+  // sted (tidligere spredt: lenken lå i Systeminnstillinger, det fantes ingen direkte
+  // forhåndsvisning, og ingen ringeliste).
+  const sjaforsideBody = `
+    <div style="margin-bottom:22px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">🚐 Min bil</h4>
+      <div class="required-hint" style="margin-bottom:10px;">
+        Åpner sjåførsidens ordinære inngang (samme lenke som «✅ Sjåførkontroll» under) i en
+        ny fane, slik at du kan se nøyaktig det en sjåfør ser — velg bil, kontroller, og «Min
+        Bil»-skjermen deretter.
+      </div>
+      <button type="button" class="btn secondary small" id="sjaforside-forhandsvis-btn">Åpne og forhåndsvis sjåførsiden ↗</button>
+    </div>
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">✅ Sjåførkontroll</h4>
+      <div class="required-hint" style="margin-bottom:10px;">
+        Del denne lenken med sjåførene. Den åpner et rent kontrollskjema uten meny, dashboard
+        eller annen informasjon i systemet — kun kontrollskjemaet. Sjåføren trenger ikke å logge inn.
+        <br><br>
+        <strong>Viktig:</strong> dette skjuler grensesnittet, men er ikke ekte tilgangskontroll —
+        appen har ingen server. Fjerner noen «?sjafor=1» fra adressen uten å ha en administrator-
+        konto, møter de i stedet innloggingssiden, så administrasjonsdelen er beskyttet selv om
+        lenken deles videre ved en feil.
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <input id="driver-link-field" type="text" readonly value="${esc(driverLink())}">
+      </div>
+      <button class="btn secondary small" id="copy-driver-link-btn">Kopier lenke</button>
+      <span class="required-hint" id="copy-driver-link-msg" style="margin-left:8px;"></span>
+    </div>
+    <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📞 Ringeliste</h4>
+      <div class="required-hint" style="margin-bottom:10px;">
+        Telefonnummer registrert her lagres direkte på kjøretøyet, og vises som «📞 Ringeliste»
+        i Min Bil hos sjåførene — trykk på en bil der for å ringe direkte. Kun kjøretøy med
+        registrert nummer vises i sjåførenes liste.
+      </div>
+      ${ringelisteAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(ringelisteAdminMsg)}</div>` : ''}
+      <div class="settings-list">
+        ${sortedVehicles(vehicles).map(v => `
+          <div class="settings-row" style="${editingTelefonVehicleId===v.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
+            ${editingTelefonVehicleId === v.id ? `
+              <span>${esc(vehicleLabel(v))}</span>
+              <input type="tel" id="ringeliste-telefon-${v.id}" value="${esc(v.telefon || '')}" placeholder="F.eks. 400 00 000" style="min-height:44px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn small" data-save-telefon="${v.id}">Lagre</button>
+                <button class="btn secondary small" data-cancel-telefon="${v.id}">Avbryt</button>
+                ${v.telefon ? `<button class="btn danger-outline small" data-fjern-telefon="${v.id}">🗑️ Fjern</button>` : ''}
+              </div>
+            ` : `
+              <span>${esc(vehicleLabel(v))} <span class="required-hint" style="margin-left:6px;">${v.telefon ? esc(v.telefon) : 'Ikke registrert'}</span></span>
+              <button class="btn secondary small" data-edit-telefon="${v.id}">✏️ ${v.telefon ? 'Rediger' : 'Legg til'}</button>
+            `}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // PRIORITET 45 — 📦 Register: samler «⚙️ Administrer bilkategorier» og «Verkstedregister»
+  // (tidligere to separate topplinje-seksjoner) som EN nestet dropdown-gruppe. Samme
+  // settingsAccordionRow()-funksjon gjenbrukt rekursivt — ingen ny akkordion-mekanisme.
+  const registerBody = `
+    ${settingsAccordionRow('kategorier', '⚙️ Administrer bilkategorier', bilkategorier.length, kategoriBody)}
+    ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
+  `;
+
+  // PRIORITET 45 — ⚙️ Systeminnstillinger: nestet dropdown-gruppe med Oppdater app/Installer
+  // app, Database status, Administratorbrukere, Informasjonsveileder, Nullstill bilparkdata,
+  // pluss enhetsvisning-bryteren (tidligere to separate menypunkter, se
+  // attachDeviceOverrideToggleListener()).
+  const systemBody = `
+    ${settingsAccordionRow('oppdater', '🔄 Oppdater app', null, oppdaterAppBody)}
+    ${settingsAccordionRow('database', '📡 Database status', null, databaseBody)}
+    ${settingsAccordionRow('admin', '👤 Administratorbrukere', adminUsers.length, adminBody)}
+    ${settingsAccordionRow('veileder', '📘 Informasjonsveileder', null, veilederBody)}
+    ${settingsAccordionRow('enhetsvisning', '📱🖥️ Enhetsvisning', null, enhetsvisningBody)}
+    ${settingsAccordionRow('nullstill', '🗑️ Nullstill bilparkdata', null, nullstillBody)}
+  `;
+
   return `
     <div class="backrow"><button class="backbtn" id="innstillinger-back">← Tilbake</button></div>
     <div class="acc-list">
-      ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody)}
-      ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
-      ${settingsAccordionRow('kategorier', '⚙️ Administrer bilkategorier', bilkategorier.length, kategoriBody)}
+      ${settingsAccordionRow('register', '📦 Register', null, registerBody)}
       ${settingsAccordionRow('layout', '🎨 Layout Editor', null, layoutBody)}
-      ${settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody)}
-      ${settingsAccordionRow('database', 'Database status', null, databaseBody)}
+      ${settingsAccordionRow('sjaforside', '👤 Sjåførside', null, sjaforsideBody)}
+      ${settingsAccordionRow('system', '⚙️ Systeminnstillinger', null, systemBody)}
     </div>
   `;
 }
@@ -13082,6 +13296,23 @@ function attachInnstillingerListeners(){
   // faktisk har et installasjonstilbud å vise (se funksjonen over i filen).
   const pwaSettingsInstallBtn = document.getElementById('pwa-settings-install-btn');
   if(pwaSettingsInstallBtn) pwaSettingsInstallBtn.addEventListener('click', (e) => { e.stopPropagation(); installPwaNow(); });
+
+  // PRIORITET 45 — 👤 Sjåførside: «🚐 Min bil»-forhåndsvisning åpner sjåførens faktiske
+  // inngangslenke i en ny fane (samme driverLink() som «✅ Sjåførkontroll»-lenken under) —
+  // ingen egen forhåndsvisningsmekanisme, kun en snarvei til den ekte siden.
+  const forhandsvisBtn = document.getElementById('sjaforside-forhandsvis-btn');
+  if(forhandsvisBtn) forhandsvisBtn.addEventListener('click', (e) => { e.stopPropagation(); window.open(driverLink(), '_blank', 'noopener'); });
+
+  // PRIORITET 45 — 📞 Ringeliste. Samme inline rediger/lagre/avbryt-mønster som Verkstedregisteret
+  // (editingVerkstedId), her for v.telefon. Lagres via saveVehicles() (samme vei som
+  // flyttBilTilKategori()) — ingen ny lagringsmekanisme.
+  document.querySelectorAll('[data-edit-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditTelefon(el.dataset.editTelefon); }));
+  document.querySelectorAll('[data-save-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveVehicleTelefon(el.dataset.saveTelefon); }));
+  document.querySelectorAll('[data-cancel-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingTelefonVehicleId = null; ringelisteAdminMsg = ''; render(); }));
+  document.querySelectorAll('[data-fjern-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); fjernVehicleTelefon(el.dataset.fjernTelefon); }));
+
+  // PRIORITET 45 — 📱🖥️ Enhetsvisning (samlet fra to tidligere separate menypunkter).
+  attachDeviceOverrideToggleListener();
 }
 
 // ================= scrKontroll (Sjåførkontroll) =================
