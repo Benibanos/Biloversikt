@@ -2023,3 +2023,93 @@ oppdatert til 2.12.0, `sw.js` (`CACHE_VERSION` bilpark-v46 → bilpark-v47),
 - Kommentaroversikt har ingen filtrering på bil/periode i denne runden (flat,
   nyeste-først-liste) — vurder dette som fremtidig finpuss dersom
   kommentarvolumet vokser mye.
+
+## Prioritet 51 (2026-09-11) — Ny saksflyt
+
+Bestilling: Aktive Saker var blitt for tung, spesielt på mobil. Erstattet med
+en sterkt forenklet, firenivås arbeidsflyt UTEN delstatuser, prosessveiviser
+eller behandlingsfelt: **Aktiv sak → Under oppfølging → Planlagt verksted →
+Utført/Historikk**, pluss en egen terminal-status «Avslått». Alle fire
+hovedhandlinger er ett-klikks, ingen skjema. IKKE ENDRE: Aktiv sjåfør,
+Kontrollflyt, Kilometerlogikk, Skader, Varsellamper, Biler i drift — alle
+bekreftet urørt (diff mot forrige versjon, se simuleringsharness).
+
+**Arkitekturvalg (avklart med bruker gjennom tre avklaringsrunder):**
+1. Ny terminal-status `avslatt` (ett klikk, ingen felt) — vurdert mot å
+   gjenbruke `lukket`+`resultat`-feltet, men det siste tvinger gjennom den
+   gamle, obligatoriske Steg 4-veiviseren (resultat/sluttkommentar/utført
+   dato), stikk i strid med bestillingen. `avslatt` er derfor en helt egen,
+   uavhengig statusverdi.
+2. De 4 gamle delstatusene (`vurderes`/`tiltak-planlagt`/`delvis-utfort`/
+   `utfort-venter-bekreftelse`) og den gamle 4-stegs veiviseren er IKKE
+   fjernet fra koden — kun ikke lenger DEFAULT-inngangen. Bruker bekreftet
+   eksplisitt at ingen nye saker skal kunne havne i disse delstatusene igjen,
+   men at eksisterende, historiske saker med disse verdiene fortsatt skal
+   vises korrekt (se `sakFase()` under). Veiviseren er fortsatt nåbar via
+   «✏️ Avansert redigering» — nødvendig fordi kostnadsregistrering
+   (estimert/faktisk kostnad, avsetting) UTELUKKENDE skjer der, og
+   Kostnadsoversikt er uendret avhengig av disse feltene.
+3. Navigasjon: ÉN skjerm (Aktive saker) med tre faner, ikke tre separate
+   skjermer/menypunkter.
+
+**Løsning:**
+- `sakErApen(s)` utvidet: `'utfort'` og `'avslatt'` regnes nå OGSÅ som
+  lukket, ikke bare `'lukket'`. Bevisst atferdsendring (ikke en feil) — i den
+  nye flyten ER "Arbeid utført" selve sluttpunktet, uten eget
+  bekreftelsessteg. ALLE nedstrøms forbrukere (Dashboard,
+  `vehicleHovedstatus()` via `vehicleAktiveSaker()`, Rapporter, Analyse,
+  Verksted-filter) bruker allerede utelukkende `sakErApen()` — ingen av dem
+  er selv rørt, alle arver riktig oppførsel automatisk.
+- Ny `sakFase(s)`: rent visningsfilter som grupperer ENHVER status (gammel
+  og ny) inn i `'aktiv'`/`'oppfolging'`/`'verksted'`/`null`. Gamle
+  delstatuser havner i samme «Under oppfølging»-bøtte som den nye
+  `'under-oppfolging'` — de betyr alle "sett og under behandling".
+- Fire nye, ett-klikks funksjoner: `godtaSak()` (ny→under-oppfolging),
+  `avslaSak()` (→avslatt, med bekreftelsesdialog), `markerSakUtfort()`
+  (→utfort), `bestillVerkstedForSak()` (gjenbruker UENDRET
+  `goToRegisterVT()`/`submitVT()` — sistnevnte satte allerede
+  `sak.status = 'verksted-bestilt'` automatisk når en sak kobles til en
+  verkstedtime, lenge før denne sprinten).
+- `renderAktiveSaker()` skrevet om: tre faner øverst (med live tellere) og en
+  ny, kompakt kortliste (`sakKompaktKortHtml()`/`sakFaneListeHtml()`) — kun
+  bil/sakstype/dato + fasens ENE relevante handlingsknapp vises kollapset;
+  detaljer/beskrivelse/«✏️ Avansert redigering» vises først ved trykk. Den
+  gamle, fulle filter-/gruppevisningen (`sakGroupedSection()`, uendret) er
+  bevart uendret bak en ny, valgfri «🔎 Avansert visning»-knapp — ingen
+  funksjonalitet fjernet, kun ikke lenger standardvisningen.
+- Dashboard (desktop og mobil): ny, delt komponent `sakFaseTellereHtml()`
+  viser 🔴 Aktive saker / 🟡 Under oppfølging / 🔧 Planlagt verksted, alle
+  fra samme kilde (`sakFase()`) som fanene i Aktive saker — garantert
+  identisk tall. Hver knapp navigerer rett til riktig fane
+  (`goToSakFane()`).
+- `sakWizardStartSteg()` oppdatert til å bruke `sakErApen()` i stedet for
+  `status === 'lukket'` direkte, slik at saker med de nye terminal-statusene
+  også åpnes i lesemodus når de nås via «Avansert redigering».
+- `deleteVT()` sin tilbakestilling ved sletting av en koblet verkstedtime
+  endret fra den gamle delstatusen `'tiltak-planlagt'` til den nye
+  `'under-oppfolging'` (samme fase via `sakFase()`, men bruker nå kun
+  statusverdier den nye flyten selv produserer).
+- `SAK_STATUS_ORDER`/`SAK_STATUS_LABEL` utvidet med `'under-oppfolging'` og
+  `'avslatt'` (filtre/dropdowns app-wide viser nå disse korrekt).
+
+**Filer endret:** `index.html`, `sw.js` (CACHE_VERSION bilpark-v47 →
+bilpark-v48), `kontroll.html` synkronisert. **`storage.airtable.js` er IKKE
+endret** — ingen nye Airtable-felt, kun nye verdier i det allerede
+registrerte `status`-feltet.
+
+**Verifisert URØRT (diff mot forrige versjon, ingen endring):**
+`vehicleHovedstatus()`, `submitKontroll()`, `settAktivSjafor()`,
+`submitService()`, `isKontrollertIdag()`, `vehicleKontroller()`,
+`todayISO()`. Kostnadsoversikt bekreftet å ikke lese `status` i det hele
+tatt — upåvirket.
+
+**Kjente begrensninger:**
+- Kompakte kort er en flat, nyeste-først-liste uten bil-gruppering (bevisst
+  — fanene gjør listene korte nok til at akkordion-gruppering ikke lenger
+  trengs som standard). Full gruppering fortsatt tilgjengelig i «Avansert
+  visning».
+- «✏️ Avansert redigering» åpner fortsatt hele den gamle 4-stegs veiviseren
+  (uendret) — dette er bevisst (kostnadsregistrering), men betyr at en bruker
+  som går denne veien igjen kan sette en sak i en gammel delstatus
+  (`vurderes` osv.) via veiviserens Steg 2/3. `sakFase()` håndterer dette
+  korrekt (grupperes fortsatt riktig), men er verdt å være oppmerksom på.

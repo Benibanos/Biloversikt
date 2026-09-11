@@ -1520,6 +1520,13 @@ let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema 
 // samme "kun ett åpent om gangen, nullstilt ved sakbytte"-mønster som de tre over.
 let sakWizardSteg1MerOpen = false;
 let sakOversiktOpenVehicles = new Set();
+// PRIORITET 51 — «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
+// (standard: 'aktiv'), hvilke kompakte kort som er utvidet (tomt som standard — «Ikke
+// vis hele saken utvidet som standard»), og om den gamle, fulle filter-/gruppevisningen
+// (uendret, se sakGroupedSection()) er slått på som en sekundær, valgfri "avansert" modus.
+let sakAktivFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted'
+let sakDetaljApneIds = new Set();
+let sakVisAvansert = false;
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
@@ -1770,8 +1777,17 @@ let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut var
 const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
-const SAK_STATUS_ORDER = ['ny', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'delvis-utfort', 'utfort', 'lukket'];
-const SAK_STATUS_LABEL = {'ny':'Ny', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'lukket':'Lukket'};
+// PRIORITET 51 — «Ny saksflyt»: sterkt forenklet, firenivås arbeidsflyt
+// (Aktiv sak → Under oppfølging → Planlagt verksted → Utført/Historikk), pluss en
+// egen terminal-status «Avslått». De gamle delstatusene ('vurderes', 'tiltak-planlagt',
+// 'delvis-utfort', 'utfort-venter-bekreftelse') er IKKE fjernet fra listen under —
+// eksisterende, historiske saker med disse statusene skal fortsatt vises korrekt og
+// telles med (se sakFase() under, som grupperer dem inn i «Under oppfølging»/«Planlagt
+// verksted»). Ingen NYE saker får noensinne disse verdiene lenger — kun 'ny',
+// 'under-oppfolging', 'verksted-bestilt', 'utfort' eller 'avslatt' (se godtaSak()/
+// avslaSak()/markerSakUtfort()/submitVT()). Se CLAUDE.md, Prioritet 51.
+const SAK_STATUS_ORDER = ['ny', 'under-oppfolging', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'delvis-utfort', 'utfort', 'avslatt', 'lukket'];
+const SAK_STATUS_LABEL = {'ny':'Ny', 'under-oppfolging':'Under oppfølging', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'avslatt':'Avslått', 'lukket':'Lukket'};
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
 const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
 const SAK_PRIORITET_ORDER = ['kritisk', 'hoy', 'normal', 'lav'];
@@ -1782,7 +1798,28 @@ const SAK_PRIORITET_IKON = {kritisk:'🔴', hoy:'🟠', normal:'🟡', lav:'🟢
 // uten å noensinne nedjustere en prioritet en administrator har satt manuelt (se
 // registrerKontrollAvvikSomSak/markerAvvikUtfort).
 const SAK_PRIORITET_RANK = {lav:0, normal:1, hoy:2, kritisk:3};
-function sakErApen(s){ return s.status !== 'lukket'; }
+// PRIORITET 51 — «Ny saksflyt»: 'utfort' og 'avslatt' regnes nå OGSÅ som lukket, ikke
+// bare 'lukket'. Dette er en bevisst, nødvendig atferdsendring (ikke en bug): i den nye,
+// firenivås flyten ER "Arbeid utført" selve sluttpunktet — saken skal umiddelbart
+// forsvinne fra Aktive saker/Under oppfølging/Planlagt verksted og inn i Historikk, uten
+// noe eget bekreftelsessteg. Alle nedstrøms forbrukere av sakErApen() (Dashboard,
+// vehicleHovedstatus() via vehicleAktiveSaker(), Rapporter, Analyse, Kostnadsoversikt)
+// arver denne oppdaterte tolkningen uendret — INGEN av disse funksjonene er selv rørt.
+function sakErApen(s){ return s.status !== 'lukket' && s.status !== 'utfort' && s.status !== 'avslatt'; }
+// PRIORITET 51 — grupperer ENHVER status (ny og gammel) inn i én av de tre synlige
+// arbeidsflyt-fasene i den nye Aktive saker-skjermen, eller null hvis saken er lukket
+// (utfort/avslatt/lukket — vises kun i Historikk). Rent visningsfilter, ingen ny sannhet
+// — leser kun s.status. Gamle delstatuser ('vurderes'/'tiltak-planlagt'/'delvis-utfort')
+// havner i 'oppfolging'-bøtta sammen med den nye 'under-oppfolging' — de er alle
+// "sett og under behandling", nøyaktig det "Under oppfølging" betyr i den nye flyten.
+function sakFase(s){
+  if(!sakErApen(s)) return null;
+  if(s.status === 'ny') return 'aktiv';
+  if(s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse') return 'verksted';
+  return 'oppfolging';
+}
+const SAK_FASE_LABEL = {aktiv:'Aktiv sak', oppfolging:'Under oppfølging', verksted:'Planlagt verksted'};
+const SAK_FASE_IKON = {aktiv:'🔴', oppfolging:'🟡', verksted:'🔧'};
 // Fase 5 — Oppfølgingsmotor: automatisk oppfølgingsstatus ut fra oppfølgingsdato.
 // 'forfalt' = passert, 'idag' = forfaller i dag, 'snart' = innen 3 dager,
 // 'ok' = lenger frem/oppdatert, 'mangler' = ingen oppfølgingsdato satt.
@@ -4225,7 +4262,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; nyeKommentarerApen = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; showSakFilterMeny = false; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; nyeKommentarerApen = false; sakDetaljApneIds = new Set(); }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -4715,9 +4752,12 @@ async function settTilbakeIDrift(vehicleId){
 // selv "Vurder sak" eller "Fortsett saken" derfra. Tidligere hoppet den rett til Steg 2/3/4
 // basert på status, noe som skjulte problembeskrivelsen ved gjenåpning. Lukkede saker
 // åpnes fortsatt alltid i lesemodus (uendret, egen lesevisning, ikke del av denne saken).
+// PRIORITET 51: bruker nå sakErApen() (samme, ENESTE definisjon av "lukket" som resten
+// av appen) i stedet for å sjekke status === 'lukket' direkte — sikrer at saker med de
+// nye terminal-statusene 'utfort'/'avslatt' også åpnes i lesemodus her, ikke bare 'lukket'.
 function sakWizardStartSteg(s){
   if(!s) return 1;
-  if(s.status === 'lukket') return 'lese';
+  if(!sakErApen(s)) return 'lese';
   return 1;
 }
 function toggleEditSak(id){
@@ -4980,6 +5020,48 @@ function goToRegisterSak(vehicleId){
   showAddSak = true;
   sakFilterBil = '';
   goTo('aktivesaker');
+}
+// PRIORITET 51 — «Ny saksflyt»: de FIRE nye, ett-klikks handlingene som driver hele
+// arbeidsflyten. Ingen av dem åpner et skjema eller krever utfylte felt — nøyaktig som
+// bestilt ("Ingen prosesssteg. Ingen veiviser."). Alle fire lagrer umiddelbart og
+// rendrer på nytt. Den gamle, detaljerte veiviseren (sakWizardHtml/goToSakDetalj) er
+// IKKE fjernet — fortsatt nåbar via «✏️ Avansert redigering» i kortets utvidede visning,
+// for saker som trenger kostnad/prioritet/notater registrert (Kostnadsoversikt m.fl.
+// er uendret og leser fortsatt disse feltene).
+async function godtaSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s || s.status !== 'ny') return;
+  s.status = 'under-oppfolging';
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  render();
+}
+async function avslaSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  if(!confirm(`Avslå saken «${sakProblemLabel(s)}»? Den fjernes fra arbeidsflyten, men blir liggende søkbar i Historikk/Rapporter.`)) return;
+  s.status = 'avslatt';
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  render();
+}
+async function markerSakUtfort(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  s.status = 'utfort';
+  s.updatedAt = new Date().toISOString();
+  await saveAktiveSaker();
+  render();
+}
+// «📅 Registrer verkstedtime» fra Under oppfølging-fanen — åpner det EKSISTERENDE
+// verkstedtime-skjemaet (samme mønster som bestillEuKontroll()/bestillRuteskift(),
+// Prioritet 37/46) forhåndsutfylt med bil OG denne saken. submitVT() (uendret) setter
+// selv saken til 'verksted-bestilt' når timen lagres — se linje ~5372.
+function bestillVerkstedForSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  goToRegisterVT(s.vehicleId);
+  vtPrefillSakId = sakId;
 }
 function goToSakDetalj(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
@@ -5426,7 +5508,10 @@ async function deleteVT(id){
   if(linketSak){
     linketSak.linkedVtId = '';
     if(linketSak.status === 'verksted-bestilt' || linketSak.status === 'utfort-venter-bekreftelse'){
-      linketSak.status = 'tiltak-planlagt';
+      // PRIORITET 51: tilbakestilles nå til 'under-oppfolging' (ny flyt), ikke den gamle
+      // delstatusen 'tiltak-planlagt' — saken havner uansett i samme «Under oppfølging»-
+      // bøtte via sakFase(), men bruker nå kun statusverdier den nye flyten selv produserer.
+      linketSak.status = 'under-oppfolging';
     }
     linketSak.updatedAt = new Date().toISOString();
   }
@@ -7378,6 +7463,8 @@ function renderMobilHjem(){
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
 
+    ${sakFaseTellereHtml(d.sakFaseAntall)}
+
     ${layoutFlateHtml('mobil', komponentHtml)}
 
     ${d.totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
@@ -7673,10 +7760,46 @@ function dashboardBeregning(){
   const prioriterteBilerMap = new Map();
   dashKreverListe.forEach(item => { if(!prioriterteBilerMap.has(item.vehicleId)) prioriterteBilerMap.set(item.vehicleId, item); });
   const prioriterteBilerListe = Array.from(prioriterteBilerMap.values()).slice(0, 5);
+  // PRIORITET 51 — «Ny saksflyt»: de tre fasetellerne til Dashboard, samme kilde
+  // (sakFase()) som fanene i selve Aktive saker-skjermen — garantert identisk tall.
+  const sakFaseAntall = {
+    aktiv: aktiveSaker.filter(s => sakFase(s) === 'aktiv').length,
+    oppfolging: aktiveSaker.filter(s => sakFase(s) === 'oppfolging').length,
+    verksted: aktiveSaker.filter(s => sakFase(s) === 'verksted').length
+  };
   return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
     manglerKontrollCount, kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
     krHarKritisk, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
-    kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe};
+    kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
+    sakFaseAntall};
+}
+// PRIORITET 51 — delt markup for de tre saksflyt-tellerne, brukt UENDRET av både Desktop
+// Dashboard og Mobil Hjem (samme mønster som andre delte Dashboard-komponenter). Hver
+// knapp går til Aktive saker og velger riktig fane direkte — ingen egen tellelogikk her.
+function sakFaseTellereHtml(sakFaseAntall){
+  return `
+    <div style="display:flex;gap:14px;margin-bottom:14px;">
+      <button type="button" class="dash40-kpi" data-goto-sak-fane="aktiv" style="--tint:var(--red-soft);--tone:var(--red);flex:1;">
+        <span class="flis">🔴</span>
+        <span class="dash40-kpi-num">${sakFaseAntall.aktiv}</span>
+        <span class="dash40-kpi-label">Aktive saker</span>
+      </button>
+      <button type="button" class="dash40-kpi" data-goto-sak-fane="oppfolging" style="--tint:var(--amber-soft);--tone:var(--amber);flex:1;">
+        <span class="flis">🟡</span>
+        <span class="dash40-kpi-num">${sakFaseAntall.oppfolging}</span>
+        <span class="dash40-kpi-label">Under oppfølging</span>
+      </button>
+      <button type="button" class="dash40-kpi" data-goto-sak-fane="verksted" style="--tint:var(--orange-soft);--tone:var(--orange);flex:1;">
+        <span class="flis">🔧</span>
+        <span class="dash40-kpi-num">${sakFaseAntall.verksted}</span>
+        <span class="dash40-kpi-label">Planlagt verksted</span>
+      </button>
+    </div>`;
+}
+function goToSakFane(fase){
+  sakAktivFane = fase;
+  sakVisAvansert = false;
+  goTo('aktivesaker');
 }
 
 function renderDashboard(){
@@ -7687,7 +7810,7 @@ function renderDashboard(){
   const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
     kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, krHarKritisk,
     dashKreverListe, dashKreverTop5, kommendeFristerAntall, kommendeOppgaver, kommendeOppgaverTop,
-    hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe} = dashboardBeregning();
+    hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe, sakFaseAntall} = dashboardBeregning();
 
   const g = greetingInfo();
   const displayNavn = loggedInRole || '';
@@ -7905,6 +8028,8 @@ function renderDashboard(){
       ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
+    ${sakFaseTellereHtml(sakFaseAntall)}
+
     ${fullHtml}
 
     ${(venstreHtml || hoyreHtml) ? `
@@ -7943,6 +8068,12 @@ function attachDashboardListeners(){
     else if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
     else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
+  }));
+  // PRIORITET 51 — Dashboard sine tre nye saksflyt-tellere: navigerer rett til riktig
+  // fane i den nye, forenklede Aktive saker-skjermen (se sakFaseTellereHtml()/goToSakFane()).
+  document.querySelectorAll('[data-goto-sak-fane]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToSakFane(el.dataset.gotoSakFane);
   }));
   document.querySelectorAll('[data-goto-vt-vehicle]').forEach(el => el.addEventListener('click', () => {
     const vehicleId = el.dataset.gotoVtVehicle;
@@ -10630,6 +10761,46 @@ function sakCard(s, showVehicle){
     </div>
   `;
 }
+// PRIORITET 51 — «Ny saksflyt»: kompakt kort for ÉN sak i den nye, fasedelte Aktive
+// saker-skjermen. Kollapset (standard): kun bil, sakstype og dato — pluss NØYAKTIG den
+// ene handlingen som gjelder for fasen saken står i. Ingenting annet vises før kortet
+// trykkes ("Ikke vis hele saken utvidet som standard"). Utvidet: kort beskrivelse,
+// prioritet, og en lenke til den fulle, gamle veiviseren for saker som trenger
+// kostnad/prioritet/notater registrert (kostnadsregistrering, Kostnadsoversikt m.fl. er
+// UENDRET og fortsatt avhengig av disse feltene — se markerSakUtfort()/CLAUDE.md).
+function sakKompaktKortHtml(s, fase){
+  const v = sakVehicle(s);
+  const apen = sakDetaljApneIds.has(s.id);
+  const handlingHtml = fase === 'aktiv'
+    ? `<button type="button" class="btn small" data-godta-sak="${s.id}">✅ Godta</button>
+       <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">❌ Avslå</button>`
+    : fase === 'oppfolging'
+    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">📅 Registrer verkstedtime</button>`
+    : `<button type="button" class="btn small" data-sak-utfort="${s.id}">✅ Arbeid utført</button>`;
+  return `
+    <div class="dmg-item">
+      <div class="dmg-top" data-toggle-sak-kort="${s.id}">
+        <div class="dmg-text">
+          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
+          <div class="desc">${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')} · ${fmt(s.reportedAt)}</div>
+        </div>
+        <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'}</span>
+      </div>
+      <div class="panel-actions" style="margin-top:8px;gap:8px;">${handlingHtml}</div>
+      ${apen ? `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);">
+        <div class="desc" style="margin-bottom:8px;">${esc(s.description || sakProblemLabel(s) || 'Ingen beskrivelse.')}</div>
+        <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">✏️ Avansert redigering →</button>
+      </div>` : ''}
+    </div>`;
+}
+// Selve fanelisten — flat, nyeste-først, ingen gruppering (fasene selv gjør listene korte
+// nok til at bil-akkordionen fra den gamle visningen ikke lenger trengs som standard).
+function sakFaneListeHtml(fase){
+  const liste = aktiveSaker.filter(s => sakFase(s) === fase).sort((a,b) => (b.reportedAt||'').localeCompare(a.reportedAt||''));
+  if(liste.length === 0) return `<div class="empty-note">Ingen saker her nå.</div>`;
+  return liste.map(s => sakKompaktKortHtml(s, fase)).join('');
+}
 function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
   const byVehicle = new Map();
   itemsFiltered.forEach(s => {
@@ -11272,6 +11443,10 @@ function renderAktiveSaker(){
   });
   const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterPrioritet, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0) + (sakFilterKreverHandlingSamlet?1:0);
   const oversiktBody = sakGroupedSection(visning, sakOversiktOpenVehicles, 'toggle-sako-vehicle');
+  // PRIORITET 51 — fanetellinger, samme kilde (sakFase()) som Dashboard sine tre tellere.
+  const antAktiv = aktiveSaker.filter(s => sakFase(s) === 'aktiv').length;
+  const antOppfolging = aktiveSaker.filter(s => sakFase(s) === 'oppfolging').length;
+  const antVerksted = aktiveSaker.filter(s => sakFase(s) === 'verksted').length;
 
   return `
     <div class="backrow">
@@ -11282,8 +11457,51 @@ function renderAktiveSaker(){
 
     ${nyeKommentarerSectionHtml()}
 
+    <div class="p38-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+      <button type="button" class="btn ${sakAktivFane==='aktiv'?'':'secondary'} small" data-sak-fane="aktiv" style="flex:1;">🔴 Aktiv sak (${antAktiv})</button>
+      <button type="button" class="btn ${sakAktivFane==='oppfolging'?'':'secondary'} small" data-sak-fane="oppfolging" style="flex:1;">🟡 Under oppfølging (${antOppfolging})</button>
+      <button type="button" class="btn ${sakAktivFane==='verksted'?'':'secondary'} small" data-sak-fane="verksted" style="flex:1;">🔧 Planlagt verksted (${antVerksted})</button>
+    </div>
+
+    <div style="margin-bottom:16px;">${sakFaneListeHtml(sakAktivFane)}</div>
+
+    ${showAddSak ? `
+    <form class="panel" id="add-sak-form">
+      <h3>Ny sak</h3>
+      <div class="row2">
+        <div class="field"><label>Bil</label>
+          <select id="sak-vehicle" required>
+            <option value="">Velg bil...</option>
+            ${vehicleOptions(sakPrefillVehicleId, {ekskluderUteAvDrift:true})}
+          </select>
+        </div>
+        <div class="field"><label>Sakstype</label>
+          <select id="sak-type" required>
+            ${SAK_TYPE_ORDER.map(t => `<option value="${t}">${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Tittel</label><input id="sak-tittel" type="text" placeholder="F.eks. Motorlampe lyser" required></div>
+      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="sak-beskrivelse" placeholder="Valgfritt"></textarea></div>
+      <div class="row2">
+        <div class="field"><label>Prioritet</label>
+          <select id="sak-prioritet">
+            ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${p==='normal'?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Oppfølgingsdato</label><input id="sak-oppfolgingsdato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10"></div>
+      </div>
+      <div class="field" style="margin-bottom:6px;"><label>Neste handling</label><input id="sak-neste-handling" type="text" placeholder="Valgfritt"></div>
+      <div class="form-msg" id="sak-msg"></div>
+      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+    </form>` : ''}
+
+    <div class="drawer-divider"></div>
+    <button type="button" class="p38-lenke" id="sak-avansert-toggle-btn" style="margin:14px 0;">${sakVisAvansert ? 'Skjul avansert visning ↑' : '🔎 Avansert visning (alle saker, filtrering, historikk) →'}</button>
+
+    ${sakVisAvansert ? `
     <div class="toolbar">
-      <div class="count">${visning.length} / ${aktiveSaker.length} aktive saker</div>
+      <div class="count">${visning.length} / ${aktiveSaker.length} saker totalt</div>
       <button class="btn secondary small" id="sak-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
     </div>
 
@@ -11336,38 +11554,8 @@ function renderAktiveSaker(){
       </label>
     </div>` : ''}
 
-    ${showAddSak ? `
-    <form class="panel" id="add-sak-form">
-      <h3>Ny sak</h3>
-      <div class="row2">
-        <div class="field"><label>Bil</label>
-          <select id="sak-vehicle" required>
-            <option value="">Velg bil...</option>
-            ${vehicleOptions(sakPrefillVehicleId, {ekskluderUteAvDrift:true})}
-          </select>
-        </div>
-        <div class="field"><label>Sakstype</label>
-          <select id="sak-type" required>
-            ${SAK_TYPE_ORDER.map(t => `<option value="${t}">${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:10px;"><label>Tittel</label><input id="sak-tittel" type="text" placeholder="F.eks. Motorlampe lyser" required></div>
-      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="sak-beskrivelse" placeholder="Valgfritt"></textarea></div>
-      <div class="row2">
-        <div class="field"><label>Prioritet</label>
-          <select id="sak-prioritet">
-            ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${p==='normal'?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field"><label>Oppfølgingsdato</label><input id="sak-oppfolgingsdato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10"></div>
-      </div>
-      <div class="field" style="margin-bottom:6px;"><label>Neste handling</label><input id="sak-neste-handling" type="text" placeholder="Valgfritt"></div>
-      <div class="form-msg" id="sak-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
-    </form>` : ''}
-
     ${oversiktBody === null ? `<div class="empty-note">Ingen saker${antallAktiveFiltre > 0 ? ' med gjeldende filter' : ' registrert ennå'}.</div>` : oversiktBody}
+    ` : ''}
   `;
 }
 function attachAktiveSakerListeners(){
@@ -11378,7 +11566,25 @@ function attachAktiveSakerListeners(){
     const [kilde, id] = el.dataset.markerLest.split(':');
     markerKommentarSomLest(kilde, id);
   }));
-  document.getElementById('sak-filter-toggle-btn').addEventListener('click', () => {
+  // PRIORITET 51 — «Ny saksflyt»: fanevalg, kompakte kort-handlinger, og avansert-toggle.
+  document.querySelectorAll('[data-sak-fane]').forEach(el => el.addEventListener('click', () => {
+    sakAktivFane = el.dataset.sakFane;
+    render();
+  }));
+  document.querySelectorAll('[data-toggle-sak-kort]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggleSakKort;
+    if(sakDetaljApneIds.has(id)) sakDetaljApneIds.delete(id); else sakDetaljApneIds.add(id);
+    render();
+  }));
+  document.querySelectorAll('[data-godta-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); godtaSak(el.dataset.godtaSak); }));
+  document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
+  document.querySelectorAll('[data-bestill-vt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); bestillVerkstedForSak(el.dataset.bestillVtSak); }));
+  document.querySelectorAll('[data-sak-utfort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerSakUtfort(el.dataset.sakUtfort); }));
+  document.querySelectorAll('[data-goto-sak-avansert]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSakAvansert); }));
+  const avansertBtn = document.getElementById('sak-avansert-toggle-btn');
+  if(avansertBtn) avansertBtn.addEventListener('click', () => { sakVisAvansert = !sakVisAvansert; render(); });
+  const filterToggleBtn = document.getElementById('sak-filter-toggle-btn');
+  if(filterToggleBtn) filterToggleBtn.addEventListener('click', () => {
     showSakFilterMeny = !showSakFilterMeny;
     render();
   });

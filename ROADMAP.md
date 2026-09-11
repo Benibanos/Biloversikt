@@ -1107,3 +1107,20 @@ versjon + Node.js-simuleringsharness, se PRIORITET_50_ANALYSE.md/CLAUDE.md).
 Nytt Airtable-felt: `KommentarLest` på DriverChecks (les-status for
 kontroll-baserte kommentarer). `storage.airtable.js` v2.11.0 → v2.12.0,
 `sw.js` CACHE_VERSION bilpark-v46 → bilpark-v47.
+
+## Prioritet 51 (2026-09-11) — Ny saksflyt
+
+Erstattet Aktive Saker med en sterkt forenklet, firenivås arbeidsflyt uten
+delstatuser/veiviser/behandlingsfelt: Aktiv sak (✅ Godta/❌ Avslå) → Under
+oppfølging (📅 Registrer verkstedtime) → Planlagt verksted (✅ Arbeid utført)
+→ Historikk. Ny terminal-status `avslatt` (ett klikk, ingen felt). De gamle
+delstatusene og 4-stegs veiviseren er IKKE fjernet — kun ikke lenger
+standardinngangen; fortsatt nåbar via «✏️ Avansert redigering» for
+kostnadsregistrering (Kostnadsoversikt uendret avhengig av disse feltene).
+`sakErApen()` utvidet til å også regne `utfort`/`avslatt` som lukket — alle
+nedstrøms forbrukere (Dashboard, `vehicleHovedstatus()`, Rapporter, Analyse,
+Verksted) arver dette automatisk via den ene, delte funksjonen, ingen av dem
+selv rørt. Dashboard (desktop+mobil) har fått tre nye tellere (🔴/🟡/🔧) som
+lenker rett til riktig fane. Ingen endring i `storage.airtable.js` (kun nye
+verdier i et allerede registrert felt). `sw.js` CACHE_VERSION bilpark-v47 →
+bilpark-v48.
