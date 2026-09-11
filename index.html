@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.11.0"></script>
+<script src="storage.airtable.js?v=2.12.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -1704,6 +1704,12 @@ let dekkkostnader = []; // logg over registrerte dekk-kjøp/kostnader per bil, s
 // CLAUDE.md "Service — km-basert serviceintervall"): logg over utførte servicer per bil,
 // samme lagringsmønster som dekkhistorikk (window.storage, delt, JSON-liste).
 let servicehistorikk = []; // logg over utførte servicer per bil, se saveServicehistorikk() — {id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}
+// PRIORITET 50 — «Kommentarer 2.0»: fristilte sjåførkommentarer, lagt til via
+// ☰ Mer → 💬 Legg til kommentar (renderDriverNyKommentar()), IKKE via en kontroll.
+// Egen Settings-blob, samme trygge mønster som servicehistorikk (parseJsonTrygt,
+// se loadAll()/saveKommentarer()) — INGEN kobling til kontroller[]/Kontrollflyt,
+// INGEN ny Airtable-tabell. {id, vehicleId, dato, tidspunkt, sjafor, tekst, lest}
+let kommentarer = [];
 // Serviceavtaler og verkstedtimer er bevisst ADSKILT — en registrert serviceavtale skal
 // IKKE automatisk bli en verkstedtime. Egen liste, egen lagringsnøkkel (samme generiske
 // Settings-mønster som servicehistorikk — ingen egen Airtable-tabell/feltkartlegging
@@ -2226,7 +2232,7 @@ function driverLink(){
 // Dashboard fra hvilken som helst enhet. driverScreen/driverActiveVehicleId/driverNavn
 // er kun DENNE enhetens lokale posisjon i sjåførflyten, husket i localStorage slik at en
 // gjenåpnet PWA havner rett tilbake på riktig skjerm.
-let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil' | 'ringeliste' | 'kommentarer' | 'mer'
+let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil' | 'ringeliste' | 'kommentarer' | 'mer' | 'ny-kommentar'
 let driverActiveVehicleId = '';
 let driverVelgBilId = '';
 let driverNavn = '';
@@ -2243,6 +2249,8 @@ let driverNavnDialogMsg = '';
 let minBilSkadeBeskrivelse = '';
 let minBilSkadeAlvorlighet = 'middels';
 let minBilSkadeKommentar = '';
+// PRIORITET 50 — tekst i «☰ Mer → 💬 Legg til kommentar»-skjemaet (renderDriverNyKommentar()).
+let driverNyKommentarTekst = '';
 let pendingMinBilFoto = null;
 let minBilVarselType = '';
 let minBilVarselAnnetTekst = '';
@@ -3138,6 +3146,14 @@ async function loadAll(){
     if(psParsed.ok){ planlagteServicer = psParsed.value; delete _korrupteDatasett.planlagteservicer; }
     else { planlagteServicer = []; _korrupteDatasett.planlagteservicer = true; }
   } catch(e){ planlagteServicer = []; }
+  // PRIORITET 50 — «kommentarer»: samme trygge lasting (parseJsonTrygt) som
+  // servicehistorikk/planlagteservicer over — se saveKommentarer().
+  try{
+    const km = await window.storage.get('kommentarer', true);
+    const kmParsed = parseJsonTrygt(km && km.value, 'kommentarer');
+    if(kmParsed.ok){ kommentarer = kmParsed.value; delete _korrupteDatasett.kommentarer; }
+    else { kommentarer = []; _korrupteDatasett.kommentarer = true; }
+  } catch(e){ kommentarer = []; }
   // PRIORITET 35 — Dekkskifttime: samme trygge lasting (parseJsonTrygt) som
   // servicehistorikk/planlagteservicer over — se savePlanlagteDekkskift().
   try{
@@ -3151,7 +3167,7 @@ async function loadAll(){
   // bakgrunnspoll, se reloadOne()) for ikke å avbryte brukeren gjentatte ganger.
   const korrupteVedOppstart = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
   if(korrupteVedOppstart.length > 0){
-    const korrupteNavn = {servicehistorikk:'servicehistorikk', planlagteservicer:'planlagte servicer', planlagtedekkskift:'planlagte dekkskift'};
+    const korrupteNavn = {servicehistorikk:'servicehistorikk', planlagteservicer:'planlagte servicer', planlagtedekkskift:'planlagte dekkskift', kommentarer:'kommentarer'};
     alert('⚠️ Kunne ikke lese ' + korrupteVedOppstart.map(k => korrupteNavn[k] || k).join(' og ') + ' — dataene ser ut til å være korrupte.\n\nFor å unngå å slette eksisterende historikk er lagring til dette/disse datasettet(ene) blokkert. Se Innstillinger → Database status for detaljer, og ikke registrer mer service/dekkskift før dette er undersøkt.');
   }
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
@@ -3258,12 +3274,13 @@ async function reloadOne(key){
     // Settings-blobbene — en korrupt bakgrunnsoppfrisking skal heller IKKE stille
     // nullstille historikken (se parseJsonTrygt() og saveServicehistorikk()/
     // savePlanlagteServicer(), som nekter å lagre mens datasettet er markert korrupt).
-    if(key === 'servicehistorikk' || key === 'planlagteservicer' || key === 'planlagtedekkskift'){
+    if(key === 'servicehistorikk' || key === 'planlagteservicer' || key === 'planlagtedekkskift' || key === 'kommentarer'){
       const parsed = parseJsonTrygt(raw && raw.value, key);
       if(parsed.ok){
         if(key === 'servicehistorikk'){ servicehistorikk = parsed.value; delete _korrupteDatasett.servicehistorikk; }
         else if(key === 'planlagteservicer'){ planlagteServicer = parsed.value; delete _korrupteDatasett.planlagteservicer; }
-        else { planlagteDekkskift = parsed.value; delete _korrupteDatasett.planlagtedekkskift; }
+        else if(key === 'planlagtedekkskift'){ planlagteDekkskift = parsed.value; delete _korrupteDatasett.planlagtedekkskift; }
+        else { kommentarer = parsed.value; delete _korrupteDatasett.kommentarer; }
       } else {
         _korrupteDatasett[key] = true;
       }
@@ -3405,6 +3422,14 @@ async function savePlanlagteServicer(){
     throw new Error('Planlagte servicer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt service før dette er undersøkt (se Database status i Innstillinger).');
   }
   await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true);
+}
+// PRIORITET 50 — samme trygge lagringsmønster (parseJsonTrygt + _korrupteDatasett-
+// blokkering) som saveServicehistorikk()/savePlanlagteServicer() over.
+async function saveKommentarer(){
+  if(_korrupteDatasett.kommentarer){
+    throw new Error('Kommentarer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å legge til kommentarer før dette er undersøkt (se Database status i Innstillinger).');
+  }
+  await window.storage.set('kommentarer', JSON.stringify(kommentarer), true);
 }
 // PRIORITET 35 — Dekkskifttime: samme trygge lagringsmønster (parseJsonTrygt +
 // _korrupteDatasett-blokkering) som savePlanlagteServicer() over. Generisk Settings-blob,
@@ -6294,6 +6319,7 @@ function render(){
   else if(screen === 'dekk') body = renderDekkSkjerm();
   else if(screen === 'kalender') body = renderKalender();
   else if(screen === 'bestill') body = renderBestillTjenester();
+  else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
   // Optimalisering 15/Prioritet 17 (Del 4-5): Bilparkhelse Status og "Biler i drift nå"
@@ -6376,6 +6402,7 @@ function render(){
   else if(screen === 'dekk') attachDekkSkjermListeners();
   else if(screen === 'kalender') attachKalenderListeners();
   else if(screen === 'bestill') attachBestillTjenesterListeners();
+  else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
 }
 
 // ================= Mobilmeny (drawer) =================
@@ -6408,6 +6435,10 @@ function drawerOversikterHtml(){
 function renderDrawer(){
   const drawerEl = document.getElementById('app-drawer');
   if(!drawerEl) return;
+  // PRIORITET 50 — uleste-teller for 💬 Kommentarer i hovedsidemenyen. Samme kilde
+  // (nyeKommentarerListe()) som Kommentaroversikt og Aktive saker-panelet — ingen egen
+  // tellelogikk. Ingen teller vises når alt er lest (kun «💬 Kommentarer», jf. bestilling).
+  const ulesteKommentarer = nyeKommentarerListe().filter(k => !k.lest).length;
   drawerEl.innerHTML = `
     <div class="drawer-header">
       <span class="drawer-title">Meny</span>
@@ -6418,6 +6449,7 @@ function renderDrawer(){
       ${drawerItemHtml('dashboard', '🏠', 'Hjem')}
       ${drawerOversikterHtml()}
       ${drawerItemHtml('aktivesaker', '🚨', 'Aktive saker')}
+      ${drawerItemHtml('kommentaroversikt', '💬', ulesteKommentarer > 0 ? `Kommentarer (${ulesteKommentarer})` : 'Kommentarer')}
       ${drawerItemHtml('varsler', '🔔', 'Påminnelser')}
       ${drawerItemHtml('kostnadsoversikt', '📊', 'Kostnader')}
       ${drawerItemHtml('rapporter', '📈', 'Rapporter')}
@@ -6579,6 +6611,7 @@ function renderDriverShell(){
   else if(driverScreen === 'ringeliste') body = renderDriverRingeliste();
   else if(driverScreen === 'kommentarer') body = renderDriverKommentarer();
   else if(driverScreen === 'mer') body = renderDriverMer();
+  else if(driverScreen === 'ny-kommentar') body = renderDriverNyKommentar();
   else body = renderDriverVelgBil();
   app.innerHTML = `
     <div class="shell-top">
@@ -6594,6 +6627,7 @@ function renderDriverShell(){
   else if(driverScreen === 'ringeliste') attachDriverRingelisteListeners();
   else if(driverScreen === 'kommentarer') attachDriverKommentarerListeners();
   else if(driverScreen === 'mer') attachDriverMerListeners();
+  else if(driverScreen === 'ny-kommentar') attachDriverNyKommentarListeners();
   else attachDriverVelgBilListeners();
   attachDriverBunnmenyListeners();
 }
@@ -7074,14 +7108,19 @@ function attachDriverRingelisteListeners(){
 // nyeKommentarRadHtml() for den delte radmarkupen). Ingen ny logikk, ingen ny Airtable-
 // struktur: ren, alltid-utvidet visning av samme data. Ingen kvittering, ingen status,
 // ingen aktiv sak — kun en informasjonslogg, slik bruker eksplisitt ba om.
+// PRIORITET 50 — RETTET KRITISK FEIL: viste tidligere kommentarer fra HELE bilparken
+// (nyeKommentarerListe() uten filter). Filtrerer nå på driverVelgBilId (sjåførens aktive
+// bil i denne sesjonen, satt ved «Velg bil», uendret til «🔁 Bytt bil») — sjåføren ser
+// kun kommentarer knyttet til bilen vedkommende faktisk kjører, aldri resten av flåten.
+// visMarkerSomLest=false: les-status er administrativ (se markerKommentarSomLest()).
 function renderDriverKommentarer(){
-  const liste = nyeKommentarerListe();
+  const liste = nyeKommentarerListe(driverVelgBilId);
   return `
     <h2 style="font-size:19px;margin-bottom:16px;">💬 Kommentarer</h2>
     <div class="panel">
       ${liste.length === 0
-        ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
-        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0)).join('')}</div>`}
+        ? `<div class="empty-note">Ingen kommentarer på denne bilen ennå.</div>`
+        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, false)).join('')}</div>`}
     </div>
   `;
 }
@@ -7096,14 +7135,23 @@ function attachDriverKommentarerListeners(){
 // kryss-bil-utsjekkingslogikk som allerede finnes (startBilokt()/settAktivSjafor()), siden
 // sjåføren uansett må velge bil og bekrefte navn på nytt før en ny kontroll/Min Bil-økt.
 function renderDriverMer(){
+  // PRIORITET 50 — «💬 Legg til kommentar» knyttes til driverVelgBilId (bilen sjåføren
+  // faktisk kjører i denne sesjonen), IKKE til hele bilparken. Se renderDriverNyKommentar().
   return `
     <h2 style="font-size:19px;margin-bottom:16px;">☰ Mer</h2>
     <div class="panel">
+      <button type="button" class="btn secondary" id="dm-legg-til-kommentar-btn" style="width:100%;justify-content:flex-start;min-height:52px;margin-bottom:10px;">💬 Legg til kommentar</button>
       <button type="button" class="btn secondary" id="dm-bytt-bil-btn" style="width:100%;justify-content:flex-start;min-height:52px;">🔁 Bytt bil</button>
     </div>
   `;
 }
 function attachDriverMerListeners(){
+  const leggTilKommentarBtn = document.getElementById('dm-legg-til-kommentar-btn');
+  if(leggTilKommentarBtn) leggTilKommentarBtn.addEventListener('click', () => {
+    driverNyKommentarTekst = '';
+    driverScreen = 'ny-kommentar';
+    render();
+  });
   const byttBilBtn = document.getElementById('dm-bytt-bil-btn');
   if(byttBilBtn) byttBilBtn.addEventListener('click', () => {
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormAnnetTekst = '';
@@ -7113,6 +7161,44 @@ function attachDriverMerListeners(){
     driverScreen = 'velg-bil';
     render();
   });
+}
+// PRIORITET 50 — fristilt kommentar knyttet til driverVelgBilId. Lagres i kommentarer[]
+// (egen Settings-blob, se saveKommentarer()), IKKE i kontroller[] — rører aldri
+// Kontrollflyt, km-logikk eller "kontrollert i dag"-status (bevisst arkitekturvalg, se
+// PRIORITET_50_ANALYSE.md).
+function renderDriverNyKommentar(){
+  const v = vehicles.find(x => x.id === driverVelgBilId);
+  return `
+    <div class="backrow"><button class="backbtn" id="dnk-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">💬 Legg til kommentar</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
+    <div class="panel">
+      <div class="field" style="margin-bottom:14px;">
+        <label>Kommentar</label>
+        <textarea id="dnk-tekst" placeholder="F.eks. Ryggekamera hakker" style="min-height:100px;">${esc(driverNyKommentarTekst)}</textarea>
+      </div>
+      <div class="panel-actions"><button type="button" class="btn" id="dnk-lagre-btn" style="width:100%;">Lagre kommentar</button></div>
+    </div>
+  `;
+}
+async function submitDriverNyKommentar(){
+  const tekst = (document.getElementById('dnk-tekst').value || '').trim();
+  if(!tekst){ alert('Skriv en kommentar først.'); return; }
+  if(!driverVelgBilId){ alert('Fant ikke aktiv bil. Velg bil på nytt.'); return; }
+  kommentarer.push({
+    id: uid(), vehicleId: driverVelgBilId, dato: todayISO(), tidspunkt: nowTimeOslo(),
+    sjafor: driverNavn || 'Ukjent', tekst, lest: false
+  });
+  await saveKommentarer();
+  driverNyKommentarTekst = '';
+  driverScreen = 'mer';
+  render();
+}
+function attachDriverNyKommentarListeners(){
+  document.getElementById('dnk-back').addEventListener('click', () => { driverScreen = 'mer'; render(); });
+  const tekstEl = document.getElementById('dnk-tekst');
+  if(tekstEl) tekstEl.addEventListener('input', e => { driverNyKommentarTekst = e.target.value; });
+  document.getElementById('dnk-lagre-btn').addEventListener('click', submitDriverNyKommentar);
 }
 
 // ================= scrLogin (kun administrasjonsdelen) =================
@@ -11059,30 +11145,49 @@ function attachKalenderListeners(){
   }));
 }
 
-// PRIORITET 47 — «📨 Nye kommentarer»: RENT VISNINGSFILTER over den eksisterende
-// kontroller[]-listen (samme kilde Kontrollhistorikk allerede leser k.kommentar fra).
-// Ingen ny tabell, ingen nytt Airtable-felt, ingen kobling til saksmotoren — en kommentar
-// her oppretter aldri en sak og påvirker aldri bilstatus (jf. bestillingen: "Kommentarer er
-// ren informasjon"). Sortert nyeste først (dato+tidspunkt), ingen "lest/kvittert"-tilstand.
-function nyeKommentarerListe(){
-  return kontroller
+// PRIORITET 47/50 — «📨 Nye kommentarer»: slår sammen TO kilder, begge rene
+// visningsfilter (ingen ny sannhet, ingen kobling til saksmotoren — en kommentar her
+// oppretter aldri en sak og påvirker aldri bilstatus):
+//   1) kommentarfeltet på en ordinær kontroll (kontroller[], uendret siden P47)
+//   2) fristilte kommentarer lagt til via ☰ Mer → 💬 Legg til kommentar (kommentarer[],
+//      egen Settings-blob — se saveKommentarer()/submitDriverNyKommentar(), P50).
+//      kontroller[] er ikke rørt av dette — Kontrollflyt/isKontrollertIdag/km-historikk
+//      leser fortsatt kun ekte kontroller via vehicleKontroller().
+// Hver rad får et "lest"-felt (kontroll: k.kommentarLest · fristilt: k.lest — se
+// markerKommentarSomLest()), brukt av 💬 Kommentarer (x) i sidemenyen og Kommentaroversikt.
+// vehicleId er et valgfritt filter: sjåførens egen «💬 Kommentarer»-skjerm
+// (renderDriverKommentarer()) sender inn driverVelgBilId slik at kun kommentarer for
+// AKTUELL bil vises (Kritisk feil rettet i P50 — se PRIORITET_50_ANALYSE.md). Administrator
+// (Dashboard-sidemeny, Kommentaroversikt, Aktive saker, Rapporter) kaller uten filter og
+// ser fortsatt hele bilparken, slik det alltid har gjort.
+function nyeKommentarerListe(vehicleId){
+  const fraKontroller = kontroller
     .filter(k => k.kommentar && k.kommentar.trim())
     .map(k => ({
-      id: k.id, dato: k.dato, tidspunkt: k.tidspunkt || '',
+      id: k.id, kilde: 'kontroll', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
       bilTekst: (() => { const v = vehicles.find(x => x.id === k.vehicleId); return v ? vehicleLabel(v) : 'Ukjent bil'; })(),
-      sjafor: k.sjafor || 'Ukjent', kommentar: k.kommentar.trim()
-    }))
-    .sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
+      sjafor: k.sjafor || 'Ukjent', kommentar: k.kommentar.trim(), lest: !!k.kommentarLest
+    }));
+  const fraFristilte = kommentarer.map(k => ({
+    id: k.id, kilde: 'fristilt', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
+    bilTekst: (() => { const v = vehicles.find(x => x.id === k.vehicleId); return v ? vehicleLabel(v) : 'Ukjent bil'; })(),
+    sjafor: k.sjafor || 'Ukjent', kommentar: (k.tekst || '').trim(), lest: !!k.lest
+  }));
+  let alle = fraKontroller.concat(fraFristilte).filter(k => k.kommentar);
+  if(vehicleId) alle = alle.filter(k => k.vehicleId === vehicleId);
+  return alle.sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
 }
-// PRIORITET 47, Del 2 — radmarkupen for én kommentar er delt ut i en egen funksjon, slik at
-// Aktive saker sin ekspanderbare seksjon og sjåførens egen, alltid-utvidede «💬 Kommentarer»-
-// skjerm (renderDriverKommentarer()) viser NØYAKTIG samme rad fra samme kode — ingen duplisert
-// markup som kan komme ut av synk.
-function nyeKommentarRadHtml(k, isFirst){
+// PRIORITET 47, Del 2 (utvidet P50) — radmarkupen for én kommentar er delt ut i en egen
+// funksjon, slik at Aktive saker sin ekspanderbare seksjon, Kommentaroversikt (admin) og
+// sjåførens egen «💬 Kommentarer»-skjerm viser NØYAKTIG samme rad fra samme kode — ingen
+// duplisert markup som kan komme ut av synk. visMarkerSomLest styrer om «✅ Marker som lest»
+// vises — kun i administrator-visninger (P50, punkt 6: «Les-status skal være administrativ»).
+function nyeKommentarRadHtml(k, isFirst, visMarkerSomLest){
   return `
     <div style="padding:10px 0;${isFirst ? '' : 'border-top:1px solid var(--line-soft);'}">
-      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}</div>
+      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}${!k.lest ? ' · <span style="color:#b45309;">Ny</span>' : ''}</div>
       <div style="font-size:13.5px;">${esc(k.kommentar)}</div>
+      ${visMarkerSomLest && !k.lest ? `<button type="button" class="btn secondary small" style="margin-top:8px;" data-marker-lest="${k.kilde}:${k.id}">✅ Marker som lest</button>` : ''}
     </div>`;
 }
 function nyeKommentarerSectionHtml(){
@@ -11096,9 +11201,51 @@ function nyeKommentarerSectionHtml(){
       ${liste.length === 0
         ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
         : (nyeKommentarerApen
-          ? `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0)).join('')}</div>`
+          ? `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`
           : `<div class="required-hint">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} fra sjåfører — ren informasjon, oppretter ikke saker.</div>`)}
     </div>`;
+}
+// PRIORITET 50 — marker én kommentar (fra hvilken som helst av de to kildene) som lest.
+// Administrativt: sjåførskjermen kaller aldri denne (se P50, punkt 6). "lest" oppdaterer
+// aldri bilstatus, oppretter aldri en sak — ren metadata på selve kommentarraden.
+async function markerKommentarSomLest(kilde, id){
+  if(kilde === 'kontroll'){
+    const k = kontroller.find(x => x.id === id);
+    if(!k) return;
+    k.kommentarLest = true;
+    await saveKontroller();
+  } else {
+    const k = kommentarer.find(x => x.id === id);
+    if(!k) return;
+    k.lest = true;
+    await saveKommentarer();
+  }
+  render();
+}
+// PRIORITET 50 — Kommentaroversikt: egen administratorskjerm for ALLE kommentarer på
+// tvers av bilparken (dato, bil, sjåfør, kommentar — nyeste først), med «✅ Marker som
+// lest» per rad. Gjenbruker nyeKommentarerListe()/nyeKommentarRadHtml() uendret (samme
+// data som Dashboard-sidemenyens teller og Aktive saker-panelet — ingen egen datakilde).
+function renderKommentaroversikt(){
+  const liste = nyeKommentarerListe();
+  const uleste = liste.filter(k => !k.lest).length;
+  return `
+    <div class="backrow"><button class="backbtn" id="kommentaroversikt-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">💬 Kommentarer</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} totalt${uleste > 0 ? ` · ${uleste} ulest${uleste === 1 ? '' : 'e'}` : ''}.</div>
+    <div class="panel">
+      ${liste.length === 0
+        ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
+        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`}
+    </div>
+  `;
+}
+function attachKommentaroversiktListeners(){
+  document.getElementById('kommentaroversikt-back').addEventListener('click', () => goBack());
+  document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
+    const [kilde, id] = el.dataset.markerLest.split(':');
+    markerKommentarSomLest(kilde, id);
+  }));
 }
 function renderAktiveSaker(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
@@ -11227,6 +11374,10 @@ function attachAktiveSakerListeners(){
   document.getElementById('sak-back').addEventListener('click', () => goBack());
   const nyeKommentarerBtn = document.getElementById('nye-kommentarer-toggle-btn');
   if(nyeKommentarerBtn) nyeKommentarerBtn.addEventListener('click', () => { nyeKommentarerApen = !nyeKommentarerApen; render(); });
+  document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
+    const [kilde, id] = el.dataset.markerLest.split(':');
+    markerKommentarSomLest(kilde, id);
+  }));
   document.getElementById('sak-filter-toggle-btn').addEventListener('click', () => {
     showSakFilterMeny = !showSakFilterMeny;
     render();

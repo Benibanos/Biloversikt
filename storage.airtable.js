@@ -174,7 +174,10 @@
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
       km: ['KM', 'num'], varsellamper: ['Varsellamper', 'json'], annetTekst: ['AnnetTekst'],
       harNyeSkader: ['HarNyeSkader', 'bool'], skadeBeskrivelse: ['SkadeBeskrivelse'],
-      skadeBilderCount: ['SkadeBilderCount', 'num'], kommentar: ['Kommentar'], linkedDamageId: ['LinkedDamageId']
+      skadeBilderCount: ['SkadeBilderCount', 'num'], kommentar: ['Kommentar'], linkedDamageId: ['LinkedDamageId'],
+      // PRIORITET 50 — «Kommentarer 2.0»: les-status for kommentarfeltet over. Administrativt
+      // felt, påvirker aldri Kontrollflyt/kilometerlogikk/bilstatus. Se markerKommentarSomLest().
+      kommentarLest: ['KommentarLest', 'bool']
     }},
     varsellys: { table: 'WarningLights', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], type: ['Type'], annetTekst: ['AnnetTekst'], status: ['Status'],
@@ -456,7 +459,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.11.0',
+    versjon: 'v2.12.0',
     bygget: '10.09.2026 06:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };

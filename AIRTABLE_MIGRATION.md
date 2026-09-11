@@ -121,6 +121,19 @@ kategorier — ingen av dem er Airtable-kolonner.
 | skadeBilderCount | SkadeBilderCount | tall |
 | kommentar | Kommentar | tekst |
 | linkedDamageId | LinkedDamageId | tekst |
+| kommentarLest | KommentarLest | boolsk |
+
+> **Nytt i Prioritet 50 («Kommentarer 2.0»):** `kommentarLest` er les-status
+> for `kommentar`-feltet over, satt av administrator via «✅ Marker som lest»
+> i Kommentaroversikt/Aktive saker. Rent administrativt felt — påvirker aldri
+> Kontrollflyt, kilometerlogikk eller bilstatus.
+>
+> Samtidig innført: en HELT NY, separat liste `kommentarer` (fristilte
+> sjåførkommentarer lagt til via ☰ Mer → 💬 Legg til kommentar, IKKE knyttet
+> til en kontroll). Denne er bevisst IKKE en egen Airtable-tabell — den lagres
+> som én JSON-blob i Settings-tabellen, med nøyaktig samme mønster som
+> `servicehistorikk`/`planlagteservicer` under (se «Enkeltverdier i
+> Settings-tabellen»). Trenger derfor ingen egen felt-tabell her.
 
 ### WarningLights (app-nøkkel: `varsellys`)
 
@@ -247,6 +260,14 @@ separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
   filen. Se ROADMAP.md, "Gjenstående kjente feil eller mangler", for
   driftsrisikoen ved denne modellen (Airtables praktiske feltgrense per
   celle ved fortsatt vekst).
+- `kommentarer` — **nytt i Prioritet 50 («Kommentarer 2.0»):** fristilte
+  sjåførkommentarer lagt til via ☰ Mer → 💬 Legg til kommentar (IKKE knyttet
+  til en kontroll). Samme Settings-blob-mønster som `servicehistorikk`
+  (`window.storage.get('kommentarer')`/`.set(...)`, trygg lasting via
+  `parseJsonTrygt`). Bevisst IKKE lagt i `kontroller[]`/DriverChecks — se
+  CLAUDE.md, Prioritet 50, for hvorfor (unngår å forurense
+  `isKontrollertIdag()`/kilometerhistorikk). `{id, vehicleId, dato,
+  tidspunkt, sjafor, tekst, lest}`.
 - Alle skadebilder (`photo:*`-nøkler i Photos-tabellen)
 
 ## 4. Live-beregnede verdier (IKKE Airtable-felt — beregnes i JavaScript)

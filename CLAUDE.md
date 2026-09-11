@@ -1922,3 +1922,104 @@ ikke en feil å rette i denne appen slik den er bygget i dag:
   periodisk bakgrunnspoll (`window.subscribeLiveSync()`). Enhver fremtidig
   lesefunksjon i `storage.airtable.js` bør gå gjennom `_koKjor()` på samme
   måte som `get()`/`set()`/`delete()` nå gjør, ikke lese Airtable direkte.**
+- **Nytt i Prioritet 50: `kontroller[]` (DriverChecks) er det eneste
+  datagrunnlaget for `isKontrollertIdag()`/`vehicleKontroller()`/
+  `lastKontrollForVehicle()` — enhver fremtidig funksjon som pusher nye rader
+  inn i `kontroller[]` uten et ekte kilometer-/varsellampe-/skadefelt vil
+  forurense Kontrollflyt-statusen og kilometerhistorikken. Fristilte
+  kommentarer (Prioritet 50) lagres derfor bevisst i en HELT SEPARAT liste
+  (`kommentarer[]`, egen Settings-blob) — se punktet under.
+
+## Prioritet 50 (2026-09-10) — Kommentarer 2.0
+
+Bestilling: kommentarer skal være bilspesifikke (ikke flåtebrede) for
+sjåfører, Dashboard-sidemeny skal vise `💬 Kommentarer (x)` med uleste-teller,
+en dedikert Kommentaroversikt for administrator, og en fristilt
+«💬 Legg til kommentar»-funksjon under ☰ Mer knyttet til sjåførens aktive bil.
+IKKE ENDRE: Aktiv sjåfør, Kontrollflyt, Kilometerlogikk, Skader, Varsellamper,
+Biler i drift — alle bekreftet urørt (se simuleringsharness og diff-
+verifisering i PRIORITET_50_ANALYSE.md).
+
+**Kartlegging (før implementering) — funnet, IKKE antatt:**
+1. Kommentarer var IKKE en egen entitet — kun fritekstfeltet `kommentar` på
+   hver sjåførkontroll (`kontroller[]`/DriverChecks), satt via
+   `kontrollFormKommentar` i den ordinære kontrollflyten.
+2. Biltilknytning fantes allerede (`k.vehicleId` på hver kontroll) — dette
+   var ALDRI feilen.
+3. **Rotårsak til kritisk feil (sjåfør så hele flåtens kommentarer):**
+   `renderDriverKommentarer()` kalte `nyeKommentarerListe()` uten noe
+   `vehicleId`-filter, selv om sjåførens aktive bil (`driverVelgBilId`)
+   allerede var tilgjengelig i sesjonen. Ren visningslogikk-feil — dataene
+   var allerede korrekt bilspesifikke.
+4. «💬 Legg til kommentar» under ☰ Mer fantes IKKE i kildekoden (kun en
+   likelydende knapp inne i administrators saksveiviser, en annen funksjon).
+   Måtte bygges fra bunnen — se arkitekturvalg under.
+
+**Arkitekturvalg (avklart med bruker før implementering):** en fristilt
+kommentar (uten full kontroll) kunne enten (A) gjenbrukt `kontroller[]`
+direkte, eller (B) lagres i en helt ny, separat liste. Bruker bekreftet (B)
+etter at (A) ble flagget som risikofylt: `kontroller[]` er lese-kilden for
+`isKontrollertIdag()`/kilometerhistorikk/flere rapport- og statistikkflater —
+å presse inn kommentar-only-rader der ville krevd å touche mange kritiske
+lesepunkter og risikert å forurense «kontrollert i dag»-status, stikk i strid
+med IKKE ENDRE-listen.
+
+**Løsning:**
+- Ny liste `kommentarer[]` — fristilte sjåførkommentarer, lagret som egen
+  JSON-blob i Settings-tabellen med samme trygge lasting/lagring
+  (`parseJsonTrygt`, `_korrupteDatasett`-blokkering) som `servicehistorikk`.
+  INGEN ny Airtable-tabell, INGEN kobling til `kontroller[]`.
+  `{id, vehicleId, dato, tidspunkt, sjafor, tekst, lest}`.
+- `nyeKommentarerListe(vehicleId)` utvidet: slår sammen kontroll-kommentarer
+  (uendret kilde) og fristilte kommentarer (`kommentarer[]`), med et delt
+  `lest`-felt per rad. `vehicleId` er nå et valgfritt filter.
+- `renderDriverKommentarer()` sender nå inn `driverVelgBilId` — **retter den
+  kritiske feilen**: sjåfør ser kun kommentarer for bilen vedkommende faktisk
+  kjører.
+- Administrator (Dashboard-sidemeny, ny Kommentaroversikt, Aktive
+  saker-panelet, Rapporter) kaller fortsatt uten filter — ser hele flåten,
+  slik det alltid har gjort.
+- Nytt felt `kommentarLest` (boolsk) på `kontroller[]` for les-status på
+  kontroll-kommentarer — registrert i `LIST_TABLES.kontroller.fields` i
+  `storage.airtable.js` (feltregelen fulgt). Fristilte kommentarers
+  `lest`-felt trenger ingen registrering (Settings-blob).
+- Ny funksjon `markerKommentarSomLest(kilde, id)` — oppdaterer riktig kilde
+  (`kontroller[]` eller `kommentarer[]`) avhengig av hvor kommentaren kom fra.
+  Kun tilgjengelig i administrator-visninger (`visMarkerSomLest`-parameter på
+  `nyeKommentarRadHtml()`) — sjåførens egen skjerm har ALDRI denne knappen,
+  jf. bestillingens punkt 6 («Les-status skal være administrativ»).
+- Ny administrator-skjerm `renderKommentaroversikt()` (screen
+  `'kommentaroversikt'`): Dato/Bil/Sjåfør/Kommentar, nyeste først, «✅ Marker
+  som lest» per rad. Gjenbruker `nyeKommentarerListe()`/`nyeKommentarRadHtml()`
+  uendret — ingen egen datakilde.
+- Sidemeny (`renderDrawer()`): nytt punkt `💬 Kommentarer (x)` (uleste-teller
+  fra samme `nyeKommentarerListe()`), uten teller når alt er lest, jf.
+  bestillingen. Plassert sammen med Aktive saker/Påminnelser.
+- ☰ Mer (sjåfør, `renderDriverMer()`): ny knapp «💬 Legg til kommentar» → eget
+  skjema (`renderDriverNyKommentar()`), lagrer en ny rad i `kommentarer[]`
+  knyttet til `driverVelgBilId` og `driverNavn` fra sesjonen.
+
+**Filer endret:** `index.html`, `storage.airtable.js` (nytt felt
+`kommentarLest` + versjon v2.11.0 → v2.12.0), `index.html` sin `?v=`-referanse
+oppdatert til 2.12.0, `sw.js` (`CACHE_VERSION` bilpark-v46 → bilpark-v47),
+`kontroll.html` synkronisert som eksakt kopi av `index.html`.
+
+**Verifisert URØRT (diff mot forrige versjon, ingen endring):**
+`vehicleKontroller()`, `lastKontrollForVehicle()`, `isKontrollertIdag()`,
+`submitKontroll()`, `settAktivSjafor()`, `vehicleHovedstatus()`,
+`submitService()`. Se simuleringsharness for kjørte scenarier.
+
+**Kjente begrensninger:**
+- `kommentarer[]` er, som `servicehistorikk`, én JSON-blob i Settings — ikke
+  live-synkronisert på tvers av enheter i sanntid (samme begrensning som
+  servicehistorikk/planlagteservicer allerede har, siden `window.subscribeLiveSync()`
+  kun poller `LIST_TABLES`-nøkler). En admin som har Kommentaroversikt åpen i
+  lang tid ser ikke en helt fersk fristilt kommentar fra en annen enhet før
+  neste fulle reload — konsistent med eksisterende mønster, ikke en ny
+  svakhet introdusert her.
+- Fristilte kommentarer har ingen slette-/redigeringsfunksjon i denne runden
+  (kun «marker som lest»). Kan bygges som egen, avgrenset sak senere dersom
+  ønsket.
+- Kommentaroversikt har ingen filtrering på bil/periode i denne runden (flat,
+  nyeste-først-liste) — vurder dette som fremtidig finpuss dersom
+  kommentarvolumet vokser mye.

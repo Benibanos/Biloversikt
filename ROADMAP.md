@@ -1090,3 +1090,20 @@ Kjøretøyprofil viser nøyaktig feltsettet spesifisert i CLAUDE.md, ikke mer.
 📋 Avklar om "manuell overstyring mellom mobil-/desktopvisning" fortsatt er
 ønsket — bekreftet ikke-implementert i kode ved tre uavhengige
 gjennomganger. Bygg som ny, avgrenset sak dersom fortsatt aktuelt.
+
+## Prioritet 50 (2026-09-10) — Kommentarer 2.0
+
+Rettet kritisk feil: sjåfører så kommentarer fra HELE bilparken i «💬
+Kommentarer» (rotårsak: manglende bilfilter i visningen, ikke i dataene —
+se CLAUDE.md for full kartlegging). Lagt til: bilspesifikk kommentarvisning
+for sjåfør, `💬 Kommentarer (x)`-teller i Dashboard-sidemenyen (kun
+administrator, uleste), ny Kommentaroversikt-skjerm for administrator med
+«✅ Marker som lest», og en ny, fristilt «💬 Legg til kommentar»-funksjon
+under ☰ Mer knyttet til sjåførens aktive bil (`driverVelgBilId`) — lagret i
+en helt ny, separat Settings-blob-liste (`kommentarer[]`), bevisst IKKE i
+`kontroller[]`, for å garantere at Kontrollflyt/kilometerlogikk/
+`isKontrollertIdag()` forblir 100 % urørt (verifisert med diff mot forrige
+versjon + Node.js-simuleringsharness, se PRIORITET_50_ANALYSE.md/CLAUDE.md).
+Nytt Airtable-felt: `KommentarLest` på DriverChecks (les-status for
+kontroll-baserte kommentarer). `storage.airtable.js` v2.11.0 → v2.12.0,
+`sw.js` CACHE_VERSION bilpark-v46 → bilpark-v47.
