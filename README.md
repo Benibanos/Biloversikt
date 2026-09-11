@@ -1,128 +1,142 @@
-# Bilpark App
-## Operativt Styringssystem for Bring Larvik
+# Bilpark
 
----
+Operativt styringssystem for den daglige bilparken hos Bring Larvik.
 
-## Formål
+Bilpark er laget for at riktig informasjon skal føre til riktig handling. Systemet gir driftskoordinatoren rask oversikt over aktive saker, service, EU-kontroll, verksted og kommende frister, samtidig som sjåførene får en enkel mobil arbeidsflate for daglig kontroll og registrering av feil.
 
-Bilpark App er et operativt styringssystem, ikke et bilregister. Målet er
-ikke å lagre informasjon, men å sørge for at riktig informasjon fører til
-riktig handling — ingen glemte saker, full sporbarhet, operativ kontroll på
-under 10 sekunder.
+## Hovedbrukere
 
-## Brukere
-
-- **Driftskoordinator** (primærbruker) — bilparkoversikt, aktive saker,
-  verkstedoppfølging, bilstatus, rapportering.
-- **Sjåfør** — daglig kontroll, registrere varsellamper/skader/avvik, enkel
-  arbeidsflate med få klikk.
+- **Driftskoordinator:** følger opp saker, service, EU-kontroll, verksted, skader, varsellamper, dekk og kostnader.
+- **Sjåfør:** velger bil, gjennomfører daglig kontroll og registrerer avvik, varsellamper, skader og kommentarer.
 
 ## Kjernefunksjoner
 
-- Dashboard — svarer på tre spørsmål på under 5 sekunder: hva må gjøres nå,
-  hva kommer snart, hvilken bil skal jeg starte med.
-- Aktive saker — én samlet sak per kontroll, flere avvikspunkter, full
-  livssyklus fra Ny til Lukket.
-- Sjåførkontroll — daglig kontroll gruppert etter Driftslag, egen
-  sjåfør-URL (`kontroll.html`/`?sjafor=1`) uten innlogging.
-- Service — kilometerbasert serviceintervall per bil, service atskilt fra
-  ordinære verkstedtimer. Planlagt service har full livssyklus (opprett,
-  rediger, marker utført, slett).
-- Dekk — dekkoversikt og dekkhistorikk slått sammen på kjøretøyprofilen.
-- EU-kontroll — fire varslingsnivåer basert på godkjenningsdato.
-- Rapporthub — 12 standardiserte rapporter (kilometerstand, service, dekk,
-  EU-kontroll, skade, sak, kostnad, bilpark, verksted, bilhelse, måned,
-  kontroll), alle med Excel-eksport.
-- Aktiv biløkt — kontrollen tilhører bilen, biløkten tilhører sjåføren,
-  automatisk avslutning ved operativt dagskille kl. 04:00.
+### Aktive saker
 
-## Mobil og desktop
+Registrerte problemer samles i en enkel operativ arbeidsflyt:
 
-Mobil først. Desktop har eget adaptivt sidebar-layout (Design 2.0, se
-CLAUDE.md) med Dashboard, Aktive saker, Historikk, Planlegging, Biloversikt,
-Rapporter, Analyse og Innstillinger som egne hovedseksjoner. Mobil har
-sveipenavigasjon mellom hovedskjermene og rapporttilgang via ☰ Meny.
+1. **Aktiv sak** – ny sak som må godtas eller avslås.
+2. **Under oppfølging** – saken er godkjent og må følges opp.
+3. **Planlagt verksted** – verkstedtime er registrert.
+4. **Utført** – arbeidet er ferdig og saken flyttes til historikk.
+
+Avslåtte saker beholdes også i historikken. Varsellamper og kontrollavvik vises direkte på sakskortet, slik at saken kan forstås uten unødvendige klikk.
+
+### Service og EU-kontroll
+
+- Kilometerbasert serviceintervall per kjøretøy.
+- Varsling om kommende og forfalt service.
+- Fire varslingsnivåer for EU-kontroll.
+- Planlegging, redigering, fullføring og sletting av planlagt service.
+- Kalenderoversikt for service, EU-kontroll, dekkskift, verkstedtimer og oppfølginger.
+
+### Sjåførkontroll
+
+- Mobiltilpasset kontrollflyt uten innlogging.
+- Bilvalg gruppert etter driftslag.
+- Registrering av kilometerstand, varsellamper, skader og kontrollavvik.
+- Automatisk opprettelse av aktive saker når et registrert forhold krever oppfølging.
+- Aktiv sjåfør og biløkt avsluttes automatisk ved operativt dagskille kl. 04:00.
+
+### Verksted og historikk
+
+- Verkstedtimer kan kobles til aktive saker.
+- EU-kontroll og ruteskift kan registreres som strukturerte verkstedtyper.
+- Utført arbeid lagres med sporbarhet i historikk.
+- Historikk er tilgjengelig for kontroller, saker, service, verksted, dekk og skader.
+
+### Rapporter
+
+Rapporthuben gir standardiserte rapporter for blant annet kilometerstand, service, dekk, EU-kontroll, skader, saker, kostnader, bilpark, verksted og kontroll. Rapportene kan eksporteres til Excel.
+
+## Brukerflater
+
+- **Desktop:** kontrollsenter for driftskoordinatoren.
+- **Mobil:** handlingsdrevet administrasjonsvisning.
+- **Sjåførside:** egen mobil arbeidsflate via `index.html?sjafor=1` eller `kontroll.html`.
+
+Designet skal være rolig, kortbasert og handlingsorientert. Det viktigste skal kunne forstås raskt uten å åpne flere skjermer.
 
 ## Teknologi
 
-- **Frontend:** HTML, CSS og JavaScript i ett samlet dokument (`index.html`)
-  — ingen rammeverk, ingen byggsteg. Publiseres på **GitHub Pages**.
-- **Database:** Airtable, via direkte REST-API-kall fra nettleseren (ingen
-  backend). Se AIRTABLE_MIGRATION.md for fullt skjema.
-- **PWA:** `manifest.json` (hovedapp) + `manifest-sjafor.json`
-  (sjåfør-snarvei), service worker (`sw.js`) for offline app-shell-caching.
+- **Frontend:** HTML, CSS og JavaScript i `index.html`.
+- **Database:** Airtable via `storage.airtable.js`.
+- **Hosting:** GitHub Pages.
+- **PWA:** `sw.js`, `manifest.json` og `manifest-sjafor.json`.
+- **Byggsteg:** Ingen.
 
-GitHub Pages + Airtable er de eneste plattformene prosjektet bruker. Ingen
-Android-app, APK, TWA eller alternativ hosting (Netlify/Vercel) er del av
-prosjektet eller planlagt.
+Prosjektet bruker ikke Android-app, APK, TWA, Netlify eller Vercel.
 
-## Filoversikt
+## Prosjektfiler
 
-Prosjektet består av 14 filer:
+### Kjøretid
 
-**Runtime (kreves for at appen skal kjøre):**
-- `index.html` — app-shell, all UI og forretningslogikk
-- `kontroll.html` — fast inngangsdør for sjåførmodus
-- `storage.airtable.js` — autoritativ Airtable-integrasjon
-- `airtable-config.js` — Base ID + Personal Access Token (se "Sikkerhet" i
-  CLAUDE.md)
-- `sw.js` — service worker (offline app-shell-cache)
-- `manifest.json` / `manifest-sjafor.json` — PWA-manifester
-- `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-512-maskable.png`
-  — app-ikoner
+- `index.html` – app-skall, brukergrensesnitt og forretningslogikk.
+- `kontroll.html` – inngang til sjåførmodus.
+- `storage.airtable.js` – autoritativ Airtable-integrasjon.
+- `airtable-config.js` – Airtable Base ID og tilgangstoken.
+- `sw.js` – service worker og app-shell-cache.
+- `manifest.json` – PWA-manifest for hovedappen.
+- `manifest-sjafor.json` – PWA-manifest for sjåførsiden.
+- `icons/` – appikoner.
 
-Prosjektet inneholder bevisst INGEN filer for andre hostingplattformer
-(ingen `vercel.json`, `_headers`/`_redirects` for Netlify, ingen
-APK/Android/TWA/Bubblewrap-relatert konfigurasjon som `release-apk.yml`) —
-se "Teknologi" over. Git-historikken er backupen dersom noe av dette skulle
-bli aktuelt igjen; de holdes ikke som "historikk" i selve prosjektmappen.
+### Dokumentasjon
 
-**Dokumentasjon:**
-- `README.md` — denne filen
-- `CLAUDE.md` — kilde til sannhet: produktvisjon, arkitektur, regler,
-  utviklings- og testkrav
-- `ROADMAP.md` — implementert / delvis implementert / kjente feil / neste
-  arbeid
-- `AIRTABLE_MIGRATION.md` — full databasemodell
+- `README.md` – kort introduksjon, funksjoner og oppsett.
+- `CLAUDE.md` – produktregler, arkitektur, dataintegritet og utviklingskrav.
+- `ROADMAP.md` – nåværende status, kjente feil og neste arbeid.
+- `CHANGELOG.md` – kronologisk endringshistorikk og testresultater.
+- `AIRTABLE_MIGRATION.md` – autoritativ datamodell og Airtable-oppsett.
 
-## Installasjon og oppsett
+## Oppsett
 
-1. Klon repoet.
-2. Opprett din egen Airtable-base og Personal Access Token — se
-   AIRTABLE_MIGRATION.md for full fremgangsmåte.
-3. Fyll inn din egen `baseId` og `token` i `airtable-config.js` (bruk en
-   trygg placeholder-versjon uten ekte verdier ved deling av kildekoden).
-   **Aldri commit ekte tokens til et offentlig repo** — se "Sikkerhet" i
-   CLAUDE.md for risikoen ved denne arkitekturen (ingen backend betyr at
-   tokenet ligger åpent i nettleseren).
-4. Publiser mappen på GitHub Pages.
+1. Klon eller last ned prosjektet.
+2. Opprett Airtable-basen etter skjemaet i `AIRTABLE_MIGRATION.md`.
+3. Kontroller at alle påkrevde tabeller og felt finnes, inkludert feltet `Avvik` som langt tekstfelt i tabellen `AktiveSaker`.
+4. Opprett et Airtable Personal Access Token med minst nødvendige rettigheter til den aktuelle basen.
+5. Legg Base ID og token i `airtable-config.js`.
+6. Kontroller at appikonene ligger i `icons/` med filnavnene som brukes av manifestene og `sw.js`.
+7. Publiser prosjektet på GitHub Pages.
+8. Åpne **Innstillinger → Database status** og bekreft at filversjon, synkronisering og Airtable-skjema er godkjent.
 
-## Hvordan appen oppdateres
+## Oppdatering
 
-1. Gjør kodeendringen, øk `?v=`-tallet på `storage.airtable.js`-script-taggen
-   i `index.html` OG `versjon`-verdien inne i `storage.airtable.js` samtidig
-   (kun nødvendig ved endringer i selve `storage.airtable.js`).
-2. Øk `CACHE_VERSION` i `sw.js` hvis `index.html` eller andre filer i
-   `APP_SHELL` er endret.
-3. Publiser til GitHub Pages.
-4. Kjør "Oppdater app" i Systeminnstillinger i appen for å tvinge en frisk
-   kopi forbi en eventuell gammel service worker-cache.
+Ved endringer i `storage.airtable.js`:
 
-## Hvordan riktig storage-versjon kontrolleres
+1. Øk versjonen i `storage.airtable.js`.
+2. Oppdater `?v=` på scriptreferansen i `index.html` og `kontroll.html` til samme versjon.
 
-Åpne Innstillinger → Database status. Øverst vises kjørende fil-versjon
-(`window.storageAirtableInfo.versjon` fra `storage.airtable.js`)
-sammenlignet med versjonen `index.html`/`kontroll.html` sin script-tag
-`?v=`-parameter forventer — lest automatisk, ingen egen versjonskonstant å
-vedlikeholde (se CLAUDE.md, "Versjonskontroll (permanent løsning)"). Tre
-mulige tilstander: 🟢 samsvarer, 🔴 ekte avvik (en gammel, cachet kopi av
-`storage.airtable.js` kjører fortsatt — last opp filen på nytt og kjør
-"Oppdater app"), eller 🟡 kan ikke bekrefte (fant ingen `?v=`-parameter på
-script-taggen).
+Ved endringer i filer som inngår i app-skallet:
 
-## Hvordan Database status brukes
+1. Øk `CACHE_VERSION` i `sw.js`.
+2. Publiser filene på nytt.
+3. Bruk **Oppdater app** under Systeminnstillinger for å hente en frisk versjon.
 
-Database status (Innstillinger) viser, i rekkefølge: 1) filversjonssjekk (se
-over), 2) synkroniseringsstatus (pågående/feilede lagringer, sist
-synkronisert), 3) skjemasjekk mot faktisk Airtable-struktur. Se
-AIRTABLE_MIGRATION.md for full forklaring.
+Oppdater også relevant dokumentasjon etter endringen:
+
+- `AIRTABLE_MIGRATION.md` ved databaseendringer.
+- `ROADMAP.md` ved statusendringer.
+- `CHANGELOG.md` ved ferdig leveranse.
+- `CLAUDE.md` bare når varige regler eller arkitektur endres.
+
+## Sikkerhet
+
+`airtable-config.js` lastes i nettleseren. Et token i denne filen er derfor synlig for brukere som har tilgang til appen.
+
+- Bruk et token som kun har tilgang til nødvendig Airtable-base og nødvendige operasjoner.
+- Ikke publiser ekte token i et offentlig repository.
+- Bruk en eksempelkonfigurasjon med plassholdere når kildekoden deles.
+- Roter tokenet dersom det kan ha blitt eksponert.
+
+Full skjerming av tokenet krever en backend eller proxy og er ikke en del av dagens arkitektur.
+
+## Viktige utviklingsregler
+
+- Nye Airtable-felt må registreres i `LIST_TABLES` samtidig som de tas i bruk.
+- `v.km` er eneste autoritative nåværende kilometerstand.
+- Historisk servicekilometer skal aldri overskrive `v.km`.
+- Ikke bygg parallelle datakilder, lagringsfiler eller beregningsmotorer.
+- Gjenbruk eksisterende funksjoner før nye mekanismer opprettes.
+- Test både desktop, mobil og sjåførmodus etter relevante endringer.
+
+Se `CLAUDE.md` for fullstendige og bindende utviklingsregler.
