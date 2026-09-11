@@ -1124,3 +1124,23 @@ selv rørt. Dashboard (desktop+mobil) har fått tre nye tellere (🔴/🟡/🔧)
 lenker rett til riktig fane. Ingen endring i `storage.airtable.js` (kun nye
 verdier i et allerede registrert felt). `sw.js` CACHE_VERSION bilpark-v47 →
 bilpark-v48.
+
+## Prioritet 52 (2026-09-11) — Sakskort-sjekkliste, «Arbeid utført»-fullføring, kommentarer ut av Aktive saker
+
+Sakskort viser nå ☑ varsellamper/kontrollavvik + "Annet: {tekst}" direkte
+(`sakAvvikChecklistHtml()`) — ingen åpning nødvendig. «✅ Arbeid utført»
+(`markerSakUtfort()`) fullfører nå faktisk saken: setter
+`resolvedAt`/`completedAt`/`verkstedResultat`, lukker alle avvik, kvitterer
+automatisk tilhørende varsellamper, og saken dukker korrekt opp i
+Historikk/Rapporter/Analyse (tidligere satte den KUN status, usynlig i alle
+tre). Rotårsak til «hengende» saker rettet: verkstedtime registrert utenom
+sakskortet kobles nå automatisk til bilens ene åpne sak i "Under
+oppfølging" der det er entydig. Kommentarpanel fjernet fra Aktive Saker
+(data/💬 Kommentarer i sidemeny uendret — allerede der fra Prioritet 50).
+**Kritisk feltretting:** `sak.avvik[]` var aldri registrert i
+`LIST_TABLES` — stille datatap ved hver Airtable-synk siden Prioritet 12.
+Rettet i `storage.airtable.js` (v2.12.0 → v2.13.0) — **krever ny kolonne
+"Avvik" i AktiveSaker-tabellen i Airtable**, se AIRTABLE_MIGRATION.md.
+`sw.js` CACHE_VERSION bilpark-v48 → bilpark-v49. 17/17
+simuleringsassertions bestått. Layout Editor for sidemeny: kartlagt, ikke
+implementert (se CLAUDE.md).

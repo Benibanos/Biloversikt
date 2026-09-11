@@ -204,7 +204,17 @@
       linkedVtId: ['LinkedVtId'], verkstedResultat: ['VerkstedResultat'], completedAt: ['CompletedAt'],
       estimatedCost: ['EstimatedCost', 'num'], actualCost: ['ActualCost', 'num'],
       requiresProvision: ['RequiresProvision', 'bool'], provisionAmount: ['ProvisionAmount', 'num'],
-      provisionMonth: ['ProvisionMonth']
+      provisionMonth: ['ProvisionMonth'],
+      // KRITISK FELTRETTING (funnet ved verifisering av «Del 1/Del 2»): sak.avvik[] — selve
+      // kjernedataen for flerpunkts-saker (Prioritet 12/51: hvert enkelt varsellampe-/
+      // kontrollavvik-element i en sak, brukt av sakAvvikListe/sakAvvikAktive/
+      // sakOppdaterStatusEtterAvvik/markerSakUtfort/sakAvvikChecklistHtml m.fl.) har ALDRI
+      // vært registrert her. Følge: feltet ble stille droppet av toAirtableFields() ved
+      // HVER lagring, og aldri gjenopprettet av fromAirtableFields() ved neste innlasting —
+      // nøyaktig FELTREGEL-bruddet ("data forsvinner stille ved neste Airtable-synk").
+      // Rettes nå. KREVER en ny kolonne "Avvik" (type: long text) i AktiveSaker-tabellen i
+      // Airtable FØR denne filen tas i bruk — se leveransenotatet.
+      avvik: ['Avvik', 'json']
     }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen, med
@@ -459,8 +469,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.12.0',
-    bygget: '10.09.2026 06:00',
+    versjon: 'v2.13.0',
+    bygget: '11.09.2026 00:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 

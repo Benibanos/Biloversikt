@@ -207,7 +207,8 @@ kategorier — ingen av dem er Airtable-kolonner.
 | updatedAt | UpdatedAt | tekst |
 | reportCount | ReportCount | tall |
 | lastReportedAt | LastReportedAt | tekst |
-| historikk | Historikk | JSON (tekst) — dette er de individuelle avvikspunktene i en flerpunkts sak |
+| historikk | Historikk | JSON (tekst) — logg over hver rapportering/hendelse på saken (dato/av/kommentar). **Rettelse (Prioritet 52):** forrige beskrivelse her var feil — dette feltet er IKKE avvikspunktene selv, se `avvik` under. |
+| avvik | Avvik | JSON (tekst) — **KRITISK FELTRETTING (Prioritet 52):** dette er de faktiske avvikspunktene i en flerpunkts sak (ett element per varsellampe/kontrollavvik, se `sakAvvikListe()`). Var ALDRI registrert i `LIST_TABLES` — feltet ble stille droppet ved hver Airtable-synk siden Prioritet 12. **Krever ny kolonne `Avvik` (long text) i AktiveSaker-tabellen i Airtable før v2.13.0 tas i bruk.** |
 | linkedVtId | LinkedVtId | tekst |
 | verkstedResultat | VerkstedResultat | tekst |
 | completedAt | CompletedAt | tekst |

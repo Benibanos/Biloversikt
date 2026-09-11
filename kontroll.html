@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.12.0"></script>
+<script src="storage.airtable.js?v=2.13.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -5045,11 +5045,55 @@ async function avslaSak(sakId){
   await saveAktiveSaker();
   render();
 }
+// «Del 2» — ett-klikks «✅ Arbeid utført» gjorde tidligere KUN s.status='utfort'. Det
+// etterlot saken usynlig i Historikk/Rapporter/Analyse (de leser s.resolvedAt/
+// s.completedAt, som aldri ble satt), varsellampen sto fortsatt som aktiv (varsellys[]
+// er en egen, persistent liste som aldri ble kvittert), og for flerpunkts-saker forble
+// hvert avvik-element stående som 'aktiv' i sak.avvik[]. Gjenbruker de ETABLERTE
+// feltene/funksjonene den gamle veiviseren (submitSakWizardFullfor) allerede bruker for
+// nøyaktig dette — ingen parallell lukkelogikk.
 async function markerSakUtfort(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
   if(!s) return;
+  const now = new Date().toISOString();
+  const idag = todayISO();
+
+  // Flerpunkts-sak: fullfør ALLE gjenværende aktive avvik (ett-klikks — ingen delvis
+  // fullføring her, i motsetning til den avanserte veiviseren som kun lukker avvik
+  // knyttet til én bestemt verkstedtime).
+  if(Array.isArray(s.avvik) && s.avvik.length > 0){
+    s.avvik.forEach(a => {
+      if(a.status === 'aktiv'){ a.status = 'utfort'; a.resolvedAt = idag; }
+    });
+  }
+
+  // Kvitter automatisk ut tilhørende varsellamper (varsellys[] er en egen, persistent
+  // liste — se submitKontroll). Ett aktivt varsellys-element per (bil, type) er
+  // GARANTERT unikt (samme regel som oppretter dem), så matching på vehicleId+type er
+  // trygt og entydig.
+  let varsellysEndret = false;
+  sakAvvikListe(s).filter(a => a.caseType === 'varsellampe').forEach(a => {
+    const w = varsellys.find(x => x.vehicleId === s.vehicleId && x.type === a.sourceId && x.status === 'aktiv');
+    if(w){
+      w.status = 'kvittert';
+      w.kvittertDato = idag;
+      w.kvittertAv = loggedInRole || 'Ukjent';
+      varsellysEndret = true;
+    }
+  });
+  if(varsellysEndret) await saveVarsellys();
+
+  // Samme felter som den avanserte veiviseren setter ved lukking (se
+  // submitSakWizardFullfor) — sikrer at saken faktisk dukker opp i Historikk
+  // (vehicleHistorikkTidslinje) og telles korrekt i Rapporter/Analyse (som leser
+  // s.resolvedAt). 'feil-utbedret' er standardresultatet for ett-klikks fullføring;
+  // kan justeres i etterkant via «✏️ Avansert redigering» ved behov.
+  if(!s.completedAt) s.completedAt = idag;
+  if(!s.verkstedResultat) s.verkstedResultat = 'feil-utbedret';
   s.status = 'utfort';
-  s.updatedAt = new Date().toISOString();
+  s.resolvedAt = idag;
+  s.resolvedBy = loggedInRole || 'Ukjent';
+  s.updatedAt = now;
   await saveAktiveSaker();
   render();
 }
@@ -5444,7 +5488,20 @@ async function submitAddVT(ev){
     return;
   }
   const nyVtId = uid();
-  const sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
+  // «Del 2» — rotårsak til at saker ble hengende i "Under oppfølging": vtPrefillSakId
+  // settes KUN når verkstedtimen registreres via sakskortets egen «📅 Registrer
+  // verkstedtime»-knapp. Alle andre innganger (Verkstedoversikt sin generelle «+ Ny
+  // verkstedtime», hurtigbestilling fra Dashboard/Kjøretøyprofil, Min Bil) nullstiller
+  // den, og saken fikk da ALDRI status 'verksted-bestilt' — «✅ Arbeid utført» dukket
+  // aldri opp. Fallback: finnes det NØYAKTIG én åpen sak i fasen "Under oppfølging" på
+  // bilen, kobles den automatisk (samme kobling som om brukeren hadde brukt sakskort-
+  // knappen). Finnes det ingen, eller flere enn én (tvetydig — vi gjetter aldri hvilken),
+  // opprettes verkstedtimen uendret uten kobling, akkurat som før.
+  let sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
+  if(!sak){
+    const kandidater = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakFase(s) === 'oppfolging');
+    if(kandidater.length === 1) sak = kandidater[0];
+  }
   verkstedtimer.push({
     id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
     sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type
@@ -10768,6 +10825,25 @@ function sakCard(s, showVehicle){
 // prioritet, og en lenke til den fulle, gamle veiviseren for saker som trenger
 // kostnad/prioritet/notater registrert (kostnadsregistrering, Kostnadsoversikt m.fl. er
 // UENDRET og fortsatt avhengig av disse feltene — se markerSakUtfort()/CLAUDE.md).
+// «Del 1» — direkte sjekkliste på sakskortet: varsellamper og kontrollavvik skal kunne
+// forstås UTEN å åpne saken. Leser via sakAvvikListe(s) — samme universelle kilde som
+// resten av saksmotoren (fungerer identisk for nye flerpunkts-saker OG eldre enkeltavvik-
+// saker). Kun varsellampe/kontrollavvik får ☑-sjekkliste (det brukeren ba om); andre
+// sakstyper (skade, manuelt "annet") beholder uendret visning under.
+// "Annet" (kun varsellampe har fritekst, se avvikTypeLabel): vises som "Annet: <tekst>" —
+// men KUN når det faktisk finnes en registrert fritekst, for å unngå "Annet: Annet".
+function sakAvvikChecklistHtml(s){
+  const relevante = sakAvvikListe(s).filter(a => a.caseType === 'varsellampe' || a.caseType === 'kontrollavvik');
+  if(relevante.length === 0) return '';
+  return `<div style="margin-top:6px;">${relevante.map(a => {
+    let tekst = a.label;
+    if(a.caseType === 'varsellampe' && a.sourceId === 'annet' && a.label && a.label !== VARSELLAMPE_LABEL.annet){
+      tekst = 'Annet: ' + a.label;
+    }
+    const ikon = a.caseType === 'varsellampe' ? (VARSELLAMPE_ICON[a.sourceId] || '❓') : '📋';
+    return `<div style="font-size:12.5px;line-height:1.5;">☑ ${ikon} ${esc(tekst)}</div>`;
+  }).join('')}</div>`;
+}
 function sakKompaktKortHtml(s, fase){
   const v = sakVehicle(s);
   const apen = sakDetaljApneIds.has(s.id);
@@ -10783,6 +10859,7 @@ function sakKompaktKortHtml(s, fase){
         <div class="dmg-text">
           <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
           <div class="desc">${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')} · ${fmt(s.reportedAt)}</div>
+          ${sakAvvikChecklistHtml(s)}
         </div>
         <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'}</span>
       </div>
@@ -11455,8 +11532,6 @@ function renderAktiveSaker(){
     </div>
     <h2 style="font-size:19px;margin-bottom:16px;">🗂️ Aktive Saker</h2>
 
-    ${nyeKommentarerSectionHtml()}
-
     <div class="p38-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
       <button type="button" class="btn ${sakAktivFane==='aktiv'?'':'secondary'} small" data-sak-fane="aktiv" style="flex:1;">🔴 Aktiv sak (${antAktiv})</button>
       <button type="button" class="btn ${sakAktivFane==='oppfolging'?'':'secondary'} small" data-sak-fane="oppfolging" style="flex:1;">🟡 Under oppfølging (${antOppfolging})</button>
@@ -11558,14 +11633,13 @@ function renderAktiveSaker(){
     ` : ''}
   `;
 }
+// «Del 3» — «📨 Nye kommentarer» og tilhørende «✅ Marker som lest» er fjernet fra
+// Aktive Saker (kommentarer hører ikke til saksmotoren — se sakAvvikChecklistHtml over/
+// CLAUDE.md). Selve dataene (kommentarer[]/kontroller[].kommentar) og handlingen
+// markerKommentarSomLest() er UENDRET og fortsatt i bruk — nås nå kun via 💬 Kommentarer
+// i sidemenyen (attachKommentaroversiktListeners) og sjåførens egen kommentarskjerm.
 function attachAktiveSakerListeners(){
   document.getElementById('sak-back').addEventListener('click', () => goBack());
-  const nyeKommentarerBtn = document.getElementById('nye-kommentarer-toggle-btn');
-  if(nyeKommentarerBtn) nyeKommentarerBtn.addEventListener('click', () => { nyeKommentarerApen = !nyeKommentarerApen; render(); });
-  document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
-    const [kilde, id] = el.dataset.markerLest.split(':');
-    markerKommentarSomLest(kilde, id);
-  }));
   // PRIORITET 51 — «Ny saksflyt»: fanevalg, kompakte kort-handlinger, og avansert-toggle.
   document.querySelectorAll('[data-sak-fane]').forEach(el => el.addEventListener('click', () => {
     sakAktivFane = el.dataset.sakFane;

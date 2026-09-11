@@ -2113,3 +2113,102 @@ tatt — upåvirket.
   som går denne veien igjen kan sette en sak i en gammel delstatus
   (`vurderes` osv.) via veiviserens Steg 2/3. `sakFase()` håndterer dette
   korrekt (grupperes fortsatt riktig), men er verdt å være oppmerksom på.
+
+---
+
+## Prioritet 52 (2026-09-11) — Sakskort-sjekkliste, «Arbeid utført»-fullføring og fjerning av kommentarer fra Aktive saker
+
+Fire samlet leverte deler (kartlagt og godkjent separat før implementering):
+
+**Del 1 — Direkte sjekkliste på sakskortet.** Mål: forstå saken uten å åpne
+den. Ny `sakAvvikChecklistHtml(s)` leser via den universelle
+`sakAvvikListe(s)` (fungerer identisk for nye flerpunkts-saker og eldre
+enkeltavvik-saker — ingen egen lesevei) og viser ☑ + ikon + etikett for hvert
+varsellampe-/kontrollavvik-element DIREKTE i `sakKompaktKortHtml()`, ikke
+gjemt bak «vis mer». «Annet» (kun varsellampe har fritekst) vises som
+«Annet: {fritekst}» — kun når fritekst faktisk finnes, ellers bare «Annet»
+(unngår «Annet: Annet»). Andre sakstyper (skade, manuelt "annet") er
+uendret — sjekkliste vises kun for varsellampe/kontrollavvik, som bestilt.
+
+**Del 2 — «✅ Arbeid utført» fullfører nå faktisk saken.** Tidligere satte
+`markerSakUtfort()` KUN `status='utfort'` — saken ble usynlig i
+Historikk/Rapporter/Analyse (som leser `resolvedAt`/`completedAt`, aldri
+satt), varsellampen forble aktiv i `varsellys[]` (egen, persistent liste,
+aldri kvittert), og flerpunkts-avvik forble `'aktiv'` i `sak.avvik[]`.
+Skrevet om til å gjenbruke NØYAKTIG de samme feltene den avanserte
+veiviseren (`submitSakWizardFullfor`) allerede setter ved lukking:
+`resolvedAt`/`resolvedBy`/`completedAt`/`verkstedResultat` (standard
+`'feil-utbedret'` for ett-klikks fullføring), samt å markere alle
+gjenværende aktive avvik i `sak.avvik[]` som `'utfort'` og AUTOMATISK
+kvittere tilhørende `varsellys[]`-poster (matching på vehicleId+type — trygt
+og entydig siden ett aktivt varsellys-element per bil+type er garantert av
+`submitKontroll()`). Ingen parallell lukkelogikk — samme felter, samme
+konsekvens som den etablerte veiviseren alltid har gitt.
+
+**Del 2b — rotårsak til at saker ble "hengende" i Under oppfølging.**
+`vtPrefillSakId` (kobler ny verkstedtime til en sak) ble kun satt via
+sakskortets egen «📅 Registrer verkstedtime»-knapp og den gamle veiviserens
+Steg 3 — ALLE andre innganger (Verkstedoversikt sin generelle skjema,
+hurtigbestilling fra Dashboard/Kjøretøyprofil, Min Bil) nullstilte den, og
+saken nådde da aldri `'verksted-bestilt'`. `submitAddVT()` har fått en
+fallback: finnes det NØYAKTIG én åpen sak i fasen "Under oppfølging" på
+bilen når ingen eksplisitt sak er forhåndsvalgt, kobles den automatisk på
+samme måte som om sakskort-knappen var brukt. Flere/ingen kandidater →
+uendret oppførsel (ingen gjetting).
+
+**Del 3 — Kommentarer fjernet fra Aktive saker.** `${nyeKommentarerSectionHtml()}`
+og de to tilhørende lytterne (`nye-kommentarer-toggle-btn`,
+`[data-marker-lest]`) fjernet fra `renderAktiveSaker()`/
+`attachAktiveSakerListeners()`. Selve dataene (`kommentarer[]`,
+`kontroller[].kommentar`), `nyeKommentarerListe()` og handlingen
+`markerKommentarSomLest()` er UENDRET — nås fortsatt via 💬 Kommentarer i
+sidemenyen og sjåførens egen kommentarskjerm. `nyeKommentarerSectionHtml()`
+selv er ikke fjernet fra koden (ingen aktive kallsteder igjen, ufarlig).
+
+**Del 4 — Kommentarer i sidemeny.** Allerede implementert (Prioritet 50) —
+`💬 Kommentarer (n)` med ulest-teller ligger allerede i `renderDrawer()`.
+Ingen endring nødvendig, kun bekreftet.
+
+**KRITISK FELTRETTING oppdaget under verifisering (ikke en ny funksjon —
+retter et eksisterende, stille datatap):** `sak.avvik[]` — selve
+kjernedataen bak flerpunkts-saker siden Prioritet 12/51, og selve grunnlaget
+Del 1 sin sjekkliste leser — var ALDRI registrert i `LIST_TABLES` i
+`storage.airtable.js`. Feltet ble stille droppet av `toAirtableFields()` ved
+hver lagring, og aldri gjenopprettet av `fromAirtableFields()` ved neste
+innlasting — nøyaktig FELTREGEL-bruddet. Rettet: `avvik: ['Avvik', 'json']`
+lagt til i `LIST_TABLES.aktiveSaker.fields`. **KREVER en ny kolonne "Avvik"
+(long text) i AktiveSaker-tabellen i Airtable FØR disse filene tas i bruk —
+uten den kolonnen vil skrivinger til dette feltet feile/ignoreres av
+Airtable.** Se AIRTABLE_MIGRATION.md.
+
+**Simulering:** Node.js-harness kjørt mot de FAKTISKE, uendrede ekstraherte
+funksjonene (`sakAvvikListe`, `avvikTypeLabel`, `registrerKontrollAvvikSomSak`,
+`sakAvvikChecklistHtml`, `sakFase`, `markerSakUtfort`) gjennom hele kjeden:
+kontroll med varsellampe+kontrollavvik+"annet" → sjekkliste vises korrekt →
+Godta → Under oppfølging → verkstedtime registrert UTENOM sakskortet
+auto-kobles → Planlagt verksted → Arbeid utført → alle avvik utført,
+varsellamper kvittert, saken lukket med `resolvedAt`/`completedAt`/
+`verkstedResultat` satt. **17/17 assertions bestått.**
+
+**Filer endret:** `index.html`, `storage.airtable.js` (v2.12.0 → v2.13.0 —
+NYTT felt `avvik`, se feltrettingen over), `sw.js` (CACHE_VERSION
+bilpark-v48 → bilpark-v49), `kontroll.html` synkronisert,
+`AIRTABLE_MIGRATION.md` oppdatert.
+
+**Kjente begrensninger:**
+- Auto-kobling av verkstedtime (Del 2b) dekker kun det vanlige tilfellet
+  (nøyaktig én åpen sak i "Under oppfølging" på bilen). Har bilen flere
+  samtidige saker i den fasen, kreves fortsatt eksplisitt «📅 Registrer
+  verkstedtime» fra riktig sakskort — ingen automatisk gjetting ved
+  tvetydighet.
+- «Arbeid utført» setter alltid `verkstedResultat='feil-utbedret'` som
+  standard ved ett-klikks fullføring (kan endres i etterkant via «✏️
+  Avansert redigering» ved behov) — konsistent med P51 sitt "ingen
+  prosesssteg"-prinsipp.
+- **Airtable-endring kreves før idriftsettelse:** ny kolonne "Avvik" (long
+  text) i AktiveSaker-tabellen. Uten denne vil flerpunkts-sakers avvik-detaljer
+  fortsette å forsvinne ved synk, og Del 1 sin sjekkliste vil se tom ut etter
+  en reload (selv om den fungerer korrekt umiddelbart etter registrering, i
+  samme økt).
+- Layout Editor for sidemeny: KUN kartlagt (se eget notat), ikke
+  implementert i denne leveransen.
