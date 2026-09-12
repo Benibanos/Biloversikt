@@ -2238,3 +2238,20 @@ endring her.
 
 Se CHANGELOG.md for full detalj, tolkningsvalg og kjente begrensninger (bl.a. at
 mobildashbordets KPI-rad/Bestill tjenester bevisst IKKE ble forenklet i denne runden).
+
+---
+
+## Prioritet 54 (2026-09-12) — Kalender er eneste planleggingsflate
+
+**Nytt varig prinsipp:** Det skal ikke finnes en egen "Planlegging"-skjerm ved siden av
+Kalender. Alle fremtidige aktiviteter (service, dekkskift, EU-kontroll, verksted,
+oppfølging) skal spores tilbake til Kalender — både månedsgriden og den underliggende
+listevisningen (`planleggingSeksjonHtml()`, som leser `flatePlanleggingData()`).
+Fremtidige endringer i "kommende aktiviteter"-logikk skal gjøres i disse to funksjonene,
+ikke i en gjenopprettet, separat Planlegging-skjerm.
+
+**Arkitekturmønster bekreftet:** Kalender oppretter/redigerer/sletter ALDRI noe selv —
+den navigerer videre til den eksisterende, dedikerte skjermen som allerede eier den
+aktuelle datatypen (Service, Dekk, Verkstedoversikt, Aktive saker). Dette er bevisst,
+ikke en mangel — unngår duplisert skjema-/valideringslogikk. Behold dette mønsteret ved
+videre arbeid på Kalender.

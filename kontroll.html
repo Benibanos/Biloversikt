@@ -2519,7 +2519,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','planlegging','service','dekk','kalender','bestill'];
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -6477,7 +6477,6 @@ function render(){
   else if(screen === 'rapporter') body = renderRapporter();
   else if(screen === 'analyse') body = renderAnalyse();
   else if(screen === 'historikk') body = renderHistorikk();
-  else if(screen === 'planlegging') body = renderPlanlegging();
   else if(screen === 'service') body = renderServiceSkjerm();
   else if(screen === 'dekk') body = renderDekkSkjerm();
   else if(screen === 'kalender') body = renderKalender();
@@ -6560,7 +6559,6 @@ function render(){
   else if(screen === 'rapporter') attachRapporterListeners();
   else if(screen === 'analyse') attachAnalyseListeners();
   else if(screen === 'historikk') attachHistorikkListeners();
-  else if(screen === 'planlegging') attachPlanleggingListeners();
   else if(screen === 'service') attachServiceSkjermListeners();
   else if(screen === 'dekk') attachDekkSkjermListeners();
   else if(screen === 'kalender') attachKalenderListeners();
@@ -10984,7 +10982,7 @@ function attachHistorikkListeners(){
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
 }
 
-// ================= scrPlanlegging =================
+// ================= flatePlanleggingData() — datakilde for Kalender =================
 // Flåtebred generalisering av Dashboardets "📅 Kommer snart", uten
 // 5-post-taket — full liste over alt som nærmer seg: service, dekk (alders-signal, se
 // CLAUDE.md — ingen egen "planlagt dekkskift-dato" finnes i appen), verkstedtimer og
@@ -11030,81 +11028,11 @@ function flatePlanleggingData(periodeDager){
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
   return {service, planlagtService, dekk, planlagtDekkskift, verksted, oppfolging, euKontroll};
 }
-function renderPlanlegging(){
-  const data = flatePlanleggingData(planleggingPeriodeDager);
-  const totalt = data.service.length + data.planlagtService.length + data.dekk.length + data.planlagtDekkskift.length + data.verksted.length + data.oppfolging.length + data.euKontroll.length;
-  const kolonneHtml = (tittel, ikon, liste, radHtml) => `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:10px;">${ikon} ${tittel} (${liste.length})</div>
-      ${liste.length === 0 ? `<div class="empty-note">Ingen kommende.</div>` : `<ul class="dmg-simple-list">${liste.map(radHtml).join('')}</ul>`}
-    </div>`;
-  // Service-kolonnen viser to adskilte datakilder side om side i samme liste — km-varsler
-  // (vehicleServiceStatus()) og planlagte serviceavtaler (planlagteServicer) — men de
-  // lagres og behandles fullstendig separat (se flatePlanleggingData()). Verksted-
-  // kolonnen viser KUN ekte verkstedtimer — en serviceavtale havner aldri der.
-  const serviceKolonneHtml = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:10px;">🔧 Service (${data.service.length + data.planlagtService.length})</div>
-      ${(data.service.length === 0 && data.planlagtService.length === 0) ? `<div class="empty-note">Ingen kommende.</div>` : `
-      <ul class="dmg-simple-list">
-        ${data.service.map(x => `<li style="cursor:pointer;" data-goto-service="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`).join('')}
-        ${data.planlagtService.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-service="${t.vehicleId}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)}</span></li>`; }).join('')}
-      </ul>`}
-    </div>`;
-  // Dekkskifttime: "Dekk"-kolonnen viser to adskilte datakilder side om side,
-  // nøyaktig samme mønster som Service-kolonnen over — dekk-alders-varsel (dekkAlderStatus())
-  // og planlagte dekkskifttimer (planlagteDekkskift), lagret/behandlet fullstendig separat
-  // (se flatePlanleggingData()). "🛞 Dekkskift"-kategorien fra kravspesifikasjonen er dermed
-  // slått sammen med den eksisterende "Dekk"-kolonnen (ikke et helt nytt panel) — samme
-  // begrunnelse som service: Less Is More, ett sted per tema, ikke to paneler for samme bil.
-  const dekkKolonneHtml = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="ov-label" style="margin-bottom:10px;">🛞 Dekk (${data.dekk.length + data.planlagtDekkskift.length})</div>
-      ${(data.dekk.length === 0 && data.planlagtDekkskift.length === 0) ? `<div class="empty-note">Ingen kommende.</div>` : `
-      <ul class="dmg-simple-list">
-        ${data.dekk.map(x => `<li style="cursor:pointer;" data-goto-dekk="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`).join('')}
-        ${data.planlagtDekkskift.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-dekk="${t.vehicleId}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)} · ${DEKK_RETNING_LABEL[t.retning] || esc(t.retning)}</span></li>`; }).join('')}
-      </ul>`}
-    </div>`;
-  return `
-    <div class="backrow"><button class="backbtn" id="plan-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">📅 Planlegging</h2>
-    <div class="required-hint" style="margin-bottom:16px;">Alt som krever oppmerksomhet de neste dagene/ukene — ${totalt} totalt.</div>
-
-    <div class="filters-row" style="margin-bottom:16px;">
-      <select id="plan-periode">
-        <option value="7" ${planleggingPeriodeDager===7?'selected':''}>Neste 7 dager</option>
-        <option value="30" ${planleggingPeriodeDager===30?'selected':''}>Neste 30 dager</option>
-        <option value="90" ${planleggingPeriodeDager===90?'selected':''}>Neste 90 dager</option>
-      </select>
-    </div>
-
-    <div class="planlegging-grid">
-      ${serviceKolonneHtml}
-      ${dekkKolonneHtml}
-      ${kolonneHtml('Verksted', '🛠️', data.verksted, t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''}</span></li>`; })}
-      ${kolonneHtml('Oppfølging', '📋', data.oppfolging, s => { const sv = sakVehicle(s); return `<li style="cursor:pointer;" data-goto-sak="${s.id}"><span class="dmg-simple-main">${sv ? esc(vehicleLabel(sv)) : 'Slettet kjøretøy'} · ${esc(sakKortOverskrift(s))} · ${fmt(s.followUpDate)}</span></li>`; })}
-      ${kolonneHtml('EU-kontroll', '🚦', data.euKontroll, x => `<li style="cursor:pointer;" data-goto-bilkort="${x.v.id}"><span class="dmg-simple-main">${esc(vehicleLabel(x.v))} · ${x.status.ikon} ${x.status.tekst}</span></li>`)}
-    </div>
-  `;
-}
-function attachPlanleggingListeners(){
-  document.getElementById('plan-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('plan-periode').addEventListener('change', e => { planleggingPeriodeDager = Number(e.target.value); render(); });
-  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
-  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
-  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
-  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
-  document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
-    const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
-    if(!vt) return;
-    vtFilterBil = vt.vehicleId; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
-    showVtFilterMeny = false;
-    vtOversiktOpenVehicles = new Set([vt.vehicleId]);
-    goTo('verksted');
-  }));
-}
-
+// «Kalender blir eneste planleggingsflate»: den frittstående "📅 Planlegging"-skjermen
+// (renderPlanlegging()/attachPlanleggingListeners()) er fjernet. Innholdet var allerede
+// identisk med planleggingSeksjonHtml() under (samme flatePlanleggingData()-kilde, samme
+// klikkmål til Service/Dekk/Verksted/Sak) — Kalender viste allerede denne seksjonen i
+// tillegg til selve månedsgriden, så ingenting gikk tapt. Se CLAUDE.md/CHANGELOG.md.
 // ================= scrBestill =================
 // Menypunktet "🛠️ Bestill tjenester" fra referansebildet. Flaten inneholder INGEN ny
 // logikk og ingen ny datamodell — den viser de fire hurtigbestillingskortene som
@@ -14629,7 +14557,7 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // åpnes fortsatt uendret via selve knappen. Sveip som ikke starter i kantsonen gjør nå
 // ingenting (fjerner en tidligere kilde til utilsiktet tilbake-navigering midt i vanlig
 // innholds-sveiping/scrolling).
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'planlegging', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger'];
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger'];
 const SWIPE_EDGE_SONE = 28; // px fra venstre kant — bredt nok til å treffe pålitelig (iOS bruker typisk 20-25px), fortsatt smalt nok til å ikke stjele vanlig sveiping i innhold
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;

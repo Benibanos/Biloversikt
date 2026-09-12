@@ -1157,3 +1157,14 @@ full detalj og kjente begrensninger.
 
 **Åpent:** Avklare om mobildashbordets KPI-rad/Bestill tjenester skal forenkles
 tilsvarende (bevisst ikke gjort i denne leveransen, siden oppdraget ikke nevnte mobil).
+
+## Prioritet 54 (2026-09-12) — Kalender blir eneste planleggingsflate
+
+Fjernet den frittstående "📅 Planlegging"-skjermen (`renderPlanlegging()`,
+`attachPlanleggingListeners()`, samt `'planlegging'` fra `ADMIN_SCREENS`/
+`OVERSIKT_SWIPE_BACK_SCREENS`). Innholdet lå allerede identisk i Kalender fra en
+tidligere sprint (`planleggingSeksjonHtml()`) — ingen funksjonalitet gikk tapt.
+`sw.js` CACHE_VERSION bilpark-v50 → bilpark-v51. Se CHANGELOG.md for full detalj.
+
+**Åpent:** Om synlige gruppeoverskrifter ("ARBEID NÅ"/"ARBEID SENERE"/"ARKIV") ønskes
+i selve sidemenyen — ikke implementert i denne runden, se CHANGELOG.md.

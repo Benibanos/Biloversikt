@@ -15,6 +15,68 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-12
 
+### Prioritet 54 — Kalender blir eneste planleggingsflate
+
+**Problem eller mål**
+
+Planlegging og Kalender viste i praksis samme informasjon (service, EU-kontroll,
+dekkskift, verksted, oppfølginger) og svarte på samme spørsmål: "Hva skjer fremover?"
+Bilpark skal ha én sannhet for fremtidige aktiviteter.
+
+**Funn ved kartlegging**
+
+En tidligere sprint hadde allerede flyttet innholdet inn i Kalender
+(`planleggingSeksjonHtml()`, kalt fra `renderKalender()`) — den frittstående
+"📅 Planlegging"-skjermen (`renderPlanlegging()`) var på leveringstidspunktet en byte-for-
+byte funksjonelt duplikat av det samme innholdet, kun uten månedsgriden. Den hadde heller
+ingen gjenværende inngang i navigasjonen (verken sidemeny eller Dashboard). Arbeidet var
+dermed i stor grad allerede gjort — denne leveransen fjerner det som ble stående igjen.
+
+**Levert**
+
+- Fjernet `renderPlanlegging()` og `attachPlanleggingListeners()` (all funksjonalitet
+  bekreftet identisk til stede i `planleggingSeksjonHtml()`/`attachKalenderListeners()`).
+- Fjernet `'planlegging'` fra `ADMIN_SCREENS` og `OVERSIKT_SWIPE_BACK_SCREENS`.
+- Fjernet route-/listener-dispatchen for `screen === 'planlegging'`.
+- Ryddet en misvisende seksjonskommentar (`flatePlanleggingData()` — datakilden er
+  UENDRET og fortsatt i bruk, kun kommentartittelen "scrPlanlegging" var utdatert).
+- Bekreftet: Dashboardets "Kalender"-kort (fra forrige sprint) peker allerede dit alt
+  fremtidig arbeid nå spores fra.
+
+**Ikke rørt**
+
+`flatePlanleggingData()` (datakilden Kalender leser fra — uendret), all planlegg-/
+rediger-/slett-logikk for service, dekkskift, verksted og oppfølging (uendret, ligger i
+sine egne dedikerte skjermer som Kalender navigerer videre til — ingen kode duplisert).
+
+**Versjoner**
+
+- `sw.js` CACHE_VERSION: bilpark-v50 → bilpark-v51
+- `storage.airtable.js`: uendret
+
+**Verifisering**
+
+- 519 funksjonssignaturer igjen (521 − 2), diff mot forrige versjon viser KUN de to
+  fjernede funksjonene — ingen andre er rørt.
+- `node --check` OK. HTML tag-balanse OK (1425/1425 `<div>` — 13 færre, konsistent med
+  fjernet markup).
+- Alle 17 simuleringsassertions fra tidligere sprinter kjørt på nytt — bestått uendret.
+- Grep bekrefter ingen gjenværende `goTo('planlegging')`, menypunkter eller andre
+  innganger til den fjernede skjermen noe sted i appen.
+
+**Kjente begrensninger**
+
+- DEL 7 i oppdraget ("ARBEID NÅ / ARBEID SENERE / ARKIV") beskriver informasjons-
+  arkitekturen som allerede oppnås av DEL 1–6 (Aktive saker+faser / Kalender / Historikk
+  finnes alle, Planlegging er borte). Dette er IKKE tolket som en bestilling om å legge
+  synlige gruppeoverskrifter i sidemenyen — det er en egen, separat designbeslutning som
+  ikke ble eksplisitt bedt om. Si fra dersom faktiske visuelle seksjonsoverskrifter i
+  sidemenyen også ønskes.
+
+---
+
+## 2026-09-12
+
 ### Prioritet 53 — Dashboard 5.0: fjern støy og tydeliggjør operativ kontroll
 
 **Problem eller mål**
