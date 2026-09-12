@@ -1144,3 +1144,16 @@ Rettet i `storage.airtable.js` (v2.12.0 → v2.13.0) — **krever ny kolonne
 `sw.js` CACHE_VERSION bilpark-v48 → bilpark-v49. 17/17
 simuleringsassertions bestått. Layout Editor for sidemeny: kartlagt, ikke
 implementert (se CLAUDE.md).
+
+## Prioritet 53 (2026-09-12) — Dashboard 5.0
+
+Desktop Dashboard forenklet: KPI-rad redusert fra fire til to kort (Biler i drift +
+Kalender — "Aktive saker" og "Kommende frister" fjernet som duplikater av
+fase-tellerne/Kalender). Verkstedtime fjernet fra Dashboardets Bestill tjenester
+(opprettes nå kun via saksflyten). Biloversikt-tabellen redusert til Bil/Status/Sjåfør
+med ikonbasert status. "Bilpark status" komprimert til tre kategorier (delt mellom
+mobil/desktop). `sw.js` CACHE_VERSION bilpark-v49 → bilpark-v50. Se CHANGELOG.md for
+full detalj og kjente begrensninger.
+
+**Åpent:** Avklare om mobildashbordets KPI-rad/Bestill tjenester skal forenkles
+tilsvarende (bevisst ikke gjort i denne leveransen, siden oppdraget ikke nevnte mobil).

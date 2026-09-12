@@ -13,6 +13,69 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-12
+
+### Prioritet 53 — Dashboard 5.0: fjern støy og tydeliggjør operativ kontroll
+
+**Problem eller mål**
+
+Dashboard skal svare på fire spørsmål (Hva haster? Er bilparken operativ? Hva må følges
+opp? Hva kommer neste?) — ikke være en komprimert kopi av alle andre skjermer.
+
+**Levert (kun desktop `renderDashboard()`, se begrensninger)**
+
+- Fjernet KPI-kortet "Aktive saker" (duplikat av de tre fase-tellerne øverst på siden).
+- Fjernet KPI-kortet "Kommende frister" (duplikat av Kalender).
+- "Planlagte timer" omdøpt til "Kalender" — samme datagrunnlag (`upcomingVT`/`nearestVT`),
+  klikk åpner nå Kalender-skjermen i stedet for et verkstedfilter.
+- KPI-raden er dermed redusert fra fire til to kort: Biler i drift + Kalender.
+- Fjernet "Verkstedtime" fra Dashboardets Bestill tjenester (kun denne forekomsten —
+  mobil, Kjøretøyprofil og den dedikerte Bestill tjenester-skjermen er uendret).
+  Verkstedtime opprettes nå kun via saksflyten (Aktiv sak → Under oppfølging → Verksted).
+- Biloversikt-tabellen redusert fra seks til tre kolonner: Bil, Status, Sjåfør. Reg.nr,
+  Løyvenummer og Drivstoff er fjernet fra denne visningen (fortsatt synlig under "Se alle
+  biler"). Status vises nå som ett ikon (🟢/🟡/🔴/⚪) med full statustekst i hover-tooltip
+  i stedet for en tekstbrikke, for å garantere at tabellen aldri krever sideveis scrolling.
+- "Bilpark status"-kortet komprimert fra sju til tre kategorier: 🟢 Operative,
+  🟡 Må følges opp (Under oppfølging + Verksted bestilt + Kritisk + Reservebil +
+  Ikke kontrollert slått sammen), 🔴 Ute av drift. Denne komponenten er delt mellom
+  mobil og desktop (bevisst, for å unngå duplisert kode) — endringen gjelder derfor
+  begge flater, i motsetning til resten av denne leveransen.
+
+**Ikke rørt**
+
+`vehicleHovedstatus()` sitt sju-nivås hierarki (kun VISNINGEN i "Bilpark status" slår
+kategoriene sammen, selve beregningen er uendret). Verkstedmodulen, eksisterende
+verkstedtimer og sakslogikken. Mobildashbordets KPI-rad og Bestill tjenester (se
+begrensninger). Kontrollflyt, kilometerlogikk, Aktiv sjåfør, Skader, Varsellamper.
+
+**Versjoner**
+
+- `sw.js` CACHE_VERSION: bilpark-v49 → bilpark-v50
+- `storage.airtable.js`: uendret (ingen nye/endrede Airtable-felt)
+
+**Verifisering**
+
+- 521 funksjonssignaturer i `index.html` identiske før/etter (kun markup/CSS inne i
+  eksisterende funksjoner er endret).
+- `node --check` og HTML tag-balanse (1438/1438 `<div>`) bestått.
+- Alle 17 simuleringsassertions fra Prioritet 52 kjørt på nytt — bestått uendret.
+- 5 nye assertions for "Bilpark status"-komprimeringen: bekrefter at ingen bil telles
+  dobbelt eller mistes ved sammenslåingen til tre kategorier, i flere scenarioer inkl.
+  ytterpunktene "alt operativt" og "alt ute av drift".
+
+**Kjente begrensninger**
+
+- Mobildashbordet (`renderMobilHjem()`) er bevisst IKKE endret for KPI-rad og Bestill
+  tjenester — oppdraget nevnte ikke mobil eksplisitt, og strukturen der har ikke
+  tilsvarende "Biler i drift"/"Planlagte timer"-kort å bygge videre på. Bør avklares om
+  tilsvarende forenkling ønskes speilet der.
+- "Må følges opp"-grupperingen (5 kategorier slått sammen) og statusikon-mappingen i
+  Biloversikt-tabellen er tolkningsvalg gjort der oppdraget ikke ga en eksplisitt
+  fasit for hver av de sju underliggende statusene — kan justeres ved tilbakemelding.
+
+---
+
 ## 2026-09-11
 
 ### Kommentaropprydding — sprint-sitater fjernet fra kildekoden

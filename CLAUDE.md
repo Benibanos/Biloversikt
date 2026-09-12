@@ -2212,3 +2212,29 @@ bilpark-v48 → bilpark-v49), `kontroll.html` synkronisert,
   samme økt).
 - Layout Editor for sidemeny: KUN kartlagt (se eget notat), ikke
   implementert i denne leveransen.
+
+---
+
+## Prioritet 53 (2026-09-12) — Dashboard 5.0: operativ kontroll fremfor oversikt
+
+**Nytt varig prinsipp:** Dashboard skal svare på "hva haster / er bilparken operativ /
+hva må følges opp / hva kommer neste" — ikke duplisere informasjon som allerede finnes
+et annet sted på siden eller på en annen skjerm. Før nye Dashboard-kort legges til: sjekk
+om informasjonen allerede vises via `sakFaseTellereHtml()`, Kalender eller Biloversikt.
+
+**Ny regel: Verkstedtime opprettes ikke lenger fritt fra Dashboardets Bestill
+tjenester.** Verkstedtime skal være et resultat av saksflyten (Aktiv sak → Under
+oppfølging → Verksted bestilles → Planlagt verksted), ikke en direkte hurtigbestilling
+ved siden av Service/EU-kontroll/Dekkskifte/Ruteskift. Gjelder KUN Dashboardets eget
+"➕ Bestill tjenester"-kort (`komponentHtml.bestill` i `renderDashboard()`) — mobil,
+Kjøretøyprofil og den dedikerte "Bestill tjenester"-skjermen har fortsatt Verkstedtime
+som direkte valg, og verkstedmodulen/eksisterende verkstedtimer er helt uendret.
+
+**Arkitekturnotat:** `bilparkStatusInnholdHtml()` er bevisst DELT mellom mobil og
+desktop (samme prinsipp som ellers i appen — ingen parallelle løsninger). En endring i
+denne funksjonen slår derfor alltid igjennom på begge flater samtidig, uansett om
+oppdraget som utløste endringen kun nevner én av dem. Vurder dette eksplisitt før neste
+endring her.
+
+Se CHANGELOG.md for full detalj, tolkningsvalg og kjente begrensninger (bl.a. at
+mobildashbordets KPI-rad/Bestill tjenester bevisst IKKE ble forenklet i denne runden).

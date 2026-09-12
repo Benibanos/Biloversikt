@@ -864,6 +864,7 @@
   /* ================= Dashboard 4.0 / Kjøretøyprofil 4.0 =================
      Kun layout/presentasjon. Ingen ny forretningslogikk henger på disse klassene. */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+  .dash40-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px;}
   .dash40-kpi{
     background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:16px 18px;
     cursor:pointer;display:flex;flex-direction:column;gap:3px;text-align:left;font-family:inherit;color:inherit;
@@ -895,6 +896,13 @@
   table.biltabell tbody tr{cursor:pointer;}
   table.biltabell tbody tr:hover td{background:var(--bg);}
   .biltabell-loyve{font-family:'Space Grotesk',sans-serif;font-weight:700;font-variant-numeric:tabular-nums;}
+  /* DEL 5/6 (Dashboard 5.0): kun tre kolonner (Bil/Status/Sjåfør) på Dashboard — med så
+     få kolonner er bredden aldri et problem på normale skjermbredder, men Kjøretøy-cellen
+     tillates å bryte i stedet for å tvinge frem sideveis scrolling i ekstreme tilfeller
+     (lange bilnummer/merke-navn i et smalt vindu). Gjelder KUN denne tabellvarianten —
+     .biltabell brukt andre steder (Bil-siden m.fl.) er uendret. */
+  .dash50-biltabell td:first-child{white-space:normal;}
+  .dash50-biltabell td:nth-child(2){width:56px;text-align:center;}
   .oppgave-rad{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer;}
   .oppgave-rad:last-child{border-bottom:none;}
   .oppgave-hoved{font-size:13.5px;font-weight:600;}
@@ -945,12 +953,16 @@
 
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
+    .dash40-grid2{grid-template-columns:1fr 1fr;}
     .dash40-grid5{grid-template-columns:repeat(3,1fr);}
+    .dash40-grid4-bestill{grid-template-columns:repeat(2,1fr);}
     .dash40-split{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
     .dash40-grid4{grid-template-columns:1fr;}
+    .dash40-grid2{grid-template-columns:1fr;}
     .dash40-grid5{grid-template-columns:1fr 1fr;}
+    .dash40-grid4-bestill{grid-template-columns:1fr 1fr;}
     .profil-ident{flex-direction:column;align-items:stretch;}
     .kal-dag{min-height:54px;}
   }
@@ -1007,12 +1019,21 @@
 
   /* ---- KPI-kort ---- */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
-  /* egen rad kun for de fem bestillingskortene (Service/EU-kontroll/
-     Dekkskifte/Verkstedtime/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
-     .dash40-grid4 — KPI-radene (som fortsatt kun har fire kort) skal forbli uendret. */
+  .dash40-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:18px;}
+  /* egen rad kun for de fire bestillingskortene (Service/EU-kontroll/
+     Dekkskifte/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
+     .dash40-grid4/.dash40-grid2 — KPI-radene skal forbli uendret. */
   .dash40-grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
   .dash40-grid5 .dash40-bestill{padding:14px 12px;min-height:112px;gap:3px;}
   .dash40-grid5 .dash40-bestill-sub{font-size:11px;}
+  /* Dashboardets "Bestill tjenester" har kun fire hurtigvalg (Verkstedtime opprettes nå
+     kun via saksflyten, ikke fritt) — egen klasse, samme kortstørrelse som .dash40-grid5,
+     men ETT nettmønster mindre. Andre "Bestill tjenester"-forekomster i appen (mobil,
+     Kjøretøyprofil, den dedikerte Bestill tjenester-skjermen) er UENDRET og beholder
+     fortsatt fem valg inkl. Verkstedtime. */
+  .dash40-grid4-bestill{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+  .dash40-grid4-bestill .dash40-bestill{padding:14px 12px;min-height:112px;gap:3px;}
+  .dash40-grid4-bestill .dash40-bestill-sub{font-size:11px;}
   .dash40-kpi{
     background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:17px 18px;
     box-shadow:var(--sh-card);display:flex;flex-direction:column;gap:3px;text-align:left;
@@ -2761,7 +2782,7 @@ const DASHBOARD_LAYOUT_FLATER = {
   desktop: {
     label: 'Desktop Dashboard',
     komponenter: [
-      {key:'kpi',            label:'Nøkkeltall (4 kort)'},
+      {key:'kpi',            label:'Nøkkeltall (2 kort)'},
       {key:'bestill',        label:'➕ Bestill tjenester'},
       {key:'kommende',       label:'📋 Kommende oppgaver'},
       {key:'biloversikt',    label:'🚐 Biloversikt (biltabell)'},
@@ -7638,21 +7659,25 @@ function dashKreverRadHtml(item){
 // innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
 // og desktop viser identisk panel. Tellingene (hbp/hDriftCount) kommer fortsatt fra
 // dashboardBeregning() — altså fra vehicleHovedstatus()/vehicleAktivSjafor(), uendret.
+// DEL 8 (Dashboard 5.0): komprimert fra syv detaljerte kategorier til tre — leser
+// FORTSATT de samme, uendrede tellingene fra hbp (vehicleHovedstatus() sitt
+// sju-nivås hierarki er urørt, kun VISNINGEN her slår sammen kategoriene). Detaljert
+// nedbryting per kategori finnes fortsatt på Bil-siden/Biloversikt (uendret).
 function bilparkStatusInnholdHtml(hbp, hDriftCount){
+  const grupper = [
+    {key:'operativ', ikon:'🟢', label:'Operative', antall: hbp['operativ'] || 0, nav:'data-goto-biloversikt-filter="operativ"'},
+    {key:'ma-folges-opp', ikon:'🟡', label:'Må følges opp',
+      antall: (hbp['oppfolging']||0) + (hbp['verksted']||0) + (hbp['kritisk']||0) + (hbp['reserve']||0) + (hbp['ikke-kontrollert']||0),
+      nav:'data-quick-page="register"'},
+    {key:'ute-av-drift', ikon:'🔴', label:'Ute av drift', antall: hbp['ute-av-drift'] || 0, nav:'data-quick-page="register"'}
+  ];
   return `
-          ${['operativ','oppfolging','verksted','kritisk','ikke-kontrollert','reserve','ute-av-drift'].filter(k => hbp[k] > 0 || ['operativ','oppfolging','verksted','kritisk'].includes(k)).map(k => {
-            const st = P38_STATUS_STIL[k] || {tint:'var(--surface-3)', tone:'var(--muted)'};
-            const nav = k === 'ikke-kontrollert' ? 'data-stat-nav="mangler-kontroll"'
-              : k === 'reserve' ? 'data-goto-register-kategori="reserve"'
-              : k === 'ute-av-drift' ? 'data-quick-page="register"'
-              : `data-goto-biloversikt-filter="${k}"`;
-            return `
-            <div class="p38-statrow" ${nav}>
-              <span class="flis sm" style="--tint:${st.tint};">${HOVEDSTATUS_IKON[k]}</span>
-              <span class="n" style="color:${st.tone};">${hbp[k]}</span>
-              <span class="l">${HOVEDSTATUS_LABEL[k]}</span>
-            </div>`;
-          }).join('')}
+          ${grupper.map(g => `
+            <div class="p38-statrow" ${g.nav}>
+              <span class="flis sm" style="--tint:var(--surface-3);">${g.ikon}</span>
+              <span class="n">${g.antall}</span>
+              <span class="l">${g.label}</span>
+            </div>`).join('')}
           <div class="required-hint" style="margin-top:10px;">🚚 <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
   `;
 }
@@ -7913,35 +7938,23 @@ function renderDashboard(){
   // to-kolonners oppsettet (dash40-split), men i sin innbyrdes rekkefølge innad i kolonnen.
   const komponentHtml = {
     kpi: `
-    <div class="dash40-grid4">
-      <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis">🚨</span>
-        <span class="dash40-kpi-num" style="${krHarKritisk ? 'color:var(--red);' : ''}">${dashTotalSaker}</span>
-        <span class="dash40-kpi-label">Aktive saker</span>
-        <span class="dash40-kpi-link">${kritiskeSakerAlle.length} kritisk${kritiskeSakerAlle.length===1?'':'e'} · Se alle saker →</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">📅</span>
-        <span class="dash40-kpi-num">${kommendeFristerAntall}</span>
-        <span class="dash40-kpi-label">Kommende frister</span>
-        <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
-      </button>
+    <div class="dash40-grid2">
       <button type="button" class="dash40-kpi" data-goto-biloversikt-filter="har-aktiv-sjafor" style="--tint:var(--blue-soft);--tone:var(--blue);">
         <span class="flis">🚚</span>
         <span class="dash40-kpi-num">${hDriftCount}</span>
         <span class="dash40-kpi-label">Biler i drift</span>
         <span class="dash40-kpi-link">${kontrollertIdagCount} kontrollert i dag →</span>
       </button>
-      <button type="button" class="dash40-kpi" data-stat-nav="kommende-vt" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis">🏭</span>
+      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--green-soft);--tone:var(--green-ink);">
+        <span class="flis">📅</span>
         <span class="dash40-kpi-num">${upcomingVT.length}</span>
-        <span class="dash40-kpi-label">Planlagte timer</span>
+        <span class="dash40-kpi-label">Kalender</span>
         <span class="dash40-kpi-link">${nearestVT ? '⭐ Neste: ' + fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'} →</span>
       </button>
     </div>`,
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
-    <div class="dash40-grid5">
+    <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">🔧</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -7958,12 +7971,6 @@ function renderDashboard(){
         <span class="flis lg">🛞</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">🏭</span>
-        <span class="dash40-bestill-tittel">Verkstedtime</span>
-        <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
@@ -7994,16 +8001,20 @@ function renderDashboard(){
         </div>
         ${biloversiktBiler.length === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå.</div>` : `
         <div class="biltabell-wrap">
-          <table class="biltabell">
+          <table class="biltabell dash50-biltabell">
             <thead>
-              <tr><th>Kjøretøy</th><th>Reg.nr</th><th>Løyvenummer</th><th>Drivstoff</th><th>Status</th><th>Sjåfør</th></tr>
+              <tr><th>Kjøretøy</th><th>Status</th><th>Sjåfør</th></tr>
             </thead>
             <tbody>
               ${biloversiktBiler.map(v => {
                 const hs = vehicleHovedstatus(v.id);
                 const sjafor = vehicleAktivSjafor(v.id);
                 const sisteSjafor = vehicleSisteSjafor(v.id);
-                const st = P38_STATUS_STIL[hs] || {tint:'var(--surface-3)', tone:'var(--muted)'};
+                // DEL 7 (Dashboard 5.0): status skal primært kommuniseres visuelt — de syv
+                // detaljerte hovedstatusene (se HOVEDSTATUS_ORDER) komprimeres til fire enkle
+                // indikatorer her. Full detalj (HOVEDSTATUS_LABEL) ligger fortsatt i title-
+                // attributtet (hover) og uendret på selve Bil-siden/Kjøretøyprofilen.
+                const dash50Ikon = {operativ:'🟢', oppfolging:'🟡', verksted:'🟡', reserve:'🟡', kritisk:'🔴', 'ute-av-drift':'🔴', 'ikke-kontrollert':'⚪'}[hs] || '⚪';
                 return `
                 <tr data-goto-bilkort="${v.id}">
                   <td>
@@ -8012,10 +8023,7 @@ function renderDashboard(){
                       <span><b>${esc(v.bilnummer || '–')}</b><span>${esc(v.merke || '')} ${esc(v.modell || '')}</span></span>
                     </div>
                   </td>
-                  <td>${esc(v.regnr)}</td>
-                  <td class="biltabell-loyve" style="${v.loyvenummer ? '' : 'color:var(--amber);font-weight:600;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</td>
-                  <td>${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</td>
-                  <td><span class="p38-pill" style="--tint:${st.tint};--tone:${st.tone};">${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}</span></td>
+                  <td style="font-size:18px;" title="${esc(HOVEDSTATUS_LABEL[hs] || '')}">${dash50Ikon}</td>
                   <td title="${sjafor ? 'Aktiv sjåfør nå' : (sisteSjafor ? 'Sjåfør i dag' : 'Ingen aktiv sjåfør — bilen er tilgjengelig')}">${sjafor ? '👤 ' + esc(sjafor) : (sisteSjafor ? '🕓 ' + esc(sisteSjafor) : '<span style="color:var(--muted);">—</span>')}</td>
                 </tr>`;
               }).join('')}
