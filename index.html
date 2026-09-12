@@ -45,7 +45,7 @@
     --chrome-bg:#1C2024;
     --chrome-text:#FFFFFF;
     --radius:14px;
-    /* PRIORITET 38: samme nye tokens som mørk drakt, slik at de nye komponentene
+    /* samme nye tokens som mørk drakt, slik at de nye komponentene
        (ikonfliser, KPI-kort, bestillingskort, oppgaverader) fungerer identisk i lys
        modus — ett designsystem, to drakter. */
     --surface-2:#F4F6F6;
@@ -57,13 +57,13 @@
     --purple-soft:#EDE7FB;
     --sh-card:0 1px 2px rgba(16,24,40,.06), 0 8px 20px rgba(16,24,40,.06);
     --sh-hover:0 2px 4px rgba(16,24,40,.08), 0 14px 30px rgba(16,24,40,.10);
-    /* PRIORITET 48 — ett nytt tonepar (samme mønster som --purple over, Prioritet 38)
+    /* ett nytt tonepar (samme mønster som --purple over)
        for å kunne skille CURBSIDE visuelt fra LAG 3 i sjåførens driftslag-grupper
        (se P48_DRIFTSLAG_FARGE) uten å gjenbruke en farge som allerede betyr noe annet. */
     --teal:#0E9488;
     --teal-soft:#DFF3F1;
   }
-  /* PRIORITET 38 (Design 4.1) — mørk premium-drakt, NY STANDARD.
+  /* mørk premium-drakt, NY STANDARD.
      Samme variabelnavn som før, kun nye verdier, pluss et lite sett nye tokens
      (--surface-2/--surface-3/--line-soft/--purple/--tint/--sh-card) som de nye
      komponentklassene bruker. Alle skjermer i appen henter fargene sine herfra og
@@ -143,7 +143,7 @@
   .shell-top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .menu-wrap{position:relative;}
 
-  /* ---- Prioritet 27 (Design 2.0) — Desktop sidebar ("Kontrollsenter") ---- */
+  /* ---- Desktop sidebar ("Kontrollsenter") ---- */
   .app-shell{display:block;}
   .app-shell-desktop{display:flex;align-items:flex-start;gap:24px;}
   .app-shell-desktop .app-shell-main{flex:1;min-width:0;}
@@ -188,7 +188,7 @@
   .shell-top-status-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
   .shell-top-status-item{cursor:pointer;white-space:nowrap;}
   .shell-top-drift{font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
-  /* Prioritet 16 (Morgenvisning Compact, Del 1): to nøkkeltall side ved side per rad i
+  /* to nøkkeltall side ved side per rad i
      stedet for fem separate bokser i et grid — halverer den vertikale plassen "Dagens
      situasjon" tok fra før. */
   .datepicker-popup{
@@ -303,7 +303,7 @@
   @media (min-width:641px){
     .modal-overlay{align-items:center;}
     .modal-sheet{border-radius:16px;}
-    /* Prioritet 17 (Del 5): Bilparkhelse Status-raden midtstilles på desktop — på mobil
+    /* Bilparkhelse Status-raden midtstilles på desktop — på mobil
        (under) forblir den venstrejustert, siden den der leses som en vertikal stabel. */
     .shell-top-status{justify-content:center;}
   }
@@ -375,10 +375,10 @@
   .dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:26px;}
   .dash-row-2 .stat-grid{margin-bottom:0;}
   .dash-group-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
-  /* Prioritet 27 (Design 2.0) — Planlegging: 4 kolonner på desktop, 1 kolonne på mobil
+  /* Planlegging: 4 kolonner på desktop, 1 kolonne på mobil
      (mobil-override nedenfor sammen med .dash-group-grid sin egen). */
   .planlegging-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;align-items:start;}
-  /* Prioritet 27 (Design 2.0) — Regel 2/3: mobilens ikonbaserte, handlingsdrevne
+  /* Regel 2/3: mobilens ikonbaserte, handlingsdrevne
      hjemskjerm. 2 kolonner (nådd lett med én hånd, stående skjerm), store trykkflater
      (min 100px høyde), minimalt med tekst. */
   .mobil-hjem-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px;}
@@ -431,7 +431,7 @@
 
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
   .ov-item{display:flex;flex-direction:column;gap:2px;}
-  /* Prioritet 26.6 (punkt 2) — Operativ status i to kolonner. auto-fit/minmax lar
+  /* Operativ status i to kolonner. auto-fit/minmax lar
      layouten selv avgjøre: ekte 2-kolonne side ved side når det er nok bredde (typisk
      desktop/bredere mobil), automatisk stabling til to tydelige seksjoner når det ikke er
      det (typisk smal mobil) — samme mønster .ov-grid selv allerede bruker, ingen egen
@@ -490,7 +490,7 @@
   .plate{flex-shrink:0;display:flex;height:34px;border-radius:5px;overflow:hidden;border:1.5px solid #1C2024;font-family:'Space Grotesk',sans-serif;}
   .plate .cc{background:var(--plate-blue);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;width:16px;}
   .plate .num{background:#fff;color:#111;font-weight:700;font-size:15px;letter-spacing:.06em;display:flex;align-items:center;padding:0 8px;white-space:nowrap;}
-  /* PRIORITET 48 — større/skarpere skiltvariant, KUN brukt i sjåførmodus (Min Bil-kortet
+  /* større/skarpere skiltvariant, KUN brukt i sjåførmodus (Min Bil-kortet
      og Velg bil sine bilkort). Modifier på samme .plate-komponent — ikke en ny/parallell
      skiltstil — slik at Kjøretøyprofil, Biloversikt osv. beholder sin eksisterende .plate
      uendret. */
@@ -499,7 +499,7 @@
   .plate.p48-plate-lg .num{font-size:17px;padding:0 10px;}
   .gcard-titles{min-width:0;flex:1;}
 
-  /* ================= PRIORITET 48 — Sjåførside: premium visuell finpuss =================
+  /* Sjåførside: premium visuell finpuss =================
      Kun presentasjon (farger/typografi/spacing/ikoner) — ingen ny funksjonalitet, ingen
      endret navigasjon, ingen endret Aktiv sjåfør-/kontroll-/kilometerlogikk. Bruker
      UTELUKKENDE eksisterende designtokens (--surface/--surface-2/--line/--line-soft/
@@ -662,7 +662,7 @@
     display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;min-height:56px;
     border:1.5px solid var(--line);background:var(--surface);cursor:pointer;user-select:none;
     font-size:14.5px;font-weight:600;transition:border-color .1s, background .1s;
-    /* PRIORITET 48.1 — kontrastfiks: .chip er et <button>, og manglet tidligere en
+    /* kontrastfiks: .chip er et <button>, og manglet tidligere en
        eksplisitt "color". Uten den falt teksten tilbake på nettleserens egen
        standardfarge for knapper (ikke appens --ink-token), som kan vise som svært
        mørk/nesten svart uavhengig av mørk/lys modus — nøyaktig symptomet som ble
@@ -746,7 +746,7 @@
   .settings-row{background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
   .settings-add{display:flex;gap:8px;}
   .settings-add input{flex:1;}
-  /* PRIORITET 45 — 🎨 Layout Editor: skjematisk forhåndsvisnings-kort, se layoutForhandsvisningHtml() */
+  /* 🎨 Layout Editor: skjematisk forhåndsvisnings-kort, se layoutForhandsvisningHtml() */
   .p45-preview-kort{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--ink-2);}
   .theme-options{display:flex;flex-direction:column;gap:8px;}
   .theme-option{
@@ -797,7 +797,7 @@
     /* Statistikk-kort: aldri mer enn to smale kort ved siden av hverandre */
     .stat-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
 
-    /* Header/meny: BILPARK til venstre, ☰ Meny til høyre, samme rad (Prioritet 26.4) —
+    /* Header/meny: BILPARK til venstre, ☰ Meny til høyre, samme rad —
        width:100% her tvang tidligere menyen til egen rad på ekte telefonbredder
        (flex-wrap:wrap på .shell-top + full bredde = automatisk linjeskift), og var den
        faktiske gjenværende årsaken til at toppkortet fortsatt virket for høyt selv etter
@@ -861,7 +861,7 @@
   .pwa-install-bar .btn.secondary{background:transparent;color:var(--chrome-text);border-color:var(--chrome-text);opacity:.75;}
   .pwa-install-bar .btn.secondary:hover{opacity:1;}
 
-  /* ================= Prioritet 37 — Dashboard 4.0 / Kjøretøyprofil 4.0 =================
+  /* ================= Dashboard 4.0 / Kjøretøyprofil 4.0 =================
      Kun layout/presentasjon. Ingen ny forretningslogikk henger på disse klassene. */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
   .dash40-kpi{
@@ -921,7 +921,7 @@
   }
   .profil-mobgaranti.mangler{background:var(--bg);border-color:var(--line);color:var(--muted);font-weight:500;}
   .profil-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
-  /* PRIORITET 38: pillefanene fra P37 er erstattet av understrekfaner — se .profil-tab
+  /* pillefanene fra P37 er erstattet av understrekfaner — se .profil-tab
      lenger ned i denne stilblokken. Ingen andre skjermer brukte disse klassene. */
 
   /* Kalender — ren visning av eksisterende planleggingsdata */
@@ -1007,7 +1007,7 @@
 
   /* ---- KPI-kort ---- */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
-  /* PRIORITET 47 — egen rad kun for de fem bestillingskortene (Service/EU-kontroll/
+  /* egen rad kun for de fem bestillingskortene (Service/EU-kontroll/
      Dekkskifte/Verkstedtime/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
      .dash40-grid4 — KPI-radene (som fortsatt kun har fire kort) skal forbli uendret. */
   .dash40-grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
@@ -1225,7 +1225,7 @@
   .p41-bunn button .ik{font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;}
   .p41-bunn button.aktiv{color:var(--green-ink);background:var(--surface-2);}
   .p41-bunn button .n{position:absolute;top:2px;right:calc(50% - 22px);background:var(--red);color:#fff;font-size:9.5px;font-weight:700;border-radius:100px;padding:0 5px;line-height:1.5;}
-  /* PRIORITET 47, Del 2 — sjåførens bunnmeny har fire punkter, ikke fem. Samme .p41-bunn
+  /* Sjåførens bunnmeny har fire punkter, ikke fem. Samme .p41-bunn
      grunnstil (fast bunnplassering, farger, padding) — kun kolonneantallet overstyres. */
   .p41-bunn.p41-bunn-4{grid-template-columns:repeat(4,1fr);}
 
@@ -1257,7 +1257,7 @@
     /* Desktop 4.1 sine firekolonners rutenett blir to kolonner paa telefon —
        store touch-kort, ikke sma knapper. */
     .dash40-grid4{grid-template-columns:1fr 1fr;}
-    /* PRIORITET 47 — femkolonners bestillingsrad blir ogsaa to kolonner paa telefon,
+    /* femkolonners bestillingsrad blir ogsaa to kolonner paa telefon,
        samme touch-kort-storrelse som .dash40-grid4 sin mobiloverstyring. */
     .dash40-grid5{grid-template-columns:1fr 1fr;}
     .dash40-bestill{min-height:126px;padding:15px;gap:3px;}
@@ -1336,7 +1336,7 @@ let vehicles = [];
 let damages = [];
 let verkstedtimer = [];
 let verksteder = [];
-// PRIORITET 41 — redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
+// redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
 // Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
 // tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
 // endring, ingen migrering. Hvert element: {id, navn, ikon}.
@@ -1351,7 +1351,7 @@ let loaded = false;
 
 let screen = 'dashboard'; // dashboard | register | bilkort | skader | verksted | innstillinger | kontroll
 
-// ---- Prioritet 27 — Adaptiv Layout: enhetsdeteksjon ----
+// ---- Adaptiv Layout: enhetsdeteksjon ----
 // To adskilte brukeropplevelser (Mobile Experience / Desktop Experience) rundt de SAMME
 // renderX()-skjermene og all annen forretningslogikk — kun navigasjonsrammen (shell)
 // rundt dem er ulik. Ingen ny datamodell, ingen duplisert logikk.
@@ -1399,7 +1399,7 @@ let lightboxBilder = []; // array av photo-nøkler (se damagePhotoKeys())
 let lightboxIndex = 0;
 let lightboxOpen = false;
 let editingVTId = null;
-// Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som editingVTId
+// rediger/slett servicehistorikk — samme mønster som editingVTId
 // (verkstedtimer) rett over. "Skal fungere på samme måte som andre historikkobjekter."
 let editingServiceId = null;
 let pendingPhotoData = null; // felles buffer for bildeopplasting (skade/bil)
@@ -1408,7 +1408,7 @@ let filterSearch = '';
 let filterKategori = '';
 let filterKontrollStatus = ''; // '' | 'kontrollert' | 'ikke'
 let filterLoyve = ''; // '' | 'har' | 'mangler'
-// Prioritet 26.2 (Dashboard Nullstilling): Bilparkhelse-chipsene i toppfeltet rutet
+// Bilparkhelse-chipsene i toppfeltet rutet
 // tidligere til en inline Biloversikt-akkordion PÅ selve Dashboardet — den er fjernet
 // (Dashboard skal kun vise handling). Chipsene ruter nå hit i stedet, til den faktiske
 // Bilregister-siden, filtrert på samme vehicleHovedstatus()-verdi som før (uendret
@@ -1430,7 +1430,7 @@ function toggleRegisterGruppe(kat){
 function velgKontrollBil(vehicleId){
   kontrollFormKm = (document.getElementById('kt-km')||{}).value || kontrollFormKm;
   kontrollFormVehicleId = vehicleId;
-  // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
+  // husk hvilket driftslag denne bilen tilhører, slik at samme
   // gruppe åpnes automatisk neste gang (gjelder også "Bytt bil"-fallbacken).
   const valgtBil = vehicles.find(x => x.id === vehicleId);
   if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
@@ -1486,7 +1486,7 @@ let rapportFilterGruppe = '';
 // Rapporthub 2.0: ETT delt statusfilter, gjenbrukt av alle fem detaljerte rapportene
 // (kilometerstand/service/dekk/eukontroll/skade) — se RAPPORT_STATUS_FILTER_OPTIONS.
 let rapportStatusFilter = '';
-// Prioritet 46 — Verksted-filter, kun brukt av Ruteglassrapport (se RAPPORT_HAR_VERKSTED_FILTER).
+// Verksted-filter, kun brukt av Ruteglassrapport (se RAPPORT_HAR_VERKSTED_FILTER).
 let rapportFilterVerksted = '';
 
 // ---- Fase 9 (Analyse og Prediktiv Oppfølging) ----
@@ -1502,7 +1502,7 @@ let showSakFilterMeny = false;
 let showAddSak = false;
 let sakPrefillVehicleId = '';
 let editingSakId = null;
-// PRIORITET 47 — «📨 Nye kommentarer»: ren visnings-toggle (åpen/lukket), ingen lagret
+// «📨 Nye kommentarer»: ren visnings-toggle (åpen/lukket), ingen lagret
 // tilstand. Panelet leser direkte fra eksisterende kontroller[] — ingen ny sak, ingen nytt
 // Airtable-felt, ingen "lest/kvittert"-mekanikk (bevisst — dette er en logg, ikke en oppgave).
 let nyeKommentarerApen = false;
@@ -1520,7 +1520,7 @@ let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema 
 // samme "kun ett åpent om gangen, nullstilt ved sakbytte"-mønster som de tre over.
 let sakWizardSteg1MerOpen = false;
 let sakOversiktOpenVehicles = new Set();
-// PRIORITET 51 — «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
+// «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
 // (standard: 'aktiv'), hvilke kompakte kort som er utvidet (tomt som standard — «Ikke
 // vis hele saken utvidet som standard»), og om den gamle, fulle filter-/gruppevisningen
 // (uendret, se sakGroupedSection()) er slått på som en sekundær, valgfri "avansert" modus.
@@ -1543,7 +1543,7 @@ let showKostFilterMeny = false;
 let kostOversiktOpenVehicles = new Set();
 let showAddDekkkostnad = false;
 
-// Prioritet 26.2 (Dashboard Nullstilling): dashExpandedId/dashGroupOpen/
+// dashExpandedId/dashGroupOpen/
 // dashBiloversiktApen/dashBiloversiktFilter/showDashBiloversiktFilterMeny/
 // morgenSeksjonerApne/toggleDashGroup() er fjernet — de hørte utelukkende til
 // Dashboardets tidligere inline Biloversikt-akkordion og Operativ Status-kort, som
@@ -1577,14 +1577,14 @@ function formInProgress(){
 
 // Innstillinger: sammenleggbare seksjoner (alle lukket som standard, jf. "unngå lange
 // lister som alltid er åpne") — og tilstand for legg-til-administrator-skjemaet.
-// PRIORITET 45: settingsAccordionRow() gjenbrukes NESTET (samme Set, samme funksjon) for
+// settingsAccordionRow() gjenbrukes NESTET (samme Set, samme funksjon) for
 // den nye grupperte strukturen — se renderInnstillinger(). Nøklene er nå:
 // 'register' (👆 gruppe) > 'kategorier' | 'verksted'
-// 'layout' (👆 gruppe, uendret siden Prioritet 44)
+// 'layout' (👆 gruppe, uendret)
 // 'sjaforside' (👆 gruppe, ny)
 // 'system' (👆 gruppe) > 'admin' | 'database' | 'veileder'
 let settingsOpenSections = new Set();
-// PRIORITET 45 — 📞 Ringeliste: inline rediger-tilstand for ett kjøretøys telefonnummer
+// 📞 Ringeliste: inline rediger-tilstand for ett kjøretøys telefonnummer
 // om gangen, samme mønster som editingVerkstedId.
 let editingTelefonVehicleId = null;
 let ringelisteAdminMsg = '';
@@ -1593,7 +1593,7 @@ let ringelisteAdminMsg = '';
 // lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
 let bilkortOpenSections = new Set(); // delmengde av: 'info' | 'kontroll' | 'skade'
 let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøstet under 'skade')
-// Prioritet 26.3: Kjøretøyhistorikk, Historiske nøkkeltall, Kontrollhistorikk og
+// Kjøretøyhistorikk, Historiske nøkkeltall, Kontrollhistorikk og
 // Skadehistorikk var fire separate accordion-rader med overlappende formål (alle handler
 // om historikk på samme bil — vehicleHistorikkTidslinje() dekker faktisk allerede
 // kontroll/skade/verksted/dekk/kostnad i én filtrerbar tidslinje). Slått sammen til én
@@ -1603,7 +1603,7 @@ let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøst
 let bilkortHistorikkSubOpen = new Set(); // delmengde av: 'tidslinje' | 'nokkeltall' | 'kontroll' | 'skade'
 let showUteAvDriftForm = false; // Fase 7: viser "Marker ute av drift"/"Sett tilbake i drift"-skjema
 let bilkortHistorikkFilter = ''; // Fase 7: '' | 'kontroll' | 'skade' | 'varsellampe' | 'sak' | 'verksted' | 'dekk' | 'kostnad' | 'statusendring'
-// Prioritet 27 (Design 2.0) — Historikk-hub: flåtebred variant av samme filter-konsept
+// Historikk-hub: flåtebred variant av samme filter-konsept
 // som bilkortHistorikkFilter over, kun med et ekstra bil-filter siden denne ikke lenger
 // er bundet til én bil. Erstatter de fem tidligere separate oversiktssidene som
 // primærnavigasjon (se CLAUDE.md).
@@ -1611,8 +1611,8 @@ let historikkHubFilterType = '';
 let historikkHubFilterVehicleId = '';
 let historikkHubFilterDatoFra = '';
 let historikkHubFilterDatoTil = '';
-// Prioritet 27 — Planlegging: flåtebred generalisering av Dashboardets "Kommer snart"
-// (Prioritet 26.2), uten 5-post-taket. Periodevalg styrer kun visningsvinduet for
+// Planlegging: flåtebred generalisering av Dashboardets "Kommer snart"
+// uten 5-post-taket. Periodevalg styrer kun visningsvinduet for
 // verkstedtimer/oppfølging (service/dekk-status er alltid live og tidløs i seg selv).
 let planleggingPeriodeDager = 30; // 7 | 30 | 90
 let varslerOpenVehicles = new Set(); // hvilke biler som er utvidet på "Aktive varsellamper"-oversikten
@@ -1711,7 +1711,7 @@ let dekkkostnader = []; // logg over registrerte dekk-kjøp/kostnader per bil, s
 // CLAUDE.md "Service — km-basert serviceintervall"): logg over utførte servicer per bil,
 // samme lagringsmønster som dekkhistorikk (window.storage, delt, JSON-liste).
 let servicehistorikk = []; // logg over utførte servicer per bil, se saveServicehistorikk() — {id, vehicleId, dato, km, type, verksted, kommentar, createdAt, createdBy}
-// PRIORITET 50 — «Kommentarer 2.0»: fristilte sjåførkommentarer, lagt til via
+// «Kommentarer 2.0»: fristilte sjåførkommentarer, lagt til via
 // ☰ Mer → 💬 Legg til kommentar (renderDriverNyKommentar()), IKKE via en kontroll.
 // Egen Settings-blob, samme trygge mønster som servicehistorikk (parseJsonTrygt,
 // se loadAll()/saveKommentarer()) — INGEN kobling til kontroller[]/Kontrollflyt,
@@ -1723,7 +1723,7 @@ let kommentarer = [];
 // nødvendig, se saveServicehistorikk()). Kan vises side om side med Verksted i
 // Planlegging, men lagres og behandles fullstendig separat.
 let planlagteServicer = []; // {id, vehicleId, dato, tidspunkt, verksted, kommentar}
-// PRIORITET 35 — Dekkskifttime med full arbeidsflyt: samme filosofi og samme mønster som
+// Dekkskifttime med full arbeidsflyt: samme filosofi og samme mønster som
 // planlagteServicer over (Planlagt → Utført → Historikk). Egen liste, egen lagringsnøkkel
 // (samme generiske Settings-blob-mønster — INGEN ny Airtable-tabell, se savePlanlagteDekkskift()),
 // helt atskilt fra dekkhistorikk (som fortsatt er selve historikk-loggen, uendret av dette).
@@ -1733,20 +1733,20 @@ let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
 let showAddService = false;
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
-// Prioritet 26.7 (punkt 1): planlagt service — egen registreringsflyt, atskilt fra
+// planlagt service — egen registreringsflyt, atskilt fra
 // "Registrer service" (allerede utført). Lagres i egen array/Settings-nøkkel
 // (planlagteServicer), IKKE som en verkstedtime — se kommentar ved deklarasjonen over.
 let showPlanleggService = false;
-// Prioritet 29 (Del 8): rediger/fullfør planlagt service — samme mønster som
+// rediger/fullfør planlagt service — samme mønster som
 // editingServiceId/editingVTId.
 let editingPlanlagtServiceId = null;
-// PRIORITET 35 — Dekkskifttime: identisk UI-state-mønster som planlagt service over
+// Dekkskifttime: identisk UI-state-mønster som planlagt service over
 // (showPlanleggService/editingPlanlagtServiceId), pluss en egen "fullfør"-state siden
 // fullføring av dekkskift krever et lite inline-skjema (utført dato/km/kommentar — tre
 // felt) i stedet for service sin enkle prompt()-dialog (ett felt, km).
 let showPlanleggDekkskift = false;
 let editingPlanlagtDekkskiftId = null;
-// ---- Prioritet 37 (Dashboard 4.0 / Kjøretøyprofil 4.0 / Kalender) ----
+// ---- Kjøretøyprofil og Kalender ----
 // Kjøretøyprofilens faner erstatter de tidligere akkordion-radene. Ren UI-state,
 // ingen data — samme mønster som bilkortHistorikkSubOpen den erstatter.
 let bilkortAktivFane = 'oversikt'; // oversikt | historikk | skader | dekk | kostnader
@@ -1777,7 +1777,7 @@ let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut var
 const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
-// PRIORITET 51 — «Ny saksflyt»: sterkt forenklet, firenivås arbeidsflyt
+// «Ny saksflyt»: sterkt forenklet, firenivås arbeidsflyt
 // (Aktiv sak → Under oppfølging → Planlagt verksted → Utført/Historikk), pluss en
 // egen terminal-status «Avslått». De gamle delstatusene ('vurderes', 'tiltak-planlagt',
 // 'delvis-utfort', 'utfort-venter-bekreftelse') er IKKE fjernet fra listen under —
@@ -1785,7 +1785,7 @@ const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋',
 // telles med (se sakFase() under, som grupperer dem inn i «Under oppfølging»/«Planlagt
 // verksted»). Ingen NYE saker får noensinne disse verdiene lenger — kun 'ny',
 // 'under-oppfolging', 'verksted-bestilt', 'utfort' eller 'avslatt' (se godtaSak()/
-// avslaSak()/markerSakUtfort()/submitVT()). Se CLAUDE.md, Prioritet 51.
+// avslaSak()/markerSakUtfort()/submitVT()).
 const SAK_STATUS_ORDER = ['ny', 'under-oppfolging', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'delvis-utfort', 'utfort', 'avslatt', 'lukket'];
 const SAK_STATUS_LABEL = {'ny':'Ny', 'under-oppfolging':'Under oppfølging', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'avslatt':'Avslått', 'lukket':'Lukket'};
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
@@ -1793,12 +1793,12 @@ const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet'
 const SAK_PRIORITET_ORDER = ['kritisk', 'hoy', 'normal', 'lav'];
 const SAK_PRIORITET_LABEL = {kritisk:'Kritisk', hoy:'Høy', normal:'Normal', lav:'Lav'};
 const SAK_PRIORITET_IKON = {kritisk:'🔴', hoy:'🟠', normal:'🟡', lav:'🟢'};
-// Prioritet 12 (Sammenslåtte Kontrollavvik): numerisk rangering brukt til å beregne en
+// numerisk rangering brukt til å beregne en
 // samlet saks prioritet som ALLTID = det alvorligste AKTIVE avviket i den ("verste vinner"),
 // uten å noensinne nedjustere en prioritet en administrator har satt manuelt (se
 // registrerKontrollAvvikSomSak/markerAvvikUtfort).
 const SAK_PRIORITET_RANK = {lav:0, normal:1, hoy:2, kritisk:3};
-// PRIORITET 51 — «Ny saksflyt»: 'utfort' og 'avslatt' regnes nå OGSÅ som lukket, ikke
+// «Ny saksflyt»: 'utfort' og 'avslatt' regnes nå OGSÅ som lukket, ikke
 // bare 'lukket'. Dette er en bevisst, nødvendig atferdsendring (ikke en bug): i den nye,
 // firenivås flyten ER "Arbeid utført" selve sluttpunktet — saken skal umiddelbart
 // forsvinne fra Aktive saker/Under oppfølging/Planlagt verksted og inn i Historikk, uten
@@ -1806,7 +1806,7 @@ const SAK_PRIORITET_RANK = {lav:0, normal:1, hoy:2, kritisk:3};
 // vehicleHovedstatus() via vehicleAktiveSaker(), Rapporter, Analyse, Kostnadsoversikt)
 // arver denne oppdaterte tolkningen uendret — INGEN av disse funksjonene er selv rørt.
 function sakErApen(s){ return s.status !== 'lukket' && s.status !== 'utfort' && s.status !== 'avslatt'; }
-// PRIORITET 51 — grupperer ENHVER status (ny og gammel) inn i én av de tre synlige
+// grupperer ENHVER status (ny og gammel) inn i én av de tre synlige
 // arbeidsflyt-fasene i den nye Aktive saker-skjermen, eller null hvis saken er lukket
 // (utfort/avslatt/lukket — vises kun i Historikk). Rent visningsfilter, ingen ny sannhet
 // — leser kun s.status. Gamle delstatuser ('vurderes'/'tiltak-planlagt'/'delvis-utfort')
@@ -1858,12 +1858,12 @@ function sakKreverHandling(s){
 function sakKreverHandlingSamletMaster(s){
   return sakErApen(s) && (s.priority === 'kritisk' || sakKreverHandling(s));
 }
-// Prioritet 27 (Design 2.0): delt tellefunksjon for "krever handling nå"-totalen —
+// delt tellefunksjon for "krever handling nå"-totalen —
 // gjenbrukt av både Dashboard (desktop, se renderDashboard) og mobilens ikonrutenett-
 // badges (se renderMobilHjem), slik at tallet aldri kan divergere mellom de to
 // opplevelsene. Samme beregning som dashTotalHandlinger inne i renderDashboard brukte
-// fra Prioritet 26.2 av.
-// KRITISK FEILRETTING (Prioritet 26.4): denne kalte tidligere en egen, duplisert
+// tidligere.
+// KRITISK FEILRETTING: denne kalte tidligere en egen, duplisert
 // beregning av kritiske/oppfølgingssaker OG blandet inn "mangler kontroll"-biler i
 // sak-tallet — nøyaktig samme feilmønster som ble rettet i Dashboard sitt "Krever
 // handling nå"-kort, men denne funksjonen (brukt til badge-tallet på mobilens
@@ -1931,7 +1931,7 @@ const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', kritisk:'Kritisk', ver
 // Gjenbruker eksisterende .badge-fargeklasser (rød/oransje/gul/grå/grønn) slik at
 // hovedstatusen får riktig farge overalt den vises (Kjøretøyprofil m.fl.). "reserve" bruker
 // samme nøytrale grå som "unset" — bevisst IKKE gul/urovekkende, siden det ikke er et problem.
-// PRIORITET 38: ren presentasjonstabell — hvilken tonet flate/farge hver hovedstatus
+// ren presentasjonstabell — hvilken tonet flate/farge hver hovedstatus
 // får i det nye pillesystemet. Ingen logikk, kun farger; statusverdiene selv kommer
 // fortsatt utelukkende fra vehicleHovedstatus().
 const P38_STATUS_STIL = {
@@ -1949,7 +1949,7 @@ const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', kritisk:'overdue', v
 // Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
 // bilen klar for drift akkurat nå", uavhengig av lavere-prioriterte forhold som
 // "under oppfølging". Prioritet: kritisk sak > mangler kontroll > verksted i dag > klar.
-// DAGENS_STATUS_IKON/DAGENS_STATUS_LABEL fjernet (Prioritet 29, Del 10) — bekreftet
+// DAGENS_STATUS_IKON/DAGENS_STATUS_LABEL fjernet — bekreftet
 // ubrukte (kun definisjon, ingen kall/referanse noe sted i prosjektet).
 const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verksted-idag':'today', kritisk:'alert', reserve:'reserve'};
 // Fase 2/3: automatisk bilstatus utledet fra Aktive Saker (uavhengig av det manuelt
@@ -1987,7 +1987,7 @@ async function saveAktiveSaker(){
   try{ await window.storage.set('aktiveSaker', JSON.stringify(aktiveSaker), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
-// Prioritet 29: kastende variant, brukt KUN av de kritiske mutasjonene som trenger å vite
+// kastende variant, brukt KUN av de kritiske mutasjonene som trenger å vite
 // om lagringen faktisk lyktes for å kunne rulle tilbake ved feil (se mutasjonMedRollback()).
 // Den opprinnelige saveAktiveSaker() over beholdes UENDRET for alle ~20 andre eksisterende
 // kallesteder, slik at deres oppførsel ikke endres (minst mulig kodeendring).
@@ -2004,12 +2004,12 @@ function nesteSakId(){
 }
 // ---- Fase 2: automatisk opprettelse av Aktive Saker med duplikatkontroll ----
 // Kalles fra skaderegistrering og Aktiv Biløkt/Min Bil sine hurtigregistreringer (ett
-// avvik/hendelse om gangen — se avgrensningen i "Prioritet 12" under: disse skal ALDRI
+// avvik/hendelse om gangen — se avgrensningen under: disse skal ALDRI
 // slås sammen til en flerpunkts sak, i motsetning til registrerKontrollAvvikSomSak).
 // Synkron og lagrer IKKE selv — kalleren kjører saveAktiveSaker() selv.
 // Duplikatkontroll: matcher på vehicleId + caseType + sourceId blant ÅPNE saker — nå via
 // finnAktivSakMedAvvik(), som også finner avviket dersom det ligger som ett element inne
-// i en flerpunkts kontroll-sak (Prioritet 12), ikke bare i sakens egne toppnivåfelt. Finnes
+// i en flerpunkts kontroll-sak, ikke bare i sakens egne toppnivåfelt. Finnes
 // en match fra før økes rapporttelleren og observasjonen legges i historikken i stedet for
 // å opprette en ny sak (se "Bil 7 mandag/tirsdag/onsdag"-eksempelet). For skader er sourceId
 // alltid unik (damage-id), så hver skade får naturlig sin egen sak uten spesialtilfelle.
@@ -2050,7 +2050,7 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
   aktiveSaker.push(sak);
   return sak;
 }
-// ==================== Prioritet 12 — Sammenslåtte Kontrollavvik ====================
+// ==================== Sammenslåtte Kontrollavvik ====================
 // Én sjåførkontroll som rapporterer flere varsellamper/kontrollavvik samtidig skal gi ÉN
 // aktiv sak for bilen, med hvert avvik som et eget element i sak.avvik — ikke én sak per
 // avvik. Avgrensning (bekreftet eksplisitt): kun varsellampe+kontrollavvik FRA SAMME
@@ -2073,7 +2073,7 @@ function avvikTypeLabel(caseType, sourceId, annetTekst){
 }
 // Full avvik-liste for en sak, uansett om den er en NY flerpunkts kontroll-sak (har
 // sak.avvik) eller en ELDRE/enkeltavvik-sak (skade, manuell, Min Bil, eller data fra før
-// Prioritet 12) — disse har ikke feltet, så ETT element syntetiseres fra sakens egne
+// Sammenslåtte Kontrollavvik) — disse har ikke feltet, så ETT element syntetiseres fra sakens egne
 // toppnivåfelt ved lesing. All visningskode (Steg 1, sakskort, gruppeoverskrifter) skal
 // alltid gå via denne funksjonen i stedet for å lese sak.avvik direkte, slik at gammel og
 // ny datamodell fungerer identisk uten noen bulk-migrering av eksisterende Airtable-data.
@@ -2116,7 +2116,7 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
   avvikListe.forEach(({caseType, sourceId, label, prioritet}) => {
     // Historikk-kommentaren inneholder alltid selve avvik-etiketten (f.eks. "Motorlampe")
     // først, slik at hver observasjonslinje er identifiserbar selv når saken har flere
-    // avvik — samme mønster som før Prioritet 12, kun bygget fra avvik-elementets egen
+    // avvik — samme mønster som tidligere, kun bygget fra avvik-elementets egen
     // label i stedet for en hardkodet per-kall streng.
     const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: label + (kommentar ? ' · ' + kommentar : '')};
     const eksisterende = finnAktivSakMedAvvik(vehicleId, caseType, sourceId);
@@ -2172,7 +2172,7 @@ function markerAvvikUtfort(sakId, avvikId){
 }
 // Rekalkulerer en flerpunkts sak sin overordnede status etter at ett eller flere avvik er
 // merket utført (fra verksted-fullføring ELLER markerAvvikUtfort direkte). Kjerneregelen
-// fra "Prioritet 12": saken skal ALDRI hoppe tilbake til "Vurderes" bare fordi noen avvik
+// saken skal ALDRI hoppe tilbake til "Vurderes" bare fordi noen avvik
 // er ferdige — den er jo allerede vurdert og under behandling. I stedet: står ett eller
 // flere avvik fortsatt aktive → status blir "Delvis utført" (med mindre saken er tidligere
 // i sin egen livssyklus enn det — se under). Står ALLE avvik som utført → status kan gå
@@ -2197,7 +2197,7 @@ function sakAlleAvvikFerdig(sak){
 }
 // En sak regnes som "viderebehandlet" når den har beveget seg forbi utgangspunktet
 // den ble opprettet i — status endret, rapportert på nytt, fått oppfølging satt av
-// administrator, fått bestilt verksted, fått en kommentar, ELLER (Prioritet 12) fått ett
+// administrator, fått bestilt verksted, fått en kommentar, ELLER fått ett
 // enkelt avvik markert utført/rapportert på nytt uten at HELE saken nødvendigvis har
 // beveget seg forbi "Ny". Brukes til sikkerhetsregelen ved kontrollsletting: slike saker
 // skal ALDRI fjernes automatisk uten eksplisitt bekreftelse (Optimalisering 13).
@@ -2208,11 +2208,11 @@ function sakHarBlittViderebehandlet(sak){
   if(sak.linkedVtId) return true;
   // Optimalisering 13: en frittstående kommentar (submitSakWizardKommentar) endrer
   // ingen av feltene over — kun historikk. Sammenlignes mot sakAvvikListe(sak).length,
-  // ikke en fast 1, fordi en fersk flerpunkts kontroll-sak (Prioritet 12) alltid starter
+  // ikke en fast 1, fordi en fersk flerpunkts kontroll-sak alltid starter
   // med nøyaktig én historikkoppføring PER avvik den samler — det alene er ikke et tegn
   // på viderebehandling, kun ekstra oppføringer UTOVER det er.
   if(Array.isArray(sak.historikk) && sak.historikk.length > sakAvvikListe(sak).length) return true;
-  // Optimalisering 13 / Prioritet 12: ett enkelt avvik i en flerpunkts sak kan ha blitt
+  // Ett enkelt avvik i en flerpunkts sak kan ha blitt
   // markert utført (markerAvvikUtfort, uten verksted) eller rapportert på nytt, uten at
   // saken som helhet har forlatt "Ny" — fanges opp her slik at Full Cleanup aldri fjerner
   // en sak der reelt arbeid er gjort på ett av avvikene, selv om resten av saken ser urørt
@@ -2220,12 +2220,12 @@ function sakHarBlittViderebehandlet(sak){
   if(sakAvvikListe(sak).some(a => a.status !== 'aktiv' || (a.reportCount || 1) > 1)) return true;
   return false;
 }
-// PRIORITET 47 — «annet-avvik» («Andre kontrollavvik») er BEVISST fjernet fra denne valgbare
+// «annet-avvik» («Andre kontrollavvik») er BEVISST fjernet fra denne valgbare
 // listen: den overlappet med kommentarfeltet, Skade og Varsellampe, og ble i praksis brukt
-// som en uoffisiell snarvei for frie kommentarer (se «Nye kommentarer» og PRIORITET_47_ANALYSE.md).
+// som en uoffisiell snarvei for frie kommentarer (se «Nye kommentarer»).
 // Nøkkelen er BEHOLDT i KONTROLLAVVIK_LABEL/-IKON under, utelukkende for at allerede lagrede
 // saker/kontroller med sourceId 'annet-avvik' fortsatt skal vise riktig tittel/ikon i Aktive
-// saker, Historikk og Rapporter — samme mønster som UTE_AV_DRIFT_KATEGORI_ID (Prioritet 41):
+// saker, Historikk og Rapporter — samme mønster som UTE_AV_DRIFT_KATEGORI_ID:
 // fjernet fra det valgbare settet, beholdt for lesing av eksisterende, historiske data.
 const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy'];
 const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
@@ -2275,10 +2275,10 @@ let driverVelgBilId = '';
 let driverNavn = '';
 // Min Bil — hvilken av de tre hurtigregistreringene som er åpen (kun én av gangen)
 let minBilAksjon = ''; // '' | 'skade' | 'varsel' | 'avvik' | 'kontakt' | 'nysjafor'
-// PRIORITET 40: melding i «👤 Ny sjåfør»-panelet på Min Bil (validering/bekreftelse/
+// melding i «👤 Ny sjåfør»-panelet på Min Bil (validering/bekreftelse/
 // kryss-bil-utsjekking). Ren UI-tilstand, lagres ingen steder.
 let minBilNySjaforMsg = '';
-// PRIORITET 40 (forenklet sjåførflyt): hvilken bil som venter på «Hvem kjører denne
+// hvilken bil som venter på «Hvem kjører denne
 // bilen?»-dialogen, og en ev. valideringsmelding i den. Ren UI-tilstand — ingen data
 // lagres, og ingen biløkt opprettes før sjåføren faktisk trykker Fortsett.
 let driverNavnDialogBilId = '';
@@ -2286,7 +2286,7 @@ let driverNavnDialogMsg = '';
 let minBilSkadeBeskrivelse = '';
 let minBilSkadeAlvorlighet = 'middels';
 let minBilSkadeKommentar = '';
-// PRIORITET 50 — tekst i «☰ Mer → 💬 Legg til kommentar»-skjemaet (renderDriverNyKommentar()).
+// tekst i «☰ Mer → 💬 Legg til kommentar»-skjemaet (renderDriverNyKommentar()).
 let driverNyKommentarTekst = '';
 let pendingMinBilFoto = null;
 let minBilVarselType = '';
@@ -2319,7 +2319,7 @@ function vehicleAktivSjafor(vehicleId){
   if(isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== todayISO()) return null;
   return v.aktivSjafor;
 }
-// Prioritet 26.7 (Aktiv sjåfør + gruppert bilvalg): "Aktiv sjåfør" i Operativ status skal
+// "Aktiv sjåfør" i Operativ status skal
 // vise sist kjente sjåfør basert på ENTEN aktiv biløkt ELLER siste gjennomførte kontroll i
 // dag — ikke bare biløkt. Rotårsak til det meldte avviket: v.aktivSjafor settes KUN via
 // startBilokt(), som igjen kun kalles i driverMode (den separate, låste sjåfør-URL-en) —
@@ -2340,14 +2340,14 @@ function vehicleSisteSjafor(vehicleId){
   const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
   return siste.sjafor || null;
 }
-// ================= PRIORITET 40 — Aktiv sjåfør: ÉN skriver =================
+// ================= Aktiv sjåfør: ÉN skriver =================
 // `settAktivSjafor()` er nå det ENESTE stedet i appen som TILDELER v.aktivSjafor/
 // v.aktivSjaforSiden. Innholdet er FLYTTET UENDRET ut av startBilokt() — samme
 // kryss-bil-utsjekking («én sjåfør, én aktiv biløkt»), samme feltskriving, samme
 // saveVehicles(). De tre kallerne under legger kun til sitt eget, ekstra steg:
-//   startBilokt()                 → + lokal enhets-sesjon (sjåførmodus)  = biløkt
-//   settAktivSjaforForKontroll()  → ingenting ekstra (kontroll fra administrasjonen)
-//   overforAktivSjafor()          → ingenting ekstra (👤 Ny sjåfør på Min Bil)
+//  startBilokt() → + lokal enhets-sesjon (sjåførmodus) = biløkt
+//  settAktivSjaforForKontroll() → ingenting ekstra (kontroll fra administrasjonen)
+//  overforAktivSjafor() → ingenting ekstra (👤 Ny sjåfør på Min Bil)
 // Nullstilling skjer fortsatt kun i avsluttBilokt() og ryddOppBiloktDagskille().
 // Returnerer navnet på en ev. ANNEN bil samme sjåfør ble sjekket ut av, slik at
 // den som kaller kan gjøre kryss-bil-utsjekkingen synlig (uten blokkerende alert).
@@ -2376,7 +2376,7 @@ async function startBilokt(vehicleId, navn){
   saveDriverLocalSession();
   return utsjekketFra;
 }
-// PRIORITET 40: den funksjonen CLAUDE.md sin Prioritet 34-tekst allerede beskrev, men som
+// en funksjon CLAUDE.md allerede beskrev, men som
 // aldri fantes i koden. Kalles fra submitKontroll() sin ADMINISTRASJONS-gren, slik at en
 // kontroll registrert via det vanlige ✅ Kontroll-ikonet setter aktiv sjåfør akkurat som en
 // kontroll registrert i sjåførmodus. Rører BEVISST ikke den lokale enhets-sesjonen
@@ -2385,7 +2385,7 @@ async function startBilokt(vehicleId, navn){
 async function settAktivSjaforForKontroll(vehicleId, navn){
   return await settAktivSjafor(vehicleId, navn);
 }
-// PRIORITET 40: «👤 Ny sjåfør» på Min Bil — ren OVERFØRING av aktiv sjåfør.
+// «👤 Ny sjåfør» på Min Bil — ren OVERFØRING av aktiv sjåfør.
 // Registrerer INGEN kontroll, oppretter INGEN historikk og starter INGEN ny biløkt
 // (den lokale enhets-sesjonen røres ikke). Eneste effekt er at v.aktivSjafor peker på
 // den nye sjåføren — derfor oppdateres Biler i drift, Dashboard, Biloversikt og
@@ -2401,7 +2401,7 @@ async function avsluttBilokt(vehicleId){
   clearDriverLocalSession();
   driverScreen = 'velg-bil';
   driverVelgBilId = '';
-  // PRIORITET 40: sørg for at «Hvem kjører denne bilen?»-dialogen ikke står igjen åpen
+  // sørg for at «Hvem kjører denne bilen?»-dialogen ikke står igjen åpen
   // fra en tidligere økt når sjåføren sendes tilbake til bilvalget.
   driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
 }
@@ -2458,7 +2458,7 @@ async function fetchWeather(){
 // 'system' (standard) følger enhetens innstilling live; 'light'/'dark' er et eksplisitt
 // valg som huskes til neste innlogging (lagres per enhet, ikke delt mellom brukere).
 let themePreference = 'system'; // 'light' | 'dark' | 'system'
-// PRIORITET 44 — 🎨 Layout Editor sin lagrede tilstand: { [flateKey]: {order, hidden} }.
+// 🎨 Layout Editor sin lagrede tilstand: { [flateKey]: {order, hidden} }.
 // null = ikke lastet ennå / ingenting lagret (getLayoutFlate() faller da tilbake til
 // standardrekkefølgen, se DASHBOARD_LAYOUT_FLATER lenger ned i denne filen). Delt/global på
 // samme måte som themePreference/bilkategorier/verksteder — ikke personlig per bruker.
@@ -2582,7 +2582,7 @@ let sisteVellykkedeSynkTidspunkt = null;
   window.storage.delete = sporet(originalDelete, args => args[0]);
 })();
 
-// ================= Prioritet 29: Delt beskyttelse mot dobbel innsending =================
+// ================= Delt beskyttelse mot dobbel innsending =================
 // Løser Kritisk feil 5 i "BILPARK – FULL TEKNISK REVISJON": ingen skjema/handling hadde
 // noen sperre mot dobbelklikk/dobbelttrykk (relevant siden appen brukes på mobil i felt).
 // Én liten, delt mekanisme brukes i stedet for mange lokale varianter. Stoler IKKE kun på
@@ -2626,7 +2626,7 @@ function beskyttKlikk(nokkel, btnEl, handlerFn){
   };
 }
 
-// ================= Prioritet 29: Trygg JSON-parsing med eksplisitt resultatstatus =================
+// ================= Trygg JSON-parsing med eksplisitt resultatstatus =================
 // Løser Kritisk feil 4: en korrupt Settings-blob (servicehistorikk/planlagteservicer) skal
 // ALDRI stille bli erstattet med et tomt array — det tomme arrayet ville deretter blitt
 // lagret tilbake til Airtable ved neste endring og slettet ALL historikk permanent. Denne
@@ -2651,7 +2651,7 @@ function parseJsonTrygt(raw, nokkelNavn){
 // Én korrupt nøkkel påvirker ALDRI andre datasett (se loadAll(), hvert forsøk er uavhengig).
 const _korrupteDatasett = {}; // { [nokkelNavn]: true }
 
-// ================= Prioritet 29: Trygg mutasjon med rollback ved lagringsfeil =================
+// ================= Trygg mutasjon med rollback ved lagringsfeil =================
 // Løser DEL 3: dagens mønster endret alltid det lokale arrayet FØR lagring til Airtable
 // ble forsøkt, og viste "lagret"-tilstanden i UI selv om selve nettverksskrivingen feilet.
 // Tar en DYP kopi (JSON-rundtrip — trygt siden alle datasettene er rene JSON-modeller)
@@ -2680,7 +2680,7 @@ async function mutasjonMedRollback(arr, mutateFn, saveFn, feilmelding){
 
 const STATUS_LABEL = {ok:'OK', oppfolging:'Trenger oppfølging', verksted:'På verksted'};
 const DEKK_LABEL = {sommer:'Sommerdekk', vinter:'Vinterdekk', helars:'Helårsdekk'};
-// PRIORITET 41: kategoriene er ikke lenger hardkodet. De tre oppslagene under er beholdt
+// kategoriene er ikke lenger hardkodet. De tre oppslagene under er beholdt
 // UENDRET som navn og form — alle ~15 kallesteder i appen (Biloversikt, Varsler, Rapporter,
 // Kostnader, Analyse, Excel-eksport, vehicleOptions(), sortedVehicles() …) fortsetter å
 // lese dem akkurat som før. Forskjellen er at INNHOLDET nå bygges fra `bilkategorier` av
@@ -2745,15 +2745,15 @@ function kategoriOptionsHtml(valgt, tomTekst){
     + bilkategorier.map(k => `<option value="${esc(k.id)}" ${valgt === k.id ? 'selected' : ''}>${k.ikon || ''} ${esc(k.navn)}</option>`).join('');
 }
 
-// ================= PRIORITET 44 — 🎨 Layout Editor =================
+// ================= 🎨 Layout Editor =================
 // Lar driftskoordinator styre REKKEFØLGE og SYNLIGHET (aldri innholdet) på komponentene i
 // Desktop Dashboard, Mobil Dashboard og Min Bil, uten kodeendring. Lagres som ÉN JSON-blob
 // i den eksisterende Settings-tabellen (nøyaktig samme mønster som `bilkategorier`/
 // `verksteder`/`theme-preference` over — INGEN ny Airtable-tabell, ingen `LIST_TABLES`-
-// endring). Se PRIORITET_44_ANALYSE.md for full kartlegging av alle komponentene og
+// endring). Se CLAUDE.md for full kartlegging av alle komponentene og
 // begrunnelsen for hvilke som er inkludert/holdt utenfor.
 //
-// Datamodell (dashboardLayout): { [flateKey]: { order: [komponentKey, ...], hidden: [komponentKey, ...] } }
+// Datamodell (dashboardLayout): { [flateKey]: { order: [komponentKey ...], hidden: [komponentKey ...] } }
 // — «order» er den FULLSTENDIGE rekkefølgen (også skjulte komponenter blir stående i order,
 // slik at de dukker opp igjen på riktig plass dersom de vises på nytt). Kun komponent-ID-er
 // og deres rekkefølge/synlighet lagres — aldri komponentenes eget innhold/markup.
@@ -2782,7 +2782,7 @@ const DASHBOARD_LAYOUT_FLATER = {
   },
   minbil: {
     label: 'Min Bil Dashboard',
-    // PRIORITET 47, Del 2 — 📞 Ringeliste er FLYTTET UT av Min Bil og er nå et eget,
+    // 📞 Ringeliste er FLYTTET UT av Min Bil og er nå et eget,
     // alltid tilgjengelig punkt i sjåførens bunnmeny (se DRIVER_BUNNMENY/
     // renderDriverRingeliste()) i stedet for et Layout Editor-styrt Min Bil-kort. Fjernet
     // herfra for å unngå dobbel plassering. getLayoutFlate() forkaster automatisk
@@ -2798,13 +2798,13 @@ const DASHBOARD_LAYOUT_FLATER = {
     ]
   }
 };
-// Desktop Dashboard beholder sitt eksisterende to-kolonners CSS-oppsett UENDRET (Prioritet
-// 37/38 sin `dash40-split`) — å gjøre om hele Dashboard til én stablet kolonne ville vært en
+// Desktop Dashboard beholder sitt eksisterende to-kolonners CSS-oppsett UENDRET (`dash40-split`)
+// — å gjøre om hele Dashboard til én stablet kolonne ville vært en
 // unødvendig visuell redesign langt utover det denne saken ber om. Layout Editoren gir
 // driftskoordinator ÉN samlet liste per flate (slik bestillingen beskriver «3 flater»), men
 // for Desktop bestemmer denne faste kolonne-tilhørigheten hvilken av de to kolonnene en
 // komponent faktisk tegnes i — kun REKKEFØLGEN *innenfor* egen kolonne, og synlighet på tvers
-// av alle, styres av Layout Editoren. Se PRIORITET_44_ANALYSE.md, "Kjente begrensninger".
+// av alle, styres av Layout Editoren.
 const DESKTOP_LAYOUT_KOLONNER = {
   full:    ['kpi', 'bestill'],
   venstre: ['kommende', 'biloversikt'],
@@ -2860,7 +2860,7 @@ function resetLayoutFlate(flateKey){
   saveDashboardLayout();
   render();
 }
-// Gitt en flate og et objekt {komponentKey: htmlString, ...} (allerede ferdig rendret
+// Gitt en flate og et objekt {komponentKey: htmlString ...} (allerede ferdig rendret
 // markup for hver komponent, UENDRET fra før denne prioriteten): returnerer HTML for de
 // synlige komponentene i lagret rekkefølge. Selve komponent-markupen røres aldri her — kun
 // hvilke som tas med, og i hvilken rekkefølge.
@@ -2878,8 +2878,8 @@ function layoutFlateSynligeNokler(flateKey){
   return layout.order.filter(key => !layout.hidden.includes(key));
 }
 // Administrasjons-UI for ÉN flate i 🎨 Layout Editor (Innstillinger). Samme
-// opp/ned-knapp-mønster som ⚙️ Administrer bilkategorier bruker for rekkefølge (Prioritet
-// 41) — bevisst gjenbrukt i stedet for en ny dra-og-slipp-mekanikk, som fungerer upålitelig
+// opp/ned-knapp-mønster som ⚙️ Administrer bilkategorier bruker for rekkefølge
+// — bevisst gjenbrukt i stedet for en ny dra-og-slipp-mekanikk, som fungerer upålitelig
 // på mobil/touch og ville vært en ny, ikke tidligere brukt interaksjonsmekanikk i appen ved
 // siden av et allerede etablert mønster.
 function layoutEditorFlateHtml(flateKey){
@@ -2910,7 +2910,7 @@ function layoutEditorFlateHtml(flateKey){
     ${layoutForhandsvisningHtml(flateKey)}
   `;
 }
-// PRIORITET 45 — «Hvis mulig: legg til forhåndsvisning.» En LETT, SKJEMATISK forhåndsvisning
+// «Hvis mulig: legg til forhåndsvisning.» En LETT, SKJEMATISK forhåndsvisning
 // (kort med komponentnavn i riktig rekkefølge/gruppering), IKKE en pikselnøyaktig kopi av det
 // virkelige Dashboardet — det ville krevd å duplisere hele rendringslogikken (ekte data,
 // betingede paneler, kolonnebredder) inne i Innstillinger, noe «Ikke dupliser eksisterende
@@ -2945,7 +2945,7 @@ function layoutForhandsvisningHtml(flateKey){
     </div>
   `;
 }
-// Prioritet 27.1 (Driftslag i Sjåførkontroll) — gjelder KUN bilvalget i Kontroll-skjermen,
+// gjelder KUN bilvalget i Kontroll-skjermen,
 // ikke Biloversikt/Historikk/Rapporter/Planlegging (disse grupperer fortsatt uendret etter
 // KATEGORI_ORDER over). v.driftslag er et nytt, fritekstbasert felt på kjøretøyet — bevisst
 // IKKE en fast, hardkodet liste bilene tvinges inn i: grupperingen bygges dynamisk fra
@@ -2956,7 +2956,7 @@ function layoutForhandsvisningHtml(flateKey){
 // forkastet.
 const DRIFTSLAG_ORDER = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4', 'Curbside', 'Montering', 'Lastebil'];
 const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':'🟡', 'Curbside':'🔵', 'Montering':'🟣', 'Lastebil':'🟠'};
-// PRIORITET 48 — presentasjonen i sjåførmodus sitt bilvalg (renderDriftslagGruppertBilvalg)
+// presentasjonen i sjåførmodus sitt bilvalg (renderDriftslagGruppertBilvalg)
 // bruker nå en fargeprikk (CSS) i stedet for DRIFTSLAG_IKON sin emoji, nettopp for å kunne
 // gi CURBSIDE en egen farge i stedet for å dele 🔵 med LAG 3 (bestilt eksplisitt). DRIFTSLAG_IKON
 // selv er UENDRET — kun denne ene visningen (dot-fargen) er lagt til ved siden av, ikke i stedet.
@@ -2999,7 +2999,7 @@ function kontrollDriftslagGrupper(){
   if(uteAvDrift.length > 0) grupperListe.push({navn: DRIFTSLAG_GRUPPE_UTE_AV_DRIFT, ikon: '🚫', biler: sortedVehicles(uteAvDrift)});
   return grupperListe;
 }
-// Prioritet 27.7 (Driftslag-akkordion) — kun ÉN driftslag-gruppe åpen om gangen i
+// kun ÉN driftslag-gruppe åpen om gangen i
 // Sjåførkontroll sitt bilvalg. Gjelder KUN Sjåførkontroll (begge steder komponenten
 // brukes: første bilvalg i renderDriverVelgBil, og "Bytt bil"-fallbacken i
 // renderKontroll) — Biloversikt/Historikk/Planlegging/Rapporter er urørt, de bruker
@@ -3028,7 +3028,7 @@ let kontrollApenDriftslag = lastSistDriftslag();
 function renderDriftslagGruppertBilvalg(velgAttr){
   return kontrollDriftslagGrupper().map(gruppe => {
     const open = gruppe.navn === kontrollApenDriftslag;
-    // PRIORITET 48 — "åpen gruppe skal skille seg visuelt fra lukkede grupper": et rent
+    // "åpen gruppe skal skille seg visuelt fra lukkede grupper": et rent
     // inline-stilattributt på DENNE spesifikke overskriften, ikke en endring av den delte
     // .group-card-head CSS-regelen (som også brukes av Biloversikt/Rapporter/Analyse sine
     // egne akkordioner et helt annet sted i koden) — de påvirkes derfor ikke av dette.
@@ -3062,7 +3062,7 @@ function renderDriftslagGruppertBilvalg(velgAttr){
               }
               const kontrollert = isKontrollertIdag(v.id);
               const aktivSjafor = vehicleAktivSjafor(v.id);
-              // PRIORITET 48 — samme skiltkomponent (.plate) som Min Bil, kontrollstatus som
+              // samme skiltkomponent (.plate) som Min Bil, kontrollstatus som
               // pille øverst til høyre, klokkeslett under pillen når kontrollert, og en
               // navigasjonspil (SVG chevron-right) helt til høyre. Ren presentasjon — samme
               // ${velgAttr}-attributt og samme klikk-håndtering (attachDriftslagGruppeListeners/
@@ -3163,7 +3163,7 @@ async function loadAll(){
   catch(e){ dekkhistorikk = []; }
   try{ const dk = await window.storage.get('dekkkostnader', true); dekkkostnader = dk && dk.value ? JSON.parse(dk.value) : []; }
   catch(e){ dekkkostnader = []; }
-  // Prioritet 29 (Kritisk feil 4): bruker parseJsonTrygt() i stedet for en generell
+  // bruker parseJsonTrygt() i stedet for en generell
   // try/catch som stille satte servicehistorikk = [] ved korrupt JSON — det tomme
   // arrayet ville deretter blitt lagret TILBAKE til Airtable ved neste endring og
   // slettet all historikk permanent. Ved parse-feil markeres datasettet i stedet som
@@ -3183,7 +3183,7 @@ async function loadAll(){
     if(psParsed.ok){ planlagteServicer = psParsed.value; delete _korrupteDatasett.planlagteservicer; }
     else { planlagteServicer = []; _korrupteDatasett.planlagteservicer = true; }
   } catch(e){ planlagteServicer = []; }
-  // PRIORITET 50 — «kommentarer»: samme trygge lasting (parseJsonTrygt) som
+  // «kommentarer»: samme trygge lasting (parseJsonTrygt) som
   // servicehistorikk/planlagteservicer over — se saveKommentarer().
   try{
     const km = await window.storage.get('kommentarer', true);
@@ -3191,7 +3191,7 @@ async function loadAll(){
     if(kmParsed.ok){ kommentarer = kmParsed.value; delete _korrupteDatasett.kommentarer; }
     else { kommentarer = []; _korrupteDatasett.kommentarer = true; }
   } catch(e){ kommentarer = []; }
-  // PRIORITET 35 — Dekkskifttime: samme trygge lasting (parseJsonTrygt) som
+  // Dekkskifttime: samme trygge lasting (parseJsonTrygt) som
   // servicehistorikk/planlagteservicer over — se savePlanlagteDekkskift().
   try{
     const pd = await window.storage.get('planlagtedekkskift', true);
@@ -3199,7 +3199,7 @@ async function loadAll(){
     if(pdParsed.ok){ planlagteDekkskift = pdParsed.value; delete _korrupteDatasett.planlagtedekkskift; }
     else { planlagteDekkskift = []; _korrupteDatasett.planlagtedekkskift = true; }
   } catch(e){ planlagteDekkskift = []; }
-  // Prioritet 29 (Kritisk feil 4): tydelig, vedvarende varsel — ikke bare en linje i
+  // tydelig, vedvarende varsel — ikke bare en linje i
   // Database status som lett kan overses. Vises kun ved oppstart (ikke ved hver
   // bakgrunnspoll, se reloadOne()) for ikke å avbryte brukeren gjentatte ganger.
   const korrupteVedOppstart = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
@@ -3210,7 +3210,7 @@ async function loadAll(){
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
   catch(e){ aktiveSaker = []; }
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
-  // PRIORITET 41 — bilkategorier lastes fra Settings-blobben, med seeding av
+  // bilkategorier lastes fra Settings-blobben, med seeding av
   // standardkategoriene ved førstegangsoppstart. Oppslagene (KATEGORI_ORDER/
   // KATEGORI_LABEL/KATEGORI_GROUP_LABEL/GRUPPE_IKON) bygges umiddelbart etterpå.
   try{
@@ -3264,13 +3264,13 @@ async function loadAll(){
   }
   try{
     const th = await window.storage.get('theme-preference', false);
-    // PRIORITET 38: mørk modus er ny STANDARD. Brukere som aktivt har valgt lys eller
+    // mørk modus er ny STANDARD. Brukere som aktivt har valgt lys eller
     // "følg enheten" beholder sitt valg (verdien ligger lagret) — kun de som aldri har
     // valgt noe får mørk. Temabryteren ligger fortsatt KUN i Innstillinger.
     themePreference = (th && th.value) ? th.value : 'dark';
   }catch(e){ themePreference = 'system'; }
   applyTheme();
-  // PRIORITET 44 — 🎨 Layout Editor: samme enkle Settings-lesing som theme-preference over.
+  // 🎨 Layout Editor: samme enkle Settings-lesing som theme-preference over.
   // Manglende/korrupt verdi faller trygt tilbake til null, som getLayoutFlate() igjen
   // tolker som "bruk standard rekkefølge/synlighet" — aldri en krasjende feil.
   try{
@@ -3307,7 +3307,7 @@ async function loadAll(){
 async function reloadOne(key){
   try{
     const raw = await window.storage.get(key, true);
-    // Prioritet 29 (Kritisk feil 4): samme trygge parsing som loadAll() for de to
+    // samme trygge parsing som loadAll() for de to
     // Settings-blobbene — en korrupt bakgrunnsoppfrisking skal heller IKKE stille
     // nullstille historikken (se parseJsonTrygt() og saveServicehistorikk()/
     // savePlanlagteServicer(), som nekter å lagre mens datasettet er markert korrupt).
@@ -3336,7 +3336,7 @@ async function reloadOne(key){
     else if(key === 'aktiveSaker') aktiveSaker = parsed;
   }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
 }
-// ================= Prioritet 29 (Del 9): samle bakgrunnspoll til ÉN render() =================
+// ================= Samle bakgrunnspoll til ÉN render() =================
 // subscribeLiveSync (storage.airtable.js) kaller callback-en synkront én gang PER
 // LIST_TABLES-nøkkel (8 stk.) i samme pollingsrunde — før denne endringen ga det opptil
 // 8 fulle re-renders av hele appskallet per runde. Denne fabrikkfunksjonen returnerer én
@@ -3415,11 +3415,11 @@ async function saveVerkstedtimer(){
   try{ await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
-// Prioritet 29: kastende variant, samme begrunnelse som saveAktiveSakerEllerKast() over.
+// kastende variant, samme begrunnelse som saveAktiveSakerEllerKast() over.
 async function saveVerkstedtimerEllerKast(){
   await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true);
 }
-// PRIORITET 41: samme mønster som saveVerksteder() — én JSON-blob i Settings-tabellen.
+// samme mønster som saveVerksteder() — én JSON-blob i Settings-tabellen.
 async function saveBilkategorier(){
   try{ await window.storage.set('bilkategorier', JSON.stringify(bilkategorier), true); }
   catch(e){ alert('Kunne ikke lagre bilkategoriene. Prøv igjen.'); console.error(e); }
@@ -3446,7 +3446,7 @@ async function saveDekkkostnader(){
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function saveServicehistorikk(){
-  // Prioritet 29 (Kritisk feil 4): blokker skriving dersom datasettet ble lastet inn
+  // blokker skriving dersom datasettet ble lastet inn
   // korrupt denne økten — se parseJsonTrygt()/loadAll(). Å likevel lagre ville skrevet
   // det (tomme) fallback-arrayet tilbake til Airtable og slettet historikken permanent.
   if(_korrupteDatasett.servicehistorikk){
@@ -3460,7 +3460,7 @@ async function savePlanlagteServicer(){
   }
   await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true);
 }
-// PRIORITET 50 — samme trygge lagringsmønster (parseJsonTrygt + _korrupteDatasett-
+// samme trygge lagringsmønster (parseJsonTrygt + _korrupteDatasett-
 // blokkering) som saveServicehistorikk()/savePlanlagteServicer() over.
 async function saveKommentarer(){
   if(_korrupteDatasett.kommentarer){
@@ -3468,7 +3468,7 @@ async function saveKommentarer(){
   }
   await window.storage.set('kommentarer', JSON.stringify(kommentarer), true);
 }
-// PRIORITET 35 — Dekkskifttime: samme trygge lagringsmønster (parseJsonTrygt +
+// Dekkskifttime: samme trygge lagringsmønster (parseJsonTrygt +
 // _korrupteDatasett-blokkering) som savePlanlagteServicer() over. Generisk Settings-blob,
 // ingen ny Airtable-tabell/LIST_TABLES-registrering nødvendig.
 async function savePlanlagteDekkskift(){
@@ -3491,12 +3491,12 @@ async function deletePhoto(key){
 // ---- Skadebilder — kartlagt flyt (kritisk manglende funksjon) ----
 // Et bilde kan komme fra to ulike kilder avhengig av hvordan skaden ble registrert:
 // 1) Manuell/admin-registrert skade, eller skade meldt via "Min Bil": ETT bilde,
-//    lagret under 'damage:{id}' (damage.hasPhoto er en boolsk indikator).
+//  lagret under 'damage:{id}' (damage.hasPhoto er en boolsk indikator).
 // 2) Skade meldt via sjåførkontroll MED flere bilder: driftskoordinator kunne tidligere
-//    aldri se mer enn det FØRSTE bildet (det eneste som ble kopiert til
-//    'damage:{id}') — resten lå utilgjengelig under kontrollens egne nøkler
-//    ('kontroll:{kontrollId}:0', ':1', ':2' ...). damagePhotoKeys() henter nå ALLE
-//    bilder fra riktig kilde, uten å endre hvordan noe lagres.
+//  aldri se mer enn det FØRSTE bildet (det eneste som ble kopiert til
+//  'damage:{id}') — resten lå utilgjengelig under kontrollens egne nøkler
+//  ('kontroll:{kontrollId}:0', ':1', ':2' ...). damagePhotoKeys() henter nå ALLE
+//  bilder fra riktig kilde, uten å endre hvordan noe lagres.
 function damagePhotoCount(d){
   if(!d) return 0;
   if(d.createdByControlId){
@@ -4005,7 +4005,7 @@ function dekkAlderStatus(dot){
 // faste grenser) fremfor en konfigurerbar prosentandel — enklere å forstå
 // og forutse for driftskoordinator.
 //
-// Skjerpet terskel (Prioritet 26.7 punkt 2): fire nivåer, samme struktur som
+// Skjerpet terskel: fire nivåer, samme struktur som
 // EU-kontroll — 1500 km igjen skal IKKE lenger være grønt. Målet er at
 // service planlegges FØR den blir kritisk, ikke først når den er rett på.
 const SERVICE_VARSEL_KM_GUL = 2500; // "gul"-terskel: 2500 km eller mindre igjen
@@ -4053,19 +4053,19 @@ function vehicleServiceStatus(v){
 function vehicleHarAktivPlanlagtService(vehicleId){
   return planlagteServicer.some(t => t.vehicleId === vehicleId && t.dato >= todayISO());
 }
-// PRIORITET 35 — Dekkskifttime: identisk "aktiv"-prinsipp som vehicleHarAktivPlanlagtService()
+// Dekkskifttime: identisk "aktiv"-prinsipp som vehicleHarAktivPlanlagtService()
 // over — kun en KOMMENDE (dato >= i dag) dekkskifttime teller. En passert, ikke fullført time
 // faller bevisst tilbake til Krever handling nå (se dashKreverListe i renderDashboard()).
 function vehicleHarAktivPlanlagtDekkskift(vehicleId){
   return planlagteDekkskift.some(t => t.vehicleId === vehicleId && t.dato >= todayISO());
 }
 // ---- EU-kontroll (periodisk kjøretøykontroll) — ny funksjonalitet, samme mønster som
-// Service (Prioritet 26.3). Ett datofelt på selve kjøretøyet (v.euGodkjentTil), ingen
+// Service. Ett datofelt på selve kjøretøyet (v.euGodkjentTil), ingen
 // egen historikk-liste — kun forfallsdatoen er relevant å spore, i motsetning til
 // Service der hver utført service faktisk logges (EU-kontroll er en frist, ikke en
 // hendelseslogg). LIVE-beregnet status ved hvert render(), samme prinsipp som resten.
 //
-// Prioritet 26.4 (punkt 3): fire eksplisitte nivåer, samme struktur som servicevarsler
+// fire eksplisitte nivåer, samme struktur som servicevarsler
 // men tidsbasert i stedet for km-basert. "3 måneder"/"1 måned" oversatt til dager
 // (90/30) siden all annen dato-logikk i appen (daysUntil() m.fl.) allerede regner i
 // hele dager — ingen kalendermåned-aritmetikk innført et nytt sted i koden.
@@ -4089,7 +4089,7 @@ function vehicleEuKontrollStatus(v){
 // som vehicleHarAktivPlanlagtService() over: kun kommende (dato >= i dag) timer teller: en
 // passert, ikke-fullført EU-time faller tilbake til Krever handling nå.
 //
-// PRIORITET 46 — Verkstedtime 2.0: type-feltet kan nå inneholde FLERE kommaseparerte verdier
+// Verkstedtime 2.0: type-feltet kan nå inneholde FLERE kommaseparerte verdier
 // ('eu-kontroll', 'ruteskift') istedenfor kun én streng, siden EU-kontroll og Ruteskift kan
 // krysses av samtidig på samme verkstedtime (se submitAddVT()). vtHarType()/vtTypeIkon()/
 // vtTypeTittel() er ÉN delt kilde til sannhet for lesing av feltet — brukes overalt (Bestill
@@ -4136,7 +4136,7 @@ function nesteDekksesongOvergang(){
   ].filter(k => k.dato > now).sort((a,b) => a.dato - b.dato);
   return kandidater[0] || null;
 }
-// PRIORITET 35 — Dekkskifttime: "motsatt" av nesteDekksesongOvergang() over — den SISTE
+// Dekkskifttime: "motsatt" av nesteDekksesongOvergang() over — den SISTE
 // (nyeste passerte) sesongterskelen, brukt til å avgjøre om et dekkskifte er FORFALT (ikke
 // bare "nærmer seg", som nesteDekksesongOvergang()/renderDekkoversikt sitt varsel dekker).
 // Samme faste kalenderdatoer (1. november/15. april), ingen ny datamodell.
@@ -4151,7 +4151,7 @@ function sisteDekksesongOvergang(){
   ].filter(k => k.dato <= now).sort((a,b) => b.dato - a.dato);
   return kandidater[0] || null;
 }
-// "Krever dekkskift" — Dashboard "Krever handling nå"-kilde (PRIORITET 35). Strukturert,
+// "Krever dekkskift" — Dashboard "Krever handling nå"-kilde. Strukturert,
 // gjenbrukt signal (IKKE en ny gjettet mønsterdybde-terskel — appen har ingen mønsterdybde-
 // felt, se CLAUDE.md): siste sesongterskel er passert OG bilens montere dekk (v.dekk) er
 // fortsatt feil sesong. Samme struktur/prinsipp som bilerSomTrengerDekkskifte i
@@ -4274,7 +4274,7 @@ function goTo(scr, vehicleId, _isBack){
   }
   if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; showPlanleggDekkskift = false; dekkSaveConfirmedId = null; }
-  // Prioritet 37: Kjøretøyprofilens faner og redigeringspanel nullstilles ved bytte av bil,
+  // Kjøretøyprofilens faner og redigeringspanel nullstilles ved bytte av bil,
   // på nøyaktig samme måte som de tidligere akkordion-seksjonene gjorde (se bilkort-linjen over).
   if(scr === 'bilkort' && vehicleId !== undefined){ bilkortAktivFane = 'oversikt'; showBilinfoRediger = false; }
   render();
@@ -4296,7 +4296,7 @@ function goBack(fallback){
 // Delte hjelpefunksjoner som navigerer til riktig side MED riktig filter aktivert,
 // og nullstiller alle andre filtre på målsiden først, slik at man alltid får et
 // entydig, forutsigbart resultat uansett hva som lå igjen fra en tidligere økt.
-// Prioritet 17 (Del 2): Dashboard-tallene ("Oppfølging i dag", "Kritisk sak", "Aktive
+// Dashboard-tallene ("Oppfølging i dag", "Kritisk sak", "Aktive
 // saker: N") lenker nå direkte til Aktive Saker med et relevant filter forhåndssatt, i
 // stedet for en egen, duplisert liste på Dashboard — gjenbruker eksisterende filterfelt
 // (samme mønster som goToRegisterFiltered), ingen ny filtreringslogikk.
@@ -4325,7 +4325,7 @@ function goToRegisterKategori(kategori){
   showAddVehicleForm = false;
   goTo('register');
 }
-// Prioritet 26.2 (Dashboard Nullstilling): Bilparkhelse-chipsene og "biler i drift"-
+// Bilparkhelse-chipsene og "biler i drift"-
 // tallet i toppfeltet (kun vist på Dashboard) rutet tidligere til en inline Biloversikt-
 // akkordion på selve Dashboardet. Den er fjernet (Dashboard skal kun vise handling) —
 // samme filtrering skjer nå her, på den faktiske Bilregister-siden, med samme
@@ -4371,7 +4371,7 @@ function goToRegisterKontroll(vehicleId){
 }
 
 // ================= Kjøretøy-mutasjoner =================
-// PRIORITET 37: Drivstoff er ett nytt felt på kjøretøyet (v.drivstoff, Airtable-feltet
+// Drivstoff er ett nytt felt på kjøretøyet (v.drivstoff, Airtable-feltet
 // "Drivstoff"), registrert i LIST_TABLES i storage.airtable.js SAMTIDIG som det tas i
 // bruk her — se FELTREGELEN i CLAUDE.md. Fast, lukket verdiliste (én kilde, brukt av både
 // "Ny bil"-skjemaet og Kjøretøyprofilens redigering) slik at verdiene forblir filtrerbare.
@@ -4416,7 +4416,7 @@ async function submitAddVehicle(ev){
 async function saveVehicleForm(id){
   const v = vehicles.find(x => x.id === id);
   if(!v) return;
-  // DEL 6 (Prioritet 29): v.km er kjøretøyets ENESTE autoritative kilometerstand og skal
+  // DEL 6: v.km er kjøretøyets ENESTE autoritative kilometerstand og skal
   // normalt KUN skrives fra submitKontroll() (se CLAUDE.md, "Kilometerregel"). Vanlig
   // redigering av annen bilinformasjon her (regnr, modell, kategori osv.) skal ALDRI
   // utilsiktet overskrive den — feltverdien sammenlignes derfor mot v.km FØR NOE ANNET
@@ -4752,7 +4752,7 @@ async function settTilbakeIDrift(vehicleId){
 // selv "Vurder sak" eller "Fortsett saken" derfra. Tidligere hoppet den rett til Steg 2/3/4
 // basert på status, noe som skjulte problembeskrivelsen ved gjenåpning. Lukkede saker
 // åpnes fortsatt alltid i lesemodus (uendret, egen lesevisning, ikke del av denne saken).
-// PRIORITET 51: bruker nå sakErApen() (samme, ENESTE definisjon av "lukket" som resten
+// bruker nå sakErApen() (samme, ENESTE definisjon av "lukket" som resten
 // av appen) i stedet for å sjekke status === 'lukket' direkte — sikrer at saker med de
 // nye terminal-statusene 'utfort'/'avslatt' også åpnes i lesemodus her, ikke bare 'lukket'.
 function sakWizardStartSteg(s){
@@ -4912,7 +4912,7 @@ async function submitSakWizardFullfor(id, lukkSaken){
     faktiskRaw = (document.getElementById('swz-faktisk-'+id)||{}).value?.trim() || '';
   }
 
-  // Prioritet 12: er dette en flerpunkts sak, fullfør (kun) de avvikene som faktisk hører
+  // er dette en flerpunkts sak, fullfør (kun) de avvikene som faktisk hører
   // til DENNE verkstedrunden (samme linkedVtId som sakens gjeldende s.linkedVtId) — resten
   // av avvikene i saken forblir aktive, upåvirket av denne innsendingen.
   const erFlerpunkts = Array.isArray(s.avvik) && s.avvik.length > 0;
@@ -4948,7 +4948,7 @@ async function submitSakWizardFullfor(id, lukkSaken){
     s.status = 'lukket';
     if(!varGammelStatusLukket){ s.resolvedAt = todayISO(); s.resolvedBy = loggedInRole || 'Ukjent'; }
   } else if(erFlerpunkts){
-    // Prioritet 12 — kjerneregelen: hopper ALDRI tilbake til "Vurderes" bare fordi noen
+    // kjerneregelen: hopper ALDRI tilbake til "Vurderes" bare fordi noen
     // avvik er ferdige. Gjenstår aktive avvik → "Delvis utført". Er alt ferdig → "Utført",
     // akkurat som en enkeltavvik-sak alltid har gjort.
     sakOppdaterStatusEtterAvvik(s);
@@ -4980,7 +4980,7 @@ async function deleteSak(id){
   if(!s) return;
   const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
   const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
-  // DEL 5 (Prioritet 29): rydd opp verkstedtimer som peker til denne saken FØR selve saken
+  // DEL 5: rydd opp verkstedtimer som peker til denne saken FØR selve saken
   // slettes, slik at ingen verkstedtime blir stående med en referanse til en sak som ikke
   // lenger finnes. Verkstedtimen selv slettes ALDRI automatisk — kun sak-referansen på den.
   const beroerteVt = verkstedtimer.filter(t => t.sakId === s.id || (s.caseId && t.caseId === s.caseId));
@@ -5003,7 +5003,7 @@ async function deleteSak(id){
   sakWizardStep = null;
   render();
 }
-// Prioritet 26.4 (punkt 1): 🚚 Min bil som eget hovedikon er fjernet — samme oppgave som
+// 🚚 Min bil som eget hovedikon er fjernet — samme oppgave som
 // 🚐 Biloversikt løste allerede, og skapte unødvendig navigasjon. I stedet: finn
 // driftskoordinatorens egen aktive bil (samme case-insensitive sammenligning mot
 // vehicleAktivSjafor() som startBilokt() bruker andre steder), slik at Biloversikt kan
@@ -5021,7 +5021,7 @@ function goToRegisterSak(vehicleId){
   sakFilterBil = '';
   goTo('aktivesaker');
 }
-// PRIORITET 51 — «Ny saksflyt»: de FIRE nye, ett-klikks handlingene som driver hele
+// «Ny saksflyt»: de FIRE nye, ett-klikks handlingene som driver hele
 // arbeidsflyten. Ingen av dem åpner et skjema eller krever utfylte felt — nøyaktig som
 // bestilt ("Ingen prosesssteg. Ingen veiviser."). Alle fire lagrer umiddelbart og
 // rendrer på nytt. Den gamle, detaljerte veiviseren (sakWizardHtml/goToSakDetalj) er
@@ -5099,7 +5099,7 @@ async function markerSakUtfort(sakId){
 }
 // «📅 Registrer verkstedtime» fra Under oppfølging-fanen — åpner det EKSISTERENDE
 // verkstedtime-skjemaet (samme mønster som bestillEuKontroll()/bestillRuteskift(),
-// Prioritet 37/46) forhåndsutfylt med bil OG denne saken. submitVT() (uendret) setter
+// forhåndsutfylt med bil OG denne saken. submitVT() (uendret) setter
 // selv saken til 'verksted-bestilt' når timen lagres — se linje ~5372.
 function bestillVerkstedForSak(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
@@ -5247,7 +5247,7 @@ async function submitPlanlagtService(ev){
   showPlanleggService = false;
   render();
 }
-// Prioritet 29 (Del 8): rediger/slett/fullfør planlagt service — samme mønster som
+// rediger/slett/fullfør planlagt service — samme mønster som
 // toggleEditService/saveServiceEdit/deleteService over, tilpasset planlagteServicer sin
 // egen, enklere datamodell (dato/tidspunkt/verksted/kommentar, ingen km/type).
 function toggleEditPlanlagtService(id){
@@ -5332,7 +5332,7 @@ async function fullforPlanlagtService(id){
   if(!vtFjernetOk) return;
   render();
 }
-// ================= PRIORITET 35 — Dekkskifttime: Planlagt → Utført → Historikk =================
+// ================= Dekkskifttime: Planlagt → Utført → Historikk =================
 // Speiler nøyaktig samme filosofi/mønster som planlagt service over: en dekkskifttime er
 // bevisst ADSKILT fra en verkstedtime (samme begrunnelse som planlagteServicer — en
 // registrert dekkskifttime skal IKKE automatisk bli en verkstedtime), lagret i sin egen
@@ -5470,7 +5470,7 @@ async function submitAddVT(ev){
   // allerede registrert i LIST_TABLES i storage.airtable.js (historisk, se CLAUDE.md), så
   // ingen ny databasekolonne trengs — kun aktiv bruk av et eksisterende felt.
   //
-  // PRIORITET 46 — Verkstedtime 2.0: to UAVHENGIGE avkrysningsbokser (🚦 EU-kontroll og
+  // Verkstedtime 2.0: to UAVHENGIGE avkrysningsbokser (🚦 EU-kontroll og
   // 💥 Ruteskift) kan nå begge være krysset av på samme verkstedtime samtidig. type-feltet
   // lagres da som en kommaseparert streng ('eu-kontroll,ruteskift') — ALDRI ved å gjette ut
   // fra beskrivelsesfeltet, kun fra de strukturerte avkrysningsboksene selv (ticket-krav:
@@ -5511,7 +5511,7 @@ async function submitAddVT(ev){
     sak.status = 'verksted-bestilt';
     sak.linkedVtId = nyVtId;
     if(pris !== null && pris !== undefined) sak.estimatedCost = pris;
-    // Prioritet 12: skjemaet viser avkrysningsbokser for HVILKE avvik som tas med kun når
+    // skjemaet viser avkrysningsbokser for HVILKE avvik som tas med kun når
     // saken er flerpunkts (se sakWizardVtFormHtml) — finnes de, merk KUN de valgte
     // avvikene med denne verkstedtimen. Resten av avvikene i saken forblir aktive og
     // upåvirket. Enkeltavvik-saker/skjemaet på Verkstedoversikt (ingen avkrysningsbokser
@@ -5556,7 +5556,7 @@ async function deleteVT(id){
   if(!confirm('Slette denne verkstedtimen?')) return;
   const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
   const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
-  // DEL 5 (Prioritet 29): motsatt retning av deleteSak() — en aktiv sak kan peke til denne
+  // DEL 5: motsatt retning av deleteSak() — en aktiv sak kan peke til denne
   // verkstedtimen via linkedVtId. Nullstill referansen og sett saken tilbake til korrekt
   // status (samme livssyklus som resten av appen, se SAK_STATUS_ORDER/oppdaterVerkstedStatuser())
   // i stedet for å la den bli stående feilaktig som "Verksted bestilt". Saken slettes ALDRI
@@ -5565,7 +5565,7 @@ async function deleteVT(id){
   if(linketSak){
     linketSak.linkedVtId = '';
     if(linketSak.status === 'verksted-bestilt' || linketSak.status === 'utfort-venter-bekreftelse'){
-      // PRIORITET 51: tilbakestilles nå til 'under-oppfolging' (ny flyt), ikke den gamle
+      // tilbakestilles nå til 'under-oppfolging' (ny flyt), ikke den gamle
       // delstatusen 'tiltak-planlagt' — saken havner uansett i samme «Under oppfølging»-
       // bøtte via sakFase(), men bruker nå kun statusverdier den nye flyten selv produserer.
       linketSak.status = 'under-oppfolging';
@@ -5588,7 +5588,7 @@ async function deleteVT(id){
   editingVTId = null;
   render();
 }
-// Prioritet 26.8: rediger/slett servicehistorikk — samme mønster som toggleEditVT/
+// rediger/slett servicehistorikk — samme mønster som toggleEditVT/
 // saveVTEdit/deleteVT over. "Siste service"/"neste service"/serviceindikator/
 // Planlegging/Dashboard trenger INGEN egen rekalkuleringskode — de er allerede LIVE
 // beregnet fra servicehistorikk (vehicleSisteService()/vehicleNesteServiceKm()/
@@ -5647,16 +5647,16 @@ function goToRegisterVT(vehicleId){
   goTo('verksted');
 }
 
-// ================= PRIORITET 37 — Hurtigbestilling (Dashboard + Kjøretøyprofil) =================
+// ================= Hurtigbestilling (Dashboard + Kjøretøyprofil) =================
 // Fire snarveier som åpner EKSISTERENDE skjemaer med riktig bil forhåndsvalgt. Ingen av dem
 // inneholder egen forretningslogikk, egen datamodell eller egen lagring — de setter kun den
 // samme UI-staten brukeren ellers ville satt manuelt, og navigerer til den arbeidsflaten som
 // allerede eier flyten. Flyten videre (Planlegging → Utført → Historikk) er derfor uendret:
-//   Service      → renderServiceSkjerm() → submitPlanlagtService() → fullforPlanlagtService()
-//   EU-kontroll  → renderVerksted()      → submitVT() med type inneholder 'eu-kontroll'
-//   Ruteskift    → renderVerksted()      → submitVT() med type inneholder 'ruteskift' (Prioritet 46)
-//   Dekkskifte   → renderDekkSkjerm()    → submitPlanlagtDekkskift() → submitFullforPlanlagtDekkskift()
-//   Verkstedtime → renderVerksted()      → submitVT()
+//  Service → renderServiceSkjerm() → submitPlanlagtService() → fullforPlanlagtService()
+//  EU-kontroll → renderVerksted() → submitVT() med type inneholder 'eu-kontroll'
+//  Ruteskift → renderVerksted() → submitVT() med type inneholder 'ruteskift'
+//  Dekkskifte → renderDekkSkjerm() → submitPlanlagtDekkskift() → submitFullforPlanlagtDekkskift()
+//  Verkstedtime → renderVerksted() → submitVT()
 // vehicleId = '' betyr "ingen bil valgt ennå" — brukeren velger bil i skjermens egen,
 // eksisterende bilvelger (Trykk → Velg bil → Bestill).
 function bestillService(vehicleId){
@@ -5681,7 +5681,7 @@ function bestillEuKontroll(vehicleId){
   vtRuteskiftForhandskrysset = false;
   goToRegisterVT(vehicleId || '');
 }
-// Prioritet 46 — samme mønster som bestillEuKontroll(), for 💥 Ruteskift-hurtigknappen under
+// samme mønster som bestillEuKontroll(), for 💥 Ruteskift-hurtigknappen under
 // 🛠 Bestill tjenester ("Samme logikk som 🚦 EU-kontroll" — ticket-krav).
 function bestillRuteskift(vehicleId){
   vtRuteskiftForhandskrysset = true;
@@ -5844,10 +5844,10 @@ async function submitKontroll(ev){
     });
     if(nyeVarselsaker) await saveVarsellys();
 
-    // ---- Fase 2 / Prioritet 12: automatisk opprettelse/oppdatering av Aktive Saker ----
+    // ---- Automatisk opprettelse/oppdatering av Aktive Saker ----
     // Kjøres synkront (ingen egne await/save per kall) — samlet lagring til slutt.
-    // Varsellamper + kontrollavvik fra DENNE kontrollen samles i ÉN sak (Prioritet 12 —
-    // Sammenslåtte Kontrollavvik) via registrerKontrollAvvikSomSak, i stedet for én sak
+    // Varsellamper + kontrollavvik fra DENNE kontrollen samles i ÉN sak (Sammenslåtte
+    // Kontrollavvik) via registrerKontrollAvvikSomSak, i stedet for én sak
     // per avvik. Skade holdes utenfor sammenslåingen (egen struktur/flyt) og bruker
     // fortsatt den uendrede, enkeltavvik-baserte registrerAvvikSomSak under.
     let sakerEndret = false;
@@ -5905,7 +5905,7 @@ async function submitKontroll(ev){
     if(bildeAdvarsel){
       alert('Kontroll registrert for ' + vehicleLabel(v) + '. OBS: ' + (antallValgteBilder - antallBilderLagret) + ' av ' + antallValgteBilder + ' bilder kunne ikke lagres (for stort eller nettverksfeil).');
     } else if(!driverMode){
-      // PRIORITET 40: den vanlige «Kontroll registrert»-bekreftelsen beholdes for
+      // den vanlige «Kontroll registrert»-bekreftelsen beholdes for
       // administrasjonen, men er FJERNET i sjåførmodus — der er den ett ekstra trykk på
       // veien til Min Bil, og Min Bil åpnes uansett umiddelbart og viser bilen som
       // bekreftelse. En reell FEIL (bilder som ikke ble lagret) varsles fortsatt.
@@ -5919,7 +5919,7 @@ async function submitKontroll(ev){
       minBilAksjon = ''; minBilNySjaforMsg = '';
       render();
     } else {
-      // PRIORITET 40: en kontroll registrert fra administrasjonsdelen setter nå aktiv
+      // en kontroll registrert fra administrasjonsdelen setter nå aktiv
       // sjåfør på nøyaktig samme måte som en kontroll registrert i sjåførmodus — samme
       // regel, uansett registreringskanal. Den lokale enhets-sesjonen røres ikke.
       await settAktivSjaforForKontroll(vehicleId, sjafor);
@@ -5974,7 +5974,7 @@ function analyserKontrollPavirkning(ids){
   const oppfolgingspunkter = paavirkedeSaker.filter(s => s.followUpDate || s.nextAction).length;
   // Optimalisering 13: avvik-nivå oppsummering til dialogen (f.eks. "2 varsellamper · 1
   // kontrollavvik"), til forskjell fra paavirkedeSaker som teller SAKER (kort) — én
-  // flerpunkts sak (Prioritet 12) kan inneholde flere avvik av ulik type. Fungerer
+  // flerpunkts sak kan inneholde flere avvik av ulik type. Fungerer
   // identisk for eldre enkeltavvik-saker via sakAvvikListe()'s bakoverkompatible fallback.
   const alleAvvik = paavirkedeSaker.flatMap(sakAvvikListe);
   const avvikVarsellamper = alleAvvik.filter(a => a.caseType === 'varsellampe').length;
@@ -6146,7 +6146,7 @@ function deleteSelectedKontroller(){
 }
 
 
-// ================= PRIORITET 41 — Bilkategorier (Innstillinger) =================
+// ================= Bilkategorier (Innstillinger) =================
 // Alt under endrer KUN kategoriregisteret og v.kategori på kjøretøy. Ingen kontroll,
 // ingen kilometer, ingen service/dekk/EU, ingen historikk og ingen saker berøres.
 async function addBilkategori(){
@@ -6239,7 +6239,7 @@ async function flyttBilTilKategori(vehicleId, katId){
   render();
 }
 
-// ================= PRIORITET 45 — 📞 Ringeliste (Innstillinger → 👤 Sjåførside) =================
+// ================= 📞 Ringeliste (Innstillinger → 👤 Sjåførside) =================
 // Telefonnummeret lagres PÅ KJØRETØYET (v.telefon), samme lagringsvei som all annen
 // kjøretøyredigering (saveVehicles() → hele vehicles-arrayet, samme mønster som
 // flyttBilTilKategori() over). Ingen ny lagringsmekanisme, ingen ny tabell.
@@ -6343,25 +6343,25 @@ async function deleteAdminUser(id){
 
 // Gjenbrukbar merkevareblokk (ikon + navn + undertittel), vist likt på alle skjermer
 // — administrasjon, sjåførmodus og innloggingssiden.
-// ================= Prioritet 27 (Design 2.0) — Desktop sidebar =================
+// ================= Desktop sidebar =================
 // Regel 1/4: fem primære navigasjonspunkter (Kontrollsenter), sekundære lenker
 // (Analyse, Innstillinger, manuell overstyring) nederst — atskilt fra primærnavigasjon
 // for å holde de fem hovedpunktene rene, jf. Regel 8 (Less is More).
-// PRIORITET 39: menystrukturen følger referansebildet. Ingen av punktene er nye
+// menystrukturen følger referansebildet. Ingen av punktene er nye
 // funksjoner — hvert punkt peker på en skjerm som allerede fantes:
-//   Hjem              → renderDashboard()
-//   Biler             → renderRegister()          (het "Biloversikt" i menyen før)
-//   Bestill tjenester → renderBestillTjenester()  (kun de fire eksisterende
-//                       hurtigbestillingene samlet på én flate — ingen ny logikk)
-//   Kalender          → renderKalender()          (inkl. Planlegging)
-//   Aktive saker      → renderAktiveSaker()
-//   Påminnelser       → renderVarslerOversikt()   (aktive varsellamper, uendret skjerm)
-//   Kostnader         → renderKostnadsoversikt()  (fantes, men var uten menypunkt)
-//   Rapporter         → renderRapporter()
-//   Innstillinger     → renderInnstillinger()
+//  Hjem → renderDashboard()
+//  Biler → renderRegister() (het "Biloversikt" i menyen før)
+//  Bestill tjenester → renderBestillTjenester() (kun de fire eksisterende
+//  hurtigbestillingene samlet på én flate — ingen ny logikk)
+//  Kalender → renderKalender() (inkl. Planlegging)
+//  Aktive saker → renderAktiveSaker()
+//  Påminnelser → renderVarslerOversikt() (aktive varsellamper, uendret skjerm)
+//  Kostnader → renderKostnadsoversikt() (fantes, men var uten menypunkt)
+//  Rapporter → renderRapporter()
+//  Innstillinger → renderInnstillinger()
 // Historikk og Analyse er flyttet NED i sekundærseksjonen (fortsatt fullt nåbare),
 // etter bestilling: Historikk nås primært fra Kjøretøyprofil, Aktive saker og Rapporter.
-// PRIORITET 45 — «⚙️ Innstillinger» er FLYTTET UT av denne primærlisten og inn i
+// «⚙️ Innstillinger» er FLYTTET UT av denne primærlisten og inn i
 // desktop-sidebarens sekundærseksjon (`.desktop-sidebar-secondary`, se
 // renderDesktopSidebarHtml() under), som siste punkt etter Historikk/Analyse — «helt
 // nederst i sidemenyen», etter bestilling. Ingen av de andre punktene er rørt.
@@ -6408,7 +6408,7 @@ function renderDesktopSidebarHtml(){
 function attachDesktopSidebarListeners(){
   document.querySelectorAll('[data-desktop-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.desktopNav)));
 }
-// PRIORITET 45 — «📱 Bytt til Mobil-visning»/«🖥️ Bytt til Desktop-visning» er FLYTTET inn i
+// «📱 Bytt til Mobil-visning»/«🖥️ Bytt til Desktop-visning» er FLYTTET inn i
 // Innstillinger → ⚙️ Systeminnstillinger (ÉN felles knapp, se systemBody i
 // renderInnstillinger() og attachDeviceOverrideToggleListener() under) i stedet for å ligge
 // som to separate menypunkter (ett i desktop-sidebaren, ett i mobilens ☰ Meny). Selve
@@ -6464,14 +6464,14 @@ function render(){
   else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
-  // Optimalisering 15/Prioritet 17 (Del 4-5): Bilparkhelse Status og "Biler i drift nå"
+  // Bilparkhelse Status og "Biler i drift nå"
   // i toppfeltet — men KUN på selve Dashboard-skjermen (appens "kontrollrom"), ikke
   // globalt på alle sider, for å unngå å smøre driftsdata utover sider som Innstillinger/
   // Rapporter der det ikke hører hjemme. Beregnes direkte her med de samme funksjonene
   // (vehicleHovedstatus/vehicleAktivSjafor) som resten av appen allerede bruker — ingen
   // egen, parallell tellelogikk.
   //
-  // Prioritet 17 Del 4: "Biler i drift nå" er nå DEL AV samme rad som Bilparkhelse Status
+  // "Biler i drift nå" er nå DEL AV samme rad som Bilparkhelse Status
   // (samme høydenivå, som sjekklisten ber om), i stedet for å stå i toppraden ved siden av
   // ☰ Meny. ☰ Meny-knappen selv er bevisst IKKE flyttet ned under Bilparkhelse på mobil,
   // selv om sjekklistens mobil-mockup kan leses slik — meny-knappen er delt på tvers av
@@ -6479,12 +6479,12 @@ function render(){
   // uansett hvilken side brukeren er på for å være pålitelig gjenfinnbar. Å flytte den kun
   // på Dashboard ville gjort at den "hopper" avhengig av hvilken skjerm man er på.
   const uiExp = currentUiExperience();
-  // PRIORITET 37 (Dashboard 4.0): Bilparkhelse-stripen sto tidligere i selve topplinjen
+  // Bilparkhelse-stripen sto tidligere i selve topplinjen
   // (shell-top) kun på Dashboard. Den er FLYTTET, ikke fjernet — samme tellinger
   // (vehicleHovedstatus/vehicleAktivSjafor), samme klikkfiltre (data-goto-biloversikt-filter),
   // men nå som panelet "Bilpark status" i Dashboardets høyre kolonne, se renderDashboard().
   // Ingen ny/parallell tellelogikk er innført noe sted.
-  // Prioritet 27 (Design 2.0) — desktop sidebar. Regel 1/4: fem primære punkter
+  // desktop sidebar. Regel 1/4: fem primære punkter
   // (Dashboard/Aktive saker/Historikk/Planlegging/Biloversikt) + sekundære lenker
   // (Analyse, Innstillinger, manuell overstyring) nederst. Eksisterende ☰ Meny/drawer
   // ER UENDRET og fortsatt fullt funksjonell bak sidebaren (kun visuelt skjult via CSS
@@ -6521,7 +6521,7 @@ function render(){
   renderLightbox();
   attachKontrollSlettModalListeners();
 
-  // PRIORITET 39: mobilforsiden bruker de SAMME delte lytterne som Dashboard (bestilling,
+  // mobilforsiden bruker de SAMME delte lytterne som Dashboard (bestilling,
   // navigasjon, filtre, varselklokke) — attachMobilHjemListeners() legger kun til søket og
   // 👤 Konto på toppen av dem. Ingen duplisert navigasjonskode.
   if(screen === 'dashboard'){ attachDashboardListeners(); if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); }
@@ -6562,7 +6562,7 @@ function drawerItemHtml(scr, icon, label, sub){
       ${active ? '<span class="drawer-dot" aria-hidden="true"></span>' : ''}
     </button>`;
 }
-// Prioritet 27 (Design 2.0), Regel 5: Historikk-huben ERSTATTER Kontrolloversikt/
+// Historikk-huben ERSTATTER Kontrolloversikt/
 // Skadeoversikt/Dekkoversikt/Kostnadsoversikt/Verkstedoversikt/Varseloversikt som
 // navigasjonspunkter i mobilens ☰ Meny (samme prinsipp som desktop-sidebaren). De
 // opprinnelige renderX()-funksjonene er UENDRET i koden (kun ikke lenger koblet til
@@ -6577,7 +6577,7 @@ function drawerOversikterHtml(){
 function renderDrawer(){
   const drawerEl = document.getElementById('app-drawer');
   if(!drawerEl) return;
-  // PRIORITET 50 — uleste-teller for 💬 Kommentarer i hovedsidemenyen. Samme kilde
+  // uleste-teller for 💬 Kommentarer i hovedsidemenyen. Samme kilde
   // (nyeKommentarerListe()) som Kommentaroversikt og Aktive saker-panelet — ingen egen
   // tellelogikk. Ingen teller vises når alt er lest (kun «💬 Kommentarer», jf. bestilling).
   const ulesteKommentarer = nyeKommentarerListe().filter(k => !k.lest).length;
@@ -6608,7 +6608,7 @@ function renderDrawer(){
       ${drawerItemHtml('historikk', '🕐', 'Historikk')}
       ${drawerItemHtml('analyse', '🔍', 'Analyse')}
     </div>
-    <!-- PRIORITET 45: «⚙️ Innstillinger» flyttet helt nederst (siste navigasjonspunkt i
+    <!-- «⚙️ Innstillinger» flyttet helt nederst (siste navigasjonspunkt i
          menyen, kun «🚪 Logg ut» under). «🖥️ Bytt til Desktop-visning» er ikke lenger et
          eget menypunkt her — den bryteren ligger nå inne i Innstillinger → ⚙️ Systeminnstillinger
          (samme delte deviceOverride-mekanisme, se attachDeviceOverrideToggleListener()). -->
@@ -6627,7 +6627,7 @@ function renderDrawer(){
     goTo(el.dataset.drawerNav);
   }));
   document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
-  // PRIORITET 39: Kontroll og Registrer avvik er flyttet ut av mobilforsiden og ligger nå
+  // Kontroll og Registrer avvik er flyttet ut av mobilforsiden og ligger nå
   // her i ☰ Mer (i tillegg til Min bil og Kjøretøyprofil). Samme eksisterende funksjoner —
   // goToRegisterKontroll()/goToRegisterSak() med tom bil-id, slik mobilforsiden kalte dem.
   const drawerKontrollBtn = document.getElementById('drawer-kontroll-btn');
@@ -6741,7 +6741,7 @@ function attachKontrollSlettModalListeners(){
 }
 
 // ================= Sjåførmodus: minimal skall med kun kontrollskjemaet =================
-// PRIORITET 47, Del 2 (redefinert av bruker — se DRIVER_BUNNMENY under) — sjåførmodus har
+// sjåførmodus har
 // fått en egen, alltid synlig bunnmeny (🚐 Min Bil · 📞 Ringeliste · 💬 Kommentarer · ☰ Mer).
 // Bunnmenyen vises på ALLE sjåførskjermer (også Velg bil/Kontroll/Allerede kontrollert), slik
 // at Ringeliste og Kommentarer alltid er tilgjengelige, uansett hvor i flyten sjåføren er.
@@ -6774,7 +6774,7 @@ function renderDriverShell(){
   attachDriverBunnmenyListeners();
 }
 
-// ---- PRIORITET 48 — enkle, ensartede linjeikoner for sjåførmodus ----
+// ---- Enkle, ensartede linjeikoner for sjåførmodus ----
 // Rent visuelt: erstatter emoji med håndtegnede SVG-er (24×24, strokeWidth 1.7, avrundede
 // ender/hjørner) i de stedene bruker eksplisitt ba om det (bunnmeny, nøkkeltallene og
 // handlingskortene på Min Bil, samt navigasjonspilene). IKKE brukt til varsellampe-/
@@ -6810,7 +6810,7 @@ function sjaforIkonSvg(navn, storrelse){
 // allerede planlagte «📨 Nye kommentarer»-visningen, se nyeKommentarerListe()), og 📞
 // Ringeliste er flyttet ut av Min Bil hit, slik at den alltid er tilgjengelig — uten å
 // duplisere den samme funksjonen to steder i sjåførmodus.
-// PRIORITET 48: emoji byttet til `ikon` (linjeikon-navn til sjaforIkonSvg()) — rekkefølge,
+// emoji byttet til `ikon` (linjeikon-navn til sjaforIkonSvg()) — rekkefølge,
 // nøkler og navigasjon er UENDRET, kun selve glyfen.
 const DRIVER_BUNNMENY = [
   {key:'min-bil',     ikon:'car',   label:'Min Bil'},
@@ -6839,7 +6839,7 @@ function attachDriverBunnmenyListeners(){
 // ---- Ny funksjon: Aktiv Biløkt / Min Bil — sjåførskjermer ----
 // Steg 1: Velg bil. Kontrollen tilhører bilen — appen sjekker selv om dagens kontroll
 // allerede er utført, og sender sjåføren rett videre uten å be om unødvendig dobbeltarbeid.
-// PRIORITET 40 — forenklet sjåførflyt: BIL FØRST, deretter navn.
+// forenklet sjåførflyt: BIL FØRST, deretter navn.
 // Tidligere sto navnefeltet øverst og blokkerte bilvalget («Skriv inn navnet ditt før du
 // velger bil»), noe sjåførene opplevde som unaturlig. Nå er bilvalget det første og eneste
 // på skjermen; navnet spørres om i en dialog rett etter at bilen er valgt. Ingen data
@@ -6847,7 +6847,7 @@ function attachDriverBunnmenyListeners(){
 // stegene etter navnet (allerede kontrollert / kontrollskjema) er UENDRET.
 function renderDriverVelgBil(){
   const dialogBil = driverNavnDialogBilId ? vehicles.find(x => x.id === driverNavnDialogBilId) : null;
-  // PRIORITET 48 — tilbakepil (kun visuell finpuss, "ikke endre navigasjon"): denne skjermen
+  // tilbakepil (kun visuell finpuss, "ikke endre navigasjon"): denne skjermen
   // har ingen egen "forrige skjerm" å gå tilbake til i seg selv (den er selve startpunktet i
   // sjåførflyten, eller nås via "🔁 Bytt bil" i ☰ Mer). Pilen er derfor bevisst koblet til en
   // destinasjon som ALLEREDE finnes (Min Bil, nøyaktig samme sted som bunnmenyens 🚐 Min Bil-
@@ -6885,7 +6885,7 @@ function renderDriverVelgBil(){
 }
 function attachDriverVelgBilListeners(){
   attachDriftslagGruppeListeners();
-  // PRIORITET 48 — tilbakepil: går til Min Bil (samme destinasjon som bunnmenyen), kun når
+  // tilbakepil: går til Min Bil (samme destinasjon som bunnmenyen), kun når
   // det finnes en aktiv biløkt å gå tilbake til (se render-funksjonen for begrunnelse).
   const tilbakeBtn = document.getElementById('db-tilbake-btn');
   if(tilbakeBtn && !tilbakeBtn.disabled) tilbakeBtn.addEventListener('click', () => { driverScreen = 'min-bil'; render(); });
@@ -6893,7 +6893,7 @@ function attachDriverVelgBilListeners(){
   document.querySelectorAll('[data-velg-bil]').forEach(el => el.addEventListener('click', () => {
     driverNavnDialogBilId = el.dataset.velgBil;
     driverNavnDialogMsg = '';
-    // Prioritet 27.7 — husk hvilket driftslag denne bilen tilhører, slik at samme
+    // husk hvilket driftslag denne bilen tilhører, slik at samme
     // gruppe åpnes automatisk neste gang sjåførkontrollen åpnes på denne enheten.
     const valgtBil = vehicles.find(x => x.id === driverNavnDialogBilId);
     if(valgtBil){ kontrollApenDriftslag = vehicleDriftslagGruppe(valgtBil); lagreSistDriftslag(kontrollApenDriftslag); }
@@ -6985,7 +6985,7 @@ function renderDriverMinBil(){
   const activeVarsellysList = activeVarsellysForVehicle(v.id);
   const activeVarselTypes = new Set(activeVarsellysList.map(w => w.type));
   const activeAvvikTypes = new Set(aktiveSaker.filter(s => s.vehicleId === v.id && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId));
-  // PRIORITET 40: overskriften viser BILENS aktive sjåfør (vehicleAktivSjafor — samme
+  // overskriften viser BILENS aktive sjåfør (vehicleAktivSjafor — samme
   // kilde som Dashboard, Biler i drift, Biloversikt og Kjøretøyprofil), ikke bare navnet
   // som ligger i denne enhetens lokale sesjon. Er bilen overført til en ny sjåfør via
   // «👤 Ny sjåfør», sier skjermen tydelig fra i stedet for å vise et navn som ikke lenger
@@ -6993,11 +6993,11 @@ function renderDriverMinBil(){
   const mbAktivSjafor = vehicleAktivSjafor(v.id);
   const mbOverfort = !!(mbAktivSjafor && driverNavn && mbAktivSjafor.trim().toLowerCase() !== driverNavn.trim().toLowerCase());
 
-  // PRIORITET 44 — 🎨 Layout Editor: markup for hver håndterbar Min Bil-komponent samlet
-  // uendret i komponentHtml, slik at layoutFlateHtml('minbil', ...) alene avgjør rekkefølge
+  // 🎨 Layout Editor: markup for hver håndterbar Min Bil-komponent samlet
+  // uendret i komponentHtml, slik at layoutFlateHtml('minbil' ...) alene avgjør rekkefølge
   // og synlighet. Tittel/sjåfør-hint og «✓ Sjekk ut bil» holdes UTENFOR som fast innhold
   // (sistnevnte er en sikkerhetskritisk avslutningshandling og skal alltid være synlig/sist).
-  // PRIORITET 48 — brukt både for kontrollert-i-dag-pillen på kortet og for selve pillens
+  // brukt både for kontrollert-i-dag-pillen på kortet og for selve pillens
   // farge/tekst (samme kilde som "KONTROLLSTATUS" alltid har vist, kun ny presentasjon).
   const p48Kontrollert = isKontrollertIdag(v.id);
   const komponentHtml = {
@@ -7099,7 +7099,7 @@ function renderDriverMinBil(){
           ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
         </ul>`}
       </div>` : ''}`,
-    // PRIORITET 47, Del 2 — 📞 Ringeliste er flyttet ut av Min Bil til sin egen skjerm i
+    // 📞 Ringeliste er flyttet ut av Min Bil til sin egen skjerm i
     // sjåførens bunnmeny (renderDriverRingeliste()), slik at den er tilgjengelig uansett hvor
     // sjåføren er i appen, uten å ligge gjemt bak et Min Bil-kort. Se DRIVER_BUNNMENY under.
     nysjafor: `
@@ -7149,9 +7149,9 @@ function attachDriverMinBilListeners(){
   if(avvikBtn) avvikBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'avvik' ? '' : 'avvik'; render(); });
   const kontaktBtn = document.getElementById('mb-kontakt-btn');
   if(kontaktBtn) kontaktBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'kontakt' ? '' : 'kontakt'; render(); });
-  // PRIORITET 47, Del 2 — 📞 Ringeliste-knappen er fjernet herfra (flyttet til egen skjerm,
+  // 📞 Ringeliste-knappen er fjernet herfra (flyttet til egen skjerm,
   // se renderDriverRingeliste()/attachDriverRingelisteListeners()).
-  // PRIORITET 40 — «👤 Ny sjåfør»: REN overføring av aktiv sjåfør. Ingen kontroll,
+  // «👤 Ny sjåfør»: REN overføring av aktiv sjåfør. Ingen kontroll,
   // ingen historikk, ingen ny biløkt (den lokale enhets-sesjonen røres ikke).
   const nySjaforBtn = document.getElementById('mb-nysjafor-btn');
   if(nySjaforBtn) nySjaforBtn.addEventListener('click', () => {
@@ -7215,7 +7215,7 @@ function attachDriverMinBilListeners(){
   if(avvikLagreBtn) avvikLagreBtn.addEventListener('click', submitMinBilAvvik);
 }
 
-// PRIORITET 47, Del 2 — 📞 Ringeliste som egen sjåførskjerm (flyttet ut av Min Bil, se
+// 📞 Ringeliste som egen sjåførskjerm (flyttet ut av Min Bil, se
 // DASHBOARD_LAYOUT_FLATER.minbil over). Samme innhold/markup som det tidligere Min Bil-kortet
 // hadde — kun flyttet til en alltid-synlig destinasjon i bunnmenyen, ingen ny logikk. Egen bil
 // ekskluderes fra listen når en aktiv biløkt finnes; uten aktiv bil (f.eks. før dagens
@@ -7243,14 +7243,14 @@ function attachDriverRingelisteListeners(){
   // Ren visning — tel:-lenker trenger ingen JS-håndtering.
 }
 
-// PRIORITET 47, Del 2 — 💬 Kommentarer som egen sjåførskjerm. Erstatter det opprinnelige
-// bestillingsforslaget "📋 Oppgaver" (som ikke finnes som funksjon i koden, se
-// PRIORITET_47_ANALYSE.md punkt 0/3) med den ALLEREDE planlagte «📨 Nye kommentarer»-
+// 💬 Kommentarer som egen sjåførskjerm. Erstatter det opprinnelige
+// bestillingsforslaget "📋 Oppgaver" (som ikke finnes som funksjon i koden)
+// med den ALLEREDE planlagte «📨 Nye kommentarer»-
 // visningen fra Del 1 (nyeKommentarerListe(), delt med Aktive saker sin seksjon — se
 // nyeKommentarRadHtml() for den delte radmarkupen). Ingen ny logikk, ingen ny Airtable-
 // struktur: ren, alltid-utvidet visning av samme data. Ingen kvittering, ingen status,
 // ingen aktiv sak — kun en informasjonslogg, slik bruker eksplisitt ba om.
-// PRIORITET 50 — RETTET KRITISK FEIL: viste tidligere kommentarer fra HELE bilparken
+// RETTET KRITISK FEIL: viste tidligere kommentarer fra HELE bilparken
 // (nyeKommentarerListe() uten filter). Filtrerer nå på driverVelgBilId (sjåførens aktive
 // bil i denne sesjonen, satt ved «Velg bil», uendret til «🔁 Bytt bil») — sjåføren ser
 // kun kommentarer knyttet til bilen vedkommende faktisk kjører, aldri resten av flåten.
@@ -7270,14 +7270,14 @@ function attachDriverKommentarerListeners(){
   // Ren visning — ingen interaktive elementer.
 }
 
-// PRIORITET 47, Del 2 — ☰ Mer. Bevisst minimal: gjenbruker KUN det eneste stedet i koden som
+// ☰ Mer. Bevisst minimal: gjenbruker KUN det eneste stedet i koden som
 // allerede lar en sjåfør bytte hvilken bil de representerer («← Bytt bil», samme mønster som
 // kt-back-knappen i Kontroll-skjemaet og «← Velg en annen bil» i Allerede kontrollert-skjermen)
 // — ingen ny funksjon er lagt til. Selve bilbyttet går gjennom samme, eksisterende
 // kryss-bil-utsjekkingslogikk som allerede finnes (startBilokt()/settAktivSjafor()), siden
 // sjåføren uansett må velge bil og bekrefte navn på nytt før en ny kontroll/Min Bil-økt.
 function renderDriverMer(){
-  // PRIORITET 50 — «💬 Legg til kommentar» knyttes til driverVelgBilId (bilen sjåføren
+  // «💬 Legg til kommentar» knyttes til driverVelgBilId (bilen sjåføren
   // faktisk kjører i denne sesjonen), IKKE til hele bilparken. Se renderDriverNyKommentar().
   return `
     <h2 style="font-size:19px;margin-bottom:16px;">☰ Mer</h2>
@@ -7304,10 +7304,9 @@ function attachDriverMerListeners(){
     render();
   });
 }
-// PRIORITET 50 — fristilt kommentar knyttet til driverVelgBilId. Lagres i kommentarer[]
+// fristilt kommentar knyttet til driverVelgBilId. Lagres i kommentarer[]
 // (egen Settings-blob, se saveKommentarer()), IKKE i kontroller[] — rører aldri
-// Kontrollflyt, km-logikk eller "kontrollert i dag"-status (bevisst arkitekturvalg, se
-// PRIORITET_50_ANALYSE.md).
+// Kontrollflyt, km-logikk eller "kontrollert i dag"-status (bevisst arkitekturvalg).
 function renderDriverNyKommentar(){
   const v = vehicles.find(x => x.id === driverVelgBilId);
   return `
@@ -7382,30 +7381,30 @@ function renderLoginShell(){
 }
 
 // ================= scrDashboard =================
-// ================= Prioritet 27 (Design 2.0) — Mobil hjemskjerm =================
+// ================= Mobil hjemskjerm =================
 // Regel 3: "Mobil Dashboard skal ikke eksistere som Desktop Dashboard." Ikonbasert,
 // handlingsdrevet hjemskjerm — IKKE en smal utgave av desktopens kort-baserte Dashboard.
 // Samme underliggende data som resten av appen (kun badge-tall på tre av ikonene) —
 // totaltKreverHandlingCount()/flatePlanleggingData() er delte funksjoner, ingen egen
 // datamodell for mobil.
-// ================= PRIORITET 39 — Mobil Design 4.1: forsiden =================
+// ================= Mobil forside =================
 // Mobilforsiden er "Desktop 4.1 på telefon": den bruker de SAMME komponentklassene
 // (.dash40-kpi / .dash40-bestill / .p38-task / .p38-statrow / .p38-case / .flis /
 // .p38-pill) og de SAMME tallene som desktopens Dashboard, hentet fra den delte
 // dashboardBeregning(). Ingen egen tellelogikk, ingen ny state, ingen nye
 // Airtable-felt — hver flate peker på en skjerm/arbeidsflate som allerede finnes:
-//   🔔 Varsler        → renderVarslerOversikt()   (screen 'varsler')
-//   👤 Konto          → eksisterende ☰-meny/drawer (openDrawer(), ingen ny side)
-//   🔎 Søk            → samme filterSearch som Biloversikt + goTo('register')
-//   KPI-kortene       → Aktive saker / Kalender   (samme klikkmål som desktop)
-//   Bestill-kortene   → bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime
+//  🔔 Varsler → renderVarslerOversikt() (screen 'varsler')
+//  👤 Konto → eksisterende ☰-meny/drawer (openDrawer(), ingen ny side)
+//  🔎 Søk → samme filterSearch som Biloversikt + goTo('register')
+//  KPI-kortene → Aktive saker / Kalender (samme klikkmål som desktop)
+//  Bestill-kortene → bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime
 // Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
 function renderMobilHjem(){
   const d = dashboardBeregning();
   const aktiveVarslerAntall = allActiveVarsellys().length;
   const kommendeTop = d.kommendeOppgaver.slice(0, 4);
   const kreverTop = d.dashKreverListe.slice(0, 4);
-  // PRIORITET 44 — 🎨 Layout Editor. Samme prinsipp som renderDashboard(): UENDRET markup
+  // 🎨 Layout Editor. Samme prinsipp som renderDashboard(): UENDRET markup
   // per komponent, kun flyttet inn i et navngitt objekt slik at layoutFlateHtml() kan velge
   // rekkefølge/synlighet. Mobilforsiden er allerede én stablet kolonne, så her trengs ingen
   // kolonne-partisjonering slik Desktop Dashboard har (DESKTOP_LAYOUT_KOLONNER) — hele
@@ -7579,13 +7578,13 @@ function attachMobilBunnmenyListeners(){
   }));
 }
 
-// ================= PRIORITET 39 (Mobil Design 4.1) — delt dashboardberegning =================
+// ================= Delt dashboardberegning =================
 // Hele beregningen under er FLYTTET UT AV renderDashboard() UENDRET, linje for linje, slik at
 // mobilens forside (renderMobilHjem()) og desktopens Dashboard leser NOYAKTIG de samme tallene
 // fra den samme koden. Det er bevisst ingen ny/parallell tellelogikk: alle funksjonene som
 // kalles her (sakKreverHandlingSamletMaster, vehicleHovedstatus, vehicleAktivSjafor,
 // flatePlanleggingData, vehicleServiceStatus, vehicleEuKontrollStatus osv.) er uendret.
-// PRIORITET 39: markupen for EN rad i "Kommende oppgaver" er flyttet ut hit UENDRET, slik at
+// markupen for EN rad i "Kommende oppgaver" er flyttet ut hit UENDRET, slik at
 // desktopens Dashboard og mobilens forside viser nøyaktig samme rad fra samme kode.
 function kommendeOppgaveRadHtml(o){
               const v = vehicles.find(x => x.id === o.vehicleId);
@@ -7620,7 +7619,7 @@ function kommendeOppgaveRadHtml(o){
               </div>`;
 }
 
-// PRIORITET 39: markupen for EN rad i "Krever handling nå" er flyttet ut hit UENDRET — samme
+// markupen for EN rad i "Krever handling nå" er flyttet ut hit UENDRET — samme
 // rad, samme farger og samme klikkmål på både desktop og mobil.
 function dashKreverRadHtml(item){
             const v = vehicles.find(x => x.id === item.vehicleId);
@@ -7636,7 +7635,7 @@ function dashKreverRadHtml(item){
             </div>`;
 }
 
-// PRIORITET 39: innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
+// innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
 // og desktop viser identisk panel. Tellingene (hbp/hDriftCount) kommer fortsatt fra
 // dashboardBeregning() — altså fra vehicleHovedstatus()/vehicleAktivSjafor(), uendret.
 function bilparkStatusInnholdHtml(hbp, hDriftCount){
@@ -7678,7 +7677,7 @@ function dashboardBeregning(){
   const reserveUnntattCount = aktiveVehicles.filter(v => vehicleErReserveUnntatt(v.id)).length;
   const manglerKontrollCount = aktiveVehicles.length - kontrollertIdagCount - reserveUnntattCount;
   // ---- Krever handling nå (Kort 1) — uendret fra Optimalisering 2, kun utvidet med et
-  // "prioritet"-felt (Kritisk/Høy/Normal) per element, jf. Prioritet 26.2 sitt krav om
+  // "prioritet"-felt (Kritisk/Høy/Normal) per element, jf. kravet om
   // en synlig Prioritet-kolonne. Fortsatt gjenbruk av sakKreverHandling() — ingen ny
   // forretningslogikk, kun samlet presentasjon.
   // KRITISK FEILRETTING: begge listene under er nå avledet fra sakKreverHandlingSamletMaster()
@@ -7705,7 +7704,7 @@ function dashboardBeregning(){
   // avtale bevisst faller tilbake hit igjen i stedet for å forsvinne stille.
   const euForfalteBiler = aktiveVehicles.filter(v => vehicleEuKontrollStatus(v).status === 'forfalt' && !vehicleHarRegistrertEuTime(v.id));
   const serviceForfalteBiler = aktiveVehicles.filter(v => vehicleServiceStatus(v).status === 'forfalt' && !vehicleHarAktivPlanlagtService(v.id));
-  // PRIORITET 35 — Dekkskifttime: samme Regel 2/3-prinsipp — en bil som "krever dekkskift"
+  // Dekkskifttime: samme Regel 2/3-prinsipp — en bil som "krever dekkskift"
   // (se vehicleKreverDekkskift()) skal IKKE vises som et akutt handlingspunkt dersom det
   // allerede finnes en aktiv (kommende) dekkskifttime. En PASSERT, ikke fullført time faller
   // bevisst tilbake hit igjen (se vehicleHarAktivPlanlagtDekkskift()).
@@ -7722,7 +7721,7 @@ function dashboardBeregning(){
     const alder = sakAlderDager(s);
     dashKreverListe.push({sort:0, ikon:'🔴', prioritet:'Kritisk', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
-  // Prioritet 26.4 (punkt 3): EU-kontroll vises i Krever handling nå "når relevant" —
+  // EU-kontroll vises i Krever handling nå "når relevant" —
   // her definert som forfalt (kjøring med utløpt EU-kontroll er et compliance-/
   // sikkerhetsbrudd, samme alvorlighetsnivå som en kritisk sak). Kun forfalt, ikke
   // gul/rød "snart"-nivå — de dekkes av Planlegging/Operativ status, Krever handling nå
@@ -7731,7 +7730,7 @@ function dashboardBeregning(){
     const st = vehicleEuKontrollStatus(v);
     dashKreverListe.push({sort:0, ikon:'🚦', prioritet:'Kritisk', vehicleId:v.id, linje1:'EU-kontroll forfalt', linje2: st.tekst, aksjon:'Bestill EU-kontroll'});
   });
-  // Prioritet 26.7 (punkt 2): Service vises i Krever handling nå/Prioriterte biler "når
+  // Service vises i Krever handling nå/Prioriterte biler "når
   // relevant" — samme prinsipp og samme sort-nivå som EU-kontroll over. Kun forfalt (ikke
   // gul/rød "snart"-nivå, som fortsatt kun dekkes av Planlegging/Operativ status) —
   // Krever handling nå skal fortsatt kun vise det som faktisk krever handling NÅ.
@@ -7739,7 +7738,7 @@ function dashboardBeregning(){
     const st = vehicleServiceStatus(v);
     dashKreverListe.push({sort:0, ikon:'🔧', prioritet:'Kritisk', vehicleId:v.id, linje1:'Service forfalt', linje2: st.tekst, aksjon:'Bestill service'});
   });
-  // PRIORITET 35 — Dekkskifttime: samme sort-nivå/prinsipp som EU-kontroll/Service over —
+  // Dekkskifttime: samme sort-nivå/prinsipp som EU-kontroll/Service over —
   // kun et faktisk FORFALT dekkskift (sesongterskel passert, feil sesong montert) vises her,
   // ikke et "nærmer seg"-varsel (det dekkes fortsatt av Planlegging, se flatePlanleggingData()).
   dekkKreverSkiftBiler.forEach(v => {
@@ -7757,7 +7756,7 @@ function dashboardBeregning(){
   dashKreverListe.sort((a,b) => a.sort - b.sort);
   const dashKreverTop5 = dashKreverListe.slice(0, 5);
 
-  // ---- PRIORITET 37 (Dashboard 4.0) — "Kommende oppgaver" ----
+  // ---- "Kommende oppgaver" ----
   // ERSTATTER det tidligere kortet "Kommer snart". Ingen ny datakilde og ingen ny
   // beregning: listen bygges av nøyaktig de samme postene Planlegging allerede viser
   // (flatePlanleggingData(), uendret) — service, planlagt service, dekk, planlagt
@@ -7809,7 +7808,7 @@ function dashboardBeregning(){
   const hDriftCount = vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
   const biloversiktBiler = sortedVehicles(vehicles);
 
-  // ---- Prioritet 26.2 — Kort 3: "Prioriterte biler" ----
+  // ---- Kort 3: "Prioriterte biler" ----
   // Samme dashKreverListe som Kort 1, men gruppert PER BIL (ikke per sak) — én rad per
   // bil, med bilens mest alvorlige årsak (laveste sort-verdi, siden dashKreverListe
   // allerede er sortert kritisk→forfalt→oppfølging→mangler kontroll). Ingen ny
@@ -7817,7 +7816,7 @@ function dashboardBeregning(){
   const prioriterteBilerMap = new Map();
   dashKreverListe.forEach(item => { if(!prioriterteBilerMap.has(item.vehicleId)) prioriterteBilerMap.set(item.vehicleId, item); });
   const prioriterteBilerListe = Array.from(prioriterteBilerMap.values()).slice(0, 5);
-  // PRIORITET 51 — «Ny saksflyt»: de tre fasetellerne til Dashboard, samme kilde
+  // «Ny saksflyt»: de tre fasetellerne til Dashboard, samme kilde
   // (sakFase()) som fanene i selve Aktive saker-skjermen — garantert identisk tall.
   const sakFaseAntall = {
     aktiv: aktiveSaker.filter(s => sakFase(s) === 'aktiv').length,
@@ -7830,7 +7829,7 @@ function dashboardBeregning(){
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
     sakFaseAntall};
 }
-// PRIORITET 51 — delt markup for de tre saksflyt-tellerne, brukt UENDRET av både Desktop
+// delt markup for de tre saksflyt-tellerne, brukt UENDRET av både Desktop
 // Dashboard og Mobil Hjem (samme mønster som andre delte Dashboard-komponenter). Hver
 // knapp går til Aktive saker og velger riktig fane direkte — ingen egen tellelogikk her.
 function sakFaseTellereHtml(sakFaseAntall){
@@ -7861,7 +7860,7 @@ function goToSakFane(fase){
 
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
-  // Regel 3 (Prioritet 27 — Design 2.0): mobil får en helt annen forside her — ingen av
+  // Mobil får en helt annen forside her — ingen av
   // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
   const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
@@ -7874,7 +7873,7 @@ function renderDashboard(){
   const loggedInUser = adminUsers.find(u => u.rolle === loggedInRole);
   const displayTittel = loggedInUser && loggedInUser.tittel ? loggedInUser.tittel : '';
 
-  // PRIORITET 37 — Hurtigbestilling: fire kort som åpner EKSISTERENDE skjemaer
+  // Hurtigbestilling: fire kort som åpner EKSISTERENDE skjemaer
   // (se bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime).
   const bestillKortHtml = `
     <div class="dash40-grid4">
@@ -7900,11 +7899,11 @@ function renderDashboard(){
       </button>
     </div>`;
 
-  // PRIORITET 38: fargepar per tjeneste/alvorlighet — kun presentasjon (ikonflis-tint
+  // fargepar per tjeneste/alvorlighet — kun presentasjon (ikonflis-tint
   // og aksentfarge), ingen kobling til status- eller saksberegning.
   const aktiveVarslerAntall = allActiveVarsellys().length;
 
-  // ================= PRIORITET 44 — 🎨 Layout Editor =================
+  // ================= 🎨 Layout Editor =================
   // Hver seksjon under er UENDRET markup fra før denne prioriteten — kun flyttet inn i et
   // navngitt objekt (komponentHtml) slik at layoutFlateHtml()/layoutFlateSynligeNokler()
   // (se lenger opp i filen) kan avgjøre HVILKE som vises og i hvilken REKKEFØLGE, uten å
@@ -8101,7 +8100,7 @@ function renderDashboard(){
 
 
 function attachDashboardListeners(){
-  // PRIORITET 37: hurtigbestillingskortene og de nye "Kommende oppgaver"-radene bruker de
+  // hurtigbestillingskortene og de nye "Kommende oppgaver"-radene bruker de
   // SAMME data-attributtene og navigasjonsfunksjonene som Planlegging allerede bruker.
   attachBestillListeners('');
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', (e) => {
@@ -8110,13 +8109,13 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation(); dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk');
   }));
-  // PRIORITET 38: de to hurtigknappene i hilsenen (✅ kontroll / 🔧 verkstedtime) er
+  // de to hurtigknappene i hilsenen (✅ kontroll / 🔧 verkstedtime) er
   // fjernet fra Dashboard etter bestilling — begge funksjonene er fortsatt tilgjengelige
   // fra Kjøretøyprofilen og fra sine egne skjermer. Kun varselklokken står igjen.
   const varslerBtn = document.getElementById('dash-varsler-btn');
   if(varslerBtn) varslerBtn.addEventListener('click', () => goTo('varsler'));
   document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
-  // Prioritet 17 (Del 2): Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive
+  // Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive
   // saker"-tall åpner Aktive Saker med et relevant filter i stedet for en egen dashboard-liste.
   document.querySelectorAll('[data-goto-aktivesaker-filter]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -8126,7 +8125,7 @@ function attachDashboardListeners(){
     else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
   }));
-  // PRIORITET 51 — Dashboard sine tre nye saksflyt-tellere: navigerer rett til riktig
+  // Dashboard sine tre nye saksflyt-tellere: navigerer rett til riktig
   // fane i den nye, forenklede Aktive saker-skjermen (se sakFaseTellereHtml()/goToSakFane()).
   document.querySelectorAll('[data-goto-sak-fane]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -8155,14 +8154,14 @@ function attachDashboardListeners(){
   }));
   const dbBanner = document.getElementById('db-warning-banner');
   if(dbBanner) dbBanner.addEventListener('click', () => {
-    // PRIORITET 45: «Database status» ligger nå NESTET inne i «⚙️ Systeminnstillinger»
+    // «Database status» ligger nå NESTET inne i «⚙️ Systeminnstillinger»
     // (se renderInnstillinger()) — begge nivåer må åpnes, ellers ligger riktig innhold
     // skjult bak en lukket ytre gruppe selv om 'database' i seg selv står som åpen.
     settingsOpenSections.add('system');
     settingsOpenSections.add('database');
     goTo('innstillinger');
   });
-  // Prioritet 26.2 (Dashboard Nullstilling): Bilparkhelse-chipsene i toppfeltet
+  // Bilparkhelse-chipsene i toppfeltet
   // (kun vist på Dashboard) rutet tidligere til en inline Biloversikt-akkordion på
   // selve Dashboardet — den er fjernet. Samme klikk ruter nå til den faktiske
   // Bilregister-siden, forhåndsfiltrert (se goToRegisterHovedstatus()).
@@ -8200,7 +8199,7 @@ function renderRegister(){
     if(filterKontrollStatus === 'ikke' && (isKontrollertIdag(v.id) || vehicleErReserveUnntatt(v.id))) return false;
     if(filterLoyve === 'har' && !v.loyvenummer) return false;
     if(filterLoyve === 'mangler' && v.loyvenummer) return false;
-    // Prioritet 26.2/27: samme filter Dashboardets Bilparkhelse-chips og mobilens
+    // Samme filter Dashboardets Bilparkhelse-chips og mobilens
     // 🚚 Min bil-ikon bruker — gjenbruker vehicleHovedstatus()/vehicleAktivSjafor()
     // uendret, ingen ny tellelogikk.
     if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
@@ -8283,7 +8282,7 @@ function renderRegister(){
       </div>
     ` : `
       ${(() => {
-        // Prioritet 26.4 (punkt 1): 🚚 Min bil er fjernet som eget hovedikon — i stedet
+        // 🚚 Min bil er fjernet som eget hovedikon — i stedet
         // markeres driftskoordinatorens egen aktive bil tydelig her, øverst i riktig
         // gruppe, som allerede er stedet man finner ALLE biler.
         const minBil = egenAktiveBil();
@@ -8291,13 +8290,13 @@ function renderRegister(){
       })()}
       <div class="dash-group-grid" style="grid-template-columns:1fr;">
         ${(() => {
-          // PRIORITET 41 — to ULIKE måter å se bilparken på, med bevisst ULIK logikk:
+          // to ULIKE måter å se bilparken på, med bevisst ULIK logikk:
           //
-          //   Biloversikt   = ORGANISERING. Grupperes etter kategori (redigerbar), med den
-          //                   systemstyrte gruppen 🚫 Ute av drift alltid nederst.
-          //   Biler i drift = AKTIV BRUK. Når filteret «Har aktiv sjåfør» er valgt, vises
-          //                   ÉN samlet liste på tvers av alle kategorier — kategori skal
-          //                   ikke påvirke hvem som faktisk kjører akkurat nå.
+          //  Biloversikt = ORGANISERING. Grupperes etter kategori (redigerbar), med den
+          //  systemstyrte gruppen 🚫 Ute av drift alltid nederst.
+          //  Biler i drift = AKTIV BRUK. Når filteret «Har aktiv sjåfør» er valgt, vises
+          //  ÉN samlet liste på tvers av alle kategorier — kategori skal
+          //  ikke påvirke hvem som faktisk kjører akkurat nå.
           const minBil = egenAktiveBil();
           const kortHtml = (biler) => sortedVehicles(biler).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('');
 
@@ -8376,8 +8375,8 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // PRIORITET 39 (Mobil Design 4.1): kortet viser nå «Aktiv sjåfør» på nøyaktig samme måte
-  // som desktopens biltabell allerede gjør (jf. Prioritet 33): 👤 = live biløkt
+  // kortet viser nå «Aktiv sjåfør» på nøyaktig samme måte
+  // som desktopens biltabell allerede gjør: 👤 = live biløkt
   // (vehicleAktivSjafor), 🕓 = kun kontrollert i dag (vehicleSisteSjafor), ellers ⚪.
   // BEGGE lesefunksjonene er UENDRET — kun etiketten er presisert, slik at kortet aldri
   // sier «Aktiv sjåfør» om en bil som ikke dukker opp i filteret «Har aktiv sjåfør».
@@ -8736,7 +8735,7 @@ function renderDekkoversikt(){
             const open = dekkOversiktOpenVehicles.has(v.id);
             const sAlder = dekkAlderStatus(v.sommerdekkDot);
             const wAlder = dekkAlderStatus(v.vinterdekkDot);
-            // Prioritet 46: full historikk vises alltid — ingen cap. Filtrering/visning på ett
+            // full historikk vises alltid — ingen cap. Filtrering/visning på ett
             // kjøretøy skal aldri redusere til kun siste hendelse (se CLAUDE.md "Rapporter — full historikk").
             const vHist = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
             const vKostnader = dekkkostnader.filter(dk => dk.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
@@ -9027,7 +9026,7 @@ function attachVarslerOversiktListeners(){
 }
 
 // ================= scrBilkort =================
-// PRIORITET 35 — Dekkskifttime: utvidet med 4 nye typer (samme felt, "retning", gjenbrukt
+// Dekkskifttime: utvidet med 4 nye typer (samme felt, "retning", gjenbrukt
 // uendret — se planlagteDekkskift). Alt som allerede leser DEKK_RETNING_LABEL (bl.a.
 // vehicleHistorikkTidslinje/Kjøretøyprofil-historikk) viser de nye typene automatisk.
 const DEKK_RETNING_LABEL = {
@@ -9089,7 +9088,7 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
   if(filterType) filtered = filtered.filter(h => h.type === filterType);
   return filtered.sort((a, b) => (b.dato + (b.tid || '')).localeCompare(a.dato + (a.tid || '')));
 }
-// Prioritet 27 (Design 2.0) — Historikk-hub: flåtebred variant av tidslinjen over.
+// Historikk-hub: flåtebred variant av tidslinjen over.
 // Gjenbruker vehicleHistorikkTidslinje() direkte per bil (samme datakilder, samme
 // hendelsesformer) i stedet for å bygge en parallell datainnhentingslogikk — eneste nye
 // er sammenslåingen på tvers av biler og at hver hendelse merkes med vehicleId.
@@ -9180,14 +9179,14 @@ function renderBilkort(){
   // full historikk vises på den dedikerte Service-arbeidsflaten (se renderServiceSkjerm()).
   const vSisteService = vehicleSisteService(v.id);
   const vServiceStatus = vehicleServiceStatus(v);
-  // PRIORITET 41: «Biltype» leste tidligere fra en EGEN, hardkodet etikettliste som lå
+  // «Biltype» leste tidligere fra en EGEN, hardkodet etikettliste som lå
   // her inne i renderBilkort() — en fjerde parallell sannhet om kategorinavn. Den er
   // fjernet; feltet leser nå det samme redigerbare kategoriregisteret som resten av appen,
   // via kategoriNavn(). Bilens EGEN kategori vises her (ikke visningskategorien), slik at
   // man ser hva bilen faller tilbake til når den settes i drift igjen.
   const KATEGORI_BILTYPE_LABEL = new Proxy({}, {get: (_t, k) => (typeof k === 'string' ? kategoriNavn(k) : undefined)});
 
-  // Prioritet 27 (Design 2.0): Kjøretøyprofil-toppanelet forenklet til KUN de fire
+  // Kjøretøyprofil-toppanelet forenklet til KUN de fire
   // feltene som identifiserer bilen og dens to viktigste frister — Bilgruppe/Biltype/
   // Hovedstatus/Kontrollstatus/Aktive saker/Neste verkstedtime/Sist oppdatert er flyttet
   // ned i "🩺 Operativ status" (se under), som nå er ENESTE sted operativ informasjon
@@ -9196,14 +9195,14 @@ function renderBilkort(){
   // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
   const euKontrollStatus = vehicleEuKontrollStatus(v);
   const euKontrollFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
-  // PRIORITET 37: den tidligere "🚐 Kjøretøyprofil"-boksen med fire faste felt er erstattet
+  // den tidligere "🚐 Kjøretøyprofil"-boksen med fire faste felt er erstattet
   // av nøkkeltallsraden øverst i profilen (Kilometerstand / Siste service / Neste service /
   // EU-godkjent til) pluss identitetslinjen (bilnummer, reg.nr, løyvenummer, biltype,
   // bilgruppe, status, aktiv sjåfør). Samme felt, samme kilder — kun ny plassering.
   // Operativ status er nå ENESTE sted all operativ informasjon om bilen vises — identitet
   // (bilgruppe/biltype), driftsstatus (hovedstatus/kontrollstatus), saksbilde (aktive/
   // kritiske/forfalte saker, neste handling/oppfølgingsdato) og neste verkstedtime, samlet.
-  // Prioritet 26.6 (punkt 2): Operativ status delt i to kolonner for raskere skanning —
+  // Operativ status delt i to kolonner for raskere skanning —
   // venstre: identitet/driftsstatus, høyre: saksbilde/tidslinje. .ov-split-grid bruker
   // auto-fit/minmax slik at layouten selv avgjør ekte 2-kolonne (nok bredde, typisk
   // desktop) vs. to stablede seksjoner (for smalt, typisk mobil) — ingen egen
@@ -9234,7 +9233,7 @@ function renderBilkort(){
     ${v.uteAvDrift ? `<div class="required-hint" style="margin-top:10px;background:var(--red-soft);color:var(--red);padding:10px 12px;border-radius:10px;font-weight:600;">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
   `;
 
-  // Prioritet 26.6 (punkt 1): selve "Marker ute av drift"-knappen/skjemaet er flyttet ned
+  // selve "Marker ute av drift"-knappen/skjemaet er flyttet ned
   // til Faresone (sammen med Slett bil — begge er spesielle/risikofylte handlinger, ikke
   // operativ informasjon). uteAvDriftBody-konstanten er uendret, kun BRUKT et annet sted
   // i templaten under (se Faresone).
@@ -9352,7 +9351,7 @@ function renderBilkort(){
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
-    <!-- PRIORITET 37: bilbilde er fjernet fra Kjøretøyprofilen (ingen operativ verdi, jf.
+    <!-- bilbilde er fjernet fra Kjøretøyprofilen (ingen operativ verdi, jf.
          bestillingen). INGEN data er slettet: feltet v.hasPhoto er urørt i Airtable, og
          eventuelle eksisterende bilder ligger fortsatt i Photos-tabellen under nøkkelen
          vehicle:{id}. Kun opplasting og visning er tatt bort fra grensesnittet. -->
@@ -9421,13 +9420,13 @@ function renderBilkort(){
     </div>
   `;
 
-  // Prioritet 26.3: fire tidligere separate accordion-rader (Kjøretøyhistorikk,
+  // fire tidligere separate accordion-rader (Kjøretøyhistorikk,
   // Historiske nøkkeltall, Kontrollhistorikk, Skadehistorikk) slått sammen til én
   // "🕐 Historikk"-rad med fire nøstede underseksjoner — samme sub-accordion-mønster som
   // skadeBody sin aktive/fikset over. Alle fire underliggende bodyene (historikkTidslinjeBody/
   // historiskeNokkeltallBody/kontrollBody/skadeBody) er UENDRET — ingen detalj eller
   // funksjonalitet er fjernet, kun samlet ett nivå dypere for å redusere antall seksjoner.
-  // PRIORITET 37: 'skade' er FLYTTET ut herfra til sin egen fane (⚠️ Skader) — samme
+  // 'skade' er FLYTTET ut herfra til sin egen fane (⚠️ Skader) — samme
   // skadeBody, uendret innhold, kun ett nivå mindre å klikke seg gjennom.
   const HISTORIKK_SUB_ORDER = ['tidslinje', 'nokkeltall', 'kontroll'];
   const HISTORIKK_SUB_LABEL = {tidslinje:'🕐 Tidslinje', nokkeltall:'📈 Nøkkeltall', kontroll:'Kontroller'};
@@ -9450,7 +9449,7 @@ function renderBilkort(){
   `;
 
 
-  // ---- PRIORITET 37 (Kjøretøyprofil 4.0) — Kommende oppgaver for DENNE bilen ----
+  // ---- Kommende oppgaver for DENNE bilen ----
   // Gjenbruker de samme statusfunksjonene resten av appen bruker (vehicleServiceStatus,
   // dekkAlderStatus/planlagteDekkskift, vehicleEuKontrollStatus, neste verkstedtime).
   // Ingen ny beregning, ingen ny datamodell.
@@ -9688,7 +9687,7 @@ function renderBilkort(){
 function attachBilkortListeners(){
   const v = vehicles.find(x => x.id === currentVehicleId);
   document.getElementById('back-to-register').addEventListener('click', () => goBack('register'));
-  // PRIORITET 37 — faner, redigeringspanel og hurtigbestilling på Kjøretøyprofil.
+  // faner, redigeringspanel og hurtigbestilling på Kjøretøyprofil.
   document.querySelectorAll('[data-profil-fane]').forEach(el => el.addEventListener('click', () => {
     bilkortAktivFane = el.dataset.profilFane; render();
   }));
@@ -9707,7 +9706,7 @@ function attachBilkortListeners(){
   if(hhKontrollBtn) hhKontrollBtn.addEventListener('click', () => goToRegisterKontroll(currentVehicleId));
   const hhSkadeBtn = document.getElementById('hh-skade-btn');
   if(hhSkadeBtn) hhSkadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
-  // PRIORITET 37: den gamle "🔧 Registrer verkstedtime"-knappen er erstattet av
+  // den gamle "🔧 Registrer verkstedtime"-knappen er erstattet av
   // hurtigbestillingskortet 🏭 Verkstedtime over (samme funksjon, goToRegisterVT()).
   const hhSakerBtn = document.getElementById('hh-saker-btn');
   if(hhSakerBtn) hhSakerBtn.addEventListener('click', () => goToAktiveSakerForVehicle(currentVehicleId));
@@ -9739,7 +9738,7 @@ function attachBilkortListeners(){
     goTo('verksted');
   }));
 
-  // PRIORITET 37: bilbilde-opplasting og -visning er fjernet fra Kjøretøyprofilen, og
+  // bilbilde-opplasting og -visning er fjernet fra Kjøretøyprofilen, og
   // dermed også lytterne som hørte til. Selve bildedataen (Photos-raden vehicle:{id}) og
   // feltet v.hasPhoto er URØRT i Airtable — ingenting er slettet.
 
@@ -9751,7 +9750,7 @@ function attachBilkortListeners(){
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
   // REGRESJONSFIKS (kontrollsletting): denne lyttermet var tidligere kun koblet opp i
   // attachKontrolloversiktListeners() — som ikke lenger nås via noen meny etter at
-  // Historikk-huben erstattet de separate oversiktssidene (Prioritet 27). Slett-knappen i
+  // Historikk-huben erstattet de separate oversiktssidene. Slett-knappen i
   // kontrollHistoryCard() (Kjøretøyprofil → Historikk → Kontroller) var derfor synlig, men
   // uten virkning, siden ingen click-lytter noensinne ble registrert i denne konteksten.
   document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
@@ -9763,7 +9762,7 @@ function attachBilkortListeners(){
 // direkte på selve arbeidsflaten. Målet er at brukeren går rett til oppgaven, ikke via
 // Kjøretøyprofil først.
 // ================= scrService (funksjonsbasert navigasjon) =================
-// Prioritet 26.8: hver servicehistorikk-post er nå et klikkbart, utvidbart kort — "Åpne
+// hver servicehistorikk-post er nå et klikkbart, utvidbart kort — "Åpne
 // service → [Rediger] [Slett]" — samme mønster (dmg-editbox/data-toggle) som vtCard()
 // (verkstedtimer) allerede etablerte, "på samme måte som andre historikkobjekter".
 function serviceHistoryCard(s){
@@ -9807,7 +9806,7 @@ function renderServiceSkjerm(){
     const vServiceHistorikk = vehicleServiceHistorikk(v.id);
     const vSisteService = vehicleSisteService(v.id);
     const vServiceStatus = vehicleServiceStatus(v);
-    // Prioritet 26.7 (punkt 1): planlagte serviceavtaler lagres i sin egen array/
+    // planlagte serviceavtaler lagres i sin egen array/
     // Settings-nøkkel (planlagteServicer) — helt atskilt fra verkstedtimer, se
     // kommentar ved deklarasjonen av planlagteServicer.
     const vPlanlagteServicer = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
@@ -9951,7 +9950,7 @@ function attachServiceSkjermListeners(){
     const delBtn = document.getElementById('sv-delete-'+s.id);
     if(delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteService(s.id); });
   });
-  // Prioritet 29 (Del 8): planlagt service — rediger/fullfør/slett.
+  // planlagt service — rediger/fullfør/slett.
   document.querySelectorAll('[data-toggle-ps]').forEach(el => el.addEventListener('click', () => toggleEditPlanlagtService(el.dataset.togglePs)));
   document.querySelectorAll('[data-edit-ps]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditPlanlagtService(el.dataset.editPs); }));
   document.querySelectorAll('[data-delete-ps]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deletePlanlagtService(el.dataset.deletePs); }));
@@ -9994,7 +9993,7 @@ function renderDekkSkjerm(){
     };
     const vDekkHistorikk = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
     const naaverendeDekkLabel = {sommer:'☀️ Sommerdekk montert', vinter:'❄️ Vinterdekk montert', helars:'🔄 Helårsdekk montert'}[v.dekk] || 'Ikke satt';
-    // PRIORITET 35 — Dekkskifttime: samme mønster som vPlanlagteServicer i renderServiceSkjerm()
+    // Dekkskifttime: samme mønster som vPlanlagteServicer i renderServiceSkjerm()
     // — kun aktive (kommende) timer vises i dette dedikerte panelet.
     const vPlanlagteDekkskift = planlagteDekkskift.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
       .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
@@ -10141,7 +10140,7 @@ function attachDekkSkjermListeners(){
   document.getElementById('dekk-back').addEventListener('click', () => goBack('dashboard'));
   document.getElementById('dekk-vehicle').addEventListener('change', e => {
     dekkValgtVehicleId = e.target.value; showAddDekkskifte = false; dekkSaveConfirmedId = null;
-    // PRIORITET 35: samme opprydding som service-vehicle sitt change-mønster (showPlanleggService)
+    // samme opprydding som service-vehicle sitt change-mønster (showPlanleggService)
     // — unngår at et åpent skjema fra forrige bil henger igjen etter bilbytte.
     showPlanleggDekkskift = false; editingPlanlagtDekkskiftId = null; fullforingPlanlagtDekkskiftId = null;
     render();
@@ -10153,7 +10152,7 @@ function attachDekkSkjermListeners(){
   const dekkskifteForm = document.getElementById('add-dekkskifte-form');
   if(dekkskifteForm) dekkskifteForm.addEventListener('submit', beskyttSubmit('submitDekkskifte', submitDekkskifte));
 
-  // PRIORITET 35 — Dekkskifttime: "Registrer dekkskifttime"-skjema (Planlagt).
+  // Dekkskifttime: "Registrer dekkskifttime"-skjema (Planlagt).
   const planleggDekkBtn = document.getElementById('ny-planlagt-dekkskift-btn');
   if(planleggDekkBtn) planleggDekkBtn.addEventListener('click', () => { showPlanleggDekkskift = !showPlanleggDekkskift; render(); });
   const planleggDekkForm = document.getElementById('planlegg-dekkskift-form');
@@ -10403,8 +10402,8 @@ function sakKortBeskrivelse(s){
   }
   return s.description || '';
 }
-// Optimalisering 9 (bevart for eldre, ikke-sammenslåtte varsellampe-saker fra før
-// Prioritet 12): andre aktive varsellamper på SAMME bil, funnet via den separate
+// Bevart for eldre, ikke-sammenslåtte varsellampe-saker (andre aktive varsellamper på
+// SAMME bil), funnet via den separate
 // varsellys-tabellen i stedet for sak.avvik — brukes nå kun som fallback i
 // sakKortOverskrift() for eldre data uten avvik[] (se der).
 function sakAndreAktiveVarsler(s){
@@ -10416,7 +10415,7 @@ function sakAndreAktiveVarsler(s){
 function varsellysKortLabel(w){
   return w.type === 'annet' ? (w.annetTekst || 'Annet') : (VARSELLAMPE_LABEL[w.type] || w.type);
 }
-// Aktive Saker UX Cleanup / Prioritet 12: overskrift for det KOLLAPSEDE sakskortet (ikke
+// Overskrift for det KOLLAPSEDE sakskortet (ikke
 // Steg 1, som har sin egen — se sakWizardSteg1Html). Generalisert til å bruke
 // sakAvvikListe() slik at den fungerer likt for BÅDE nye flerpunkts kontroll-saker
 // (varsellampe+kontrollavvik blandet) OG eldre enkeltavvik-saker: kun ett aktivt avvik →
@@ -10428,8 +10427,8 @@ function sakKortOverskrift(s){
     if(aktive.length === 2) return aktive.map(a => a.label).join(' + ');
     return `${aktive.length} avvik registrert`;
   }
-  // 0 eller 1 aktivt avvik i DENNE saken — for eldre varsellampe-saker (før Prioritet 12,
-  // ingen avvik[]) der søsken-saker for samme kontroll-hendelse fortsatt kan ligge som
+  // 0 eller 1 aktivt avvik i DENNE saken — for eldre varsellampe-saker (uten avvik[])
+  // der søsken-saker for samme kontroll-hendelse fortsatt kan ligge som
   // egne saker, bevares den tidligere kryss-sak-visningen (Optimalisering 11).
   if(s.caseType === 'varsellampe' && (!Array.isArray(s.avvik) || s.avvik.length === 0)){
     const andre = sakAndreAktiveVarsler(s);
@@ -10456,7 +10455,7 @@ function sakWizardProgressHtml(sakId, step){
 // Wizard UX Cleanup: mest mulig beslutningsinformasjon, minst mulig administrativ
 // informasjon, uten scrolling på mobil. Rekkefølge: bil (tydelig, øverst) → komprimert,
 // PROBLEM-spesifikk overskrift (ikke generisk "Varsellampe registrert") → status/
-// prioritet → kort, spesifikk beskrivelse ELLER (Prioritet 12) avvik-sjekkliste for
+// prioritet → kort, spesifikk beskrivelse ELLER avvik-sjekkliste for
 // flerpunkts saker → metadata (saksnummer/registrert av/dato/kilde/alder/sist oppdatert/
 // historikk) skjult bak "▼ Mer informasjon" → handling.
 function sakWizardSteg1Html(s){
@@ -10535,7 +10534,7 @@ function sakWizardSteg1Html(s){
     </div>
   `;
 }
-// Prioritet 12: én rad i avvik-sjekklisten på Steg 1. Aktive avvik får en direkte "Marker
+// én rad i avvik-sjekklisten på Steg 1. Aktive avvik får en direkte "Marker
 // utført"-handling (dekker sjekklistens "eksplisitt lukket eller avvist" uten å kreve en
 // verkstedtime for hvert lille avvik) — utførte avvik vises grønne og overstrøket, uten
 // handling. Gjenbruker .chip-komponentens visuelle stiler (checked=gul ramme,
@@ -10818,7 +10817,7 @@ function sakCard(s, showVehicle){
     </div>
   `;
 }
-// PRIORITET 51 — «Ny saksflyt»: kompakt kort for ÉN sak i den nye, fasedelte Aktive
+// «Ny saksflyt»: kompakt kort for ÉN sak i den nye, fasedelte Aktive
 // saker-skjermen. Kollapset (standard): kun bil, sakstype og dato — pluss NØYAKTIG den
 // ene handlingen som gjelder for fasen saken står i. Ingenting annet vises før kortet
 // trykkes ("Ikke vis hele saken utvidet som standard"). Utvidet: kort beskrivelse,
@@ -10898,7 +10897,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
         ${gruppeKjoretoy.map(v => {
           const sList = byVehicle.get(v.id).sort((a,b) => (b.reportedAt||'').localeCompare(a.reportedAt||''));
           const open = openSet.has(v.id);
-          // Prioritet 12: avvik-telling ved siden av sakstallet, men KUN når det faktisk
+          // avvik-telling ved siden av sakstallet, men KUN når det faktisk
           // finnes flere avvik enn saker på bilen (ellers er det bare en ren duplisering
           // av samme tall — f.eks. tre helt separate enkeltavvik-saker).
           const avvikTotalt = sList.reduce((sum, s) => sum + sakAvvikListe(s).length, 0);
@@ -10925,7 +10924,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
     </div>` : '';
   return grupper + foreldreloseHtml;
 }
-// ================= scrHistorikk (Prioritet 27 — Design 2.0) =================
+// ================= scrHistorikk =================
 // Erstatter Kontrolloversikt/Skadeoversikt/Dekkoversikt/Kostnadsoversikt/
 // Verkstedoversikt/Varseloversikt som primærnavigasjon — samme underliggende data,
 // samlet i én filtrerbar hub (flateHistorikkTidslinje()). De opprinnelige
@@ -10977,8 +10976,8 @@ function attachHistorikkListeners(){
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
 }
 
-// ================= scrPlanlegging (Prioritet 27 — Design 2.0) =================
-// Flåtebred generalisering av Dashboardets "📅 Kommer snart" (Prioritet 26.2), uten
+// ================= scrPlanlegging =================
+// Flåtebred generalisering av Dashboardets "📅 Kommer snart", uten
 // 5-post-taket — full liste over alt som nærmer seg: service, dekk (alders-signal, se
 // CLAUDE.md — ingen egen "planlagt dekkskift-dato" finnes i appen), verkstedtimer og
 // oppfølginger. Samme underliggende funksjoner som Dashboard/Kjøretøyprofil allerede
@@ -11008,7 +11007,7 @@ function flatePlanleggingData(periodeDager){
     return {v, status: st};
   }).filter(x => x.status && (x.status.status === 'aldring' || x.status.status === 'gammel'))
     .sort((a,b) => (a.status.status === 'gammel' ? 0 : 1) - (b.status.status === 'gammel' ? 0 : 1));
-  // PRIORITET 35 — Dekkskifttime: samme adskilte-datakilde-prinsipp som planlagtService over
+  // Dekkskifttime: samme adskilte-datakilde-prinsipp som planlagtService over
   // — planlagteDekkskift er en egen array/Settings-nøkkel, hentes og vises separat fra
   // dekk-alders-varselet over, selv om begge til slutt havner i samme "Dekk"-kolonne.
   const planlagtDekkskift = planlagteDekkskift.filter(t => t.dato >= todayISO() && t.dato <= grense)
@@ -11017,7 +11016,7 @@ function flatePlanleggingData(periodeDager){
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
   const oppfolging = aktiveSaker.filter(s => sakOppfolgingStatus(s) === 'snart' && s.followUpDate <= grense)
     .sort((a,b) => (a.followUpDate||'').localeCompare(b.followUpDate||''));
-  // Regel 6 (Prioritet 27 — Design 2.0): EU-kontroll er nå en av Planleggings fem
+  // EU-kontroll er nå en av Planleggings fem
   // hjemkategorier. Gjenbruker vehicleEuKontrollStatus() uendret.
   const euKontroll = aktiveVehicles.map(v => ({v, status: vehicleEuKontrollStatus(v)})).filter(x => x.status.status === 'snart-gul' || x.status.status === 'snart-rod' || x.status.status === 'forfalt')
     .sort((a,b) => (a.status.gjenstaende||0) - (b.status.gjenstaende||0));
@@ -11044,7 +11043,7 @@ function renderPlanlegging(){
         ${data.planlagtService.map(t => { const tv = vtVehicle(t); return `<li style="cursor:pointer;" data-goto-service="${t.vehicleId}"><span class="dmg-simple-main">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} · 📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. '+t.tidspunkt : ''} — ${esc(t.verksted)}</span></li>`; }).join('')}
       </ul>`}
     </div>`;
-  // PRIORITET 35 — Dekkskifttime: "Dekk"-kolonnen viser to adskilte datakilder side om side,
+  // Dekkskifttime: "Dekk"-kolonnen viser to adskilte datakilder side om side,
   // nøyaktig samme mønster som Service-kolonnen over — dekk-alders-varsel (dekkAlderStatus())
   // og planlagte dekkskifttimer (planlagteDekkskift), lagret/behandlet fullstendig separat
   // (se flatePlanleggingData()). "🛞 Dekkskift"-kategorien fra kravspesifikasjonen er dermed
@@ -11098,7 +11097,7 @@ function attachPlanleggingListeners(){
   }));
 }
 
-// ================= scrBestill (PRIORITET 39) =================
+// ================= scrBestill =================
 // Menypunktet "🛠️ Bestill tjenester" fra referansebildet. Flaten inneholder INGEN ny
 // logikk og ingen ny datamodell — den viser de fire hurtigbestillingskortene som
 // allerede finnes på Dashboard og Kjøretøyprofil, og bruker nøyaktig de samme
@@ -11110,7 +11109,7 @@ function renderBestillTjenester(){
   return `
     <div class="backrow"><button class="backbtn" id="bestill-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🛠️ Bestill tjenester</h2>
-    <!-- PRIORITET 45: forklaringen («Velg tjeneste, så velger du bil...») er FLYTTET til
+    <!-- forklaringen («Velg tjeneste, så velger du bil...») er FLYTTET til
          Informasjonsveileder i Innstillinger (se veilederBody i renderInnstillinger()) — kun
          den dynamiske telleren står igjen her, jf. «informative forklaringer skal samles i
          Informasjonsveilederen, ikke ligge spredt rundt i appen». -->
@@ -11194,14 +11193,14 @@ function attachBestillTjenesterListeners(){
   }));
 }
 
-// ================= scrKalender (PRIORITET 37) =================
+// ================= scrKalender =================
 // KALENDEREN ER EN REN VISNING. Den har ingen egen datamodell, ingen egen Airtable-tabell
 // og ingen egne beregninger — den leser nøyaktig de samme fire kildene som Planlegging
 // allerede eier, og viser dem gruppert på dato i stedet for i kolonner:
-//   1. planlagteServicer      (planlagt service — egen array/Settings-nøkkel)
-//   2. planlagteDekkskift     (planlagte dekkskifttimer — egen array/Settings-nøkkel)
-//   3. verkstedtimer          (WorkshopAppointments, inkl. type='eu-kontroll')
-//   4. v.euGodkjentTil        (EU-kontrollfristen på selve kjøretøyet)
+//  1. planlagteServicer (planlagt service — egen array/Settings-nøkkel)
+//  2. planlagteDekkskift (planlagte dekkskifttimer — egen array/Settings-nøkkel)
+//  3. verkstedtimer (WorkshopAppointments, inkl. type='eu-kontroll')
+//  4. v.euGodkjentTil (EU-kontrollfristen på selve kjøretøyet)
 // Ingenting registreres, endres eller lagres herfra — klikk fører alltid videre til den
 // eksisterende arbeidsflaten som eier oppføringen.
 const KAL_MANED_NAVN = ['Januar','Februar','Mars','April','Mai','Juni','Juli','August','September','Oktober','November','Desember'];
@@ -11227,7 +11226,7 @@ function kalenderAktiviteterKart(){
     tid: '', ikon: '🚦', tittel: 'EU-kontroll forfaller', vehicleId: v.id,
     detalj: 'Frist på kjøretøyet (EU-godkjent til)', mal: 'bilkort'
   }); });
-  // PRIORITET 39: oppfølginger på aktive saker vises også i kalenderen — samme
+  // oppfølginger på aktive saker vises også i kalenderen — samme
   // followUpDate som Planlegging og Aktive saker allerede bruker. Ingen ny datakilde.
   aktiveSaker.filter(sak => sak.followUpDate && sakErApen(sak)).forEach(sak => legg(sak.followUpDate, {
     tid: '', ikon: '📋', tittel: 'Oppfølging: ' + sakKortOverskrift(sak), vehicleId: sak.vehicleId,
@@ -11312,7 +11311,7 @@ function renderKalender(){
     ${planleggingSeksjonHtml()}
   `;
 }
-// PRIORITET 38 — Planlegging integrert i Kalender.
+// Planlegging integrert i Kalender.
 // Dette er PRESENTASJONEN av flatePlanleggingData() flyttet inn under kalenderen, med
 // nøyaktig samme datakilde, samme perioder (7/30/90 dager) og samme klikkmål som
 // Planlegging-skjermen hadde. Ingen beregning er duplisert: funksjonen kalles én gang
@@ -11393,19 +11392,19 @@ function attachKalenderListeners(){
   }));
 }
 
-// PRIORITET 47/50 — «📨 Nye kommentarer»: slår sammen TO kilder, begge rene
+// «📨 Nye kommentarer»: slår sammen TO kilder, begge rene
 // visningsfilter (ingen ny sannhet, ingen kobling til saksmotoren — en kommentar her
 // oppretter aldri en sak og påvirker aldri bilstatus):
-//   1) kommentarfeltet på en ordinær kontroll (kontroller[], uendret siden P47)
-//   2) fristilte kommentarer lagt til via ☰ Mer → 💬 Legg til kommentar (kommentarer[],
-//      egen Settings-blob — se saveKommentarer()/submitDriverNyKommentar(), P50).
-//      kontroller[] er ikke rørt av dette — Kontrollflyt/isKontrollertIdag/km-historikk
-//      leser fortsatt kun ekte kontroller via vehicleKontroller().
+//  1) kommentarfeltet på en ordinær kontroll (kontroller[], uendret siden P47)
+//  2) fristilte kommentarer lagt til via ☰ Mer → 💬 Legg til kommentar (kommentarer[],
+//  egen Settings-blob — se saveKommentarer()/submitDriverNyKommentar(), P50).
+//  kontroller[] er ikke rørt av dette — Kontrollflyt/isKontrollertIdag/km-historikk
+//  leser fortsatt kun ekte kontroller via vehicleKontroller().
 // Hver rad får et "lest"-felt (kontroll: k.kommentarLest · fristilt: k.lest — se
 // markerKommentarSomLest()), brukt av 💬 Kommentarer (x) i sidemenyen og Kommentaroversikt.
 // vehicleId er et valgfritt filter: sjåførens egen «💬 Kommentarer»-skjerm
 // (renderDriverKommentarer()) sender inn driverVelgBilId slik at kun kommentarer for
-// AKTUELL bil vises (Kritisk feil rettet i P50 — se PRIORITET_50_ANALYSE.md). Administrator
+// AKTUELL bil vises. Administrator
 // (Dashboard-sidemeny, Kommentaroversikt, Aktive saker, Rapporter) kaller uten filter og
 // ser fortsatt hele bilparken, slik det alltid har gjort.
 function nyeKommentarerListe(vehicleId){
@@ -11425,7 +11424,7 @@ function nyeKommentarerListe(vehicleId){
   if(vehicleId) alle = alle.filter(k => k.vehicleId === vehicleId);
   return alle.sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
 }
-// PRIORITET 47, Del 2 (utvidet P50) — radmarkupen for én kommentar er delt ut i en egen
+// radmarkupen for én kommentar er delt ut i en egen
 // funksjon, slik at Aktive saker sin ekspanderbare seksjon, Kommentaroversikt (admin) og
 // sjåførens egen «💬 Kommentarer»-skjerm viser NØYAKTIG samme rad fra samme kode — ingen
 // duplisert markup som kan komme ut av synk. visMarkerSomLest styrer om «✅ Marker som lest»
@@ -11453,7 +11452,7 @@ function nyeKommentarerSectionHtml(){
           : `<div class="required-hint">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} fra sjåfører — ren informasjon, oppretter ikke saker.</div>`)}
     </div>`;
 }
-// PRIORITET 50 — marker én kommentar (fra hvilken som helst av de to kildene) som lest.
+// marker én kommentar (fra hvilken som helst av de to kildene) som lest.
 // Administrativt: sjåførskjermen kaller aldri denne (se P50, punkt 6). "lest" oppdaterer
 // aldri bilstatus, oppretter aldri en sak — ren metadata på selve kommentarraden.
 async function markerKommentarSomLest(kilde, id){
@@ -11470,7 +11469,7 @@ async function markerKommentarSomLest(kilde, id){
   }
   render();
 }
-// PRIORITET 50 — Kommentaroversikt: egen administratorskjerm for ALLE kommentarer på
+// Kommentaroversikt: egen administratorskjerm for ALLE kommentarer på
 // tvers av bilparken (dato, bil, sjåfør, kommentar — nyeste først), med «✅ Marker som
 // lest» per rad. Gjenbruker nyeKommentarerListe()/nyeKommentarRadHtml() uendret (samme
 // data som Dashboard-sidemenyens teller og Aktive saker-panelet — ingen egen datakilde).
@@ -11520,7 +11519,7 @@ function renderAktiveSaker(){
   });
   const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterPrioritet, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0) + (sakFilterKreverHandlingSamlet?1:0);
   const oversiktBody = sakGroupedSection(visning, sakOversiktOpenVehicles, 'toggle-sako-vehicle');
-  // PRIORITET 51 — fanetellinger, samme kilde (sakFase()) som Dashboard sine tre tellere.
+  // fanetellinger, samme kilde (sakFase()) som Dashboard sine tre tellere.
   const antAktiv = aktiveSaker.filter(s => sakFase(s) === 'aktiv').length;
   const antOppfolging = aktiveSaker.filter(s => sakFase(s) === 'oppfolging').length;
   const antVerksted = aktiveSaker.filter(s => sakFase(s) === 'verksted').length;
@@ -11640,7 +11639,7 @@ function renderAktiveSaker(){
 // i sidemenyen (attachKommentaroversiktListeners) og sjåførens egen kommentarskjerm.
 function attachAktiveSakerListeners(){
   document.getElementById('sak-back').addEventListener('click', () => goBack());
-  // PRIORITET 51 — «Ny saksflyt»: fanevalg, kompakte kort-handlinger, og avansert-toggle.
+  // «Ny saksflyt»: fanevalg, kompakte kort-handlinger, og avansert-toggle.
   document.querySelectorAll('[data-sak-fane]').forEach(el => el.addEventListener('click', () => {
     sakAktivFane = el.dataset.sakFane;
     render();
@@ -11698,7 +11697,7 @@ function attachAktiveSakerListeners(){
     sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
     render();
   }));
-  // Prioritet 12 — Steg 1: "Marker utført" på ett enkelt avvik i en flerpunkts sak, uten
+  // Steg 1: "Marker utført" på ett enkelt avvik i en flerpunkts sak, uten
   // å måtte gå via verksted. Generisk querySelectorAll (ikke per-sak-loopen under) siden
   // det kan finnes flere slike knapper — én per aktivt avvik — i samme sak samtidig.
   document.querySelectorAll('[data-marker-avvik-utfort]').forEach(el => el.addEventListener('click', async (e) => {
@@ -12120,11 +12119,11 @@ function attachVerkstedListeners(){
 // Eneste side som håndterer kostnader og avsetting. Samler data fra tre kilder
 // til én enhetlig liste av "kostnadsposter":
 //  1) Aktive Saker med estimatedCost/actualCost — hovedkilden fremover, siden
-//     Fase 2 auto-oppretter en sak for hver skade/varsellampe/kontrollavvik.
+//  Fase 2 auto-oppretter en sak for hver skade/varsellampe/kontrollavvik.
 //  2) Verkstedtimer UTEN tilknyttet sak (sakId tom) — historiske/frittstående
-//     verkstedregistreringer som aldri har gått via en sak.
+//  verkstedregistreringer som aldri har gått via en sak.
 //  3) Dekkkostnader (har ingen sak-konsept ennå) og "foreldreløse" skader uten
-//     en tilhørende sak (kun aktuelt for data fra før Fase 2/3).
+//  en tilhørende sak (kun aktuelt for data fra før Fase 2/3).
 // Dette unngår dobbelttelling samtidig som ingenting historisk blir usynlig.
 function getKostnadsposter(){
   const poster = [];
@@ -12327,7 +12326,7 @@ const RAPPORT_STATUS_FILTER_OPTIONS = {
   skade: {'':'Alle', registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'},
   ruteglass: {'':'Alle', planlagt:'📅 Planlagt', utfort:'✅ Utført'}
 };
-// Prioritet 46 — rapporter som i tillegg har et Verksted-filter (kun Ruteglassrapport per nå).
+// rapporter som i tillegg har et Verksted-filter (kun Ruteglassrapport per nå).
 // Delt med rapportFilterPanelHtml()/attachRapporterListeners(), samme mønster som status-filteret over.
 const RAPPORT_HAR_VERKSTED_FILTER = {ruteglass: true};
 
@@ -12360,7 +12359,7 @@ function rapportKilometerstandRader(){
     })
     .filter(r => !rapportStatusFilter || r.datakvalitet.status === rapportStatusFilter);
 }
-// Prioritet 46: "Filter på bil skal aldri redusere visningen til kun siste hendelse."
+// "Filter på bil skal aldri redusere visningen til kun siste hendelse."
 // Kilometerstandsrapporten er normalt ÉN rad per kjøretøy (nåværende status — flåteoversikt,
 // nødvendig for <10 sek-forståelse av hele flåten). Men når rapporten er filtrert til ETT
 // spesifikt kjøretøy, erstattes denne enkeltraden med full kilometerhistorikk for akkurat det
@@ -12438,7 +12437,7 @@ function rapportServiceRader(){
     })
     .filter(r => !rapportStatusFilter || r.status.status === rapportStatusFilter);
 }
-// Prioritet 46: samme prinsipp som Kilometerstandsrapport — filtrert til ETT kjøretøy skal
+// samme prinsipp som Kilometerstandsrapport — filtrert til ETT kjøretøy skal
 // hele servicehistorikken (vehicleServiceHistorikk()) vises, ikke bare siste service.
 function renderRapportService(){
   if(rapportFilterBil){
@@ -12512,7 +12511,7 @@ function rapportDekkRader(){
     })
     .filter(r => !rapportStatusFilter || (r.status ? r.status.status === rapportStatusFilter : rapportStatusFilter === 'ukjent'));
 }
-// Prioritet 46: samme prinsipp — filtrert til ETT kjøretøy vises full dekkhistorikk
+// samme prinsipp — filtrert til ETT kjøretøy vises full dekkhistorikk
 // (dekkhistorikk-arrayet, alle registrerte dekkskifter), ikke bare siste skifte.
 function renderRapportDekk(){
   if(rapportFilterBil){
@@ -12633,7 +12632,7 @@ function eksporterRapportSkade(){
   rapportEksporterExcel(header, rows, 'Skaderapport', 'Skaderapport_Eksport.xlsx', [6]);
 }
 
-// ---- Ruteglass-rapport (Prioritet 46) ----
+// ---- Ruteglass-rapport ----
 // Datakilde: verkstedtimer med type inneholder 'ruteskift' (satt via 💥 Ruteskift-avkrysningen
 // i Ny verkstedtime, se submitAddVT()/vtHarType()) — INGEN ny tabell, ingen parallell
 // historikkmotor. Samme mal som Skaderapport (per-hendelse, ikke per-bil), men med Periode- OG
@@ -13796,7 +13795,7 @@ function renderInnstillinger(){
     </div>
   `;
 
-  // PRIORITET 41 — ⚙️ Administrer bilkategorier.
+  // ⚙️ Administrer bilkategorier.
   const kategoriBody = `
     <div class="required-hint" style="margin-bottom:12px;">
       Kategoriene bilparken grupperes etter i Biloversikt, og som ligger i alle
@@ -13811,7 +13810,7 @@ function renderInnstillinger(){
       kategorien forsvinner den regelen.
     </div>
     ${kategoriAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(kategoriAdminMsg)}</div>` : ''}
-    <!-- PRIORITET 45: «Alle kjøretøy» som egen overskrift over kategoriene — ren visuell
+    <!-- «Alle kjøretøy» som egen overskrift over kategoriene — ren visuell
          merkelapp (samme h4-stil som resten av Innstillinger), ingen atferdsendring. -->
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">Alle kjøretøy</h4>
     <div class="settings-list">
@@ -13869,7 +13868,7 @@ function renderInnstillinger(){
     </div>
   `;
 
-  // PRIORITET 45: Tema flyttet til 🎨 Layout Editor, «Lenke for sjåfører» flyttet (som
+  // Tema flyttet til 🎨 Layout Editor, «Lenke for sjåfører» flyttet (som
   // «✅ Sjåførkontroll») til 👤 Sjåførside, og «Om appen» flyttet inn i 📘 Informasjonsveileder
   // under — se sjaforsideBody/veilederBody. systemBody inneholder nå kun de reelle
   // systemhandlingene, pluss enhetsvisning-bryteren som tidligere lå som to separate
@@ -13890,7 +13889,7 @@ function renderInnstillinger(){
       ikke i denne cachen.
     </div>
     <button class="btn secondary small" id="hard-refresh-btn">🔄 Oppdater app</button>
-    <!-- PRIORITET 42 — diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
+    <!-- diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
          lenger ned i denne filen. Leser samme delte deferredInstallPrompt-variabel som
          toppbanneret (#pwa-install-bar) bruker, slik at det finnes ETT sted å trykke "Installer"
          selv om banneret er lukket/aldri vist. -->
@@ -13912,7 +13911,7 @@ function renderInnstillinger(){
     </div>
     <button class="btn danger-outline small" id="reset-fleet-data-btn">🗑️ Nullstill bilparkdata</button>
   `;
-  // PRIORITET 45 — 📘 Informasjonsveileder: samler forklarende hjelpetekst som tidligere lå
+  // 📘 Informasjonsveileder: samler forklarende hjelpetekst som tidligere lå
   // spredt i appen (Kjøretøyprofil/🛟 Mobilitetsgaranti, Bestill tjenester), pluss «Om appen».
   // Selve DATAFELTENE (v.mobilitetsgaranti osv.) og all funksjonalitet er UENDRET — kun
   // forklaringsteksten er samlet hit, se renderBilkort()/renderBestillTjenester() for de
@@ -13945,7 +13944,7 @@ function renderInnstillinger(){
       pagar: `<span style="color:var(--amber);">🟡 Synkronisering pågår (${pagaendeSkrivinger})</span>`,
       feil: `<span style="color:var(--red);">🔴 Manglende synkronisering</span>`
     }[status];
-    // Prioritet 29 (Kritisk feil 4): korrupte Settings-datasett (servicehistorikk/
+    // korrupte Settings-datasett (servicehistorikk/
     // planlagteservicer) — vises ØVERST, over synk-status, siden dette er alvorligere:
     // skriving til det aktuelle datasettet er aktivt blokkert (se saveServicehistorikk()/
     // savePlanlagteServicer()) helt til siden lastes på nytt med gyldige data.
@@ -14075,10 +14074,10 @@ function renderInnstillinger(){
     `;
   })();
 
-  // PRIORITET 44/45 — 🎨 Layout Editor. Én liste per flate (samme opp/ned-mønster som
+  // 🎨 Layout Editor. Én liste per flate (samme opp/ned-mønster som
   // ⚙️ Administrer bilkategorier) — se layoutEditorFlateHtml()/DASHBOARD_LAYOUT_FLATER
   // lenger opp i denne filen. Kun rekkefølge/synlighet; komponentenes eget innhold er
-  // ikke redigerbart herfra. Tema er FLYTTET hit fra Systeminnstillinger (Prioritet 45) —
+  // ikke redigerbart herfra. Tema er FLYTTET hit fra Systeminnstillinger —
   // samme radio-markup/lytter som før, kun ny plassering.
   const layoutBody = `
     <div style="margin-bottom:22px;">
@@ -14115,7 +14114,7 @@ function renderInnstillinger(){
     ${layoutEditorFlateHtml('minbil')}
   `;
 
-  // PRIORITET 45 — 👤 Sjåførside: reell administrasjon av sjåføropplevelsen, samlet på ett
+  // 👤 Sjåførside: reell administrasjon av sjåføropplevelsen, samlet på ett
   // sted (tidligere spredt: lenken lå i Systeminnstillinger, det fantes ingen direkte
   // forhåndsvisning, og ingen ringeliste).
   const sjaforsideBody = `
@@ -14174,7 +14173,7 @@ function renderInnstillinger(){
     </div>
   `;
 
-  // PRIORITET 45 — 📦 Register: samler «⚙️ Administrer bilkategorier» og «Verkstedregister»
+  // 📦 Register: samler «⚙️ Administrer bilkategorier» og «Verkstedregister»
   // (tidligere to separate topplinje-seksjoner) som EN nestet dropdown-gruppe. Samme
   // settingsAccordionRow()-funksjon gjenbrukt rekursivt — ingen ny akkordion-mekanisme.
   const registerBody = `
@@ -14182,7 +14181,7 @@ function renderInnstillinger(){
     ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
   `;
 
-  // PRIORITET 45 — ⚙️ Systeminnstillinger: nestet dropdown-gruppe med Oppdater app/Installer
+  // ⚙️ Systeminnstillinger: nestet dropdown-gruppe med Oppdater app/Installer
   // app, Database status, Administratorbrukere, Informasjonsveileder, Nullstill bilparkdata,
   // pluss enhetsvisning-bryteren (tidligere to separate menypunkter, se
   // attachDeviceOverrideToggleListener()).
@@ -14247,7 +14246,7 @@ function attachInnstillingerListeners(){
     render();
   }));
 
-  // PRIORITET 41 — bilkategorier. e.stopPropagation() overalt, samme mønster som
+  // bilkategorier. e.stopPropagation() overalt, samme mønster som
   // Verkstedregisteret, slik at klikk i seksjonen ikke lukker trekkspillraden.
   const showAddKategoriBtn = document.getElementById('show-add-kategori-btn');
   if(showAddKategoriBtn) showAddKategoriBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddKategori = true; kategoriAdminMsg = ''; render(); });
@@ -14263,7 +14262,7 @@ function attachInnstillingerListeners(){
   document.querySelectorAll('[data-flytt-kategori-ned]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); flyttKategori(el.dataset.flyttKategoriNed, 1); }));
   document.querySelectorAll('[data-flytt-bil-kategori]').forEach(el => el.addEventListener('change', (e) => { e.stopPropagation(); flyttBilTilKategori(el.dataset.flyttBilKategori, e.target.value); }));
 
-  // PRIORITET 44 — 🎨 Layout Editor. data-attributtene er "flateKey:komponentKey" (samme
+  // 🎨 Layout Editor. data-attributtene er "flateKey:komponentKey" (samme
   // to-delt mønster som andre sammensatte data-attributter i appen), splittet her.
   document.querySelectorAll('[data-layout-opp]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -14332,18 +14331,18 @@ function attachInnstillingerListeners(){
   if(resetBtn) resetBtn.addEventListener('click', resetFleetData);
   const hardRefreshBtn = document.getElementById('hard-refresh-btn');
   if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', hardRefreshApp);
-  // PRIORITET 42 — "📲 Installer app". Knappen finnes kun i DOM-en når pwaInstallStatusHtml()
+  // "📲 Installer app". Knappen finnes kun i DOM-en når pwaInstallStatusHtml()
   // faktisk har et installasjonstilbud å vise (se funksjonen over i filen).
   const pwaSettingsInstallBtn = document.getElementById('pwa-settings-install-btn');
   if(pwaSettingsInstallBtn) pwaSettingsInstallBtn.addEventListener('click', (e) => { e.stopPropagation(); installPwaNow(); });
 
-  // PRIORITET 45 — 👤 Sjåførside: «🚐 Min bil»-forhåndsvisning åpner sjåførens faktiske
+  // 👤 Sjåførside: «🚐 Min bil»-forhåndsvisning åpner sjåførens faktiske
   // inngangslenke i en ny fane (samme driverLink() som «✅ Sjåførkontroll»-lenken under) —
   // ingen egen forhåndsvisningsmekanisme, kun en snarvei til den ekte siden.
   const forhandsvisBtn = document.getElementById('sjaforside-forhandsvis-btn');
   if(forhandsvisBtn) forhandsvisBtn.addEventListener('click', (e) => { e.stopPropagation(); window.open(driverLink(), '_blank', 'noopener'); });
 
-  // PRIORITET 45 — 📞 Ringeliste. Samme inline rediger/lagre/avbryt-mønster som Verkstedregisteret
+  // 📞 Ringeliste. Samme inline rediger/lagre/avbryt-mønster som Verkstedregisteret
   // (editingVerkstedId), her for v.telefon. Lagres via saveVehicles() (samme vei som
   // flyttBilTilKategori()) — ingen ny lagringsmekanisme.
   document.querySelectorAll('[data-edit-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditTelefon(el.dataset.editTelefon); }));
@@ -14351,7 +14350,7 @@ function attachInnstillingerListeners(){
   document.querySelectorAll('[data-cancel-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingTelefonVehicleId = null; ringelisteAdminMsg = ''; render(); }));
   document.querySelectorAll('[data-fjern-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); fjernVehicleTelefon(el.dataset.fjernTelefon); }));
 
-  // PRIORITET 45 — 📱🖥️ Enhetsvisning (samlet fra to tidligere separate menypunkter).
+  // 📱🖥️ Enhetsvisning (samlet fra to tidligere separate menypunkter).
   attachDeviceOverrideToggleListener();
 }
 
@@ -14739,7 +14738,7 @@ if(driverMode){
 loadAll();
 if(!driverMode) fetchWeather();
 
-// Prioritet 27 — Adaptiv Layout: reagerer på faktisk vindusendring (nettleser endres i
+// Adaptiv Layout: reagerer på faktisk vindusendring (nettleser endres i
 // sanntid, nettbrett roteres) — ikke bare ved sideinnlasting. Re-renderer KUN dersom
 // selve UI-opplevelsen (mobil/desktop) faktisk krysser en grense, ikke ved hver eneste
 // pikselendring, for å unngå unødvendige re-renders mens noen f.eks. drar i et
@@ -14759,10 +14758,10 @@ window.addEventListener('resize', () => {
   }, 150);
 });
 
-// ================= PWA: installasjon og offline-støtte (PRIORITET 42) =================
+// ================= PWA: installasjon og offline-støtte =================
 // Rotårsaken til at "Installer app" ikke ble tilbudt kunne IKKE reproduseres/bekreftes fra
 // utviklingsøkten (ingen tilgang til den faktiske, levende GitHub Pages-siden derfra) — se
-// PRIORITET_42_ANALYSE.md/CLAUDE.md for full gjennomgang av hvorfor. Manifest/ikoner/SW er
+// CLAUDE.md for full gjennomgang av hvorfor. Manifest/ikoner/SW er
 // verifisert korrekte i KODEN. Denne runden gjør derfor to ting i stedet for å gjette på en
 // fiks: (1) fjerner den ENE konkrete, bekreftede svakheten — det fantes tidligere ingen vei
 // til å installere igjen etter at toppbanneret ble lukket ("Lukk"), kun banneret selv, som per

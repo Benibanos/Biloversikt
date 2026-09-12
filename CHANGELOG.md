@@ -15,6 +15,46 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-11
 
+### Kommentaropprydding — sprint-sitater fjernet fra kildekoden
+
+**Problem eller mål**
+
+Kildekoden (`index.html`, `storage.airtable.js`) hadde 334 kommentarer som siterte
+"Prioritet N"/"PRIORITET NN" som historisk sprint-referanse. All denne historikken
+finnes allerede detaljert i dette dokumentet (Prioritet 29–52) og kondensert for eldre
+sprinter — sitatene i koden var derfor ren duplisering, ikke ny informasjon.
+
+**Levert**
+
+- Fjernet sprint-sitater (nummer, dato, "se PRIORITET_XX_ANALYSE.md", "Se CLAUDE.md,
+  Prioritet N") fra 131 kommentarblokker i `index.html` og 14 i `storage.airtable.js`.
+- All teknisk substans beholdt ORDRETT: dataintegritetsregler, FELTREGEL-forklaringer,
+  race condition-beskyttelse (`_koKjor`), timeout-logikk (`AbortController`),
+  bakoverkompatibilitet for gamle datastrukturer, og enhver "hvorfor eksisterer denne
+  koden slik den gjør"-begrunnelse.
+- Kun linje-lokale endringer (kunne aldri gripe inn i etterfølgende kodelinjer) — verifisert
+  ved at alle 521 funksjonssignaturer i `index.html` er byte-for-byte identiske før/etter.
+
+**Verifisering**
+
+- `node --check` bestått på begge filer.
+- HTML tag-balanse uendret (1438/1438 `<div>`).
+- Alle 17 simuleringsassertions fra Prioritet 52 kjørt på nytt mot de rensede filene —
+  bestått uendret.
+- Ingen versjonsendring nødvendig: ingen funksjonell kode, ingen Airtable-felt, ingen
+  cache-avhengig app-shell-innhold er endret (kun kommentartekst).
+
+**Kjente begrensninger**
+
+- Et fåtall linjer med ordet "Prioritet" er bevisst urørt fordi de ikke er sprint-sitater,
+  men faktisk UI-tekst/kode (f.eks. `SAK_PRIORITET_LABEL`, kolonnenavnet "Prioritet" i
+  rapporter, og setningen "Prioritet: Ute av drift > Kritisk > ..." som beskriver en
+  rangeringsrekkefølge, ikke en sprint).
+
+---
+
+## 2026-09-11
+
 ### Prioritet 52 — Sakskort, fullføring og dataintegritet
 
 **Levert**

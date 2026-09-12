@@ -27,17 +27,16 @@
     'Content-Type': 'application/json'
   };
 
-  // ================= Prioritet 31: Timeout på nettverkskall (regresjonsfiks) =================
-  // KRITISK FEIL (Prioritet 31 — regresjon introdusert av Prioritet 29 sin skrivekø,
-  // _koKjor under): fetch() hadde ingen timeout. På en ustabil mobilforbindelse (typisk
+  // ================= Timeout på nettverkskall =================
+  // KRITISK: fetch() hadde ingen timeout. På en ustabil mobilforbindelse (typisk
   // situasjon for en sjåfør i en bil) kunne én enkelt hengende forespørsel aldri avgjøres
-  // (verken lykkes eller feile). Før Prioritet 29 påvirket dette kun DEN ene handlingen.
-  // Etter Prioritet 29 kjeder _koKjor alle set()/delete()-kall mot SAMME ressurs (f.eks.
-  // Vehicles/DriverChecks) bak hverandre med .then() — og en .then()-kjede venter for
-  // alltid på en forgjenger som aldri avgjøres. Resultatet var at ÉN hengende skriving
-  // (f.eks. fra dårlig dekning ved en tidligere kontroll) låste ALLE senere sjåførkontroller
-  // for samme bil/tabell i samme åpne fane, uten feilmelding, uten bekreftelse, uten
-  // lagring — se CLAUDE.md/ROADMAP.md for full beskrivelse av regresjonen. Løsning: enhver
+  // (verken lykkes eller feile). Isolert påvirket dette kun DEN ene handlingen — men
+  // _koKjor (den serialiserte skrivekøen under) kjeder alle set()/delete()-kall mot SAMME
+  // ressurs (f.eks. Vehicles/DriverChecks) bak hverandre med .then() — og en .then()-kjede
+  // venter for alltid på en forgjenger som aldri avgjøres. Resultatet var at ÉN hengende
+  // skriving (f.eks. fra dårlig dekning ved en tidligere kontroll) låste ALLE senere
+  // sjåførkontroller for samme bil/tabell i samme åpne fane, uten feilmelding, uten
+  // bekreftelse, uten lagring. Løsning: enhver
   // forespørsel som ikke har fått svar innen TIMEOUT_MS avbrytes eksplisitt (AbortController)
   // og forkastes med en tydelig feil, slik at den alltid AVGJØRES — og _koKjor sin kø dermed
   // alltid kan fortsette til neste operasjon, uansett hvor dårlig forbindelsen er.
@@ -131,11 +130,11 @@
       uteAvDriftDato: ['UteAvDriftDato'],
       uteAvDriftKommentar: ['UteAvDriftKommentar'],
       statusHistorikk: ['StatusHistorikk', 'json'],
-      // Prioritet 27.1 (Driftslag i Sjåførkontroll) — fritekstfelt, styrer kun gruppering
+      // Driftslag: fritekstfelt, styrer kun gruppering
       // av bilvalg på Kontroll-skjermen, ingen annen betydning i appen for øvrig.
       driftslag: ['Driftslag'],
-      // PRIORITET 37 (Dashboard 4.0 / Kjøretøyprofil 4.0) — to nye felt på kjøretøyet,
-      // registrert her SAMTIDIG som de tas i bruk i index.html (FELTREGELEN i CLAUDE.md).
+      // To felt på kjøretøyet, registrert her SAMTIDIG som de tas i bruk i index.html
+      // (FELTREGELEN i CLAUDE.md).
       // Uten denne registreringen ville begge forsvunnet stille ved neste henting fra
       // Airtable — nøyaktig samme feil som rammet ServiceIntervallKm/EuGodkjentTil/
       // AktivSjafor/Driftslag tidligere.
@@ -145,7 +144,7 @@
       //   mobilitetsgaranti — fritekst, brukes operativt ved havari/veihjelp.
       drivstoff: ['Drivstoff'],
       mobilitetsgaranti: ['Mobilitetsgaranti'],
-      // PRIORITET 45 (📞 Ringeliste, Innstillinger → 👤 Sjåførside) — fritekst telefonnummer
+      // 📞 Ringeliste (Innstillinger → 👤 Sjåførside): fritekst telefonnummer
       // registrert på kjøretøyet, brukt av Min Bil sin «📞 Ringeliste» hos sjåførene
       // (tel:-lenke). Registrert her SAMTIDIG som feltet tas i bruk i index.html
       // (FELTREGELEN i CLAUDE.md) — uten dette ville det forsvunnet stille ved neste
@@ -161,9 +160,8 @@
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
       beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
       sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon'],
-      // Lagt til i Prioritet 26.7 — samme lærdom som ServiceIntervallKm/EuGodkjentTil
-      // tidligere: et nytt JS-felt som IKKE registreres her forsvinner stille ved neste
-      // henting fra Airtable. RETTELSE (Prioritet 29, Del 10): planlagt service lagres
+      // Samme lærdom som ServiceIntervallKm/EuGodkjentTil: et nytt JS-felt som IKKE
+      // registreres her forsvinner stille ved neste henting fra Airtable. RETTELSE: planlagt service lagres
       // IKKE som en verkstedtime med type='service' — det er en helt separat array/
       // Settings-nøkkel (planlagteServicer, se index.html). Dette 'type'-feltet er derfor
       // ikke i aktiv bruk i dagens kode (ingen kallested setter eller leser det), men
@@ -175,7 +173,7 @@
       km: ['KM', 'num'], varsellamper: ['Varsellamper', 'json'], annetTekst: ['AnnetTekst'],
       harNyeSkader: ['HarNyeSkader', 'bool'], skadeBeskrivelse: ['SkadeBeskrivelse'],
       skadeBilderCount: ['SkadeBilderCount', 'num'], kommentar: ['Kommentar'], linkedDamageId: ['LinkedDamageId'],
-      // PRIORITET 50 — «Kommentarer 2.0»: les-status for kommentarfeltet over. Administrativt
+      // Les-status for kommentarfeltet over. Administrativt
       // felt, påvirker aldri Kontrollflyt/kilometerlogikk/bilstatus. Se markerKommentarSomLest().
       kommentarLest: ['KommentarLest', 'bool']
     }},
@@ -206,7 +204,7 @@
       requiresProvision: ['RequiresProvision', 'bool'], provisionAmount: ['ProvisionAmount', 'num'],
       provisionMonth: ['ProvisionMonth'],
       // KRITISK FELTRETTING (funnet ved verifisering av «Del 1/Del 2»): sak.avvik[] — selve
-      // kjernedataen for flerpunkts-saker (Prioritet 12/51: hvert enkelt varsellampe-/
+      // kjernedataen for flerpunkts-saker (hvert enkelt varsellampe-/
       // kontrollavvik-element i en sak, brukt av sakAvvikListe/sakAvvikAktive/
       // sakOppdaterStatusEtterAvvik/markerSakUtfort/sakAvvikChecklistHtml m.fl.) har ALDRI
       // vært registrert her. Følge: feltet ble stille droppet av toAirtableFields() ved
@@ -256,7 +254,7 @@
   const recordIdCache = {}; // { [table]: { [appId]: 'rec...' } }
   function cacheFor(table) { if (!recordIdCache[table]) recordIdCache[table] = {}; return recordIdCache[table]; }
 
-  // ================= Prioritet 29: Serialisert skrivekø per ressurs =================
+  // ================= Serialisert skrivekø per ressurs =================
   // Løser race condition rundt reconcileList()/recordIdCache (se "BILPARK – FULL
   // TEKNISK REVISJON", Kritisk feil 3): to samtidige set()/delete()-kall mot SAMME
   // underliggende Airtable-tabell (eller samme Settings/Photos-nøkkel) kunne før lese
@@ -268,11 +266,11 @@
   // (se .catch(()=>{}) i _koKjor under) — permanent låsing etter én feilet skriving
   // er eksplisitt uønsket.
   //
-  // PRIORITET 43 (2026-09-09) — UTVIDET til også å serialisere get() (regresjonsfiks,
+  // UTVIDET til også å serialisere get() (regresjonsfiks,
   // km fulgte ikke alltid siste sjåførkontroll): frem til nå gikk KUN set()/delete()
   // gjennom denne køen — get() leste Airtable direkte, helt UAVHENGIG av om en
   // set()/delete() mot SAMME ressurs allerede sto og ventet i køen eller pågikk. Se
-  // CLAUDE.md "Prioritet 43" og PRIORITET_43_ANALYSE.md for full rotårsaksanalyse —
+  // se CLAUDE.md for full rotårsaksanalyse —
   // kort fortalt: window.subscribeLiveSync() sin bakgrunnspoll (index.html,
   // reloadOne()) kaller get('vehicles') hvert 45. sekund, HELT uavhengig av om
   // submitKontroll() (eller saveVehicleForm()/resetFleetData()/
@@ -389,10 +387,10 @@
   }
 
   // ---- Offentlig grensesnitt: get/set/delete/list (uendret utad — samme kall,
-  // samme returverdier — kun get() sin INTERNE synkronisering er endret, se Prioritet
+  // samme returverdier — kun get() sin INTERNE synkronisering er endret, se
   // 43-kommentaren ved _koKjor over) ----
   async function get(key, shared) {
-    // PRIORITET 43: get() serialiseres nå gjennom SAMME per-ressurs-kø som set()/
+    // get() serialiseres nå gjennom SAMME per-ressurs-kø som set()/
     // delete() (se _koKjor over) — en lesing kan dermed aldri lenger starte midt i en
     // ikke-fullført skriving mot akkurat denne tabellen/Settings-raden, og leser derfor
     // alltid enten helt FØR eller helt ETTER en pågående skriving, aldri et tilstand
@@ -417,9 +415,9 @@
     });
   }
   async function set(key, value, shared) {
-    // Prioritet 29: serialisert per ressurs (tabell/Settings-rad), se _koKjor over —
+    // Serialisert per ressurs (tabell/Settings-rad), se _koKjor over —
     // hindrer at to samtidige set()-kall mot SAMME tabell/rad kan krysse hverandre.
-    // Prioritet 43: samme kø brukes nå også av get() over, slik at lesing og skriving
+    // Samme kø brukes nå også av get() over, slik at lesing og skriving
     // mot samme ressurs aldri lenger kan overlappe.
     return _koKjor(_ressursNokkelForKey(key), async () => {
       try {
@@ -440,7 +438,7 @@
     });
   }
   async function del(key, shared) {
-    // Prioritet 29: samme serialisering som set() — se _koKjor over.
+    // Samme serialisering som set() — se _koKjor over.
     return _koKjor(_ressursNokkelForKey(key), async () => {
       try {
         if (key.startsWith('photo:')) {
@@ -485,7 +483,7 @@
   // ut et skjema — se subscribeLiveSync-kallet i loadAll()). Airtables
   // gratisnivå tillater 5 kall/sekund per base, så ikke sett dette (eller
   // antall åpne faner/enheter) for lavt uten å vurdere antall samtidige brukere.
-  // PRIORITET 43: get()-kallene denne funksjonen trigger (via index.html sin
+  // get()-kallene denne funksjonen trigger (via index.html sin
   // reloadOne()) går nå gjennom samme per-ressurs-kø som skrivinger (se _koKjor
   // over) — pollen kan derfor aldri lenger lese en tabell midt i en ikke-fullført
   // skriving mot akkurat den tabellen.
