@@ -1168,3 +1168,22 @@ tidligere sprint (`planleggingSeksjonHtml()`) — ingen funksjonalitet gikk tapt
 
 **Åpent:** Om synlige gruppeoverskrifter ("ARBEID NÅ"/"ARBEID SENERE"/"ARKIV") ønskes
 i selve sidemenyen — ikke implementert i denne runden, se CHANGELOG.md.
+
+## Prioritet 55 (2026-09-12) — Standardiser Bilpark på Lucide-ikoner (delvis levert)
+
+Dashboard, Sidemeny (mobil+desktop), Bestill tjenester (Dashboard) og Sjåførmodus
+(9 navngitte funksjoner) konvertert til Lucide via CDN + `luc()`/`refreshLucideIcons()`.
+Erstattet også et eksisterende egendefinert SVG-ikonsett i sjåførmodus som selv brøt med
+«ett ikonbibliotek»-regelen. `sw.js` CACHE_VERSION bilpark-v51 → bilpark-v52. Se
+CHANGELOG.md for full detalj og en viktig kjent begrensning (offline-avhengighet av
+ekstern CDN for ikonvisning).
+
+**Åpent:**
+- Skal resten av appens ~900 emoji (Aktive saker, Biloversikt, Kalender, Historikk,
+  Rapporter, dialoger) også konverteres? Krever en eksplisitt ikon-til-navn-tabell
+  tilsvarende den som ble gitt for de fire seksjonene i denne runden.
+- Skal Lucide bakes inn som rå SVG (krever verifisert kildedata) i stedet for CDN, for å
+  fjerne offline-avhengigheten?
+- Sjåførmodus sine gjenværende `sjaforIkonSvg()`-ikoner (chevron/kalender/telleverk/
+  mappe på Min Bil) — konverteres disse også, eller beholdes det egendefinerte settet
+  for disse spesifikt?

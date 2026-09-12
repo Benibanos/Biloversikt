@@ -2255,3 +2255,28 @@ den navigerer videre til den eksisterende, dedikerte skjermen som allerede eier 
 aktuelle datatypen (Service, Dekk, Verkstedoversikt, Aktive saker). Dette er bevisst,
 ikke en mangel — unngår duplisert skjema-/valideringslogikk. Behold dette mønsteret ved
 videre arbeid på Kalender.
+
+---
+
+## Prioritet 55 (2026-09-12) — Lucide-ikoner: nytt varig mønster
+
+**Nytt varig prinsipp:** Operative ikoner i Bilpark skal komme fra Lucide, ikke emoji
+eller egendefinerte SVG-sett — bruk alltid den delte `luc(navn)`-hjelpefunksjonen, aldri
+en ny, parallell ikonmekanisme. Statusfarger (🟢🟡🔴⚪) er unntatt — de forblir emoji og
+er fortsatt PRIMÆR statuskommunikasjon; Lucide-ikoner er alltid sekundære/dekorative.
+
+**Arkitekturvalg — ekstern CDN, ikke innbakt SVG:** Lucide lastes via
+`https://unpkg.com/lucide@latest` i `<head>` (samme mønster som SheetJS/xlsx), med
+`refreshLucideIcons()` kalt etter hver `render()`/`renderDriverShell()`/
+`renderLoginShell()`. Dette var et bevisst valg fremfor å bake inn SVG-baneddata
+direkte, fordi nettsøk ikke ga pålitelig nok kildedata til å garantere pikselnøyaktige
+ikoner. **Kjent konsekvens:** ikoner vises ikke ved ekte offline bruk før nettleseren
+selv har cachet scriptet — service workeren cacher bevisst kun samme-opprinnelse-filer
+(uendret prinsipp). Vurder eksplisitt før flere kritiske UI-elementer gjøres avhengige
+av dette; se CHANGELOG.md, Prioritet 55.
+
+**Kun delvis standardisert:** Dashboard, Sidemeny, Bestill tjenester (Dashboard) og ni
+navngitte sjåførmodus-funksjoner er konvertert. Resten av appens emoji er UENDRET —
+dette var en eksplisitt avgrensning (oppdraget ga kun ikon-tabell for disse fire
+seksjonene), ikke en forglemmelse. Ikke anta at "standardiseringen er ferdig" ved
+fremtidig arbeid — sjekk CHANGELOG.md, Prioritet 55 for nøyaktig hva som gjenstår.

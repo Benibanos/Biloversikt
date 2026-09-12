@@ -15,6 +15,111 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-12
 
+### Prioritet 55 — Standardiser Bilpark på Lucide-ikoner (delvis levert)
+
+**Problem eller mål**
+
+Erstatte emoji og et egendefinert SVG-ikonsett med ett konsistent, moderne ikonbibliotek
+(Lucide) — ren standardisering, ingen endring i layout, farger, struktur eller
+arbeidsflyt.
+
+**Viktig arkitekturbeslutning**
+
+Bilpark er en frakoblet PWA uten byggesteg (GitHub Pages, ingen bundler). To reelle
+alternativer ble vurdert:
+1. Bake inn nøyaktig SVG-baneddata for hvert ikon direkte i koden (null ekstern
+   avhengighet, men krever 100 % nøyaktig kildedata).
+2. Laste Lucide via CDN (samme mønster appen allerede bruker for SheetJS/xlsx til
+   Excel-eksport) og kalle `lucide.createIcons()` etter hver `render()`.
+
+Forsøk på å hente eksakt SVG-baneddata for alle ~24 nødvendige ikoner via nettsøk ga ikke
+pålitelige nok treff til å garantere pikselnøyaktige ikoner. Valgte alternativ 2 —
+samme, allerede aksepterte mønster som SheetJS — fremfor å risikere feiltegnede ikoner.
+**Kjent, eksplisitt begrensning:** i motsetning til SheetJS (kun én valgfri
+eksportknapp) brukes Lucide av HELE appens ikonografi. Service workeren cacher bevisst
+kun samme-opprinnelse-filer (uendret arkitekturprinsipp, se `sw.js`), så ikonene vises
+ikke ved ekte offline bruk før nettleseren selv har cachet unpkg-scriptet fra et
+tidligere besøk. Dette bør vurderes eksplisitt av produkteier gitt appens vekt på
+pålitelighet for sjåfører i felt.
+
+**Levert**
+
+- Ny delt hjelpefunksjon `luc(navn)` bygger `<i data-lucide="...">`-plassholdere;
+  `refreshLucideIcons()` kalt etter alle tre render-innganger (administrasjon,
+  sjåførmodus, innlogging).
+- Ny CSS `.lucide-ic` — arver størrelse fra omkringliggende `font-size` (1em), akkurat
+  som emoji-en den erstatter gjorde, for å garantere ingen layoutforskyvning. Plassholder
+  er usynlig (`opacity:0`) til faktisk SVG er satt inn, unngår synlig "hopp".
+- Gjenbrukte en eksisterende, men aldri koblede CSS-variabel (`--tone`) til å gi
+  Lucide-ikonene riktig farge der emoji tidligere bar fargen implisitt i selve glyfen
+  (f.eks. sakFaseTellerne).
+- **Sidemeny** (mobil-drawer OG desktop-sidebar, begge oppdatert for konsistens):
+  Hjem→House, Biler→Truck, Bestill tjenester→Wrench, Kalender→CalendarDays,
+  Aktive saker→TriangleAlert, Kommentarer→MessageSquare, Påminnelser→Bell,
+  Kostnader→BarChart3, Rapporter→FileBarChart, Historikk→History, Analyse→LineChart,
+  Innstillinger→Settings, Logg ut→LogOut. Pluss Kontroll/Registrer avvik (ikke i
+  spesifikasjonen, men gitt samme ikoner som gjenbrukes andre steder for konsistens).
+- **Dashboard**: sakFaseTellereHtml() (delt mobil/desktop) — Aktive saker→TriangleAlert,
+  Under oppfølging→Clock3, Planlagt verksted→Wrench. KPI-kort Biler i drift→Truck,
+  Kalender→CalendarDays. Bilpark status→Activity. Krever handling nå→Siren (dynamisk
+  farge — rød/gul/grønn — bevart via `style="color:..."` i stedet for emoji-bytte, jf.
+  STATUSVISNING-regelen). Prioriterte biler→Truck.
+- **Bestill tjenester** (Dashboard-instansen): Service→Wrench, EU-kontroll→ShieldCheck,
+  Dekkskifte→CircleDot, Ruteskift→CarFront. Verkstedtime ikke rørt (fjernet fra
+  Dashboard i Prioritet 53, urørt andre steder — «følger egen commit», jf. spek).
+- **Sjåførmodus**: erstattet et eksisterende, egendefinert SVG-ikonsett
+  (`sjaforIkonSvg()`/`P48_IKON_PATHS`, fra en tidligere sprint) med ekte Lucide for de
+  ni navngitte funksjonene — Min Bil→Truck, Ringeliste→Phone, Kommentarer→MessageSquare,
+  Mer→MoreHorizontal, Registrer skade→TriangleAlert, Varsellampe→AlertCircle,
+  Kontrollavvik→ClipboardCheck, Ny sjåfør→UserRound, Sjekk ut bil→LogOut. Dette
+  egendefinerte settet var i seg selv et brudd på «ikke bland flere SVG-biblioteker» —
+  retting av dette var derfor i tråd med commitens formål, ikke utenfor scope.
+- Statusfarger (🟢🟡🔴⚪) er IKKE rørt noe sted — forblir emoji og primær
+  statuskommunikasjon, iht. STATUSVISNING-regelen.
+
+**Ikke levert i denne runden (eksplisitt avgrenset, ikke tapt av forglemmelse)**
+
+Kun de fire seksjonene med eksplisitt ikon-til-navn-tabell i oppdraget (Dashboard,
+Sidemeny, Bestill tjenester, Sjåførmodus) er konvertert. Resten av appens ~900
+emoji-forekomster (Aktive saker-sjekkliste, Biloversikt-tabeller, Kalender, Historikk,
+Rapporter, dialoger, skjemaer, `sjaforIkonSvg()` sine gjenværende ikoner som
+chevron/kalender/telleverk/mappe på Min Bil) er UENDRET — oppdraget ga ingen eksplisitt
+ikon-tabell for disse, og å gjette ~900 navn ville gitt en langt større og mer
+risikofylt endring enn det som ble bedt om. Se «Kjente begrensninger».
+
+**Versjoner**
+
+- `sw.js` CACHE_VERSION: bilpark-v51 → bilpark-v52
+- `storage.airtable.js`: uendret (rent visuell endring, ingen datamodell rørt)
+
+**Verifisering**
+
+- 521 funksjonssignaturer — diff mot forrige versjon viser KUN de to nye hjelpe-
+  funksjonene (`luc`, `refreshLucideIcons`), ingen eksisterende funksjon endret signatur.
+- `node --check` OK. HTML tag-balanse uendret (1425/1425 `<div>` — ren innholdsendring).
+- Alle 17 simuleringsassertions fra tidligere sprinter kjørt på nytt — bestått uendret
+  (bekrefter saksmotor/varsellampe-/kontrollavvik-logikk er 100 % urørt).
+- Alle 24 `luc()`-ikonnavn kontrollert for konsistent stavemåte og gjenbruk på tvers av
+  kallesteder (samme funksjon → samme ikonnavn overalt, jf. Komponentregler).
+
+**Kjente begrensninger**
+
+- **Offline-risiko** (se over): ikonene krever at unpkg.com/lucide er lastet minst én
+  gang med nettforbindelse. Anbefaling: vurder å be om eksplisitt godkjenning av dette,
+  eller invester i å verifisere eksakt SVG-baneddata for et fast, lite ikonsett og bake
+  det inn i stedet, dersom offline-pålitelighet for disse spesifikke ikonene er kritisk.
+- Sjåførmodus sine chevron-, kalender-, telleverk- og mappe-ikoner (Min Bil-nøkkeltall)
+  bruker fortsatt det gamle `sjaforIkonSvg()`-systemet — ikke i den eksplisitte
+  ikon-tabellen, derfor ikke konvertert.
+- Layout Editor sine tekstetiketter (f.eks. "📋 Kommende oppgaver" i innstillings-listen)
+  er urørt — dette er administrative listetekster, ikke operative Dashboard-ikoner.
+- Resten av appens emoji (Aktive saker, Biloversikt, Kalender, Historikk, Rapporter,
+  dialoger) er ikke konvertert — se over.
+
+---
+
+## 2026-09-12
+
 ### Prioritet 54 — Kalender blir eneste planleggingsflate
 
 **Problem eller mål**

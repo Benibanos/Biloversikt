@@ -21,6 +21,16 @@
 <script src="storage.airtable.js?v=2.13.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
+     (ekstern CDN-avhengighet, allerede etablert presedens i denne appen). VIKTIG,
+     KJENT BEGRENSNING: i motsetning til SheetJS (kun brukt av én valgfri eksportknapp)
+     brukes Lucide av HELE appens ikonografi — service workeren cacher bevisst KUN
+     samme-opprinnelse-filer (se sw.js), så dette scriptet lastes ikke ved reell offline
+     bruk før nettleseren selv har cachet unpkg-responsen fra et tidligere besøk.
+     lucide.createIcons() kalles etter HVER render() (se render()-funksjonens slutt) for
+     å konvertere <i data-lucide="..."> til faktisk SVG, siden hele appen bygger DOM på
+     nytt via innerHTML ved hver tilstandsendring. -->
+<script src="https://unpkg.com/lucide@latest"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
@@ -516,7 +526,7 @@
   .p48-sjafor-avatar{
     width:52px;height:52px;border-radius:50%;flex-shrink:0;
     background:var(--surface-2);border:1px solid var(--line-soft);color:var(--green-ink);
-    display:flex;align-items:center;justify-content:center;
+    display:flex;align-items:center;justify-content:center;font-size:24px;
   }
   .p48-sjafor-name{font-weight:700;font-size:18px;font-family:'Space Grotesk',sans-serif;line-height:1.25;color:var(--ink);}
   .p48-sjafor-sub{font-size:12px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
@@ -544,7 +554,7 @@
     transition:background .15s ease, border-color .15s ease;
   }
   .p48-action-card:active{background:var(--surface-2);}
-  .p48-action-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .p48-action-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;}
   .p48-action-icon.purple{background:var(--purple-soft);color:var(--purple);}
   .p48-action-icon.orange{background:var(--orange-soft);color:var(--orange);}
   .p48-action-icon.blue{background:var(--blue-soft);color:var(--blue);}
@@ -561,7 +571,7 @@
     transition:background .15s ease;
   }
   .p48-checkout-card:active{background:var(--red-soft);}
-  .p48-checkout-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--red-soft);color:var(--red);}
+  .p48-checkout-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--red-soft);color:var(--red);font-size:18px;}
   .p48-checkout-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
   .p48-checkout-title{font-weight:700;font-size:14.5px;color:var(--red);}
   .p48-checkout-sub{font-size:12.5px;color:var(--ink-2);}
@@ -974,13 +984,26 @@
      allerede fantes i Prioritet 37.
      ================================================================ */
 
-  /* ---- Delt ikonflis: emoji i tonet, avrundet flate i tjenestens farge ---- */
+  /* ---- Delt ikonflis: (Lucide-)ikon i tonet, avrundet flate i tjenestens farge ---- */
   .flis{
     width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
     font-size:19px;line-height:1;background:var(--tint, var(--surface-2));flex-shrink:0;
+    color:var(--tone, inherit);
   }
   .flis.sm{width:34px;height:34px;border-radius:10px;font-size:15px;}
   .flis.lg{width:46px;height:46px;font-size:21px;}
+
+  /* «Standardiser hele Bilpark på Lucide-ikoner» — .lucide-ic arver størrelse fra
+     omkringliggende font-size (1em), akkurat som emoji-en den erstatter gjorde. Dette er
+     bevisst for å garantere «ingen layoutforskyvning» (testkravet): container-elementer
+     som .flis/.flis.sm/.flis.lg endres IKKE i det hele tatt, kun innholdet i dem.
+     width/height er satt eksplisitt (ikke kun via SVG-attributter) slik at plassen
+     reserveres FØR lucide.createIcons() har rukket å kjøre, for å unngå et hopp i
+     layouten mens skriptet lastes inn (se <script>-taggen i <head>). stroke-width:1.75
+     (i stedet for Lucides standard 2) — "tynne og lesbare", jf. designmålet. */
+  .lucide-ic{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;stroke-width:1.75;}
+  i.lucide-ic{opacity:0;} /* <i data-lucide> er kun en plassholder til lucide.createIcons() erstatter den med faktisk <svg> */
+  svg.lucide-ic{opacity:1;}
 
   /* ---- Pillesystem: erstatter den visuelle blandingen av .badge og .dash-chip ---- */
   .p38-pill{
@@ -3616,6 +3639,20 @@ function renderLightbox(){
 // ================= Utils =================
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function esc(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+// «Standardiser hele Bilpark på Lucide-ikoner» — én, delt hjelpefunksjon for ethvert
+// operativt Lucide-ikon, slik at samme funksjon alltid bruker samme ikon-markup overalt
+// (desktop/mobil/dashboard/menyer/kort/dialoger). Bygger KUN en <i data-lucide>-
+// plassholder — selve SVG-en settes inn av lucide.createIcons(), kalt etter hver
+// render() (se render()). Statusfarger (🟢🟡🔴⚪) er BEVISST IKKE en del av dette —
+// de forblir emoji og er fortsatt den PRIMÆRE statuskommunikasjonen (se STATUSVISNING-
+// regelen); Lucide-ikoner her er alltid sekundære/dekorative/navigasjon.
+function luc(navn, cls){ return `<i data-lucide="${navn}" class="lucide-ic${cls ? ' ' + cls : ''}" aria-hidden="true"></i>`; }
+// Kalles etter HVER DOM-oppdatering (se render()/renderDriverShell()/renderLoginShell()).
+// Defensiv sjekk: lucide.js er en ekstern CDN-avhengighet (se <head>) og kan i sjeldne
+// tilfeller ikke være lastet ennå (treg/manglende nett ved aller første besøk) — appen
+// skal ALDRI krasje eller stoppe å rendre av den grunn, kun vise plassholderne tomme til
+// scriptet er tilgjengelig (håndteres allerede visuelt av CSS-regelen i.lucide-ic{opacity:0}).
+function refreshLucideIcons(){ if(window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); }
 
 const APP_TIMEZONE = 'Europe/Oslo';
 // Operativt dagskille kl. 04:00 (se "Aktiv Biløkt / Min Bil") — hos oss kan arbeidsdager
@@ -6387,14 +6424,14 @@ async function deleteAdminUser(id){
 // renderDesktopSidebarHtml() under), som siste punkt etter Historikk/Analyse — «helt
 // nederst i sidemenyen», etter bestilling. Ingen av de andre punktene er rørt.
 const DESKTOP_NAV_PRIMARY = [
-  {scr:'dashboard', ikon:'🏠', label:'Hjem'},
-  {scr:'register', ikon:'🚚', label:'Biler'},
-  {scr:'bestill', ikon:'🛠️', label:'Bestill tjenester'},
-  {scr:'kalender', ikon:'📅', label:'Kalender'},
-  {scr:'aktivesaker', ikon:'🚨', label:'Aktive saker'},
-  {scr:'varsler', ikon:'🔔', label:'Påminnelser'},
-  {scr:'kostnadsoversikt', ikon:'📊', label:'Kostnader'},
-  {scr:'rapporter', ikon:'📈', label:'Rapporter'}
+  {scr:'dashboard', ikon:luc('house'), label:'Hjem'},
+  {scr:'register', ikon:luc('truck'), label:'Biler'},
+  {scr:'bestill', ikon:luc('wrench'), label:'Bestill tjenester'},
+  {scr:'kalender', ikon:luc('calendar-days'), label:'Kalender'},
+  {scr:'aktivesaker', ikon:luc('triangle-alert'), label:'Aktive saker'},
+  {scr:'varsler', ikon:luc('bell'), label:'Påminnelser'},
+  {scr:'kostnadsoversikt', ikon:luc('bar-chart-3'), label:'Kostnader'},
+  {scr:'rapporter', ikon:luc('file-bar-chart'), label:'Rapporter'}
 ];
 function renderDesktopSidebarHtml(){
   return `
@@ -6414,13 +6451,13 @@ function renderDesktopSidebarHtml(){
       </div>
       <div class="desktop-sidebar-secondary">
         <button type="button" class="desktop-sidebar-item small ${screen==='historikk'?'active':''}" data-desktop-nav="historikk">
-          <span class="desktop-sidebar-ikon">🕐</span><span>Historikk</span>
+          <span class="desktop-sidebar-ikon">${luc('history')}</span><span>Historikk</span>
         </button>
         <button type="button" class="desktop-sidebar-item small ${screen==='analyse'?'active':''}" data-desktop-nav="analyse">
-          <span class="desktop-sidebar-ikon">🔍</span><span>Analyse</span>
+          <span class="desktop-sidebar-ikon">${luc('line-chart')}</span><span>Analyse</span>
         </button>
         <button type="button" class="desktop-sidebar-item small ${screen==='innstillinger'?'active':''}" data-desktop-nav="innstillinger">
-          <span class="desktop-sidebar-ikon">⚙️</span><span>Innstillinger</span>
+          <span class="desktop-sidebar-ikon">${luc('settings')}</span><span>Innstillinger</span>
         </button>
       </div>
     </nav>
@@ -6564,6 +6601,7 @@ function render(){
   else if(screen === 'kalender') attachKalenderListeners();
   else if(screen === 'bestill') attachBestillTjenesterListeners();
   else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
+  refreshLucideIcons();
 }
 
 // ================= Mobilmeny (drawer) =================
@@ -6588,9 +6626,9 @@ function drawerItemHtml(scr, icon, label, sub){
 // noen meny/sidebar) — se CLAUDE.md.
 function drawerOversikterHtml(){
   return `
-    ${drawerItemHtml('register', '🚚', 'Biler')}
-    ${drawerItemHtml('bestill', '🛠️', 'Bestill tjenester')}
-    ${drawerItemHtml('kalender', '📅', 'Kalender')}
+    ${drawerItemHtml('register', luc('truck'), 'Biler')}
+    ${drawerItemHtml('bestill', luc('wrench'), 'Bestill tjenester')}
+    ${drawerItemHtml('kalender', luc('calendar-days'), 'Kalender')}
   `;
 }
 function renderDrawer(){
@@ -6607,33 +6645,33 @@ function renderDrawer(){
     </div>
     <div class="drawer-user">Innlogget: ${esc(loggedInRole || '')}</div>
     <div class="drawer-nav">
-      ${drawerItemHtml('dashboard', '🏠', 'Hjem')}
+      ${drawerItemHtml('dashboard', luc('house'), 'Hjem')}
       ${drawerOversikterHtml()}
-      ${drawerItemHtml('aktivesaker', '🚨', 'Aktive saker')}
-      ${drawerItemHtml('kommentaroversikt', '💬', ulesteKommentarer > 0 ? `Kommentarer (${ulesteKommentarer})` : 'Kommentarer')}
-      ${drawerItemHtml('varsler', '🔔', 'Påminnelser')}
-      ${drawerItemHtml('kostnadsoversikt', '📊', 'Kostnader')}
-      ${drawerItemHtml('rapporter', '📈', 'Rapporter')}
+      ${drawerItemHtml('aktivesaker', luc('triangle-alert'), 'Aktive saker')}
+      ${drawerItemHtml('kommentaroversikt', luc('message-square'), ulesteKommentarer > 0 ? `Kommentarer (${ulesteKommentarer})` : 'Kommentarer')}
+      ${drawerItemHtml('varsler', luc('bell'), 'Påminnelser')}
+      ${drawerItemHtml('kostnadsoversikt', luc('bar-chart-3'), 'Kostnader')}
+      ${drawerItemHtml('rapporter', luc('file-bar-chart'), 'Rapporter')}
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Registrer</div>
     <div class="drawer-nav">
-      <button class="drawer-item" id="drawer-kontroll-btn"><span class="drawer-icon">✅</span><span>Kontroll</span></button>
-      <button class="drawer-item" id="drawer-avvik-btn"><span class="drawer-icon">🚨</span><span>Registrer avvik</span></button>
+      <button class="drawer-item" id="drawer-kontroll-btn"><span class="drawer-icon">${luc('clipboard-check')}</span><span>Kontroll</span></button>
+      <button class="drawer-item" id="drawer-avvik-btn"><span class="drawer-icon">${luc('triangle-alert')}</span><span>Registrer avvik</span></button>
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Oppslag</div>
     <div class="drawer-nav">
-      ${drawerItemHtml('historikk', '🕐', 'Historikk')}
-      ${drawerItemHtml('analyse', '🔍', 'Analyse')}
+      ${drawerItemHtml('historikk', luc('history'), 'Historikk')}
+      ${drawerItemHtml('analyse', luc('line-chart'), 'Analyse')}
     </div>
     <!-- «⚙️ Innstillinger» flyttet helt nederst (siste navigasjonspunkt i
          menyen, kun «🚪 Logg ut» under). «🖥️ Bytt til Desktop-visning» er ikke lenger et
          eget menypunkt her — den bryteren ligger nå inne i Innstillinger → ⚙️ Systeminnstillinger
          (samme delte deviceOverride-mekanisme, se attachDeviceOverrideToggleListener()). -->
     <div class="drawer-footer">
-      ${drawerItemHtml('innstillinger', '⚙️', 'Innstillinger')}
-      <button class="drawer-item" id="drawer-logout-btn"><span class="drawer-icon">🚪</span><span>Logg ut</span></button>
+      ${drawerItemHtml('innstillinger', luc('settings'), 'Innstillinger')}
+      <button class="drawer-item" id="drawer-logout-btn"><span class="drawer-icon">${luc('log-out')}</span><span>Logg ut</span></button>
     </div>
   `;
   drawerEl.classList.toggle('open', headerMenuOpen);
@@ -6791,6 +6829,7 @@ function renderDriverShell(){
   else if(driverScreen === 'ny-kommentar') attachDriverNyKommentarListeners();
   else attachDriverVelgBilListeners();
   attachDriverBunnmenyListeners();
+  refreshLucideIcons();
 }
 
 // ---- Enkle, ensartede linjeikoner for sjåførmodus ----
@@ -6832,17 +6871,17 @@ function sjaforIkonSvg(navn, storrelse){
 // emoji byttet til `ikon` (linjeikon-navn til sjaforIkonSvg()) — rekkefølge,
 // nøkler og navigasjon er UENDRET, kun selve glyfen.
 const DRIVER_BUNNMENY = [
-  {key:'min-bil',     ikon:'car',   label:'Min Bil'},
-  {key:'ringeliste',  ikon:'phone', label:'Ringeliste'},
-  {key:'kommentarer', ikon:'chat',  label:'Kommentarer'},
-  {key:'mer',         ikon:'menu',  label:'Mer'}
+  {key:'min-bil',     ikon:luc('truck'),          label:'Min Bil'},
+  {key:'ringeliste',  ikon:luc('phone'),          label:'Ringeliste'},
+  {key:'kommentarer', ikon:luc('message-square'), label:'Kommentarer'},
+  {key:'mer',         ikon:luc('more-horizontal'), label:'Mer'}
 ];
 function renderDriverBunnmenyHtml(){
   return `
     <nav class="p41-bunn p41-bunn-4">
       ${DRIVER_BUNNMENY.map(x => `
         <button type="button" class="${driverScreen === x.key ? 'aktiv' : ''}" data-driverbunn="${x.key}">
-          <span class="ik">${sjaforIkonSvg(x.ikon, 21)}</span>${x.label}
+          <span class="ik">${x.ikon}</span>${x.label}
         </button>
       `).join('')}
     </nav>
@@ -7038,7 +7077,7 @@ function renderDriverMinBil(){
     </div>`,
     skade: `
       <button type="button" class="p48-action-card" id="mb-skade-btn">
-        <span class="p48-action-icon purple">${sjaforIkonSvg('plus', 18)}</span>
+        <span class="p48-action-icon purple">${luc('triangle-alert')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Registrer skade</span><span class="p48-action-sub">Rapporter skade på kjøretøy</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -7064,7 +7103,7 @@ function renderDriverMinBil(){
       </div>` : ''}`,
     varsel: `
       <button type="button" class="p48-action-card" id="mb-varsel-btn">
-        <span class="p48-action-icon orange">${sjaforIkonSvg('alert', 18)}</span>
+        <span class="p48-action-icon orange">${luc('alert-circle')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Registrer varsellampe</span><span class="p48-action-sub">Rapporter aktiv varsellampe</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -7086,7 +7125,7 @@ function renderDriverMinBil(){
       </div>` : ''}`,
     avvik: `
       <button type="button" class="p48-action-card" id="mb-avvik-btn">
-        <span class="p48-action-icon orange">${sjaforIkonSvg('wrench', 18)}</span>
+        <span class="p48-action-icon orange">${luc('clipboard-check')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Registrer avvik</span><span class="p48-action-sub">Rapporter annet avvik</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -7107,7 +7146,7 @@ function renderDriverMinBil(){
       </div>` : ''}`,
     kontakt: `
       <button type="button" class="p48-action-card" id="mb-kontakt-btn">
-        <span class="p48-action-icon blue">${sjaforIkonSvg('phone', 18)}</span>
+        <span class="p48-action-icon blue">${luc('phone')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Kontakt driftskoordinator</span><span class="p48-action-sub">Se hvem du kan kontakte</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -7123,7 +7162,7 @@ function renderDriverMinBil(){
     // sjåføren er i appen, uten å ligge gjemt bak et Min Bil-kort. Se DRIVER_BUNNMENY under.
     nysjafor: `
       <button type="button" class="p48-action-card" id="mb-nysjafor-btn">
-        <span class="p48-action-icon blue">${sjaforIkonSvg('user', 18)}</span>
+        <span class="p48-action-icon blue">${luc('user-round')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Ny sjåfør</span><span class="p48-action-sub">Overfør bilen til en annen sjåfør</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -7142,7 +7181,7 @@ function renderDriverMinBil(){
   return `
     <h2 style="font-size:19px;margin-bottom:16px;">Min Bil</h2>
     <div class="p48-sjafor-row">
-      <div class="p48-sjafor-avatar">${sjaforIkonSvg('user', 24)}</div>
+      <div class="p48-sjafor-avatar">${luc('user-round')}</div>
       <div>
         <div class="p48-sjafor-name">${esc(mbAktivSjafor || driverNavn)}</div>
         <div class="p48-sjafor-sub">Aktiv sjåfør</div>
@@ -7153,7 +7192,7 @@ function renderDriverMinBil(){
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
       ${layoutFlateHtml('minbil', komponentHtml)}
       <button type="button" class="p48-checkout-card" id="mb-sjekk-ut-btn">
-        <span class="p48-checkout-icon">${sjaforIkonSvg('logout', 18)}</span>
+        <span class="p48-checkout-icon">${luc('log-out')}</span>
         <span class="p48-checkout-text"><span class="p48-checkout-title">Sjekk ut bil</span><span class="p48-checkout-sub">Avslutt arbeidsdagen og frigjør bilen</span></span>
       </button>
     </div>
@@ -7397,6 +7436,7 @@ function renderLoginShell(){
   document.getElementById('login-driver-link-btn').addEventListener('click', () => {
     window.location.search = '?sjafor=1';
   });
+  refreshLucideIcons();
 }
 
 // ================= scrDashboard =================
@@ -7491,13 +7531,13 @@ function renderMobilHjem(){
     </div>`,
     bilparkstatus: `
     <div class="panel" style="margin-bottom:14px;">
-      <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
+      <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
       ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
     </div>`,
     kreverhandling: `
     <div class="panel" style="margin-bottom:14px;${d.krHarKritisk ? 'border-color:var(--red);' : ''}">
       <div class="p38-panel-head">
-        <div class="tittel">${d.krHarKritisk ? '🔴' : (d.dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
+        <div class="tittel" style="color:${d.krHarKritisk ? 'var(--red)' : (d.dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
         ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
       </div>
       ${d.dashKreverListe.length === 0 ? `
@@ -7859,17 +7899,17 @@ function sakFaseTellereHtml(sakFaseAntall){
   return `
     <div style="display:flex;gap:14px;margin-bottom:14px;">
       <button type="button" class="dash40-kpi" data-goto-sak-fane="aktiv" style="--tint:var(--red-soft);--tone:var(--red);flex:1;">
-        <span class="flis">🔴</span>
+        <span class="flis">${luc('triangle-alert')}</span>
         <span class="dash40-kpi-num">${sakFaseAntall.aktiv}</span>
         <span class="dash40-kpi-label">Aktive saker</span>
       </button>
       <button type="button" class="dash40-kpi" data-goto-sak-fane="oppfolging" style="--tint:var(--amber-soft);--tone:var(--amber);flex:1;">
-        <span class="flis">🟡</span>
+        <span class="flis">${luc('clock-3')}</span>
         <span class="dash40-kpi-num">${sakFaseAntall.oppfolging}</span>
         <span class="dash40-kpi-label">Under oppfølging</span>
       </button>
       <button type="button" class="dash40-kpi" data-goto-sak-fane="verksted" style="--tint:var(--orange-soft);--tone:var(--orange);flex:1;">
-        <span class="flis">🔧</span>
+        <span class="flis">${luc('wrench')}</span>
         <span class="dash40-kpi-num">${sakFaseAntall.verksted}</span>
         <span class="dash40-kpi-label">Planlagt verksted</span>
       </button>
@@ -7938,13 +7978,13 @@ function renderDashboard(){
     kpi: `
     <div class="dash40-grid2">
       <button type="button" class="dash40-kpi" data-goto-biloversikt-filter="har-aktiv-sjafor" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis">🚚</span>
+        <span class="flis">${luc('truck')}</span>
         <span class="dash40-kpi-num">${hDriftCount}</span>
         <span class="dash40-kpi-label">Biler i drift</span>
         <span class="dash40-kpi-link">${kontrollertIdagCount} kontrollert i dag →</span>
       </button>
       <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis">📅</span>
+        <span class="flis">${luc('calendar-days')}</span>
         <span class="dash40-kpi-num">${upcomingVT.length}</span>
         <span class="dash40-kpi-label">Kalender</span>
         <span class="dash40-kpi-link">${nearestVT ? '⭐ Neste: ' + fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'} →</span>
@@ -7954,25 +7994,25 @@ function renderDashboard(){
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
     <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">🔧</span>
+        <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg service</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">🚦</span>
+        <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
         <span class="dash40-bestill-sub">Velg bil → Verkstedtime for EU</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">🛞</span>
+        <span class="flis lg">${luc('circle-dot')}</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">💥</span>
+        <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
         <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
@@ -8052,7 +8092,7 @@ function renderDashboard(){
         </div>`,
     prioriterte: `
         <div class="panel" id="dash-prioriterte-biler-card" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">🎯 Prioriterte biler</div></div>
+          <div class="p38-panel-head"><div class="tittel">${luc('truck')} Prioriterte biler</div></div>
           ${prioriterteBilerListe.length === 0 ? `
           <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Ingen biler krever prioritering nå.</div>
           ` : `
