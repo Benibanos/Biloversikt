@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.13.0"></script>
+<script src="storage.airtable.js?v=2.14.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1002,6 +1002,14 @@
      layouten mens skriptet lastes inn (se <script>-taggen i <head>). stroke-width:1.75
      (i stedet for Lucides standard 2) — "tynne og lesbare", jf. designmålet. */
   .lucide-ic{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;stroke-width:1.75;}
+  /* Prioritet 58: sjåførmodus ba opprinnelig om eksakte pikselstørrelser (18/19/22) via
+     det gamle egendefinerte SVG-settet. Størrelsen settes nå inline av sjaforIkonSvg(),
+     men disse reglene sikrer riktig størrelse også hvis Lucide ikke skulle videreføre
+     style-attributtet fra plassholderen. */
+  .p48-stat-icon .lucide-ic{width:18px;height:18px;}
+  .p48-action-chevron .lucide-ic{width:18px;height:18px;}
+  .p48-velg-chevron .lucide-ic{width:19px;height:19px;}
+  .p48-back .lucide-ic{width:22px;height:22px;}
   i.lucide-ic{opacity:0;} /* <i data-lucide> er kun en plassholder til lucide.createIcons() erstatter den med faktisk <svg> */
   svg.lucide-ic{opacity:1;}
 
@@ -1457,7 +1465,7 @@ let filterLoyve = ''; // '' | 'har' | 'mangler'
 // (Dashboard skal kun vise handling). Chipsene ruter nå hit i stedet, til den faktiske
 // Bilregister-siden, filtrert på samme vehicleHovedstatus()-verdi som før (uendret
 // funksjon, kun ny destinasjon — se goToRegisterHovedstatus()).
-let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'kritisk' | 'har-aktiv-sjafor' | 'tilgjengelig'
+let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'ute-av-drift' | 'har-aktiv-sjafor' | 'tilgjengelig'
 // Biloversikt gruppert etter KATEGORI_ORDER (▼ Bil 1–11 / Lastebil / Montering /
 // Reserve), lukket som standard — samme dropdown-mønster (group-card-head/chevron/
 // vehicle-group-body) som allerede brukes andre grupperte steder i appen (Rapporter/
@@ -1509,7 +1517,6 @@ let vtGrupperApen = false;
 let sakFilterBil = '';
 let sakFilterType = '';
 let sakFilterStatus = '';
-let sakFilterPrioritet = '';
 let sakFilterKreverHandling = false;
 // KRITISK FEILRETTING: eget filter for "nøyaktig det Dashboard sitt Krever handling
 // nå-kort talte" — en ren OR mellom kritisk og sakKreverHandling(), som ikke lot seg
@@ -1594,6 +1601,12 @@ let showAddDekkkostnad = false;
 // begge er fjernet fra Dashboard (flyttet til Bilregister-siden / allerede dekket av
 // "Krever handling nå" og "Kommer snart" — se renderDashboard()).
 const GRUPPE_IKON = {bil:'🚐', lastebil:'🚚', montering:'🔧', reserve:'🔄'};
+// «Fullfør Lucide-migreringen»: GRUPPE_IKON kan IKKE gjøres om til Lucide-HTML direkte
+// — samme emoji brukes også inni <option>-nedtrekksmenyer (Rapporter/Kostnader/Analyse)
+// og Excel/rapport-eksport (rapportTabellRad), der HTML/SVG aldri rendres. Egen,
+// parallell Lucide-variant for de bekreftet rene HTML-visningsstedene i stedet — se
+// kategoriIkonLucide()/CLAUDE.md, Prioritet 56.
+const GRUPPE_LUCIDE = {bil:'truck', lastebil:'truck', montering:'wrench', reserve:'refresh-cw'};
 let newVerkstedNavn = '';
 let editingVerkstedId = null;
 let headerMenuOpen = false;
@@ -1821,6 +1834,10 @@ let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut var
 const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
+// Samme begrunnelse som GRUPPE_LUCIDE over: SAK_TYPE_IKON brukes også i <option>-lister
+// og rapport-/analyse-eksport, derfor en egen, parallell Lucide-variant for de bekreftet
+// rene HTML-stedene (sakskort-hovedlinjer m.fl.) — se CLAUDE.md, Prioritet 56.
+const SAK_TYPE_LUCIDE = {varsellampe:'triangle-alert', skade:'triangle-alert', kontrollavvik:'clipboard-check', dekk:'circle-dot', service:'wrench', annet:'folder'};
 // «Ny saksflyt»: sterkt forenklet, firenivås arbeidsflyt
 // (Aktiv sak → Under oppfølging → Planlagt verksted → Utført/Historikk), pluss en
 // egen terminal-status «Avslått». De gamle delstatusene ('vurderes', 'tiltak-planlagt',
@@ -1834,14 +1851,11 @@ const SAK_STATUS_ORDER = ['ny', 'under-oppfolging', 'vurderes', 'tiltak-planlagt
 const SAK_STATUS_LABEL = {'ny':'Ny', 'under-oppfolging':'Under oppfølging', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'avslatt':'Avslått', 'lukket':'Lukket'};
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
 const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
-const SAK_PRIORITET_ORDER = ['kritisk', 'hoy', 'normal', 'lav'];
-const SAK_PRIORITET_LABEL = {kritisk:'Kritisk', hoy:'Høy', normal:'Normal', lav:'Lav'};
-const SAK_PRIORITET_IKON = {kritisk:'🔴', hoy:'🟠', normal:'🟡', lav:'🟢'};
-// numerisk rangering brukt til å beregne en
-// samlet saks prioritet som ALLTID = det alvorligste AKTIVE avviket i den ("verste vinner"),
-// uten å noensinne nedjustere en prioritet en administrator har satt manuelt (se
-// registrerKontrollAvvikSomSak/markerAvvikUtfort).
-const SAK_PRIORITET_RANK = {lav:0, normal:1, hoy:2, kritisk:3};
+// Prioritet 59: SAK_PRIORITET_ORDER / _LABEL / _IKON / _RANK er FJERNET.
+// Prioritetssystemet (Lav/Normal/Høy/Kritisk) er avviklet som egen, parallell
+// prioriteringsmodell. Arbeid styres av status, oppfølgingsdato, verkstedstatus og
+// operativ påvirkning. Airtable-kolonnen AktiveSaker.Priority er BEVISST beholdt
+// urørt som historisk data — den leses og skrives ikke lenger av appen.
 // «Ny saksflyt»: 'utfort' og 'avslatt' regnes nå OGSÅ som lukket, ikke
 // bare 'lukket'. Dette er en bevisst, nødvendig atferdsendring (ikke en bug): i den nye,
 // firenivås flyten ER "Arbeid utført" selve sluttpunktet — saken skal umiddelbart
@@ -1899,8 +1913,15 @@ function sakKreverHandling(s){
 // blandet inn "ute av drift"-biler og "mangler kontroll"-biler i samme tall som sakene —
 // disse er IKKE saker (ingen sakId, finnes aldri i aktiveSaker) og telles derfor ikke
 // lenger sammen med sakene i noe tall som hevder å representere Aktive Saker.
+// Prioritet 59: `s.priority === 'kritisk'` er FJERNET fra denne definisjonen.
+// "Krever handling na" er na utelukkende sakKreverHandling(), som allerede dekker
+// status ny/vurderes/venter bekreftelse, manglende neste handling eller
+// oppfolgingsdato, og forfalt/dagens oppfolging. Delta er derfor LITE: den eneste
+// typen sak som faller ut er en ferdig planlagt sak (har bade neste handling og en
+// FREMTIDIG oppfolgingsdato) som en administrator i tillegg hadde merket kritisk
+// manuelt. Det er en bevisst, godkjent atferdsendring (se CLAUDE.md, Prioritet 59).
 function sakKreverHandlingSamletMaster(s){
-  return sakErApen(s) && (s.priority === 'kritisk' || sakKreverHandling(s));
+  return sakErApen(s) && sakKreverHandling(s);
 }
 // delt tellefunksjon for "krever handling nå"-totalen —
 // gjenbrukt av både Dashboard (desktop, se renderDashboard) og mobilens ikonrutenett-
@@ -1940,7 +1961,6 @@ function vehicleNesteOppfolging(vehicleId){
 }
 // ---- Fase 5 (Operativ Kontroll og Bilparkhelse) ----
 function vehicleAktiveSaker(vehicleId){ return aktiveSaker.filter(s => s.vehicleId === vehicleId && sakErApen(s)); }
-function vehicleKritiskeSaker(vehicleId){ return vehicleAktiveSaker(vehicleId).filter(s => s.priority === 'kritisk'); }
 // Eldste åpne sak på en bil, basert på registreringsdato — brukt i Biloversikt og
 // "Eldste åpne saker"-seksjonen på Dashboard.
 function vehicleEldsteApneSak(vehicleId){
@@ -1956,7 +1976,6 @@ function vehicleHovedstatus(vehicleId){
   const v = vehicles.find(x => x.id === vehicleId);
   if(v && v.uteAvDrift) return 'ute-av-drift';
   const apneSaker = vehicleAktiveSaker(vehicleId);
-  if(apneSaker.some(s => s.priority === 'kritisk')) return 'kritisk';
   if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'verksted';
   if(apneSaker.length > 0) return 'oppfolging';
   if(!isKontrollertIdag(vehicleId)){
@@ -1969,9 +1988,13 @@ function vehicleHovedstatus(vehicleId){
   }
   return 'operativ';
 }
-const HOVEDSTATUS_ORDER = ['ute-av-drift', 'kritisk', 'verksted', 'oppfolging', 'reserve', 'ikke-kontrollert', 'operativ'];
-const HOVEDSTATUS_IKON = {'ute-av-drift':'⛔', kritisk:'🔴', verksted:'🟠', oppfolging:'🟡', reserve:'🚐', 'ikke-kontrollert':'⚪', operativ:'🟢'};
-const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', kritisk:'Kritisk', verksted:'Verksted bestilt', oppfolging:'Under oppfølging', reserve:'Reservebil (ikke i bruk)', 'ikke-kontrollert':'Ikke kontrollert', operativ:'Operativ'};
+// Prioritet 59 (Alternativ B): nivaaet 'kritisk' er FJERNET. Roedt nivå = "Ute av drift"
+// -- en bil som faktisk ikke kan brukes -- ikke en manuelt satt saksprioritet. Hierarkiet
+// er dermed seks nivaaer: Ute av drift > Verksted bestilt > Under oppfolging > Reservebil
+// > Ikke kontrollert > Operativ. Selve rekkefoelgen og de gjenværende nivaaene er URORT.
+const HOVEDSTATUS_ORDER = ['ute-av-drift', 'verksted', 'oppfolging', 'reserve', 'ikke-kontrollert', 'operativ'];
+const HOVEDSTATUS_IKON = {'ute-av-drift':'🔴', verksted:'🟠', oppfolging:'🟡', reserve:'🚐', 'ikke-kontrollert':'⚪', operativ:'🟢'};
+const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', verksted:'Verksted bestilt', oppfolging:'Under oppfølging', reserve:'Reservebil (ikke i bruk)', 'ikke-kontrollert':'Ikke kontrollert', operativ:'Operativ'};
 // Gjenbruker eksisterende .badge-fargeklasser (rød/oransje/gul/grå/grønn) slik at
 // hovedstatusen får riktig farge overalt den vises (Kjøretøyprofil m.fl.). "reserve" bruker
 // samme nøytrale grå som "unset" — bevisst IKKE gul/urovekkende, siden det ikke er et problem.
@@ -1980,14 +2003,13 @@ const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', kritisk:'Kritisk', ver
 // fortsatt utelukkende fra vehicleHovedstatus().
 const P38_STATUS_STIL = {
   'ute-av-drift':{tint:'var(--red-soft)', tone:'var(--red)'},
-  kritisk:{tint:'var(--red-soft)', tone:'var(--red)'},
   verksted:{tint:'var(--orange-soft)', tone:'var(--orange)'},
   oppfolging:{tint:'var(--amber-soft)', tone:'var(--amber)'},
   reserve:{tint:'var(--surface-3)', tone:'var(--muted)'},
   'ikke-kontrollert':{tint:'var(--surface-3)', tone:'var(--muted)'},
   operativ:{tint:'var(--green-soft)', tone:'var(--green-ink)'}
 };
-const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', kritisk:'overdue', verksted:'oppf-idag', oppfolging:'soon', reserve:'unset', 'ikke-kontrollert':'unset', operativ:'ok'};
+const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', verksted:'oppf-idag', oppfolging:'soon', reserve:'unset', 'ikke-kontrollert':'unset', operativ:'ok'};
 
 // ---- Optimalisering 5 (Operativ Morgenvisning): "Dagens status" per bil ----
 // Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
@@ -2002,9 +2024,12 @@ const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verkst
 // "Verksted bestilt" (eller "Utført - venter bekreftelse"), GUL = minst én åpen sak,
 // GRØNN = ingen. Kritisk prioritet overstyrer alltid verkstedstatus.
 function vehicleSakStatus(vehicleId){
+  // Prioritet 59 (Alternativ B): ROEDT er ikke lenger "minst en sak med prioritet
+  // Kritisk", men "bilen er ute av drift" -- samme definisjon som vehicleHovedstatus().
+  const vSakSt = vehicles.find(x => x.id === vehicleId);
+  if(vSakSt && vSakSt.uteAvDrift) return 'rod';
   const apneSaker = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakErApen(s));
   if(apneSaker.length === 0) return 'gronn';
-  if(apneSaker.some(s => s.priority === 'kritisk')) return 'rod';
   if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'oransje';
   return 'gul';
 }
@@ -2057,7 +2082,9 @@ function nesteSakId(){
 // en match fra før økes rapporttelleren og observasjonen legges i historikken i stedet for
 // å opprette en ny sak (se "Bil 7 mandag/tirsdag/onsdag"-eksempelet). For skader er sourceId
 // alltid unik (damage-id), så hver skade får naturlig sin egen sak uten spesialtilfelle.
-function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, prioritet, reportedBy, reportedAt, kommentar, controlId}){
+// Prioritet 59: parameteren `prioritet` er FJERNET (prioritetssystemet avviklet).
+// Arbeid styres av status, oppfolgingsdato, verkstedstatus og operativ paavirkning.
+function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivelse, reportedBy, reportedAt, kommentar, controlId}){
   const now = new Date().toISOString();
   const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: kommentar || ''};
   const eksisterende = finnAktivSakMedAvvik(vehicleId, caseType, sourceId);
@@ -2078,7 +2105,7 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
   const v = vehicles.find(x => x.id === vehicleId);
   const sak = {
     id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
-    caseType, title: tittel, description: beskrivelse, status: 'ny', priority: prioritet,
+    caseType, title: tittel, description: beskrivelse, status: 'ny',
     sourceType: 'auto', sourceId,
     reportedBy: reportedBy || 'Ukjent', reportedAt,
     assignedTo: '', nextAction: '', followUpDate: null,
@@ -2126,7 +2153,7 @@ function sakAvvikListe(s){
   return [{
     id: s.id, caseType: s.caseType, sourceId: s.sourceId, label: sakProblemLabel(s),
     status: (s.status === 'lukket' || s.status === 'utfort') ? 'utfort' : 'aktiv',
-    prioritet: s.priority, createdAt: s.createdAt, resolvedAt: s.resolvedAt,
+    createdAt: s.createdAt, resolvedAt: s.resolvedAt,
     linkedVtId: s.linkedVtId || null, reportCount: s.reportCount, lastReportedAt: s.lastReportedAt
   }];
 }
@@ -2157,7 +2184,7 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
   const {reportedBy, reportedAt, controlId, kommentar} = opts;
   const now = new Date().toISOString();
   let nySak = null;
-  avvikListe.forEach(({caseType, sourceId, label, prioritet}) => {
+  avvikListe.forEach(({caseType, sourceId, label}) => {
     // Historikk-kommentaren inneholder alltid selve avvik-etiketten (f.eks. "Motorlampe")
     // først, slik at hver observasjonslinje er identifiserbar selv når saken har flere
     // avvik — samme mønster som tidligere, kun bygget fra avvik-elementets egen
@@ -2178,20 +2205,19 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
       nySak = {
         id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
         caseType, title: label, description: 'Automatisk generert fra kontrollregistrering.',
-        status: 'ny', priority: prioritet, sourceType: 'auto', sourceId,
+        status: 'ny', sourceType: 'auto', sourceId,
         reportedBy: reportedBy || 'Ukjent', reportedAt,
         assignedTo: '', nextAction: '', followUpDate: null,
         resolvedAt: null, resolvedBy: null, resolutionNote: '',
         reportCount: 1, lastReportedAt: now,
         historikk: [historikkOppforsel],
-        avvik: [{id: uid(), caseType, sourceId, label, status: 'aktiv', prioritet, createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now}],
+        avvik: [{id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now}],
         createdByControlId: controlId || null,
         createdAt: now, updatedAt: now
       };
       aktiveSaker.push(nySak);
     } else {
-      nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', prioritet, createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now});
-      if(SAK_PRIORITET_RANK[prioritet] > SAK_PRIORITET_RANK[nySak.priority]) nySak.priority = prioritet;
+      nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now});
       nySak.updatedAt = now;
       if(!Array.isArray(nySak.historikk)) nySak.historikk = [];
       nySak.historikk.push(historikkOppforsel);
@@ -2274,6 +2300,9 @@ function sakHarBlittViderebehandlet(sak){
 const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy'];
 const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
 const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
+// Samme begrunnelse som GRUPPE_LUCIDE/SAK_TYPE_LUCIDE over — egen Lucide-variant for de
+// rene HTML-stedene (avvik-chips), se CLAUDE.md, Prioritet 56.
+const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'feil-pa-kjoretoy':'triangle-alert', 'annet-avvik':'clipboard-list'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 // ---- Optimalisering 3 (Kontrollsletting med full cleanup) ----
@@ -2781,6 +2810,14 @@ function kategoriIkon(katId){
   if(katId === UTE_AV_DRIFT_KATEGORI_ID) return UTE_AV_DRIFT_KATEGORI_IKON;
   return GRUPPE_IKON[katId] || '🚐';
 }
+// Lucide-variant av kategoriIkon() over, for de bekreftet rene HTML-visningsstedene
+// (group-card-title m.fl.) — se GRUPPE_LUCIDE/CLAUDE.md, Prioritet 56. kategoriIkon()
+// selv er UENDRET og fortsatt i bruk der emoji kreves (ingen kjent bruk i <option>/
+// eksport i dag, men beholdt som den etablerte, opprinnelige funksjonen).
+function kategoriIkonLucide(katId){
+  if(katId === UTE_AV_DRIFT_KATEGORI_ID) return luc('ban');
+  return luc(GRUPPE_LUCIDE[katId] || 'truck');
+}
 // Felles nedtrekksliste for kategori. Erstatter de tre hardkodede <option>-listene som
 // lå i «Ny bil», Biloversikt-filteret og kjøretøyskjemaet — de ville ellers ikke fått med
 // seg nye kategorier. 🚫 Ute av drift er bevisst IKKE med: den er systemstyrt.
@@ -2945,7 +2982,7 @@ function layoutEditorFlateHtml(flateKey){
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn secondary small" data-layout-opp="${flateKey}:${key}" ${i === 0 ? 'disabled' : ''} title="Flytt opp">↑</button>
               <button class="btn secondary small" data-layout-ned="${flateKey}:${key}" ${i === layout.order.length - 1 ? 'disabled' : ''} title="Flytt ned">↓</button>
-              <button class="btn secondary small" data-layout-vis="${flateKey}:${key}" title="${skjult ? 'Vis komponent' : 'Skjul komponent'}">${skjult ? '🙈 Vis' : '👁️ Skjul'}</button>
+              <button class="btn secondary small" data-layout-vis="${flateKey}:${key}" title="${skjult ? 'Vis komponent' : 'Skjul komponent'}">${skjult ? '🙈 Vis' : '' + luc("eye") + 'Skjul'}</button>
             </div>
           </div>`;
         }).join('')}
@@ -3152,8 +3189,8 @@ const VARSELLAMPE_LABEL = {
   batteri:'Batteri/Lading', abs:'ABS', service:'Servicevarsel', annet:'Annet'
 };
 const VARSELLAMPE_ICON = {
-  motor:'🔧', adblue:'💧', dekktrykk:'🛞', bremse:'🛑',
-  batteri:'🔋', abs:'⚠️', service:'🔔', annet:'❓'
+  motor:luc('wrench'), adblue:luc('droplet'), dekktrykk:luc('circle-dot'), bremse:luc('octagon-alert'),
+  batteri:luc('battery'), abs:luc('triangle-alert'), service:luc('bell'), annet:'' + luc("help-circle") + ''
 };
 const VARSELLAMPE_ORDER = ['motor','adblue','dekktrykk','bremse','batteri','abs','service','annet'];
 
@@ -4162,6 +4199,26 @@ function vtTypeIkon(t){
   if(rs) return '💥';
   return '🏭';
 }
+// Prioritet 58: PARALLELL Lucide-variant av vtTypeIkon() over. vtTypeIkon() er
+// bevisst URORT fordi den fortsatt konsumeres av Kalender/Planlegging, som ikke
+// migreres i denne runden (se ROADMAP.md, Prioritet 58). Samme typelogikk
+// (vtHarType), ingen ny sannhet — kun en annen glyf.
+function vtTypeLucide(t){
+  const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
+  if(eu && rs) return luc('shield-check') + luc('car-front');
+  if(eu) return luc('shield-check');
+  if(rs) return luc('car-front');
+  return luc('factory');
+}
+// Samme typelogikk igjen, men som ren NOKKEL — brukes av Dashboard sitt
+// "Kommende oppgaver" til aa slaa opp bade ikon og fargetone i KOMMENDE_ART.
+function vtTypeArt(t){
+  const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
+  if(eu && rs) return 'eu-ruteskift';
+  if(eu) return 'eu';
+  if(rs) return 'ruteskift';
+  return 'verksted';
+}
 function vtTypeTittel(t){
   const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
   if(eu && rs) return 'EU-kontroll + Ruteskift (verkstedtime)';
@@ -4360,7 +4417,6 @@ function goBack(fallback){
 // (samme mønster som goToRegisterFiltered), ingen ny filtreringslogikk.
 function goToAktiveSakerFiltered(opts){
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = '';
-  sakFilterPrioritet = (opts && opts.prioritet) || '';
   sakFilterKreverHandling = !!(opts && opts.kreverHandling);
   sakFilterKreverHandlingSamlet = !!(opts && opts.kreverHandlingSamlet);
   sakFilterKunApne = true;
@@ -4620,7 +4676,7 @@ async function submitAddSkade(ev){
   registrerAvvikSomSak({
     vehicleId, caseType: 'skade', sourceId: id,
     tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
-    prioritet: 'normal', reportedBy: loggedInRole || 'Ukjent', reportedAt: dato, kommentar: kommentar
+    reportedBy: loggedInRole || 'Ukjent', reportedAt: dato, kommentar: kommentar
   });
   await saveAktiveSaker();
   showAddSkade = false;
@@ -4656,7 +4712,7 @@ async function submitMinBilSkade(){
   registrerAvvikSomSak({
     vehicleId: v.id, caseType: 'skade', sourceId: id,
     tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (beskrivelse ? ' ' + beskrivelse : ''),
-    prioritet: 'normal', reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: minBilSkadeKommentar.trim()
+    reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: minBilSkadeKommentar.trim()
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeAlvorlighet = 'middels'; pendingMinBilFoto = null;
@@ -4679,7 +4735,7 @@ async function submitMinBilVarsel(){
   registrerAvvikSomSak({
     vehicleId: v.id, caseType: 'varsellampe', sourceId: minBilVarselType,
     tittel: 'Varsellampe registrert', beskrivelse: 'Automatisk generert fra sjåførregistrering.',
-    prioritet: 'hoy', reportedBy: driverNavn || 'Ukjent', reportedAt: dato,
+    reportedBy: driverNavn || 'Ukjent', reportedAt: dato,
     kommentar: minBilVarselType === 'annet' ? minBilVarselAnnetTekst.trim() : (VARSELLAMPE_LABEL[minBilVarselType] || '')
   });
   await saveAktiveSaker();
@@ -4694,7 +4750,7 @@ async function submitMinBilAvvik(){
   registrerAvvikSomSak({
     vehicleId: v.id, caseType: 'kontrollavvik', sourceId: minBilAvvikType,
     tittel: KONTROLLAVVIK_LABEL[minBilAvvikType] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra sjåførregistrering.',
-    prioritet: 'normal', reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: ''
+    reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: ''
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilAvvikType = '';
@@ -4766,7 +4822,7 @@ function goToRegisterSkade(vehicleId){
   goTo('skader');
 }
 function goToAktiveSakerForVehicle(vehicleId){
-  sakFilterBil = vehicleId; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
+  sakFilterBil = vehicleId; sakFilterType = ''; sakFilterStatus = '';
   sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
   showSakFilterMeny = false;
   sakOversiktOpenVehicles = new Set([vehicleId]);
@@ -4835,7 +4891,6 @@ async function submitAddSak(ev){
   const caseType = document.getElementById('sak-type').value;
   const title = document.getElementById('sak-tittel').value.trim();
   const description = document.getElementById('sak-beskrivelse').value.trim();
-  const priority = document.getElementById('sak-prioritet').value;
   const nextAction = document.getElementById('sak-neste-handling').value.trim();
   const followUpDateRaw = document.getElementById('sak-oppfolgingsdato').value.trim();
   const msgEl = document.getElementById('sak-msg');
@@ -4871,10 +4926,8 @@ async function submitSakWizardVurdering(id){
   if(sakWizardSaving) return;
   const s = aktiveSaker.find(x => x.id === id);
   if(!s) return;
-  const nyPrioritet = document.getElementById('swz-prioritet-'+id).value;
   const nyStatus = document.getElementById('swz-status-'+id).value;
   sakWizardSaving = true; render();
-  s.priority = nyPrioritet;
   if(nyStatus === 'lukket'){
     // "Lukket" velges her kun som en snarvei til Steg 4 — selve lukkingen (med krav om
     // resultat/sluttkommentar/utført dato) skjer ALLTID i submitSakWizardFullfor(), slik
@@ -5168,7 +5221,7 @@ function bestillVerkstedForSak(sakId){
 function goToSakDetalj(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
   if(!s) return;
-  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = ''; sakFilterPrioritet = '';
+  sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = '';
   sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
   showSakFilterMeny = false;
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
@@ -5913,13 +5966,13 @@ async function submitKontroll(ev){
     varsellamper.forEach(key => {
       kontrollAvvikBatch.push({
         caseType: 'varsellampe', sourceId: key,
-        label: avvikTypeLabel('varsellampe', key, annetTekst), prioritet: 'hoy'
+        label: avvikTypeLabel('varsellampe', key, annetTekst)
       });
     });
     avvik.forEach(key => {
       kontrollAvvikBatch.push({
         caseType: 'kontrollavvik', sourceId: key,
-        label: avvikTypeLabel('kontrollavvik', key, ''), prioritet: 'normal'
+        label: avvikTypeLabel('kontrollavvik', key, '')
       });
     });
     if(kontrollAvvikBatch.length > 0){
@@ -5930,7 +5983,7 @@ async function submitKontroll(ev){
       registrerAvvikSomSak({
         vehicleId, caseType: 'skade', sourceId: linkedDamageId,
         tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (skadeBeskrivelse ? ' ' + skadeBeskrivelse : ''),
-        prioritet: 'normal', reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
+        reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
         controlId: id
       });
       sakerEndret = true;
@@ -6558,7 +6611,7 @@ function render(){
           <div class="shell-top-right">
             <div class="menu-wrap">
               <button class="btn secondary small header-link ${menuActive ? 'active' : ''}" id="header-menu-btn" aria-haspopup="true" aria-expanded="${headerMenuOpen}">
-                ☰ Meny
+                ${luc('menu')} Meny
               </button>
             </div>
           </div>
@@ -6641,7 +6694,7 @@ function renderDrawer(){
   drawerEl.innerHTML = `
     <div class="drawer-header">
       <span class="drawer-title">Meny</span>
-      <button class="drawer-close" id="drawer-close-btn" aria-label="Lukk meny">✕</button>
+      <button class="drawer-close" id="drawer-close-btn" aria-label="Lukk meny">${luc('x')}</button>
     </div>
     <div class="drawer-user">Innlogget: ${esc(loggedInRole || '')}</div>
     <div class="drawer-nav">
@@ -6746,7 +6799,7 @@ function renderKontrollSlettModal(){
             ${a.avvikAndre > 0 ? `<li><span class="dmg-simple-main">📁 ${a.avvikAndre} annet avvik</span></li>` : ''}
             ${a.paavirkedeSkader.length > 0 ? `<li><span class="dmg-simple-main">⚠️ ${a.paavirkedeSkader.length} skade${a.paavirkedeSkader.length===1?'':'r'}</span></li>` : ''}
             ${a.paavirkedeSaker.length > 0 ? `<li><span class="dmg-simple-main">🗂️ ${a.paavirkedeSaker.length} aktiv${a.paavirkedeSaker.length===1?'':'e'} sak${a.paavirkedeSaker.length===1?'':'er'}</span></li>` : ''}
-            ${a.historikkhendelser > 0 ? `<li><span class="dmg-simple-main">🕐 ${a.historikkhendelser} historikkhendelse${a.historikkhendelser===1?'':'r'}</span></li>` : ''}
+            ${a.historikkhendelser > 0 ? `<li><span class="dmg-simple-main">${luc('clock')} ${a.historikkhendelser} historikkhendelse${a.historikkhendelser===1?'':'r'}</span></li>` : ''}
             ${a.oppfolgingspunkter > 0 ? `<li><span class="dmg-simple-main">📅 ${a.oppfolgingspunkter} oppfølgingspunkt${a.oppfolgingspunkter===1?'':'er'}</span></li>` : ''}
           </ul>
         </div>` : `<div class="empty-note" style="margin-bottom:14px;">Ingen tilknyttede saker eller varsler funnet — kontrollen kan trygt slettes.</div>`}
@@ -6832,33 +6885,22 @@ function renderDriverShell(){
   refreshLucideIcons();
 }
 
-// ---- Enkle, ensartede linjeikoner for sjåførmodus ----
-// Rent visuelt: erstatter emoji med håndtegnede SVG-er (24×24, strokeWidth 1.7, avrundede
-// ender/hjørner) i de stedene bruker eksplisitt ba om det (bunnmeny, nøkkeltallene og
-// handlingskortene på Min Bil, samt navigasjonspilene). IKKE brukt til varsellampe-/
-// avvikschips, status-emoji eller andre steder utenfor denne listen — det var bevisst ikke
-// en del av bestillingen, og disse skal ikke endres. `currentColor` gjør at ikonet alltid
-// arver samme farge som teksten/ikonflaten rundt det, uten noen egen fargelogikk.
+// ---- Linjeikoner for sjåførmodus (Lucide) ----
+// Prioritet 58: det egendefinerte SVG-settet under er ERSTATTET av Lucide (det var
+// et ANNET ikonbibliotek ved siden av Lucide, i strid med "étt operativt ikonsett").
+// Funksjonsnavnet og signaturen er BEVISST beholdt, slik at alle 12 kallestedene i
+// sjåførmodus er uendret. Størrelsen settes inline (px) fordi kallestedene ber om
+// eksakte piksler (18/19/22), mens .lucide-ic som standard arver 1em.
+const P48_LUCIDE = {
+  car:'truck', phone:'phone', chat:'message-square', menu:'menu', calendar:'calendar-days',
+  gauge:'gauge', folder:'folder', wrench:'wrench', plus:'plus', alert:'triangle-alert',
+  user:'user-round', logout:'log-out', chevronRight:'chevron-right', chevronLeft:'chevron-left'
+};
 function sjaforIkonSvg(navn, storrelse){
   const s = storrelse || 20;
-  const P48_IKON_PATHS = {
-    car: '<path d="M3 16V9.5a1 1 0 0 1 1-1h8.5L17 12h3a1 1 0 0 1 1 1v3"/><path d="M3 16h1.5M17.5 16h3.5"/><line x1="9" y1="16" x2="14.5" y2="16"/><circle cx="7" cy="16.5" r="1.6"/><circle cx="17" cy="16.5" r="1.6"/>',
-    phone: '<path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 9 9 0 0 0 2.8.45 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A16.5 16.5 0 0 1 3 4.5 1 1 0 0 1 4 3.5h3.3a1 1 0 0 1 1 1 9 9 0 0 0 .45 2.8 1 1 0 0 1-.25 1L6.6 10.8Z"/>',
-    chat: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5v-9Z"/>',
-    menu: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>',
-    calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
-    gauge: '<path d="M4 15a8 8 0 1 1 16 0"/><line x1="12" y1="15" x2="15.5" y2="10.5"/><circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none"/>',
-    folder: '<path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5v-11Z"/>',
-    wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 4.6L4 16.2V19h2.8l5.3-5.3a4 4 0 0 0 4.6-5.4l-2.6 2.6-2-2 2.6-2.6Z"/>',
-    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-    alert: '<path d="M12 4 21 19H3L12 4Z"/><line x1="12" y1="10" x2="12" y2="14.3"/><circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"/>',
-    user: '<circle cx="12" cy="8" r="3.3"/><path d="M5 19.5a7 7 0 0 1 14 0"/>',
-    logout: '<path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><line x1="13" y1="12" x2="21" y2="12"/><path d="M17.5 8.5 21 12l-3.5 3.5"/>',
-    chevronRight: '<path d="M9 5l7 7-7 7"/>',
-    chevronLeft: '<path d="M15 5l-7 7 7 7"/>'
-  };
-  return `<svg class="p48-svg-ikon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P48_IKON_PATHS[navn] || ''}</svg>`;
+  return `<i data-lucide="${P48_LUCIDE[navn] || 'circle'}" class="p48-svg-ikon lucide-ic" style="width:${s}px;height:${s}px;" aria-hidden="true"></i>`;
 }
+// Prioritet 58: det gamle P48_IKON_PATHS-settet er FJERNET her (ikke lenger kalt noe sted).
 
 // ---- Bunnmeny (kun sjåførmodus) ----
 // REN NAVIGASJON mellom fire faste punkter, samme mønster som MOBIL_BUNNMENY (administrasjon)
@@ -7006,7 +7048,7 @@ function renderDriverAlleredeKontrollert(){
   return `
     <h2 style="font-size:19px;margin-bottom:14px;">${esc(vehicleLabel(v))}</h2>
     <div class="panel" style="text-align:center;padding:30px 20px;margin-bottom:16px;">
-      <div style="font-size:40px;margin-bottom:12px;">✅</div>
+      <div style="font-size:40px;margin-bottom:12px;color:var(--green-ink);">${luc('circle-check')}</div>
       <div style="font-weight:700;font-size:16.5px;margin-bottom:16px;">Denne bilen er allerede kontrollert i dag.</div>
       <div class="ov-grid">
         <div class="ov-item"><span class="ov-label">Kontroll utført</span><span class="ov-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</span></div>
@@ -7063,7 +7105,7 @@ function renderDriverMinBil(){
     <div class="panel p48-vehicle-card" style="margin-bottom:16px;">
       <div class="p48-vehicle-head">
         <div class="plate p48-plate-lg"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-        <span class="p48-pill ${p48Kontrollert ? 'p48-pill-ok' : 'p48-pill-off'}">${p48Kontrollert ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert'}</span>
+        <span class="p48-pill ${p48Kontrollert ? 'p48-pill-ok' : 'p48-pill-off'}">${p48Kontrollert ? luc('check') + ' Kontrollert i dag' : luc('circle-dashed') + ' Ikke kontrollert'}</span>
       </div>
       <div class="p48-vehicle-title">${esc(v.bilnummer)}</div>
       <div class="p48-vehicle-model">${esc(v.merke)} ${esc(v.modell)}</div>
@@ -7115,7 +7157,7 @@ function renderDriverMinBil(){
             const isSelected = minBilVarselType === key;
             return `
             <button type="button" class="chip ${isSelected ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" data-mb-varsel="${key}">
-              <span class="chip-icon">${isActive ? '✅' : VARSELLAMPE_ICON[key]}</span>
+              <span class="chip-icon">${isActive ? luc('check') : VARSELLAMPE_ICON[key]}</span>
               <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — allerede aktiv' : ''}</span>
             </button>`;
           }).join('')}
@@ -7137,7 +7179,7 @@ function renderDriverMinBil(){
             const isSelected = minBilAvvikType === key;
             return `
             <button type="button" class="chip ${isSelected ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" data-mb-avvik="${key}">
-              <span class="chip-icon">${isActive ? '✅' : KONTROLLAVVIK_IKON[key]}</span>
+              <span class="chip-icon">${isActive ? luc('check') : luc(KONTROLLAVVIK_LUCIDE[key] || 'clipboard-list')}</span>
               <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — allerede aktivt' : ''}</span>
             </button>`;
           }).join('')}
@@ -7154,7 +7196,7 @@ function renderDriverMinBil(){
       <div class="panel">
         ${adminUsers.length === 0 ? `<div class="empty-note">Ingen driftskoordinatorer registrert.</div>` : `
         <ul class="dmg-simple-list">
-          ${adminUsers.map(u => `<li><span class="dmg-simple-main">👤 ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
+          ${adminUsers.map(u => `<li><span class="dmg-simple-main">${luc('user-round')} ${esc(u.rolle)}${u.tittel ? ' · ' + esc(u.tittel) : ''}</span></li>`).join('')}
         </ul>`}
       </div>` : ''}`,
     // 📞 Ringeliste er flyttet ut av Min Bil til sin egen skjerm i
@@ -7282,15 +7324,15 @@ function renderDriverRingeliste(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   const andreMedTelefon = sortedVehicles(vehicles).filter(x => (!v || x.id !== v.id) && x.telefon);
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">📞 Ringeliste</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;">${luc('phone')} Ringeliste</h2>
     <div class="panel">
       ${andreMedTelefon.length === 0 ? `<div class="empty-note">Ingen kjøretøy har registrert telefonnummer ennå.</div>` : `
       <ul class="dmg-simple-list">
         ${andreMedTelefon.map(x => `
           <li>
             <a href="tel:${esc(x.telefon.replace(/[^+0-9]/g,''))}" class="dmg-simple-main" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;">
-              <span>🚐 ${esc(vehicleLabel(x))}</span>
-              <span class="btn secondary small" style="pointer-events:none;">📞 Ring</span>
+              <span>${luc('truck')} ${esc(vehicleLabel(x))}</span>
+              <span class="btn secondary small" style="pointer-events:none;">${luc('phone')} Ring</span>
             </a>
           </li>`).join('')}
       </ul>`}
@@ -7316,7 +7358,7 @@ function attachDriverRingelisteListeners(){
 function renderDriverKommentarer(){
   const liste = nyeKommentarerListe(driverVelgBilId);
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">💬 Kommentarer</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;">${luc('message-square')} Kommentarer</h2>
     <div class="panel">
       ${liste.length === 0
         ? `<div class="empty-note">Ingen kommentarer på denne bilen ennå.</div>`
@@ -7338,10 +7380,10 @@ function renderDriverMer(){
   // «💬 Legg til kommentar» knyttes til driverVelgBilId (bilen sjåføren
   // faktisk kjører i denne sesjonen), IKKE til hele bilparken. Se renderDriverNyKommentar().
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">☰ Mer</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;">${luc('more-horizontal')} Mer</h2>
     <div class="panel">
-      <button type="button" class="btn secondary" id="dm-legg-til-kommentar-btn" style="width:100%;justify-content:flex-start;min-height:52px;margin-bottom:10px;">💬 Legg til kommentar</button>
-      <button type="button" class="btn secondary" id="dm-bytt-bil-btn" style="width:100%;justify-content:flex-start;min-height:52px;">🔁 Bytt bil</button>
+      <button type="button" class="btn secondary" id="dm-legg-til-kommentar-btn" style="width:100%;justify-content:flex-start;min-height:52px;margin-bottom:10px;">${luc('message-square')} Legg til kommentar</button>
+      <button type="button" class="btn secondary" id="dm-bytt-bil-btn" style="width:100%;justify-content:flex-start;min-height:52px;">${luc('refresh-cw')} Bytt bil</button>
     </div>
   `;
 }
@@ -7369,7 +7411,7 @@ function renderDriverNyKommentar(){
   const v = vehicles.find(x => x.id === driverVelgBilId);
   return `
     <div class="backrow"><button class="backbtn" id="dnk-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">💬 Legg til kommentar</h2>
+    <h2 style="font-size:19px;margin-bottom:6px;">${luc('message-square')} Legg til kommentar</h2>
     <div class="required-hint" style="margin-bottom:16px;">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
     <div class="panel">
       <div class="field" style="margin-bottom:14px;">
@@ -7472,47 +7514,47 @@ function renderMobilHjem(){
     kpi: `
     <div class="dash40-grid4">
       <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis">🚨</span>
+        <span class="flis">${luc('siren')}</span>
         <span class="dash40-kpi-num" style="${d.krHarKritisk ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
         <span class="dash40-kpi-label">Aktive saker</span>
-        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} kritisk${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
+        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} forfalt${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
       </button>
       <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">📅</span>
+        <span class="flis">${luc('calendar-days')}</span>
         <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
         <span class="dash40-kpi-label">Kommende frister</span>
         <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
       </button>
     </div>`,
     bestill: `
-    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
+    <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
     <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">🔧</span>
+        <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">🚦</span>
+        <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
         <span class="dash40-bestill-sub">Verkstedtime for EU</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">🛞</span>
+        <span class="flis lg">${luc('circle-dot')}</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Planlegg dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">🏭</span>
+        <span class="flis lg">${luc('factory')}</span>
         <span class="dash40-bestill-tittel">Verkstedtime</span>
         <span class="dash40-bestill-sub">Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">💥</span>
+        <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
         <span class="dash40-bestill-sub">Carglass — ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
@@ -7521,7 +7563,7 @@ function renderMobilHjem(){
     kommende: `
     <div class="panel" style="margin-bottom:14px;">
       <div class="p38-panel-head">
-        <div class="tittel">📋 Kommende oppgaver</div>
+        <div class="tittel">${luc('calendar-clock')} Kommende oppgaver</div>
         <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${d.kommendeOppgaver.length}) →</button>
       </div>
       ${d.kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
@@ -7562,18 +7604,18 @@ function renderMobilHjem(){
         <div class="p41-brand-sub">Dine biler. Full kontroll.</div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">🔔${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
-        <button type="button" class="p41-iconbtn" id="mobil-konto-btn" title="Konto og meny">👤</button>
+        <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
+        <button type="button" class="p41-iconbtn" id="mobil-konto-btn" title="Konto og meny">${luc('user-round')}</button>
       </div>
     </div>
 
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
-      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer.
+      ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer.
     </div>` : ''}
 
     <div class="p41-sok">
-      <span style="color:var(--muted);">🔎</span>
+      <span style="color:var(--muted);">${luc('search')}</span>
       <input type="text" id="mobil-sok" placeholder="Søk bil, reg.nr eller løyvenummer" value="${esc(filterSearch)}" autocomplete="off">
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
@@ -7611,11 +7653,11 @@ function attachMobilHjemListeners(){
 // goTo()/screenHistory-mekanikk som resten av appen. ☰ Mer åpner den eksisterende
 // drawer-menyen (openDrawer()), som er uendret.
 const MOBIL_BUNNMENY = [
-  {key:'dashboard', ikon:'🏠', label:'Hjem'},
-  {key:'register',  ikon:'🚐', label:'Biler'},
-  {key:'bestill',   ikon:'➕', label:'Bestill'},
-  {key:'kalender',  ikon:'📅', label:'Kalender'},
-  {key:'mer',       ikon:'☰',  label:'Mer'}
+  {key:'dashboard', ikon:luc('house'), label:'Hjem'},
+  {key:'register',  ikon:luc('truck'), label:'Biler'},
+  {key:'bestill',   ikon:luc('wrench'), label:'Bestill'},
+  {key:'kalender',  ikon:luc('calendar-days'), label:'Kalender'},
+  {key:'mer',       ikon:luc('more-horizontal'), label:'Mer'}
 ];
 function renderMobilBunnmenyHtml(){
   const merTeller = totaltKreverHandlingCount();
@@ -7645,6 +7687,19 @@ function attachMobilBunnmenyListeners(){
 // flatePlanleggingData, vehicleServiceStatus, vehicleEuKontrollStatus osv.) er uendret.
 // markupen for EN rad i "Kommende oppgaver" er flyttet ut hit UENDRET, slik at
 // desktopens Dashboard og mobilens forside viser nøyaktig samme rad fra samme kode.
+// Prioritet 58: ikonet og fargetonen for en rad i "Kommende oppgaver" slaas nå opp
+// fra EN tabell via o.art i stedet for aa sammenligne emoji-strenger. Fargene er
+// identiske med den gamle emoji-sammenligningen (service=green, dekk=orange,
+// EU=blue, verkstedtime=purple, resten=amber) — kun glyfen er byttet til Lucide.
+const KOMMENDE_ART = {
+  service:        {ikon:'wrench',       farge:'green'},
+  dekk:           {ikon:'circle-dot',   farge:'orange'},
+  eu:             {ikon:'shield-check', farge:'blue'},
+  verksted:       {ikon:'factory',      farge:'purple'},
+  ruteskift:      {ikon:'car-front',    farge:'amber'},
+  'eu-ruteskift': {ikon:'shield-check', farge:'amber'},
+  oppfolging:     {ikon:'clock-3',      farge:'amber'}
+};
 function kommendeOppgaveRadHtml(o){
               const v = vehicles.find(x => x.id === o.vehicleId);
               const nav = o.mal === 'service' ? `data-goto-service="${o.vehicleId}"`
@@ -7652,7 +7707,8 @@ function kommendeOppgaveRadHtml(o){
                 : o.mal === 'sak' ? `data-goto-sak="${o.sakId}"`
                 : o.mal === 'verksted' ? `data-goto-vt="${o.vtId}"`
                 : `data-goto-bilkort="${o.vehicleId}"`;
-              const farge = o.ikon === '🔧' ? 'green' : (o.ikon === '🛞' ? 'orange' : (o.ikon === '🚦' ? 'blue' : (o.ikon === '🏭' ? 'purple' : 'amber')));
+              const art = KOMMENDE_ART[o.art] || KOMMENDE_ART.oppfolging;
+              const farge = art.farge;
               const tint = `var(--${farge}-soft)`;
               // Datoen skal stå ÉN gang: som dato/klokkeslett øverst, og som en fargekodet
               // "hvor lenge til"-pille under. Km-baserte varsler (uten dato) beholder sin
@@ -7666,7 +7722,7 @@ function kommendeOppgaveRadHtml(o){
               const pilleHast = o.hast === 0 || (dagerIgjen !== null && dagerIgjen <= 2);
               return `
               <div class="p38-task" ${nav}>
-                <span class="flis sm" style="--tint:${tint};">${o.ikon}</span>
+                <span class="flis sm" style="--tint:${tint};">${luc(art.ikon)}</span>
                 <div>
                   <div class="p38-task-t1">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(o.tittel)}</div>
                   ${o.detalj ? `<div class="p38-task-t2">${esc(o.detalj)}</div>` : ''}
@@ -7682,14 +7738,17 @@ function kommendeOppgaveRadHtml(o){
 // rad, samme farger og samme klikkmål på både desktop og mobil.
 function dashKreverRadHtml(item){
             const v = vehicles.find(x => x.id === item.vehicleId);
-            const tone = item.prioritet === 'Kritisk' ? 'var(--red)' : (item.prioritet === 'Høy' ? 'var(--orange)' : 'var(--amber)');
-            const tint = item.prioritet === 'Kritisk' ? 'var(--red-soft)' : (item.prioritet === 'Høy' ? 'var(--orange-soft)' : 'var(--amber-soft)');
+            // Prioritet 59: fargetonen kommer na fra HASTEGRAD utledet av
+            // oppfolgingsdatoen, ikke fra en manuelt satt saksprioritet.
+            // Forfalt = rod, I dag = oransje, Uten frist = amber.
+            const tone = item.hast === 'Forfalt' ? 'var(--red)' : (item.hast === 'I dag' ? 'var(--orange)' : 'var(--amber)');
+            const tint = item.hast === 'Forfalt' ? 'var(--red-soft)' : (item.hast === 'I dag' ? 'var(--orange-soft)' : 'var(--amber-soft)');
             return `
             <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
               <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
               <span>
                 <b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} · ${esc(item.linje1)}</b>
-                <span>${item.linje2 ? esc(item.linje2) + ' · ' : ''}<span style="color:${tone};font-weight:600;">${item.prioritet}</span> · ➡️ ${esc(item.aksjon)}</span>
+                <span>${item.linje2 ? esc(item.linje2) + ' · ' : ''}<span style="color:${tone};font-weight:600;">${item.hast}</span> · ${luc('arrow-right')} ${esc(item.aksjon)}</span>
               </span>
             </div>`;
 }
@@ -7705,7 +7764,7 @@ function bilparkStatusInnholdHtml(hbp, hDriftCount){
   const grupper = [
     {key:'operativ', ikon:'🟢', label:'Operative', antall: hbp['operativ'] || 0, nav:'data-goto-biloversikt-filter="operativ"'},
     {key:'ma-folges-opp', ikon:'🟡', label:'Må følges opp',
-      antall: (hbp['oppfolging']||0) + (hbp['verksted']||0) + (hbp['kritisk']||0) + (hbp['reserve']||0) + (hbp['ikke-kontrollert']||0),
+      antall: (hbp['oppfolging']||0) + (hbp['verksted']||0) + (hbp['reserve']||0) + (hbp['ikke-kontrollert']||0),
       nav:'data-quick-page="register"'},
     {key:'ute-av-drift', ikon:'🔴', label:'Ute av drift', antall: hbp['ute-av-drift'] || 0, nav:'data-quick-page="register"'}
   ];
@@ -7716,7 +7775,7 @@ function bilparkStatusInnholdHtml(hbp, hDriftCount){
               <span class="n">${g.antall}</span>
               <span class="l">${g.label}</span>
             </div>`).join('')}
-          <div class="required-hint" style="margin-top:10px;">🚚 <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
+          <div class="required-hint" style="margin-top:10px;">${luc('truck')} <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
   `;
 }
 
@@ -7749,8 +7808,10 @@ function dashboardBeregning(){
   // sakKreverHandlingSamletMaster()-resultatet (kritisk går alltid i første liste,
   // resten i andre — ingen sak kan havne i begge eller ingen av dem).
   const sakerKreverHandlingMaster = aktiveSaker.filter(sakKreverHandlingSamletMaster);
-  const kritiskeSakerAlle = sakerKreverHandlingMaster.filter(s => s.priority === 'kritisk');
-  const oppfolgingKreverHandlingSaker = sakerKreverHandlingMaster.filter(s => s.priority !== 'kritisk');
+  // Prioritet 59: splittes naa paa HASTEGRAD utledet av oppfolgingsdatoen, ikke paa
+  // manuelt satt prioritet. "Forfalt" = oppfolgingsdato passert, "i dag" = forfaller i dag.
+  const kritiskeSakerAlle = sakerKreverHandlingMaster.filter(s => sakOppfolgingStatus(s) === 'forfalt');
+  const oppfolgingKreverHandlingSaker = sakerKreverHandlingMaster.filter(s => sakOppfolgingStatus(s) !== 'forfalt');
   const uteAvDriftBiler = vehicles.filter(v => v.uteAvDrift);
   // "Se alle"-tallet på Dashboard skal ALDRI vise mer enn det som faktisk finnes i Aktive
   // Saker — derfor telles KUN saker her, ikke kjøretøyflagg (ute av drift/mangler kontroll
@@ -7782,7 +7843,7 @@ function dashboardBeregning(){
   // returnerte markup — "+X biler ute av drift — ikke saker, vises kun her og i Biloversikt").
   kritiskeSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
-    dashKreverListe.push({sort:0, ikon:'🔴', prioritet:'Kritisk', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
+    dashKreverListe.push({sort:0, ikon:luc('triangle-alert'), hast:'Forfalt', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
   // EU-kontroll vises i Krever handling nå "når relevant" —
   // her definert som forfalt (kjøring med utløpt EU-kontroll er et compliance-/
@@ -7791,7 +7852,7 @@ function dashboardBeregning(){
   // skal fortsatt kun vise det som faktisk krever handling NÅ (Less is More).
   euForfalteBiler.forEach(v => {
     const st = vehicleEuKontrollStatus(v);
-    dashKreverListe.push({sort:0, ikon:'🚦', prioritet:'Kritisk', vehicleId:v.id, linje1:'EU-kontroll forfalt', linje2: st.tekst, aksjon:'Bestill EU-kontroll'});
+    dashKreverListe.push({sort:0, ikon:luc('shield-check'), hast:'Forfalt', vehicleId:v.id, linje1:'EU-kontroll forfalt', linje2: st.tekst, aksjon:'Bestill EU-kontroll'});
   });
   // Service vises i Krever handling nå/Prioriterte biler "når
   // relevant" — samme prinsipp og samme sort-nivå som EU-kontroll over. Kun forfalt (ikke
@@ -7799,22 +7860,22 @@ function dashboardBeregning(){
   // Krever handling nå skal fortsatt kun vise det som faktisk krever handling NÅ.
   serviceForfalteBiler.forEach(v => {
     const st = vehicleServiceStatus(v);
-    dashKreverListe.push({sort:0, ikon:'🔧', prioritet:'Kritisk', vehicleId:v.id, linje1:'Service forfalt', linje2: st.tekst, aksjon:'Bestill service'});
+    dashKreverListe.push({sort:0, ikon:luc('wrench'), hast:'Forfalt', vehicleId:v.id, linje1:'Service forfalt', linje2: st.tekst, aksjon:'Bestill service'});
   });
   // Dekkskifttime: samme sort-nivå/prinsipp som EU-kontroll/Service over —
   // kun et faktisk FORFALT dekkskift (sesongterskel passert, feil sesong montert) vises her,
   // ikke et "nærmer seg"-varsel (det dekkes fortsatt av Planlegging, se flatePlanleggingData()).
   dekkKreverSkiftBiler.forEach(v => {
-    dashKreverListe.push({sort:0, ikon:'🛞', prioritet:'Kritisk', vehicleId:v.id, linje1:'Dekkskift nødvendig', linje2: v.dekk === 'vinter' ? 'Vinterdekk fortsatt montert' : 'Sommerdekk fortsatt montert (eller ikke registrert)', aksjon:'Bestill dekkskift'});
+    dashKreverListe.push({sort:0, ikon:luc('circle-dot'), hast:'Forfalt', vehicleId:v.id, linje1:'Dekkskift nødvendig', linje2: v.dekk === 'vinter' ? 'Vinterdekk fortsatt montert' : 'Sommerdekk fortsatt montert (eller ikke registrert)', aksjon:'Bestill dekkskift'});
   });
   oppfolgingKreverHandlingSaker.forEach(s => {
     const op = sakOppfolgingStatus(s);
     const linje2 = op === 'forfalt' ? `Oppfølging forfalt med ${-daysUntil(s.followUpDate)} dag${-daysUntil(s.followUpDate)===1?'':'er'}` : sakVarslingTekst(s);
     const aksjon = s.nextAction || (op === 'forfalt' ? 'Følg opp forfalt sak' : 'Følg opp sak i dag');
-    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: op === 'forfalt' ? '🔴' : '🟠', prioritet: op === 'forfalt' ? 'Høy' : 'Normal', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2, aksjon});
+    dashKreverListe.push({sort: op === 'forfalt' ? 1 : 2, ikon: luc('clock-3'), hast: op === 'forfalt' ? 'Forfalt' : (op === 'idag' ? 'I dag' : 'Uten frist'), vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2, aksjon});
   });
   aktiveVehicles.filter(v => !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)).forEach(v => {
-    dashKreverListe.push({sort:3, ikon:'🟡', prioritet:'Normal', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:'', aksjon:'Registrer kontroll'});
+    dashKreverListe.push({sort:3, ikon:luc('clipboard-check'), hast:'I dag', vehicleId:v.id, linje1:'Kontroll mangler i dag', linje2:'', aksjon:'Registrer kontroll'});
   });
   dashKreverListe.sort((a,b) => a.sort - b.sort);
   const dashKreverTop5 = dashKreverListe.slice(0, 5);
@@ -7833,27 +7894,27 @@ function dashboardBeregning(){
   // (poster uten dato, dvs. km-baserte servicevarsler, legges bakerst innenfor sin gruppe).
   const kommendeOppgaver = [];
   plan7.service.forEach(x => kommendeOppgaver.push({
-    hast: x.status.status === 'forfalt' ? 0 : 1, sortDato:'9999-99-99', ikon:'🔧', tittel:'Service',
+    hast: x.status.status === 'forfalt' ? 0 : 1, sortDato:'9999-99-99', art:'service', tittel:'Service',
     vehicleId:x.v.id, naar:x.status.tekst, detalj:'Km-basert serviceintervall', mal:'service'}));
   plan7.planlagtService.forEach(t => kommendeOppgaver.push({
-    hast:1, sortDato:t.dato, ikon:'🔧', tittel:'Planlagt service',
+    hast:1, sortDato:t.dato, art:'service', tittel:'Planlagt service',
     vehicleId:t.vehicleId, naar:fmt(t.dato) + (t.tidspunkt ? ' kl. ' + t.tidspunkt : ''), detalj:t.verksted || '', mal:'service'}));
   plan7.dekk.forEach(x => kommendeOppgaver.push({
-    hast: x.status.status === 'gammel' ? 0 : 1, sortDato:'9999-99-99', ikon:'🛞', tittel:'Dekk',
+    hast: x.status.status === 'gammel' ? 0 : 1, sortDato:'9999-99-99', art:'dekk', tittel:'Dekk',
     vehicleId:x.v.id, naar:x.status.tekst, detalj:'Dekkalder (DOT)', mal:'dekk'}));
   plan7.planlagtDekkskift.forEach(t => kommendeOppgaver.push({
-    hast:1, sortDato:t.dato, ikon:'🛞', tittel:'Planlagt dekkskift',
+    hast:1, sortDato:t.dato, art:'dekk', tittel:'Planlagt dekkskift',
     vehicleId:t.vehicleId, naar:fmt(t.dato) + (t.tidspunkt ? ' kl. ' + t.tidspunkt : ''), detalj:t.verksted || '', mal:'dekk'}));
   plan7.verksted.forEach(t => kommendeOppgaver.push({
-    hast: t.dato === today ? 0 : 1, sortDato:t.dato, ikon: vtTypeIkon(t),
+    hast: t.dato === today ? 0 : 1, sortDato:t.dato, art: vtTypeArt(t),
     tittel: vtTypeTittel(t),
     vehicleId:t.vehicleId, naar:fmt(t.dato) + (t.tidspunkt ? ' kl. ' + t.tidspunkt : ''), detalj:t.verksted || '',
     mal:'verksted', vtId:t.id, sakId:t.sakId}));
   plan7.euKontroll.forEach(x => kommendeOppgaver.push({
-    hast: x.status.status === 'forfalt' ? 0 : 1, sortDato: x.v.euGodkjentTil || '9999-99-99', ikon:'🚦', tittel:'EU-kontroll',
+    hast: x.status.status === 'forfalt' ? 0 : 1, sortDato: x.v.euGodkjentTil || '9999-99-99', art:'eu', tittel:'EU-kontroll',
     vehicleId:x.v.id, naar:x.status.tekst, detalj: x.v.euGodkjentTil ? 'Frist ' + fmt(x.v.euGodkjentTil) : '', mal:'bilkort'}));
   plan7.oppfolging.forEach(sak => kommendeOppgaver.push({
-    hast:1, sortDato:sak.followUpDate || '9999-99-99', ikon:'📋', tittel:sakKortOverskrift(sak),
+    hast:1, sortDato:sak.followUpDate || '9999-99-99', art:'oppfolging', tittel:sakKortOverskrift(sak),
     vehicleId:sak.vehicleId, naar:'Oppfølging ' + fmt(sak.followUpDate), detalj:SAK_TYPE_LABEL[sak.caseType] || 'Sak',
     mal:'sak', sakId:sak.id}));
   kommendeOppgaver.sort((a,b) => (a.hast - b.hast) || a.sortDato.localeCompare(b.sortDato));
@@ -7987,11 +8048,11 @@ function renderDashboard(){
         <span class="flis">${luc('calendar-days')}</span>
         <span class="dash40-kpi-num">${upcomingVT.length}</span>
         <span class="dash40-kpi-label">Kalender</span>
-        <span class="dash40-kpi-link">${nearestVT ? '⭐ Neste: ' + fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'} →</span>
+        <span class="dash40-kpi-link">${nearestVT ? luc('star') + ' Neste: ' + fmt(nearestVT.dato) + ' – ' + esc((vehicles.find(x => x.id === nearestVT.vehicleId) || {}).regnr || '?') : 'Ingen planlagt'} →</span>
       </button>
     </div>`,
     bestill: `
-    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester</div>
+    <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
     <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
@@ -8021,7 +8082,7 @@ function renderDashboard(){
     kommende: `
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head">
-            <div class="tittel">📋 Kommende oppgaver</div>
+            <div class="tittel">${luc('calendar-clock')} Kommende oppgaver</div>
             <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${kommendeOppgaver.length}) →</button>
           </div>
           ${kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
@@ -8034,7 +8095,7 @@ function renderDashboard(){
     biloversikt: `
         <div class="panel" style="margin-bottom:16px;">
         <div class="p38-panel-head">
-          <div class="tittel">🚐 Biloversikt</div>
+          <div class="tittel">${luc('truck')} Biloversikt</div>
           <button type="button" class="p38-lenke" data-quick-page="register">Se alle biler →</button>
         </div>
         ${biloversiktBiler.length === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå.</div>` : `
@@ -8052,17 +8113,17 @@ function renderDashboard(){
                 // detaljerte hovedstatusene (se HOVEDSTATUS_ORDER) komprimeres til fire enkle
                 // indikatorer her. Full detalj (HOVEDSTATUS_LABEL) ligger fortsatt i title-
                 // attributtet (hover) og uendret på selve Bil-siden/Kjøretøyprofilen.
-                const dash50Ikon = {operativ:'🟢', oppfolging:'🟡', verksted:'🟡', reserve:'🟡', kritisk:'🔴', 'ute-av-drift':'🔴', 'ikke-kontrollert':'⚪'}[hs] || '⚪';
+                const dash50Ikon = {operativ:'🟢', oppfolging:'🟡', verksted:'🟡', reserve:'🟡', 'ute-av-drift':'🔴', 'ikke-kontrollert':'⚪'}[hs] || '⚪';
                 return `
                 <tr data-goto-bilkort="${v.id}">
                   <td>
                     <div class="p38-bil">
-                      <span class="flis sm" style="--tint:var(--surface-3);">${v.kategori === 'lastebil' ? '🚛' : '🚐'}</span>
+                      <span class="flis sm" style="--tint:var(--surface-3);">${luc('truck')}</span>
                       <span><b>${esc(v.bilnummer || '–')}</b><span>${esc(v.merke || '')} ${esc(v.modell || '')}</span></span>
                     </div>
                   </td>
                   <td style="font-size:18px;" title="${esc(HOVEDSTATUS_LABEL[hs] || '')}">${dash50Ikon}</td>
-                  <td title="${sjafor ? 'Aktiv sjåfør nå' : (sisteSjafor ? 'Sjåfør i dag' : 'Ingen aktiv sjåfør — bilen er tilgjengelig')}">${sjafor ? '👤 ' + esc(sjafor) : (sisteSjafor ? '🕓 ' + esc(sisteSjafor) : '<span style="color:var(--muted);">—</span>')}</td>
+                  <td title="${sjafor ? 'Aktiv sjåfør nå' : (sisteSjafor ? 'Sjåfør i dag' : 'Ingen aktiv sjåfør — bilen er tilgjengelig')}">${sjafor ? luc('user-round') + ' ' + esc(sjafor) : (sisteSjafor ? '🕓 ' + esc(sisteSjafor) : '<span style="color:var(--muted);">—</span>')}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -8073,13 +8134,13 @@ function renderDashboard(){
         </div>`,
     bilparkstatus: `
         <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">🚚 Bilpark status</div></div>
+          <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
           ${bilparkStatusInnholdHtml(hbp, hDriftCount)}
         </div>`,
     kreverhandling: `
         <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);' : ''}">
           <div class="p38-panel-head">
-            <div class="tittel">${krHarKritisk ? '🔴' : (dashTotalHandlinger > 0 ? '🟡' : '✅')} Krever handling nå</div>
+            <div class="tittel" style="color:${krHarKritisk ? 'var(--red)' : (dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
             ${dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''} →</button>` : ''}
           </div>
           ${dashKreverListe.length === 0 ? `
@@ -8098,7 +8159,7 @@ function renderDashboard(){
           ` : `
           ${prioriterteBilerListe.map(item => {
             const v = vehicles.find(x => x.id === item.vehicleId);
-            const tint = item.prioritet === 'Kritisk' ? 'var(--red-soft)' : (item.prioritet === 'Høy' ? 'var(--orange-soft)' : 'var(--amber-soft)');
+            const tint = item.hast === 'Forfalt' ? 'var(--red-soft)' : (item.hast === 'I dag' ? 'var(--orange-soft)' : 'var(--amber-soft)');
             return `
             <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
               <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
@@ -8121,13 +8182,13 @@ function renderDashboard(){
         <div class="p38-hi-sub">${displayTittel ? esc(displayTittel) + ' · ' : ''}${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
-        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">🔔${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
+        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
       </div>
     </div>
 
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
-      ⚙️ Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
+      ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
     ${sakFaseTellereHtml(sakFaseAntall)}
@@ -8166,7 +8227,7 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-goto-aktivesaker-filter]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const kind = el.dataset.gotoAktivesakerFilter;
-    if(kind === 'kritisk') goToAktiveSakerFiltered({prioritet: 'kritisk'});
+    if(kind === 'kritisk') goToAktiveSakerFiltered({oppfolging: 'forfalt', kreverHandling: true});
     else if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
     else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
@@ -8311,7 +8372,7 @@ function renderRegister(){
         <option value="operativ" ${filterHovedstatus==='operativ'?'selected':''}>🟢 Operative</option>
         <option value="oppfolging" ${filterHovedstatus==='oppfolging'?'selected':''}>🟡 Under oppfølging</option>
         <option value="verksted" ${filterHovedstatus==='verksted'?'selected':''}>🟠 Verksted bestilt</option>
-        <option value="kritisk" ${filterHovedstatus==='kritisk'?'selected':''}>🔴 Kritiske</option>
+        <option value="ute-av-drift" ${filterHovedstatus==='ute-av-drift'?'selected':''}>🔴 Ute av drift</option>
         <option value="har-aktiv-sjafor" ${filterHovedstatus==='har-aktiv-sjafor'?'selected':''}>🚚 Har aktiv sjåfør</option>
       </select>
       <select id="f-loyve">
@@ -8378,7 +8439,7 @@ function renderRegister(){
             <div class="panel dash-group-card">
               <div class="group-card-head" data-toggle-register-gruppe="${k}">
                 <div>
-                  <div class="group-card-title">${kategoriIkon(k)} ${esc(kategoriNavn(k))}</div>
+                  <div class="group-card-title">${kategoriIkonLucide(k)} ${esc(kategoriNavn(k))}</div>
                   <div class="group-card-sub">${gruppeBiler.length} ${gruppeBiler.length===1?'bil':'biler'}</div>
                 </div>
                 <span class="chevron ${open?'open':''}">⌄</span>
@@ -8458,7 +8519,7 @@ function galleryCard(v, erMinAktiveBil){
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
         <span class="p38-pill" style="--tint:${aktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${aktiveVarsler.length > 0 ? 'var(--red)' : 'var(--green-ink)'};">${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen varsellamper'}</span>
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
-        <span class="p38-pill" ${v.uteAvDrift ? 'style="--tint:var(--surface-3);--tone:var(--red);"' : ''}>${kategoriIkon(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}</span>
+        <span class="p38-pill" ${v.uteAvDrift ? 'style="--tint:var(--surface-3);--tone:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}</span>
       </div>
     </div>
   `;
@@ -8475,7 +8536,7 @@ function damageCard(d, showVehicle){
         <div class="dmg-text">
           <div class="main">${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(d.beskrivelse)}</div>
           ${d.kommentar ? `<div class="desc">${esc(d.kommentar)}</div>` : ''}
-          ${d.estimertKostnad !== undefined && d.estimertKostnad !== null && d.estimertKostnad !== '' ? `<div class="desc">💰 Estimert kostnad: ${fmtKr(d.estimertKostnad)}</div>` : ''}
+          ${d.estimertKostnad !== undefined && d.estimertKostnad !== null && d.estimertKostnad !== '' ? `<div class="desc">${luc('circle-dollar-sign')} Estimert kostnad: ${fmtKr(d.estimertKostnad)}</div>` : ''}
           <div class="dmg-meta">Meldt av ${esc(d.registrertAv)} · ${fmt(d.dato)}</div>
         </div>
         <div class="dmg-badges">
@@ -8597,7 +8658,7 @@ function kontrollHistoryCard(k){
         ${avvik ? lines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>Ingen avvik</div>'}
       </div>
       <div class="kt-history-meta">Sjåfør: ${esc(k.sjafor)} · kl. ${esc(k.tidspunkt)}</div>
-      ${isAdmin ? `<div class="panel-actions" style="margin-top:10px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">🗑️ Slett kontroll</button></div>` : ''}
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:10px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">${luc('trash-2')} Slett kontroll</button></div>` : ''}
     </div>
   `;
 }
@@ -8628,7 +8689,7 @@ function kontrollHistorikkRow(k){
         <div class="ov-item"><span class="ov-label">Registrerte skader</span><span class="ov-value">${esc(skadeTekst)}</span></div>
       </div>
       ${k.kommentar ? `<div class="kt-history-meta">Kommentar: ${esc(k.kommentar)}</div>` : ''}
-      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">🗑️ Slett kontroll</button></div>` : ''}
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">${luc('trash-2')} Slett kontroll</button></div>` : ''}
     </div>
   `;
 }
@@ -8649,7 +8710,7 @@ function varsellysHistorikkRow(w){
         <div class="ov-item"><span class="ov-label">Kvittert dato</span><span class="ov-value">${fmt(w.kvittertDato)}</span></div>
         <div class="ov-item"><span class="ov-label">Kvittert av</span><span class="ov-value">${esc(w.kvittertAv || '—')}</span></div>
       </div>
-      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-vlh="${w.id}">🗑️ Slett historikk</button></div>` : ''}
+      ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-vlh="${w.id}">${luc('trash-2')} Slett historikk</button></div>` : ''}
     </div>
   `;
 }
@@ -8775,7 +8836,7 @@ function renderDekkoversikt(){
       const gruppeKjoretoy = sortert.filter(v => v.kategori === k);
       return `
       <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+        <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
         <div class="acc-list">
           ${gruppeKjoretoy.map(v => {
             const open = dekkOversiktOpenVehicles.has(v.id);
@@ -8790,7 +8851,7 @@ function renderDekkoversikt(){
             <div class="acc-row ${open ? 'expanded' : ''}">
               <div class="acc-head" data-toggle-dekk-vehicle="${v.id}">
                 <div class="acc-head-left"><div class="flag-name">${varselIkon} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-                <div class="acc-head-right"><span class="chevron">⌄</span></div>
+                <div class="acc-head-right"><span class="chevron">${luc('chevron-down')}</span></div>
               </div>
               ${open ? `<div class="acc-body">
                 <div class="ov-grid" style="margin-bottom:14px;">
@@ -8919,8 +8980,8 @@ function renderKontrolloversikt(){
         return `
         <div class="acc-row ${open?'expanded':''}">
           <div class="acc-head" data-toggle-ko-vehicle="${v.id}">
-            <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer||'')} – ${esc(v.regnr)}</div></div>
-            <div class="acc-head-right"><span class="group-count">${kList.length} kontroll${kList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+            <div class="acc-head-left"><div class="flag-name">${luc('truck')} ${esc(v.bilnummer||'')} – ${esc(v.regnr)}</div></div>
+            <div class="acc-head-right"><span class="group-count">${kList.length} kontroll${kList.length===1?'':'er'}</span><span class="chevron">${luc('chevron-down')}</span></div>
           </div>
           ${open ? `<div class="acc-body"><div class="dmg-list">${kList.map(k => kontrollHistorikkRow(k)).join('')}</div></div>` : ''}
         </div>`;
@@ -8974,7 +9035,7 @@ function renderVarslerOversikt(){
       const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
       return `
       <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+        <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
         <div class="acc-list">
           ${gruppeKjoretoy.map(v => {
             const wList = byVehicle.get(v.id) || [];
@@ -8983,11 +9044,11 @@ function renderVarslerOversikt(){
             <div class="acc-row varsel ${open ? 'expanded' : ''}">
               <div class="acc-head" data-toggle-varsler-vehicle="${v.id}">
                 <div class="acc-head-left">
-                  <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
+                  <div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
                 </div>
                 <div class="acc-head-right">
                   <span class="group-count">${wList.length} varsel${wList.length===1?'':'er'}</span>
-                  <span class="chevron">⌄</span>
+                  <span class="chevron">${luc('chevron-down')}</span>
                 </div>
               </div>
               ${open ? `<div class="acc-body">
@@ -9002,7 +9063,7 @@ function renderVarslerOversikt(){
     }).join('')}
     ${foreldreloseVarsler.length > 0 ? `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
       <div class="dmg-list">${foreldreloseVarsler.map(w => varsellysCard(w)).join('')}</div>
     </div>` : ''}
 
@@ -9028,7 +9089,7 @@ function renderVarslerOversikt(){
         const gruppeKjoretoy = beroerteKjoretoyH.filter(v => v.kategori === k);
         return `
         <div style="margin-bottom:22px;">
-          <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+          <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
           <div class="acc-list">
             ${gruppeKjoretoy.map(v => {
               const wList = byVehicleH.get(v.id) || [];
@@ -9036,8 +9097,8 @@ function renderVarslerOversikt(){
               return `
               <div class="acc-row varsel ${open ? 'expanded' : ''}">
                 <div class="acc-head" data-toggle-vlh-vehicle="${v.id}">
-                  <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-                  <div class="acc-head-right"><span class="group-count">${wList.length} kvitterte varsel${wList.length===1?'':'er'}</span><span class="chevron">⌄</span></div>
+                  <div class="acc-head-left"><div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+                  <div class="acc-head-right"><span class="group-count">${wList.length} kvitterte varsel${wList.length===1?'':'er'}</span><span class="chevron">${luc('chevron-down')}</span></div>
                 </div>
                 ${open ? `<div class="acc-body"><div class="dmg-list">${wList.map(w => varsellysHistorikkRow(w)).join('')}</div></div>` : ''}
               </div>`;
@@ -9046,7 +9107,7 @@ function renderVarslerOversikt(){
         </div>`;
       }).join('') + (foreldreloseH.length > 0 ? `
       <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+        <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
         <div class="dmg-list">${foreldreloseH.map(w => varsellysHistorikkRow(w)).join('')}</div>
       </div>` : '');
     })()}
@@ -9166,7 +9227,7 @@ function bilkortAccordionRow(key, title, count, bodyHtml){
         <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
         <div class="acc-head-right">
           ${count !== null ? `<span class="group-count">${count}</span>` : ''}
-          <span class="chevron">⌄</span>
+          <span class="chevron">${luc('chevron-down')}</span>
         </div>
       </div>
       ${open ? `<div class="acc-body">${bodyHtml}</div>` : ''}
@@ -9213,7 +9274,6 @@ function renderBilkort(){
   // ---- Fase 7 (Bilstatus 2.0 og Kjøretøyprofil) ----
   const hovedstatus = vehicleHovedstatus(v.id);
   const vAktiveSakerListe = vehicleAktiveSaker(v.id);
-  const vKritiskeSakerListe = vehicleKritiskeSaker(v.id);
   const vForfalteOppfolginger = vAktiveSakerListe.filter(s => sakOppfolgingStatus(s) === 'forfalt');
   const vNesteOppfolging = vehicleNesteOppfolging(v.id);
   const vEldsteSak = vehicleEldsteApneSak(v.id);
@@ -9267,7 +9327,6 @@ function renderBilkort(){
       <div class="ov-split-col">
         <div class="ov-grid">
           <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Kritiske saker</span><span class="ov-value">${vKritiskeSakerListe.length}</span></div>
           <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
           <div class="ov-item"><span class="ov-label">Neste handling</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.nextAction ? esc(vNesteOppfolging.nextAction) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
           <div class="ov-item"><span class="ov-label">Neste oppfølgingsdato</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.followUpDate ? fmt(vNesteOppfolging.followUpDate) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
@@ -9317,13 +9376,12 @@ function renderBilkort(){
         <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
           <div class="dmg-top">
             <div class="dmg-text">
-              <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(sakKortOverskrift(s))}</div>
+              <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(sakKortOverskrift(s))}</div>
               <div class="desc">${SAK_TYPE_LABEL[s.caseType] || 'Annet'} · ${SAK_STATUS_LABEL[s.status] || s.status}</div>
               <div class="dmg-meta">Åpen i ${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}${s.nextAction ? ' · ➡️ ' + esc(s.nextAction) : ' · ⚠️ Neste handling mangler'}${s.followUpDate ? ' · 📅 ' + fmt(s.followUpDate) : ''}</div>
             </div>
             <div class="dmg-badges">
-              <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${SAK_PRIORITET_LABEL[s.priority] || 'Normal'}</span>
-            </div>
+              </div>
           </div>
         </div>`;
       }).join('')}
@@ -9448,7 +9506,7 @@ function renderBilkort(){
         return `<div class="acc-row ${openA?'expanded':''}">
           <div class="acc-head" data-toggle-bilkort-skade="aktive">
             <div class="acc-head-left"><div class="flag-name">Aktive skader</div></div>
-            <div class="acc-head-right"><span class="group-count">${vDamagesAktive.length}</span><span class="chevron">⌄</span></div>
+            <div class="acc-head-right"><span class="group-count">${vDamagesAktive.length}</span><span class="chevron">${luc('chevron-down')}</span></div>
           </div>
           ${openA ? `<div class="acc-body">${skadeAktiveBody}</div>` : ''}
         </div>`;
@@ -9458,7 +9516,7 @@ function renderBilkort(){
         return `<div class="acc-row ${openF?'expanded':''}">
           <div class="acc-head" data-toggle-bilkort-skade="fikset">
             <div class="acc-head-left"><div class="flag-name">Fiksede skader</div></div>
-            <div class="acc-head-right"><span class="group-count">${vDamagesFikset.length}</span><span class="chevron">⌄</span></div>
+            <div class="acc-head-right"><span class="group-count">${vDamagesFikset.length}</span><span class="chevron">${luc('chevron-down')}</span></div>
           </div>
           ${openF ? `<div class="acc-body">${skadeFiksetBody}</div>` : ''}
         </div>`;
@@ -9486,7 +9544,7 @@ function renderBilkort(){
         return `<div class="acc-row ${open?'expanded':''}">
           <div class="acc-head" data-toggle-bilkort-historikk="${key}">
             <div class="acc-head-left"><div class="flag-name">${HISTORIKK_SUB_LABEL[key]}</div></div>
-            <div class="acc-head-right">${count !== null ? `<span class="group-count">${count}</span>` : ''}<span class="chevron">⌄</span></div>
+            <div class="acc-head-right">${count !== null ? `<span class="group-count">${count}</span>` : ''}<span class="chevron">${luc('chevron-down')}</span></div>
           </div>
           ${open ? `<div class="acc-body">${HISTORIKK_SUB_BODY[key]}</div>` : ''}
         </div>`;
@@ -9569,7 +9627,7 @@ function renderBilkort(){
   // ---- Faner ----
   const PROFIL_FANER = [
     {key:'oversikt',  label:'📋 Oversikt',  antall:null},
-    {key:'historikk', label:'🕐 Historikk', antall: vehicleHistorikkTidslinje(v.id).length},
+    {key:'historikk', label:'' + luc("clock") + 'Historikk', antall: vehicleHistorikkTidslinje(v.id).length},
     {key:'skader',    label:'⚠️ Skader',    antall: vDamages.length},
     {key:'dekk',      label:'🛞 Dekk',      antall: vDekkHistorikkProfil.length},
     {key:'kostnader', label:'📊 Kostnader', antall: vKostnadsposter.length}
@@ -9611,7 +9669,7 @@ function renderBilkort(){
         </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="btn secondary small" id="profil-rediger-btn">${showBilinfoRediger ? 'Lukk redigering' : '✏️ Rediger informasjon'}</button>
+        <button type="button" class="btn secondary small" id="profil-rediger-btn">${showBilinfoRediger ? 'Lukk redigering' : '' + luc("pencil") + 'Rediger informasjon'}</button>
       </div>
     </div>
 
@@ -9702,7 +9760,7 @@ function renderBilkort(){
             <button type="button" class="p38-lenke" id="profil-rediger-btn-2">Rediger →</button>
           </div>
           <div class="ov-grid">
-            <div class="ov-item"><span class="ov-label">🗂️ Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkon(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
+            <div class="ov-item"><span class="ov-label">${luc('folder-tree')} Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
             <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
             <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span></div>
             <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${esc(v.regnr)}</span></div>
@@ -10240,7 +10298,7 @@ function skadeGroupedSection(itemsFiltered, openSet, toggleAttr, quickCountsFra)
     const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
     return `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
       <div class="acc-list">
         ${gruppeKjoretoy.map(v => {
           const dList = byVehicle.get(v.id).sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
@@ -10249,8 +10307,8 @@ function skadeGroupedSection(itemsFiltered, openSet, toggleAttr, quickCountsFra)
           return `
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
-              <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-              <div class="acc-head-right">${quickCounts}<span class="group-count">${dList.length} skade${dList.length===1?'':'r'}</span><span class="chevron">⌄</span></div>
+              <div class="acc-head-left"><div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+              <div class="acc-head-right">${quickCounts}<span class="group-count">${dList.length} skade${dList.length===1?'':'r'}</span><span class="chevron">${luc('chevron-down')}</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="dmg-list">${dList.map(d => damageCard(d, false)).join('')}</div></div>` : ''}
           </div>`;
@@ -10260,7 +10318,7 @@ function skadeGroupedSection(itemsFiltered, openSet, toggleAttr, quickCountsFra)
   }).join('');
   const foreldreloseHtml = foreldrelose.length > 0 ? `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
       <div class="dmg-list">${foreldrelose.map(d => damageCard(d, true)).join('')}</div>
     </div>` : '';
   return grupper + foreldreloseHtml;
@@ -10523,11 +10581,10 @@ function sakWizardSteg1Html(s){
       ${v ? esc(v.bilnummer) + ' – ' + esc(v.regnr) : 'Ukjent kjøretøy'}
     </div>
     <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;line-height:1.25;margin-bottom:10px;">
-      ${SAK_TYPE_IKON[s.caseType] || '📁'} ${erFlerpunkts ? esc(sakKortOverskrift(s)) : (kortform ? esc(sakProblemLabel(s)).toUpperCase() : esc(sakProblemLabel(s)))}
+      ${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${erFlerpunkts ? esc(sakKortOverskrift(s)) : (kortform ? esc(sakProblemLabel(s)).toUpperCase() : esc(sakProblemLabel(s)))}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:10px;">
       <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${SAK_STATUS_LABEL[s.status] || s.status}</span></div>
-      <div class="ov-item"><span class="ov-label">Prioritet</span><span class="ov-value">${prioritetVurdert ? (SAK_PRIORITET_IKON[s.priority]||'🟡') + ' ' + (SAK_PRIORITET_LABEL[s.priority]||'Normal') : '⚪ Ikke vurdert'}</span></div>
     </div>
     ${erFlerpunkts ? `
     <div style="margin-bottom:12px;">
@@ -10602,9 +10659,7 @@ function sakWizardSteg2Html(s){
   return `
     <h4 style="margin-bottom:10px;">Vurder sak</h4>
     <div class="field" style="margin-bottom:12px;"><label>Prioritet</label>
-      <select id="swz-prioritet-${s.id}">
-        ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${s.priority===p?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
-      </select>
+      <!-- Prioritet 59: prioritetsvalget er fjernet. Saken styres av status. -->
     </div>
     <div class="field" style="margin-bottom:12px;"><label>Status</label>
       <select id="swz-status-${s.id}">
@@ -10840,19 +10895,18 @@ function sakCard(s, showVehicle){
       <div class="dmg-top" data-toggle-edit-sak="${s.id}">
         ${isEditing ? `
         <div class="dmg-text">
-          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(sakProblemLabel(s))}</div>
+          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(sakProblemLabel(s))}</div>
         </div>
         ` : `
         <div class="dmg-text">
-          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(sakKortOverskrift(s))}</div>
+          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(sakKortOverskrift(s))}</div>
           ${showVehicle ? `<div class="desc">${esc(vehicleLabel(v))}</div>` : ''}
-          ${s.nextAction ? `<div class="desc">➡️ ${esc(s.nextAction)}</div>` : ''}
-          ${s.followUpDate ? `<div class="desc">📅 Oppfølging ${fmt(s.followUpDate)}</div>` : ''}
+          ${s.nextAction ? `<div class="desc">${luc('arrow-right')} ${esc(s.nextAction)}</div>` : ''}
+          ${s.followUpDate ? `<div class="desc">${luc('calendar-days')} Oppfølging ${fmt(s.followUpDate)}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
           <div class="required-hint" style="margin:0;white-space:nowrap;">Registrert ${fmt(s.reportedAt)}</div>
           <div class="dmg-badges">
-            <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'} ${SAK_PRIORITET_LABEL[s.priority] || 'Normal'}</span>
             <span class="badge ${statusBadgeKlasse}">${SAK_STATUS_LABEL[s.status] || s.status}</span>
             ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
           </div>
@@ -10885,34 +10939,33 @@ function sakAvvikChecklistHtml(s){
     if(a.caseType === 'varsellampe' && a.sourceId === 'annet' && a.label && a.label !== VARSELLAMPE_LABEL.annet){
       tekst = 'Annet: ' + a.label;
     }
-    const ikon = a.caseType === 'varsellampe' ? (VARSELLAMPE_ICON[a.sourceId] || '❓') : '📋';
-    return `<div style="font-size:12.5px;line-height:1.5;">☑ ${ikon} ${esc(tekst)}</div>`;
+    const ikon = a.caseType === 'varsellampe' ? (VARSELLAMPE_ICON[a.sourceId] || luc('help-circle')) : luc('clipboard-check');
+    return `<div style="font-size:12.5px;line-height:1.5;">${luc('square-check')} ${ikon} ${esc(tekst)}</div>`;
   }).join('')}</div>`;
 }
 function sakKompaktKortHtml(s, fase){
   const v = sakVehicle(s);
   const apen = sakDetaljApneIds.has(s.id);
   const handlingHtml = fase === 'aktiv'
-    ? `<button type="button" class="btn small" data-godta-sak="${s.id}">✅ Godta</button>
-       <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">❌ Avslå</button>`
+    ? `<button type="button" class="btn small" data-godta-sak="${s.id}">${luc('check')} Godta</button>
+       <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">${luc('x')} Avslå</button>`
     : fase === 'oppfolging'
-    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">📅 Registrer verkstedtime</button>`
-    : `<button type="button" class="btn small" data-sak-utfort="${s.id}">✅ Arbeid utført</button>`;
+    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">${luc('calendar-days')} Registrer verkstedtime</button>`
+    : `<button type="button" class="btn small" data-sak-utfort="${s.id}">${luc('check')} Arbeid utført</button>`;
   return `
     <div class="dmg-item">
       <div class="dmg-top" data-toggle-sak-kort="${s.id}">
         <div class="dmg-text">
-          <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
+          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
           <div class="desc">${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')} · ${fmt(s.reportedAt)}</div>
           ${sakAvvikChecklistHtml(s)}
         </div>
-        <span class="badge unset">${SAK_PRIORITET_IKON[s.priority] || '🟡'}</span>
       </div>
       <div class="panel-actions" style="margin-top:8px;gap:8px;">${handlingHtml}</div>
       ${apen ? `
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);">
         <div class="desc" style="margin-bottom:8px;">${esc(s.description || sakProblemLabel(s) || 'Ingen beskrivelse.')}</div>
-        <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">✏️ Avansert redigering →</button>
+        <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">${luc('pencil')} Avansert redigering →</button>
       </div>` : ''}
     </div>`;
 }
@@ -10938,7 +10991,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
     const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
     return `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
       <div class="acc-list">
         ${gruppeKjoretoy.map(v => {
           const sList = byVehicle.get(v.id).sort((a,b) => (b.reportedAt||'').localeCompare(a.reportedAt||''));
@@ -10954,8 +11007,8 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
           return `
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
-              <div class="acc-head-left"><div class="flag-name">${SAK_BILSTATUS_IKON[vehicleSakStatus(v.id)]} 📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-              <div class="acc-head-right"><span class="group-count">${sList.length} sak${sList.length===1?'':'er'}${avvikTekst}</span><span class="chevron">⌄</span></div>
+              <div class="acc-head-left"><div class="flag-name">${SAK_BILSTATUS_IKON[vehicleSakStatus(v.id)]} ${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+              <div class="acc-head-right"><span class="group-count">${sList.length} sak${sList.length===1?'':'er'}${avvikTekst}</span><span class="chevron">${luc('chevron-down')}</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="dmg-list">${sList.map(s => sakCard(s, false)).join('')}</div></div>` : ''}
           </div>`;
@@ -10965,7 +11018,7 @@ function sakGroupedSection(itemsFiltered, openSet, toggleAttr){
   }).join('');
   const foreldreloseHtml = foreldrelose.length > 0 ? `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
       <div class="dmg-list">${foreldrelose.map(s => sakCard(s, true)).join('')}</div>
     </div>` : '';
   return grupper + foreldreloseHtml;
@@ -11084,7 +11137,7 @@ function renderBestillTjenester(){
   const kommende = plan7.planlagtService.length + plan7.planlagtDekkskift.length + plan7.verksted.length;
   return `
     <div class="backrow"><button class="backbtn" id="bestill-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">🛠️ Bestill tjenester</h2>
+    <h2 style="font-size:19px;margin-bottom:6px;">${luc('wrench')} Bestill tjenester</h2>
     <!-- forklaringen («Velg tjeneste, så velger du bil...») er FLYTTET til
          Informasjonsveileder i Innstillinger (se veilederBody i renderInnstillinger()) — kun
          den dynamiske telleren står igjen her, jf. «informative forklaringer skal samles i
@@ -11093,31 +11146,31 @@ function renderBestillTjenester(){
 
     <div class="dash40-grid5">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">🔧</span>
+        <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg service</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">🚦</span>
+        <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
         <span class="dash40-bestill-sub">Velg bil → Verkstedtime for EU</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">🛞</span>
+        <span class="flis lg">${luc('circle-dot')}</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">🏭</span>
+        <span class="flis lg">${luc('factory')}</span>
         <span class="dash40-bestill-tittel">Verkstedtime</span>
         <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">💥</span>
+        <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
         <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
@@ -11126,25 +11179,25 @@ function renderBestillTjenester(){
 
     <div class="panel">
       <div class="p38-panel-head">
-        <div class="tittel">📅 Kommende avtaler</div>
+        <div class="tittel">${luc('calendar-days')} Kommende avtaler</div>
         <button type="button" class="p38-lenke" data-quick-page="kalender">Se kalender →</button>
       </div>
       ${kommende === 0 ? `<div class="empty-note">Ingen planlagte avtaler de neste 7 dagene.</div>` : `
       ${plan7.planlagtService.map(t => { const tv = vtVehicle(t); return `
         <div class="p38-task" data-goto-service="${t.vehicleId}">
-          <span class="flis sm" style="--tint:var(--green-soft);">🔧</span>
+          <span class="flis sm" style="--tint:var(--green-soft);">${luc('wrench')}</span>
           <div><div class="p38-task-t1">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — Planlagt service</div><div class="p38-task-t2">${esc(t.verksted || '')}</div></div>
           <div class="p38-task-right"><div class="p38-task-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div></div>
         </div>`; }).join('')}
       ${plan7.planlagtDekkskift.map(t => { const tv = vtVehicle(t); return `
         <div class="p38-task" data-goto-dekk="${t.vehicleId}">
-          <span class="flis sm" style="--tint:var(--orange-soft);">🛞</span>
+          <span class="flis sm" style="--tint:var(--orange-soft);">${luc('circle-dot')}</span>
           <div><div class="p38-task-t1">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — Planlagt dekkskift</div><div class="p38-task-t2">${esc(t.verksted || '')} · ${DEKK_RETNING_LABEL[t.retning] || esc(t.retning)}</div></div>
           <div class="p38-task-right"><div class="p38-task-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div></div>
         </div>`; }).join('')}
       ${plan7.verksted.map(t => { const tv = vtVehicle(t); return `
         <div class="p38-task" ${t.sakId ? `data-goto-sak="${t.sakId}"` : `data-goto-vt="${t.id}"`}>
-          <span class="flis sm" style="--tint:var(--purple-soft);">${vtTypeIkon(t)}</span>
+          <span class="flis sm" style="--tint:var(--purple-soft);">${vtTypeLucide(t)}</span>
           <div><div class="p38-task-t1">${tv ? esc(vehicleLabel(tv)) : 'Slettet kjøretøy'} — ${vtTypeTittel(t)}</div><div class="p38-task-t2">${esc(t.verksted || '')}</div></div>
           <div class="p38-task-right"><div class="p38-task-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div></div>
         </div>`; }).join('')}
@@ -11418,7 +11471,7 @@ function nyeKommentarerSectionHtml(){
   return `
     <div class="panel" style="margin-bottom:16px;">
       <div class="p38-panel-head">
-        <div class="tittel">📨 Nye kommentarer${liste.length > 0 ? ` (${liste.length})` : ''}</div>
+        <div class="tittel">${luc('mail')} Nye kommentarer${liste.length > 0 ? ` (${liste.length})` : ''}</div>
         ${liste.length > 0 ? `<button type="button" class="p38-lenke" id="nye-kommentarer-toggle-btn">${nyeKommentarerApen ? 'Skjul' : 'Vis'} →</button>` : ''}
       </div>
       ${liste.length === 0
@@ -11476,7 +11529,6 @@ function renderAktiveSaker(){
     if(sakFilterBil && s.vehicleId !== sakFilterBil) return false;
     if(sakFilterType && s.caseType !== sakFilterType) return false;
     if(sakFilterStatus && s.status !== sakFilterStatus) return false;
-    if(sakFilterPrioritet && s.priority !== sakFilterPrioritet) return false;
     if(sakFilterKunApne && !sakErApen(s)) return false;
     if(sakFilterKreverHandling && !sakKreverHandling(s)) return false;
     if(sakFilterKreverHandlingSamlet && !sakKreverHandlingSamletMaster(s)) return false;
@@ -11493,7 +11545,7 @@ function renderAktiveSaker(){
     }
     return true;
   });
-  const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterPrioritet, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0) + (sakFilterKreverHandlingSamlet?1:0);
+  const antallAktiveFiltre = [sakFilterBil, sakFilterType, sakFilterStatus, sakFilterOppfolging].filter(Boolean).length + (sakFilterKunApne?1:0) + (sakFilterKreverHandling?1:0) + (sakFilterKreverHandlingSamlet?1:0);
   const oversiktBody = sakGroupedSection(visning, sakOversiktOpenVehicles, 'toggle-sako-vehicle');
   // fanetellinger, samme kilde (sakFase()) som Dashboard sine tre tellere.
   const antAktiv = aktiveSaker.filter(s => sakFase(s) === 'aktiv').length;
@@ -11505,12 +11557,12 @@ function renderAktiveSaker(){
       <button class="backbtn" id="sak-back">← Tilbake</button>
       <button class="btn small" id="add-sak-btn" style="margin-left:auto;">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
     </div>
-    <h2 style="font-size:19px;margin-bottom:16px;">🗂️ Aktive Saker</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;">${luc('triangle-alert')} Aktive Saker</h2>
 
     <div class="p38-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
-      <button type="button" class="btn ${sakAktivFane==='aktiv'?'':'secondary'} small" data-sak-fane="aktiv" style="flex:1;">🔴 Aktiv sak (${antAktiv})</button>
-      <button type="button" class="btn ${sakAktivFane==='oppfolging'?'':'secondary'} small" data-sak-fane="oppfolging" style="flex:1;">🟡 Under oppfølging (${antOppfolging})</button>
-      <button type="button" class="btn ${sakAktivFane==='verksted'?'':'secondary'} small" data-sak-fane="verksted" style="flex:1;">🔧 Planlagt verksted (${antVerksted})</button>
+      <button type="button" class="btn ${sakAktivFane==='aktiv'?'':'secondary'} small" data-sak-fane="aktiv" style="flex:1;">${luc('triangle-alert')} Aktiv sak (${antAktiv})</button>
+      <button type="button" class="btn ${sakAktivFane==='oppfolging'?'':'secondary'} small" data-sak-fane="oppfolging" style="flex:1;">${luc('clock-3')} Under oppfølging (${antOppfolging})</button>
+      <button type="button" class="btn ${sakAktivFane==='verksted'?'':'secondary'} small" data-sak-fane="verksted" style="flex:1;">${luc('wrench')} Planlagt verksted (${antVerksted})</button>
     </div>
 
     <div style="margin-bottom:16px;">${sakFaneListeHtml(sakAktivFane)}</div>
@@ -11535,9 +11587,7 @@ function renderAktiveSaker(){
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="sak-beskrivelse" placeholder="Valgfritt"></textarea></div>
       <div class="row2">
         <div class="field"><label>Prioritet</label>
-          <select id="sak-prioritet">
-            ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${p==='normal'?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
-          </select>
+          <!-- Prioritet 59: prioritetsvalget er fjernet. -->
         </div>
         <div class="field"><label>Oppfølgingsdato</label><input id="sak-oppfolgingsdato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10"></div>
       </div>
@@ -11547,24 +11597,24 @@ function renderAktiveSaker(){
     </form>` : ''}
 
     <div class="drawer-divider"></div>
-    <button type="button" class="p38-lenke" id="sak-avansert-toggle-btn" style="margin:14px 0;">${sakVisAvansert ? 'Skjul avansert visning ↑' : '🔎 Avansert visning (alle saker, filtrering, historikk) →'}</button>
+    <button type="button" class="p38-lenke" id="sak-avansert-toggle-btn" style="margin:14px 0;">${sakVisAvansert ? 'Skjul avansert visning ↑' : '' + luc("search") + 'Avansert visning (alle saker, filtrering, historikk) →'}</button>
 
     ${sakVisAvansert ? `
     <div class="toolbar">
       <div class="count">${visning.length} / ${aktiveSaker.length} saker totalt</div>
-      <button class="btn secondary small" id="sak-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+      <button class="btn secondary small" id="sak-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
     </div>
 
     ${showSakFilterMeny ? `
     <div class="panel" style="margin-bottom:16px;">
       <div class="row2">
-        <div class="field"><label>🚐 Bil</label>
+        <div class="field"><label>${luc('truck')} Bil</label>
           <select id="sak-f-bil">
             <option value="">Alle biler</option>
             ${vehicleOptions(sakFilterBil)}
           </select>
         </div>
-        <div class="field"><label>📁 Sakstype</label>
+        <div class="field"><label>${luc('folder')} Sakstype</label>
           <select id="sak-f-type">
             <option value="">Alle sakstyper</option>
             ${SAK_TYPE_ORDER.map(t => `<option value="${t}" ${sakFilterType===t?'selected':''}>${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
@@ -11572,20 +11622,17 @@ function renderAktiveSaker(){
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>📋 Status</label>
+        <div class="field"><label>${luc('list-checks')} Status</label>
           <select id="sak-f-status">
             <option value="">Alle statuser</option>
             ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${sakFilterStatus===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>🎯 Prioritet</label>
-          <select id="sak-f-prioritet">
-            <option value="">Alle prioriteter</option>
-            ${SAK_PRIORITET_ORDER.map(p => `<option value="${p}" ${sakFilterPrioritet===p?'selected':''}>${SAK_PRIORITET_IKON[p]} ${SAK_PRIORITET_LABEL[p]}</option>`).join('')}
-          </select>
+        <div class="field"><label>${luc('target')} Prioritet</label>
+          <!-- Prioritet 59: prioritetsfilteret er fjernet. -->
         </div>
       </div>
-      <div class="field"><label>📅 Oppfølging</label>
+      <div class="field"><label>${luc('calendar-days')} Oppfølging</label>
         <select id="sak-f-oppfolging">
           <option value="">Alle</option>
           <option value="idag" ${sakFilterOppfolging==='idag'?'selected':''}>🟠 Oppfølging i dag</option>
@@ -11643,8 +11690,6 @@ function attachAktiveSakerListeners(){
   if(fType) fType.addEventListener('change', e => { sakFilterType = e.target.value; render(); });
   const fStatus = document.getElementById('sak-f-status');
   if(fStatus) fStatus.addEventListener('change', e => { sakFilterStatus = e.target.value; render(); });
-  const fPrioritet = document.getElementById('sak-f-prioritet');
-  if(fPrioritet) fPrioritet.addEventListener('change', e => { sakFilterPrioritet = e.target.value; render(); });
   const fOppfolging = document.getElementById('sak-f-oppfolging');
   if(fOppfolging) fOppfolging.addEventListener('change', e => { sakFilterOppfolging = e.target.value; render(); });
   const fKreverHandling = document.getElementById('sak-f-krever-handling');
@@ -11785,7 +11830,7 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
     const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
     return `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
       <div class="acc-list">
         ${gruppeKjoretoy.map(v => {
           const tList = byVehicle.get(v.id).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
@@ -11794,10 +11839,10 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
           <div class="acc-row ${open ? 'expanded' : ''}">
             <div class="acc-head" data-${toggleAttr}="${v.id}">
               <div class="acc-head-left">
-                <div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
+                <div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
                 <div class="flag-reason">${tList.length} verkstedregistrering${tList.length===1?'':'er'}</div>
               </div>
-              <div class="acc-head-right"><span class="chevron">⌄</span></div>
+              <div class="acc-head-right"><span class="chevron">${luc('chevron-down')}</span></div>
             </div>
             ${open ? `<div class="acc-body"><div class="vt-list">${tList.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div></div>` : ''}
           </div>`;
@@ -11807,7 +11852,7 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
   }).join('');
   const foreldreloseHtml = foreldrelose.length > 0 ? `
     <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">❓ Slettet kjøretøy</div>
+      <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
       <div class="vt-list">${foreldrelose.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div>
     </div>` : '';
 
@@ -11815,7 +11860,7 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
     <div class="acc-row ${vtGrupperApen ? 'expanded' : ''}" style="margin-bottom:16px;">
       <div class="acc-head" data-toggle-vt-grupper>
         <div class="acc-head-left"><div class="flag-name">🚐 Biloversikt</div></div>
-        <div class="acc-head-right"><span class="chevron">⌄</span></div>
+        <div class="acc-head-right"><span class="chevron">${luc('chevron-down')}</span></div>
       </div>
       ${vtGrupperApen ? `<div class="acc-body">${grupper}${foreldreloseHtml}</div>` : ''}
     </div>
@@ -11879,7 +11924,7 @@ function renderVerksted(){
           <div style="font-size:12px;color:var(--muted);font-weight:600;">📋 ${verkstedtimer.length} verkstedtimer totalt</div>
         </div>
         <button type="button" id="vt-filter-toggle-btn" style="padding:8px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
-          <div style="font-size:12px;font-weight:700;">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
+          <div style="font-size:12px;font-weight:700;">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
         </button>
       </div>
     </div>
@@ -12011,7 +12056,7 @@ function vtCard(t, upcoming, isNext){
           ${linkedSak ? `<div class="dmg-meta" data-goto-sak="${linkedSak.id}" style="cursor:pointer;text-decoration:underline;">🗂️ Aktiv sak: ${esc(linkedSak.title)}</div>` : ''}
         </div>
         <div class="vt-when">
-          ${isNext ? `<span class="vt-next-badge">⭐ Neste verkstedtime</span>` : ''}
+          ${isNext ? `<span class="vt-next-badge">${luc('star')} Neste verkstedtime</span>` : ''}
           <div class="vt-date">${fmt(t.dato)}</div>
           ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
           ${t.pris !== undefined && t.pris !== null && t.pris !== '' ? `<div class="vt-time">${fmtKr(t.pris)}</div>` : ''}
@@ -12211,7 +12256,7 @@ function kostCardHtml(icon, label, verdi, storFont){
 // ingen parallelle datastrukturer, og det operative Dashboardet er urørt.
 const RAPPORT_ORDER = ['kilometerstand', 'service', 'dekk', 'eukontroll', 'ruteglass', 'skade', 'avvik', 'kostnad', 'bilpark', 'verksted', 'bilhelse', 'maned', 'kontroll'];
 const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', service:'Servicerapport', dekk:'Dekkrapport', eukontroll:'EU-kontrollrapport', ruteglass:'Ruteglassrapport', skade:'Skaderapport', avvik:'Saksrapport', kostnad:'Kostnadsrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', bilhelse:'Bilhelserapport', maned:'Månedsrapport', kontroll:'Kontrollrapport'};
-const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', ruteglass:'💥', skade:'🚨', avvik:'📋', kostnad:'💰', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
+const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', ruteglass:'💥', skade:'🚨', avvik:'📋', kostnad:'' + luc("circle-dollar-sign") + '', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
 const RAPPORT_PERIODE_LABEL = {'':'Alle', 'denne-maned':'Denne måneden', 'forrige-maned':'Forrige måned', 'dette-aret':'Dette året'};
 
 function goToRapport(type){
@@ -12665,8 +12710,12 @@ function rapportKontrollData(){
 }
 function rapportBilparkData(){
   const relevanteBiler = rapportRelevanteBiler();
-  const counts = {'ute-av-drift':0, kritisk:0, verksted:0, oppfolging:0, 'ikke-kontrollert':0, operativ:0};
-  relevanteBiler.forEach(v => { counts[vehicleHovedstatus(v.id)]++; });
+  // Prioritet 59: bygges naa fra HOVEDSTATUS_ORDER i stedet for en haandskrevet liste.
+  // Retter samtidig en eksisterende feil: 'reserve' manglet i den gamle listen, slik at
+  // reservebiler ga undefined/NaN i bilparkrapporten og Excel-eksporten.
+  const counts = {};
+  HOVEDSTATUS_ORDER.forEach(k => { counts[k] = 0; });
+  relevanteBiler.forEach(v => { const hst = vehicleHovedstatus(v.id); if(counts[hst] !== undefined) counts[hst]++; });
   return {total: relevanteBiler.length, counts};
 }
 function rapportVerkstedData(){
@@ -12702,11 +12751,12 @@ function rapportAvviksData(){
   const filtered = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && (datoInnenfor(s.reportedAt, range) || datoInnenfor((s.resolvedAt||'').slice(0,10), range)));
   const apne = filtered.filter(sakErApen);
   const lukkede = filtered.filter(s => !sakErApen(s));
-  const kritiske = apne.filter(s => s.priority === 'kritisk');
+  // Prioritet 59: erstatter "Kritiske saker". Forfalt oppfolging er etterproevbart.
+  const forfalte = apne.filter(s => sakOppfolgingStatus(s) === 'forfalt');
   const perType = {};
   SAK_TYPE_ORDER.forEach(t => perType[t] = 0);
   filtered.forEach(s => { if(perType[s.caseType] !== undefined) perType[s.caseType]++; });
-  return {apne: apne.length, lukkede: lukkede.length, kritiske: kritiske.length, perType, totalt: filtered.length};
+  return {apne: apne.length, lukkede: lukkede.length, forfalte: forfalte.length, perType, totalt: filtered.length};
 }
 function rapportBilhelseData(){
   const range = rapportPeriodeRange(rapportFilterPeriode);
@@ -12739,7 +12789,6 @@ function rapportManedData(){
   const kontrollData = (() => { const p = rapportFilterPeriode; rapportFilterPeriode = periodeForMoned; const d = rapportKontrollData(); rapportFilterPeriode = p; return d; })();
   const nyeSaker = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && datoInnenfor(s.reportedAt, range)).length;
   const lukkedeSaker = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && datoInnenfor((s.resolvedAt||'').slice(0,10), range)).length;
-  const kritiskeHendelser = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && s.priority === 'kritisk' && datoInnenfor(s.reportedAt, range)).length;
   const forfalteOppfolginger = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && sakErApen(s) && sakOppfolgingStatus(s) === 'forfalt').length;
   const gjSakstid = (() => {
     const lukkede = aktiveSaker.filter(s => rapportVehicleMatch(s.vehicleId) && s.resolvedAt && datoInnenfor((s.resolvedAt||'').slice(0,10), range));
@@ -12748,7 +12797,7 @@ function rapportManedData(){
   })();
   const verkstedAktivitet = verkstedtimer.filter(t => rapportVehicleMatch(t.vehicleId) && datoInnenfor(t.dato, range)).length;
   const kostnader = (() => { const p = rapportFilterPeriode; rapportFilterPeriode = periodeForMoned; const d = rapportKostnadData(); rapportFilterPeriode = p; return d; })();
-  return {periodeForMoned, kontrollData, nyeSaker, lukkedeSaker, kritiskeHendelser, forfalteOppfolginger, gjSakstid, verkstedAktivitet, kostnader};
+  return {periodeForMoned, kontrollData, nyeSaker, lukkedeSaker, forfalteOppfolginger, gjSakstid, verkstedAktivitet, kostnader};
 }
 
 function rapportTabellRad(label, verdi){
@@ -12808,7 +12857,6 @@ function exportRapportExcel(){
       ['Kontrollgrad', d.kontrollData.kontrollgrad + ' %'],
       ['Nye saker', d.nyeSaker],
       ['Lukkede saker', d.lukkedeSaker],
-      ['Kritiske hendelser', d.kritiskeHendelser],
       ['Forfalte oppfølginger', d.forfalteOppfolginger],
       ['Gjennomsnittlig sakstid (dager)', d.gjSakstid === null ? '–' : d.gjSakstid],
       ['Verkstedaktivitet', d.verkstedAktivitet],
@@ -12874,7 +12922,7 @@ function rapportHeaderHtml(){
     <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
     ${rapportType ? `
     <div class="toolbar" style="margin-bottom:16px;">
-      <button class="btn secondary small" id="rapport-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+      <button class="btn secondary small" id="rapport-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
       <button class="btn small" id="rapport-eksport-btn">📤 Eksporter Excel</button>
     </div>
     ${showRapportFilterMeny ? rapportFilterPanelHtml() : ''}
@@ -12920,8 +12968,8 @@ function renderKostnadsoversikt(){
         return `
         <div class="acc-row ${open ? 'expanded' : ''}">
           <div class="acc-head" data-toggle-kost-vehicle="${v.id}">
-            <div class="acc-head-left"><div class="flag-name">📍 ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-            <div class="acc-head-right"><span class="group-count">${fmtKr(vTotal)}</span><span class="chevron">⌄</span></div>
+            <div class="acc-head-left"><div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
+            <div class="acc-head-right"><span class="group-count">${fmtKr(vTotal)}</span><span class="chevron">${luc('chevron-down')}</span></div>
           </div>
           ${open ? `<div class="acc-body">
             <ul class="dmg-simple-list">
@@ -12966,9 +13014,9 @@ function renderKostnadsoversikt(){
     <h2 style="font-size:19px;margin-bottom:16px;">💰 Kostnadsoversikt</h2>
 
     <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px;">
-      ${kostCardHtml('💰', 'Totale kostnader i år', fmtKr(totalIAr), true)}
+      ${kostCardHtml('' + luc("circle-dollar-sign") + '', 'Totale kostnader i år', fmtKr(totalIAr), true)}
       ${kostCardHtml('📋', 'Forventede kostnader', fmtKr(forventetKostnad), false)}
-      ${kostCardHtml('📦', 'Avsettinger åpne saker', fmtKr(avsettingerApne), false)}
+      ${kostCardHtml('' + luc("package") + '', 'Avsettinger åpne saker', fmtKr(avsettingerApne), false)}
       ${kostCardHtml('🚐', 'Snitt kostnad per bil', fmtKr(Math.round(snittPerBil)), false)}
     </div>
 
@@ -12990,7 +13038,7 @@ function renderKostnadsoversikt(){
     </div>
 
     <div class="filters-row" style="margin-bottom:8px;">
-      <button class="btn secondary small" id="kost-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+      <button class="btn secondary small" id="kost-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
       <button class="btn secondary small" id="kost-eksporter-btn">📊 Eksporter til Excel</button>
     </div>
     ${showKostFilterMeny ? `
@@ -13166,8 +13214,8 @@ function renderRapportAvvik(){
     ${rapportHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
       ${kostCardHtml('🗂️', 'Aktive saker', d.apne, true)}
-      ${kostCardHtml('🔒', 'Lukkede saker', d.lukkede, true)}
-      ${kostCardHtml('🔴', 'Kritiske saker', d.kritiske, true)}
+      ${kostCardHtml('' + luc("lock") + '', 'Lukkede saker', d.lukkede, true)}
+      ${kostCardHtml('🔴', 'Forfalte oppfølginger', d.forfalte, true)}
     </div>
     <div class="panel">
       <div class="ov-label" style="margin-bottom:10px;">Fordeling per sakstype</div>
@@ -13220,7 +13268,6 @@ function renderRapportManed(){
         ${rapportTabellRad('Kontrollgrad', d.kontrollData.kontrollgrad + ' %')}
         ${rapportTabellRad('Nye saker', d.nyeSaker)}
         ${rapportTabellRad('Lukkede saker', d.lukkedeSaker)}
-        ${rapportTabellRad('Kritiske hendelser', d.kritiskeHendelser)}
         ${rapportTabellRad('Forfalte oppfølginger', d.forfalteOppfolginger)}
         ${rapportTabellRad('Gjennomsnittlig sakstid', d.gjSakstid === null ? '–' : d.gjSakstid + ' dager')}
         ${rapportTabellRad('Verkstedaktivitet', d.verkstedAktivitet)}
@@ -13375,7 +13422,6 @@ function analyseUtvikling(){
     maned: m,
     nye: aktiveSaker.filter(s => analyseSakMatchUtenDato(s) && (s.reportedAt||'').startsWith(m)).length,
     lukkede: aktiveSaker.filter(s => analyseSakMatchUtenDato(s) && (s.resolvedAt||'').startsWith(m)).length,
-    kritiske: aktiveSaker.filter(s => analyseSakMatchUtenDato(s) && s.priority === 'kritisk' && (s.reportedAt||'').startsWith(m)).length,
     verksted: verkstedtimer.filter(t => analyseVehicleMatch(t.vehicleId) && (t.dato||'').startsWith(m)).length
   }));
 }
@@ -13443,7 +13489,7 @@ function analyseHeaderHtml(){
     <h2 style="font-size:19px;margin-bottom:16px;">${analyseType ? ANALYSE_IKON[analyseType] + ' ' + ANALYSE_LABEL[analyseType] : '🔍 Analyse'}</h2>
     ${analyseType ? `
     <div class="toolbar" style="margin-bottom:16px;">
-      <button class="btn secondary small" id="analyse-filter-toggle-btn">🔽 Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+      <button class="btn secondary small" id="analyse-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
       <button class="btn small" id="analyse-eksport-btn">📤 Eksporter Excel</button>
     </div>
     ${showAnalyseFilterMeny ? analyseFilterPanelHtml() : ''}
@@ -13479,8 +13525,8 @@ function exportAnalyseExcel(){
     arkNavn = 'Behandlingstid'; filnavn = 'Behandlingstid_Eksport.xlsx';
   } else if(analyseType === 'utvikling'){
     const d = analyseUtvikling();
-    header = ['Måned', 'Nye saker', 'Lukkede saker', 'Kritiske saker', 'Verkstedtimer'];
-    rows = d.map(r => [r.maned, r.nye, r.lukkede, r.kritiske, r.verksted]);
+    header = ['Måned', 'Nye saker', 'Lukkede saker', 'Verkstedtimer'];
+    rows = d.map(r => [r.maned, r.nye, r.lukkede, r.verksted]);
     arkNavn = 'Utvikling'; filnavn = 'Utvikling_12mnd_Eksport.xlsx';
   } else return;
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -13513,7 +13559,7 @@ function renderAnalyseGjentakende(){
         <div class="dmg-item" style="cursor:pointer;" data-goto-sak="${s.id}">
           <div class="dmg-top">
             <div class="dmg-text">
-              <div class="main">${SAK_TYPE_IKON[s.caseType] || '📁'} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(s.title)}</div>
+              <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(s.title)}</div>
               <div class="desc">Registrert ${s.reportCount || 1} ganger</div>
               <div class="dmg-meta">Første: ${fmt(s.reportedAt)} · Siste: ${fmt((s.lastReportedAt||'').slice(0,10))}</div>
             </div>
@@ -13538,8 +13584,8 @@ function renderAnalyseVerkstedtrender(){
   return `
     ${analyseHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('➡️', 'Snitt sak → verksted bestilt', d.snittTilVerksted===null?'–':d.snittTilVerksted+' dager', true)}
-      ${kostCardHtml('🔒', 'Snitt sak → lukket', d.snittTilLukket===null?'–':d.snittTilLukket+' dager', true)}
+      ${kostCardHtml('' + luc("arrow-right") + '', 'Snitt sak → verksted bestilt', d.snittTilVerksted===null?'–':d.snittTilVerksted+' dager', true)}
+      ${kostCardHtml('' + luc("lock") + '', 'Snitt sak → lukket', d.snittTilLukket===null?'–':d.snittTilLukket+' dager', true)}
     </div>
     <div class="panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">Verkstedtimer per måned</div>
@@ -13570,7 +13616,7 @@ function renderAnalyseBehandlingstid(){
       ${kostCardHtml('📊', 'Gjennomsnitt', d.snitt===null?'–':d.snitt+' dager', true)}
       ${kostCardHtml('⚡', 'Korteste', d.korteste===null?'–':d.korteste+' dager', true)}
       ${kostCardHtml('🐢', 'Lengste', d.lengste===null?'–':d.lengste+' dager', true)}
-      ${kostCardHtml('🔒', 'Lukkede saker', d.antall, true)}
+      ${kostCardHtml('' + luc("lock") + '', 'Lukkede saker', d.antall, true)}
     </div>
   `;
 }
@@ -13584,10 +13630,10 @@ function renderAnalyseUtvikling(){
         ${d.map(r => `
         <div class="ov-item" style="padding:8px 0;border-bottom:1px solid var(--line);">
           <span class="ov-label">${r.maned}</span>
-          <span class="ov-value" style="font-size:12.5px;font-weight:600;">🆕 ${r.nye} · 🔒 ${r.lukkede} · 🔴 ${r.kritiske} · 🔧 ${r.verksted}</span>
+          <span class="ov-value" style="font-size:12.5px;font-weight:600;">🆕 ${r.nye} · 🔒 ${r.lukkede} · 🔧 ${r.verksted}</span>
         </div>`).join('')}
       </div>
-      <div class="required-hint" style="margin-top:10px;">🆕 Nye saker · 🔒 Lukkede saker · 🔴 Kritiske saker · 🔧 Verkstedtimer</div>
+      <div class="required-hint" style="margin-top:10px;">🆕 Nye saker · 🔒 Lukkede saker · 🔧 Verkstedtimer</div>
     </div>
   `;
 }
@@ -13640,7 +13686,7 @@ function settingsAccordionRow(key, title, count, bodyHtml){
         <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
         <div class="acc-head-right">
           ${count !== null ? `<span class="group-count">${count}</span>` : ''}
-          <span class="chevron">⌄</span>
+          <span class="chevron">${luc('chevron-down')}</span>
         </div>
       </div>
       ${open ? `<div class="acc-body">${bodyHtml}</div>` : ''}
@@ -13854,7 +13900,7 @@ function renderInnstillinger(){
       Tving frem mobil- eller desktopvisningen uavhengig av skjermbredde — nyttig for å
       forhåndsvise den andre visningen på denne enheten. Gjelder kun denne enheten/nettleseren.
     </div>
-    <button class="btn secondary small" id="settings-device-override-btn">${currentUiExperience()==='desktop' ? '📱 Bytt til Mobil-visning' : '🖥️ Bytt til Desktop-visning'}</button>
+    <button class="btn secondary small" id="settings-device-override-btn">${currentUiExperience()==='desktop' ? '' + luc("smartphone") + 'Bytt til Mobil-visning' : '' + luc("monitor") + 'Bytt til Desktop-visning'}</button>
   `;
   const oppdaterAppBody = `
     <div class="required-hint" style="margin-bottom:12px;">
@@ -14045,7 +14091,7 @@ function renderInnstillinger(){
         <strong>Siste synkronisering:</strong><br>
         ${dbStatusSyncLog.length === 0 ? 'Ingenting å opprette.' : dbStatusSyncLog.map(r => `${r.ok ? '✅' : '❌'} ${esc(r.table)}${r.field ? ' — ' + esc(r.field) : ''}${!r.ok ? ' (' + esc(r.error) + ')' : ''}`).join('<br>')}
       </div>` : ''}
-      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : '🔄 Synkroniser Airtable'}</button>
+      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : '' + luc("refresh-cw") + 'Synkroniser Airtable'}</button>
       ${!altOk ? `<div class="required-hint" style="margin-top:10px;">Krever at token har scopet «schema.bases:write» for å opprette manglende tabeller/felt automatisk — se AIRTABLE_MIGRATION.md. Uten det scopet vil du få en tydelig feilmelding per felt i stedet, og må opprette dem manuelt.</div>` : ''}
     `;
   })();
@@ -14137,7 +14183,7 @@ function renderInnstillinger(){
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn small" data-save-telefon="${v.id}">Lagre</button>
                 <button class="btn secondary small" data-cancel-telefon="${v.id}">Avbryt</button>
-                ${v.telefon ? `<button class="btn danger-outline small" data-fjern-telefon="${v.id}">🗑️ Fjern</button>` : ''}
+                ${v.telefon ? `<button class="btn danger-outline small" data-fjern-telefon="${v.id}">${luc('trash-2')} Fjern</button>` : ''}
               </div>
             ` : `
               <span>${esc(vehicleLabel(v))} <span class="required-hint" style="margin-left:6px;">${v.telefon ? esc(v.telefon) : 'Ikke registrert'}</span></span>
@@ -14384,7 +14430,7 @@ function renderKontroll(){
       ${activeVarsellysList.length > 0 ? `
       <div class="active-lamp-list">
         <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan markere som løst:</div>
-        ${activeVarsellysList.map(w => `<div class="active-lamp-row">🚨 <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
+        ${activeVarsellysList.map(w => `<div class="active-lamp-row">${luc('triangle-alert')} <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
       </div>` : ''}` : ''}
 
       <div class="field" style="margin-top:14px;margin-bottom:0;">
@@ -14400,7 +14446,7 @@ function renderKontroll(){
             </div>
             <div class="acc-head-right">
               ${kontrollFormVarsellamper.length > 0 ? `<span class="group-count">${kontrollFormVarsellamper.length} valgt</span>` : ''}
-              <span class="chevron">⌄</span>
+              <span class="chevron">${luc('chevron-down')}</span>
             </div>
           </div>
           ${kontrollVarsellamperOpen ? `<div class="acc-body">
@@ -14411,7 +14457,7 @@ function renderKontroll(){
                 const isChecked = isActive || isSelected;
                 return `
                 <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}">
-                  <span class="chip-icon">${isActive ? '✅' : VARSELLAMPE_ICON[key]}</span>
+                  <span class="chip-icon">${isActive ? luc('check') : VARSELLAMPE_ICON[key]}</span>
                   <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
                 </button>
               `;}).join('')}
@@ -14433,7 +14479,7 @@ function renderKontroll(){
             </div>
             <div class="acc-head-right">
               ${kontrollFormAvvik.length > 0 ? `<span class="group-count">${kontrollFormAvvik.length} valgt</span>` : ''}
-              <span class="chevron">⌄</span>
+              <span class="chevron">${luc('chevron-down')}</span>
             </div>
           </div>
           ${kontrollAvvikOpen ? `<div class="acc-body">
@@ -14444,7 +14490,7 @@ function renderKontroll(){
                 const isChecked = isActive || isSelected;
                 return `
                 <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-avvik-${key}" data-kt-avvik="${key}">
-                  <span class="chip-icon">${isActive ? '✅' : KONTROLLAVVIK_IKON[key]}</span>
+                  <span class="chip-icon">${isActive ? luc('check') : luc(KONTROLLAVVIK_LUCIDE[key] || 'clipboard-list')}</span>
                   <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
                 </button>
               `;}).join('')}
@@ -14840,10 +14886,10 @@ function pwaInstallStatusHtml(){
     return `<div class="required-hint">✅ Appen kjører installert på denne enheten.</div>`;
   }
   if(deferredInstallPrompt){
-    return `<button class="btn small" id="pwa-settings-install-btn">🔽 Installer Bilpark</button>`;
+    return `<button class="btn small" id="pwa-settings-install-btn">${luc('chevron-down')} Installer Bilpark</button>`;
   }
   if(isIOS()){
-    return `<div class="required-hint">📱 iPhone/iPad: trykk Del-knappen nederst i Safari, og velg «Legg til på Hjemskjerm». iOS tilbyr ikke automatisk installasjon slik Android gjør.</div>`;
+    return `<div class="required-hint">${luc('smartphone')} iPhone/iPad: trykk Del-knappen nederst i Safari, og velg «Legg til på Hjemskjerm». iOS tilbyr ikke automatisk installasjon slik Android gjør.</div>`;
   }
   if(pwaDiag.checking){
     return `<div class="required-hint">Sjekker installasjonsstatus …</div>`;

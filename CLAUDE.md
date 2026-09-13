@@ -105,6 +105,9 @@ kodelesing) før levering.
    håndtegnet SVG-ikonfunksjon (14 ikoner: `car`, `phone`, `chat`, `menu`,
    `calendar`, `gauge`, `folder`, `wrench`, `plus`, `alert`, `user`,
    `logout`, `chevronRight`, `chevronLeft`), erstatter emoji nøyaktig der
+   **(HISTORISK — se Prioritet 58: de håndtegnede SVG-ene er fjernet.
+   `sjaforIkonSvg()` finnes fortsatt, med samme navn/signatur/nøkler, men
+   returnerer nå Lucide via `P48_LUCIDE`. Alle 12 kallesteder er uendret.)**
    bestillingen listet det: bunnmeny, nøkkeltallene på Min Bil, alle
    handlingskort, Sjekk ut bil. Varsellampe-/avvikschips, `HOVEDSTATUS_IKON`
    og kontrollert-pillens ✅/⚪ er BEVISST urørt (ikke del av den eksplisitte
@@ -2280,3 +2283,134 @@ navngitte sjåførmodus-funksjoner er konvertert. Resten av appens emoji er UEND
 dette var en eksplisitt avgrensning (oppdraget ga kun ikon-tabell for disse fire
 seksjonene), ikke en forglemmelse. Ikke anta at "standardiseringen er ferdig" ved
 fremtidig arbeid — sjekk CHANGELOG.md, Prioritet 55 for nøyaktig hva som gjenstår.
+
+---
+
+## Prioritet 56 (2026-09-12) — Kritisk regel for videre Lucide-migrering
+
+**Sjekk ALLTID konsumentkonteksten før en emoji-til-Lucide-konvertering:** Ikke anta at
+en verdi som "ser ut som et ikon" trygt kan bli en `luc()`-HTML-streng. Sjekk om verdien
+noen gang passerer gjennom `esc()`, havner i et `<option>`-element, eller brukes av en
+Excel/CSV-eksportfunksjon (`exportKostnadExcel`/`exportRapportExcel`/
+`exportAnalyseExcel`) — i alle disse tilfellene vil HTML/SVG IKKE rendres, kun vises
+som synlig, ødelagt tekst. Bekreftede eksempler på delte, FLERBRUKS-ordbøker som IKKE
+kan konverteres uten videre: `HOVEDSTATUS_IKON`, `SAK_TYPE_IKON`, `KONTROLLAVVIK_IKON`,
+`DRIVSTOFF_IKON`, `GRUPPE_IKON`, `STANDARD_BILKATEGORIER`,
+`DASHBOARD_LAYOUT_FLATER[...].komponenter[].label` (sistnevnte pga. `esc()` i
+`layoutEditorFlateHtml()`/`settingsAccordionRow()`).
+
+**Metodisk lærdom:** Et bredt, automatisert linje-for-linje-erstatningsforsøk med et
+sikkerhetsfilter FANGET IKKE alle disse mønstrene og introduserte 8 reelt ødelagte
+visninger i Prioritet 56, oppdaget kun ved fullstendig manuell gjennomgang av HELE
+diffen før levering. Videre emoji-fjerning bør gjøres kallested for kallested med
+verifisert kontekst, ikke som ett stort automatisert steg — se CHANGELOG.md,
+Prioritet 56 for full liste over funn og anbefalt fremgangsmåte (splitte delte
+ordbøker i HTML- og tekst-varianter).
+
+---
+
+## Prioritet 57 (2026-09-12) — Mønster for videre Lucide-konvertering av delte ordbøker
+
+**Etablert løsningsmønster for Prioritet 56 sitt funn:** Når en emoji-ordbok brukes
+BÅDE i ren HTML og i `<option>`/eksport, IKKE endre ordboken selv. Lag i stedet en
+parallell `_LUCIDE`-konstant med samme nøkler (se `GRUPPE_LUCIDE`, `SAK_TYPE_LUCIDE`,
+`KONTROLLAVVIK_LUCIDE` som forbilder), og bytt kun de bekreftet rene HTML-
+kallestedene til å bruke `luc(NY_LUCIDE_KONSTANT[nøkkel] || 'fallback-ikon')`. Original-
+ordboken og alle `<option>`/eksport-kallesteder forblir 100 % uendret.
+
+**Unntak — rør ALDRI `HOVEDSTATUS_IKON`:** Denne ordboken er ikke bare et eksport-
+problem — flertallet av verdiene (🔴🟠🟡⚪🟢) ER de lovpålagte statusfargesirklene
+(STATUSREGLER, Prioritet 55/56). Selv en parallell Lucide-variant for DENNE ordboken
+ville risikert et inkonsistent statusuttrykk (noen steder farge, andre steder Lucide-
+ikon for samme statuskonsept). La hele `HOVEDSTATUS_IKON` stå urørt.
+
+**Før enhver ny konvertering:** sjekk ALLTID om target-verdien ender i `esc()`,
+`<option>`, eller en `export*Excel`-funksjon (se Prioritet 56/57 i CHANGELOG.md for
+metodikk og konkrete eksempler på hvordan dette sjekkes effektivt med grep før endring,
+ikke etterpå).
+
+
+## Prioritet 58 (2026-09-13) — Synlighetsdrevet Lucide-migrering: varige regler
+
+**Ny regel — migrer etter SYNLIGHET, ikke etter antall.** Et blandet ikonuttrykk er et
+designproblem per SKJERM, ikke per fil. Målet er aldri «færrest mulig emoji igjen», men
+«ingen skjerm som brukeren ser daglig skal blande Lucide og emoji». Konsekvens: en
+skjerm migreres HELT eller IKKE I DET HELE TATT. Delvis migrerte skjermer er verre enn
+umigrerte, fordi de ser ut som en feil.
+
+**Ett ikonbibliotek — nå faktisk sant.** `sjaforIkonSvg()` var et andre, håndtegnet
+SVG-ikonsett ved siden av Lucide (innført i Prioritet 48, flagget som åpent i Prioritet
+55). Det er nå fjernet: funksjonen beholder navn og signatur, men slår opp i `P48_LUCIDE`
+og returnerer en Lucide-plassholder med inline pikselstørrelse. **Ikke gjeninnfør
+håndtegnede SVG-er.** Trenger en flate en annen ikonstørrelse, settes det via CSS/inline
+px på Lucide-plassholderen (se `.p48-stat-icon .lucide-ic` m.fl.).
+
+**Samme funksjon = samme ikon overalt.** Den kanoniske ikontabellen for Bilpark:
+
+| Konsept | Lucide |
+|---|---|
+| Bil/kjøretøy/biloversikt | `truck` |
+| Service | `wrench` |
+| EU-kontroll | `shield-check` |
+| Dekk | `circle-dot` |
+| Verkstedtime | `factory` |
+| Ruteskift | `car-front` |
+| Kalender/dato | `calendar-days` |
+| Kommende frister | `calendar-clock` |
+| Aktiv sak / kritisk | `triangle-alert` |
+| Under oppfølging | `clock-3` |
+| Kontroll | `clipboard-check` |
+| Krever handling nå | `siren` |
+| Påminnelser/varsler | `bell` |
+| Person/sjåfør | `user-round` |
+| Kommentarer | `message-square` |
+| Meny | `menu` / `more-horizontal` |
+
+Avvik fra denne tabellen krever en egen beslutning.
+
+**Unntak som fortsatt gjelder (utvidet fra Prioritet 57):** `HOVEDSTATUS_IKON`,
+`SAK_PRIORITET_IKON`, `SAK_OPPFOLGING_IKON`, `SAK_BILSTATUS_IKON`, `dash50Ikon` og
+alle `status.ikon`-verdier fra `vehicleServiceStatus()`/`vehicleEuKontrollStatus()`/
+`dekkAlderStatus()` er statusfargesirkler (STATUSREGLER) og skal IKKE migreres.
+
+**Én bevisst justering av dette prinsippet:** I «Krever handling nå» var sirkelen aldri
+en kjøretøystatus — den duplikerte prioriteten, som allerede vises to ganger i samme rad
+(fargetone på flisen + teksten «Kritisk/Høy/Normal»). Sirkelen er derfor erstattet av et
+Lucide *type*-ikon (hva slags problem det er), som tilfører ny informasjon i stedet for å
+gjenta. `bilparkStatusInnholdHtml()` sine 🟢🟡🔴 er URØRT — der ER sirkelen statusen.
+
+**Parallell-variant-regelen (Prioritet 57) gjelder fortsatt.** `vtTypeIkon()` er BEVISST
+urørt fordi Kalender/Planlegging ikke ble migrert i denne runden. Ny parallell
+`vtTypeLucide()` + nøkkelfunksjonen `vtTypeArt()` brukes av de migrerte flatene.
+
+
+## Prioritet 59 (2026-09-13) — Prioritet er ikke lenger en sannhet i Bilpark
+
+**Varig regel: det finnes ingen saksprioritet.** Lav/Normal/Høy/Kritisk er avviklet.
+Ikke gjeninnfør et prioritetsfelt, en prioritetsbadge, et prioritetsfilter eller en
+prioritetssortering uten en ny, eksplisitt arkitekturbeslutning. Arbeid rangeres av:
+
+1. **Status** (Aktiv sak → Under oppfølging → Planlagt verksted → Utført / Avslått)
+2. **Oppfølgingsdato** (forfalt → i dag → uten frist)
+3. **Verkstedstatus**
+4. **Operativ påvirkning** (`v.uteAvDrift`)
+
+**`vehicleHovedstatus()` — oppdatert beskyttet hierarki, seks nivåer:**
+
+    Ute av drift > Verksted bestilt > Under oppfølging > Reservebil > Ikke kontrollert > Operativ
+
+Nivået `kritisk` finnes ikke lenger. Hierarkiet er fortsatt beskyttet og skal ikke
+utvides eller endres uten eksplisitt godkjenning.
+
+**RØDT betyr én ting: bilen kan ikke brukes.** Ikke «viktig», ikke «forsinket», ikke
+«noen mener dette haster». Forfalt oppfølging er administrasjon og skal aldri fargelegge
+en bil rød. Denne definisjonen deles av `vehicleHovedstatus()` og `vehicleSakStatus()`.
+
+**Bakoverkompatibilitet — les tolerant, skriv aldri.** Eksisterende saker i Airtable har
+fortsatt en `Priority`-verdi, og eldre `Avvik`-blober har `prioritet` per avvikspunkt.
+Disse feltene skal IGNORERES ved lesing, ikke nullstilles og ikke slettes. Kolonnen
+`AktiveSaker.Priority` beholdes permanent som historisk data.
+
+**Dashboard bruker hastegrad, ikke prioritet.** «Krever handling nå» fargelegges av
+`sakOppfolgingStatus()`: forfalt = rød, i dag = oransje, uten frist = amber. Ingen ny
+datakilde, ingen ny beregning.

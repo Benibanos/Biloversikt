@@ -13,6 +13,353 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-13
+
+### Prioritet 59 — Prioritetssystemet avviklet (arkitekturbeslutning, Alternativ B)
+
+**Problem eller mål**
+
+Bilpark hadde to parallelle prioriteringsmodeller: saksflyten (Aktiv sak → Under
+oppfølging → Planlagt verksted → Utført/Avslått) og et eget prioritetsfelt
+(Lav/Normal/Høy/Kritisk). Sistnevnte skulle avvikles.
+
+**Foranalysens hovedfunn**
+
+`kritisk` ble aldri satt automatisk. Auto-generering ga `hoy` (varsellampe) eller
+`normal` (skade, kontrollavvik, manuell registrering). `kritisk` oppsto utelukkende ved
+manuelt nedtrekksvalg — men var eneste inngang til det røde nivået i
+`vehicleHovedstatus()`, `vehicleSakStatus()` og til tre KPI-er i Rapporter/Analyse.
+
+**Besluttet av Benibanos: Alternativ B.** Rødt = «Ute av drift».
+
+**Løsning, steg for steg**
+
+1. *Skrivestier* — `registrerAvvikSomSak()` tar ikke lenger imot `prioritet`; fem
+   kallesteder oppdatert. Auto-genereringen skriver verken `priority` på saken eller
+   `prioritet` per avvikspunkt, og «verste vinner»-rollupen (`SAK_PRIORITET_RANK`) er
+   fjernet. `submitAddSak()` og `submitSakWizardVurder()` leser ikke lenger feltet.
+2. *Visning* — prioritetsraden i Steg 1, nedtrekket i Steg 2, nedtrekket i
+   registreringsskjemaet, filteret i Aktive saker og tre badger på sakskortene er fjernet.
+3. *`vehicleHovedstatus()`* — nivået `kritisk` fjernet. Seks nivåer: Ute av drift >
+   Verksted bestilt > Under oppfølging > Reservebil > Ikke kontrollert > Operativ.
+   `HOVEDSTATUS_ORDER/_IKON/_LABEL/_BADGE_KLASSE` og stiltabellen oppdatert;
+   `'ute-av-drift'` overtar det røde ikonet. `vehicleSakStatus()` gir rødt på samme
+   grunnlag (`v.uteAvDrift`). `vehicleKritiskeSaker()` slettet. Biloversiktens filter
+   «🔴 Kritiske» → «🔴 Ute av drift».
+4. *Dashboard* — «Krever handling nå» fargelegges nå av hastegrad fra
+   `sakOppfolgingStatus()`: Forfalt (rød) / I dag (oransje) / Uten frist (amber).
+   Drilldownen som het `kritisk` peker nå på forfalt oppfølging.
+5. *KPI-er* — «Kritiske saker» i saksrapporten → «Forfalte oppfølginger». «Kritiske
+   hendelser» i månedsrapporten fjernet (duplikat av eksisterende «Forfalte
+   oppfølginger»). Kolonnen «Kritiske saker» i Analyse → Utvikling fjernet, også i
+   Excel-eksporten. «Kritiske saker» på Kjøretøyprofil fjernet.
+6. *Konstanter* — `SAK_PRIORITET_ORDER/_LABEL/_IKON/_RANK` slettet.
+7. *Storage* — `priority` fjernet fra `LIST_TABLES.aktiveSaker`.
+
+**Sideeffekt rettet underveis:** `rapportBilparkData()` bygde `counts` fra en
+håndskrevet liste som manglet `reserve` — reservebiler ga `undefined`/`NaN` i
+bilparkrapporten og Excel-eksporten. Bygges nå fra `HOVEDSTATUS_ORDER`.
+
+**Atferdsendring som må aksepteres**
+
+Delta i «Krever handling nå» er lite, men reelt: `sakKreverHandling()` dekket allerede
+status ny/vurderes/venter bekreftelse, manglende neste handling og manglende eller
+forfalt oppfølgingsdato. Den ENESTE sakstypen som faller ut er en ferdig planlagt sak
+(har både neste handling og en FREMTIDIG oppfølgingsdato) som i tillegg var manuelt
+merket kritisk. Tidligere ble den vist uansett; nå vises den når fristen nærmer seg.
+
+Historiske månedstall i Analyse endrer seg retroaktivt fordi «Kritiske saker»-kolonnen
+er borte. Uunngåelig og bevisst.
+
+**Data**
+
+Ingen datamigrering. `AktiveSaker.Priority` beholdes urørt i Airtable som historisk data;
+appen verken leser eller skriver feltet. `prioritet` inne i eldre `Avvik`-blober leses
+tolerant (ignoreres) og skrives ikke lenger. `sakAvvikListe()` syntetiserer ikke lenger
+et `prioritet`-felt for eldre enkeltavvik-saker.
+
+**Endrede filer**
+
+- `index.html` — 73 endringer
+- `kontroll.html` — eksakt kopi
+- `storage.airtable.js` — `priority` ute av `LIST_TABLES`, versjon v2.13.0 → v2.14.0
+- `index.html` `?v=` → 2.14.0 (samtidig, jf. permanent versjonsregel)
+- `sw.js` — CACHE_VERSION bilpark-v55 → bilpark-v56
+
+**Verifisering**
+
+- `node --check` på begge inline script-blokker og `storage.airtable.js`: OK
+- Null gjenværende referanser til `SAK_PRIORITET_*`, `s.priority`, `sakFilterPrioritet`,
+  `vehicleKritiskeSaker`, `kritiskeHendelser` (kun forklarende kommentarer igjen)
+- Node.js-simuleringsharness, 20 assertions, alle grønne. Blant annet:
+  bil med `uteAvDrift` → `ute-av-drift` + `rod`; bil med HISTORISK `priority:'kritisk'`
+  → `oppfolging` + `gul` (ikke rød); ingen bil kan returnere `kritisk`; alle seks nivåer
+  har LABEL/IKON/BADGE; eldre `Avvik`-blob med `prioritet` leses uten feil;
+  `sakAvvikListe()` syntetiserer uten `prioritet`; `dashKreverRadHtml()` viser hastegrad
+  i alle tre nivåer med riktig farge; `rapportBilparkData()` summerer til antall biler
+  uten `NaN`
+- HTML tag-balanse: uendret fra før endring
+- `cmp index.html kontroll.html`: identiske
+
+---
+
+## 2026-09-13
+
+### Prioritet 58 — Fjern de mest synlige emoji-ikonene
+
+**Problem eller mål**
+
+Bilpark var delvis migrert til Lucide. Problemet var ikke antallet gjenværende emoji,
+men at de mest brukte skjermene blandet Lucide og emoji samtidig, slik at appen føltes
+som to designsystemer. Målet var derfor synlighet, ikke antall.
+
+**Kartlegging (før)**
+
+| Prioritet | Flate | Gjenværende emoji |
+|---|---|---|
+| 1 | Dashboard desktop (`renderDashboard`) | 26 |
+| 1 | Dashboard mobil (`renderMobilHjem`) | 13 |
+| 1 | Delt beregning (`dashboardBeregning`) | 13 |
+| 1 | Delte rader (`kommendeOppgaveRadHtml`, `dashKreverRadHtml`, `bilparkStatusInnholdHtml`) | 9 |
+| 2 | Navigasjon (header, drawer) | 2 (resten allerede Lucide fra P55/P56) |
+| 3 | Sjåførmodus (Min Bil, Ringeliste, Kommentarer, Mer, Kontroll) | 14 + eget SVG-ikonsett |
+| 4 | Aktive saker (tittel, faner, sakskort, gruppering, filtre) | 24 |
+| — | Bestill tjenester (deler kortkomponent med Dashboard) | 9 |
+
+**Løsning**
+
+1. **Dashboard (desktop + mobil)** — KPI-kort, bestill-kort, seksjonsoverskrifter,
+   header-knapper (varselklokke, konto, søk), databanner, biloversiktstabell
+   (kjøretøy- og sjåførkolonne), «Bilpark status»- og «Krever handling nå»-overskrift.
+   Desktop og mobil bruker nå samme ikon for samme panel (`activity`, `siren`).
+2. **`KOMMENDE_ART`** — «Kommende oppgaver» valgte tidligere fargetone ved å
+   sammenligne emoji-strenger (`o.ikon === '🔧'`). Erstattet av ett oppslag på `o.art`.
+   Fargene er bevisst identiske med før (service=green, dekk=orange, EU=blue,
+   verkstedtime=purple, resten=amber).
+3. **«Krever handling nå»** — statussirklene erstattet av Lucide *type*-ikoner.
+   Prioriteten vises allerede to ganger i samme rad (fargetone + tekst), så sirkelen
+   duplikerte informasjon. `bilparkStatusInnholdHtml()` sine 🟢🟡🔴 er URØRT.
+4. **Navigasjon** — `☰ Meny` (header) og `✕` (drawer-lukk). Ingen emoji igjen i noen
+   navigasjonsflate.
+5. **Sjåførmodus** — `sjaforIkonSvg()` returnerer nå Lucide via `P48_LUCIDE`; det gamle
+   `P48_IKON_PATHS`-settet (14 håndtegnede SVG-er) er slettet. Signatur og alle 12
+   kallesteder uendret. I tillegg: kontrollert-pillen, «allerede kontrollert»-skjermen,
+   kontaktlisten, Ringeliste, Kommentarer, Mer og Legg til kommentar.
+6. **Aktive saker** — skjermtittel, de tre faseknappene (nå identiske med
+   `sakFaseTellereHtml()` på Dashboard), sakskort, kompaktkort, bilgruppering, filtre.
+7. **Bestill tjenester** — migrert fordi den deler kortkomponenten med Dashboard;
+   halvveis migrering ville gitt nøyaktig den blandingen commiten skulle fjerne.
+8. **Delte komponenter** — akkordeon-chevron ×16 og bilmarkør i `flag-name` ×7
+   (samme visuelle komponent på tvers av skjermer; «samme funksjon = samme ikon»).
+9. **`vtTypeLucide()` / `vtTypeArt()`** — parallelle varianter etter mønsteret fra
+   Prioritet 57. `vtTypeIkon()` er URØRT fordi Kalender/Planlegging ikke er migrert.
+
+**Bevisst utsatt**
+
+- **Kalender.** `.kal-merker` har `font-size:9–11px`; Lucide-strek blir nær usynlig der.
+  Krever egen størrelsesbeslutning. Skjermen er holdt helt umigrert, ikke halvveis.
+- **Vær-/hilsen-emoji** (`WEATHER_CODE_MAP` m.fl.) — illustrative piktogrammer.
+- Historikk, Rapporter, Analyse, Innstillinger, Bil-siden, sakWizard-steg.
+- Alle statusfargesirkler, `<option>`-tekster, `esc()`-meldinger, Excel-eksport.
+
+**Funn, ikke rettet:** `bestillKortHtml` i `renderDashboard()` er død kode (deklarert,
+aldri brukt) og inneholder fire emoji. Ingen visuell effekt. Bør slettes ved opprydding.
+
+**Endrede filer**
+
+- `index.html` — 105 erstatninger + `P48_IKON_PATHS` fjernet + fire nye CSS-regler
+- `kontroll.html` — eksakt kopi av `index.html`
+- `sw.js` — CACHE_VERSION `bilpark-v54` → `bilpark-v55`
+- `storage.airtable.js` — URØRT (ingen `?v=`-endring, ingen versjonsbump)
+
+**Airtable:** ingen nye felt, ingen nye tabeller, ingen migrering.
+
+**Verifisering**
+
+- `node --check` på begge inline script-blokker: OK
+- HTML tag-balanse: identisk resultat som før endring (ingen regresjon)
+- Node.js-simuleringsharness mot faktiske app-funksjoner: `luc()`, `sjaforIkonSvg()`,
+  `vtTypeLucide()`, `vtTypeArt()`, `KOMMENDE_ART`, `kommendeOppgaveRadHtml()` (service,
+  verksted og ukjent `art` → fallback), `dashKreverRadHtml()`,
+  `bilparkStatusInnholdHtml()`. Alle returnerte balansert markup uten emoji, bortsett
+  fra `bilparkStatusInnholdHtml()` som korrekt beholder statussirklene.
+- `cmp index.html kontroll.html`: identiske
+
+---
+
+## 2026-09-12
+
+### Prioritet 57 — Løser Prioritet 56 sitt arkitekturfunn: parallelle Lucide-oppslag
+
+**Problem eller mål**
+
+Prioritet 56 identifiserte at `HOVEDSTATUS_IKON`, `SAK_TYPE_IKON`, `KONTROLLAVVIK_IKON`,
+`DRIVSTOFF_IKON` og `GRUPPE_IKON` ikke kunne konverteres direkte til Lucide fordi de
+samtidig brukes i `<option>`-nedtrekksmenyer og Excel/rapport-eksport, der HTML/SVG
+aldri rendres. Denne sprinten løser dette — for de av dictionariene der det faktisk
+gir mening — ved å innføre en PARALLELL Lucide-variant ved siden av hver ordbok, i
+stedet for å endre selve den delte kilden.
+
+**Levert**
+
+- `GRUPPE_LUCIDE`, `SAK_TYPE_LUCIDE`, `KONTROLLAVVIK_LUCIDE` — nye konstanter, plassert
+  rett ved siden av sine emoji-motstykker, som forblir 100 % UENDRET (samme verdier,
+  samme `<option>`/eksport-bruk som før).
+- Ny hjelpefunksjon `kategoriIkonLucide(katId)` — Lucide-variant av den eksisterende
+  `kategoriIkon()` (som selv er urørt).
+- Byttet 18 bekreftet rene HTML-visningssteder til de nye Lucide-oppslagene: 6×
+  sakskort-hovedlinjer (`SAK_TYPE_LUCIDE`), 6× kategori-kort (`GRUPPE_LUCIDE`), 3×
+  `kategoriIkonLucide()`-kall, 2× kontrollavvik-chips (`KONTROLLAVVIK_LUCIDE`).
+  `<option>`-listene og eksportfunksjonene som bruker de ORIGINALE ordbøkene direkte,
+  er ikke rørt i det hele tatt.
+- `VARSELLAMPE_ICON` konvertert DIREKTE til Lucide (ingen parallell variant nødvendig —
+  alle fire kallesteder bekreftet fri for `esc()`/`<option>`/eksport).
+- `sakAvvikChecklistHtml()` (Aktive saker-sjekklisten fra Prioritet 52) er nå 100 %
+  Lucide: ☑ → `square-check`, varsellampe-/kontrollavvik-ikonene, ❓-reserve →
+  `help-circle`.
+- Diverse mindre, individuelt verifiserte konverteringer: 🚨-prefiks foran aktive
+  varsellamper på Min Bil, ✅-brikker i varsellampe-/kontrollavvik-registrering
+  (→ `check`).
+- **`HOVEDSTATUS_IKON` og `DRIVSTOFF_IKON` er BEVISST IKKE konvertert** — se «Ikke
+  levert».
+
+**Ikke levert / bevisst avgrenset**
+
+- **`HOVEDSTATUS_IKON` er unntatt av en annen grunn enn eksport/`<option>`:** de fleste
+  verdiene (🔴🟠🟡⚪🟢) ER de samme statusfargesirklene STATUSREGLER-en eksplisitt sier
+  skal forbli emoji og være PRIMÆR statuskommunikasjon. Å konvertere disse til Lucide
+  ville brutt akkurat den regelen. De to gjenværende, ikke-fargekodede unntakene i
+  ordboken (⛔ ute-av-drift, 🚐 reserve) er latt stå sammen med resten for å unngå et
+  visuelt inkonsistent halvveis-konvertert statussystem.
+- **`DRIVSTOFF_IKON`** — alle tre kallesteder til `drivstoffTekst()` er `esc()`-pakket,
+  ingen ren-HTML-konsument finnes i dag. En parallell Lucide-variant ville derfor ikke
+  hatt noe trygt sted å brukes ennå — utsatt til en eventuell ren-HTML-visning av
+  drivstoff dukker opp.
+- De resterende `<option>`/eksport-kallestedene til `SAK_TYPE_IKON`/`GRUPPE_IKON`/
+  `KONTROLLAVVIK_IKON` selv — uendret, som planlagt (dette var aldri målet).
+- Fortsatt ~837 emoji igjen i filen — hoveddelen er nå status-fargesirkler (unntatt),
+  toast-/bekreftelsesmeldinger (esc()-pakket, se Prioritet 56), og skjermer utenfor
+  denne rundens fokus (Historikk, Rapporter, Analyse sine øvrige detaljer, Verksted,
+  Service, Dekk).
+
+**Versjoner**
+
+- `sw.js` CACHE_VERSION: bilpark-v53 → bilpark-v54
+- `storage.airtable.js`: uendret
+
+**Verifisering**
+
+- 522 funksjonssignaturer (521 + 1 ny: `kategoriIkonLucide`) — diff bekrefter INGEN
+  eksisterende funksjon endret signatur.
+- `node --check` OK. HTML tag-balanse uendret (1425/1425 `<div>`).
+- Alle 17 simuleringsassertions kjørt på nytt — bestått, tre oppdatert til å reflektere
+  sakAvvikChecklistHtml() sine tilsiktede nye Lucide-ikoner (ikke regresjoner).
+- Manuelt verifisert at hvert av de 18+4 nye kallestedene er fri for `esc()`,
+  `<option>` og eksportfunksjoner FØR endring — samme metodikk som fanget opp
+  problemene i Prioritet 56, denne gangen brukt proaktivt i stedet for reaktivt.
+
+**Kjente begrensninger**
+
+- Skulle `HOVEDSTATUS_IKON` sine to ikke-fargekodede unntak (⛔🚐) likevel ønskes
+  Lucide-konvertert separat fra fargesirklene, krever det en litt mer finmasketløsning
+  (egen betinget rendering per nøkkel) — ikke gjort her for å unngå et inkonsistent
+  statusuttrykk.
+- Se Prioritet 56 for full liste over gjenstående emoji-kategorier og generell
+  anbefaling for videre arbeid.
+
+---
+
+## 2026-09-12
+
+### Prioritet 56 — Fullfør Lucide-migreringen (delvis levert — viktig arkitekturfunn)
+
+**Problem eller mål**
+
+Fjerne alle gjenværende operative emoji-ikoner i hele appen (utover det Prioritet 55
+allerede dekket) og erstatte med Lucide. Målet var 100 % Lucide / 0 % emoji.
+
+**Kritisk arkitekturfunn — «0 % emoji» er IKKE trygt å oppnå med et automatisert/bredt
+grep-og-erstatt-forsøk i denne kodebasen**
+
+Mange emoji er ikke isolerte "ikon-slots" i HTML, men sitter inni verdier som senere
+konsumeres i kontekster der HTML/SVG ikke kan rendres:
+
+1. **`esc()`-pakkede tekstfelt.** Funksjoner som `settingsAccordionRow(key, title, ...)`
+   og `layoutEditorFlateHtml()` kaller `esc(title)`/`esc(labelForKey[key])` på
+   parametere som i dag starter med en emoji (f.eks. `'🔄 Oppdater app'`,
+   `'➕ Bestill tjenester'` i `DASHBOARD_LAYOUT_FLATER`). En Lucide-`<i data-lucide>`
+   satt inn her ville blitt HTML-escapet og vist som synlig, ødelagt tag-tekst i
+   stedet for et ikon.
+2. **Delte ordbøker brukt i FLERE kontekster samtidig.** `HOVEDSTATUS_IKON`,
+   `SAK_TYPE_IKON`, `KONTROLLAVVIK_IKON`, `DRIVSTOFF_IKON`, `GRUPPE_IKON` og
+   `STANDARD_BILKATEGORIER` brukes BÅDE i ren HTML OG inni `<option>`-elementer
+   (nedtrekksmenyer viser kun ren tekst, aldri HTML) OG i Excel/rapport-eksport
+   (`exportKostnadExcel`/`exportRapportExcel`/`exportAnalyseExcel`, `rapportTabellRad`).
+   Én delt kilde kan derfor ikke trygt gjøres om til Lucide uten å splitte den i to
+   separate oppslag — én HTML-variant og én ren-tekst-variant for eksport/dropdown.
+3. **Frie tekstfelt som ender opp `esc()`-et.** F.eks. `sak.nextAction` (admin-skrevet
+   fritekst, prefikset med "➡️ " ved bygging av Kalender-data) rendres senere via
+   `esc(a.detalj)` i `renderKalender()`.
+
+Et første, bredt automatisert forsøk (linje-for-linje-erstatning med sikkerhetsfilter)
+fanget IKKE opp alle disse mønstrene og introduserte reelt ødelagte visninger 8 steder
+før grundig manuell gjennomgang av HELE diffen fanget opp og reverterte dem. Dette
+bekrefter at videre arbeid på dette MÅ gjøres punkt for punkt med verifisert kontekst
+per kallested — ikke som ett stort, automatisert steg.
+
+**Levert i denne runden (verifisert trygt — alltid ren HTML, aldri `esc()`/`<option>`/eksport)**
+
+- Administratorens mobile bunnmeny (`MOBIL_BUNNMENY`) — **var helt oversett i
+  Prioritet 55** til tross for å være primærnavigasjon på hver mobilskjerm: Hjem→House,
+  Biler→Truck, Bestill→Wrench, Kalender→CalendarDays, Mer→MoreHorizontal.
+- `VARSELLAMPE_ICON.annet` (❓→AlertCircle/HelpCircle) — bekreftet trygg etter å ha
+  sjekket alle fire faktiske kallesteder.
+- ~25 enkeltstående, verifiserte knapper/titler i ren HTML: 🕐→Clock (Historikk-lenke i
+  Kjøretøyprofil-tabell), 💰→CircleDollarSign (kostnadsvisninger, `kostCardHtml`),
+  🗑️→Trash2 (slett-knapper for kontroll/historikk/telefonnummer), 🔽→ChevronDown
+  (filter-knapper på tvers av Aktive saker/Rapporter/Kostnader/Analyse),
+  ⭐→Star (neste verkstedtime-merke), 🔎→Search (avansert visning-lenke),
+  📨→Mail (Nye kommentarer-tittel).
+
+**Ikke levert / krever eksplisitt oppfølgingsbeslutning**
+
+- De 5 delte ikon-/kategori-ordbøkene (se punkt 2 over) — krever en bevisst beslutning
+  om å splitte hver i en HTML-variant og en eksport/dropdown-tekst-variant. Dette er en
+  reell, større endring enn «kun ikonografi» slik oppdraget avgrenset det.
+- `DASHBOARD_LAYOUT_FLATER` sine komponent-labels (Layout Editor) — krever samme
+  splitting siden `esc()` brukes der.
+- Resterende ~859 emoji i filen (ned fra 894) — hoveddelen sitter i nettopp disse delte
+  ordbøkene/`esc()`-kontekstene, ikke i enkle, isolerte HTML-ikonspenn.
+
+**Versjoner**
+
+- `sw.js` CACHE_VERSION: bilpark-v52 → bilpark-v53
+- `storage.airtable.js`: uendret
+
+**Verifisering**
+
+- 521 funksjonssignaturer uendret (diff = tomt).
+- `node --check` OK. HTML tag-balanse uendret (1425/1425 `<div>`).
+- Alle 17 simuleringsassertions kjørt på nytt — 16/17 bestod uendret, 1 oppdatert til å
+  reflektere en tilsiktet ikonendring (❓ → Lucide help-circle i Aktive saker sin
+  sjekkliste), ikke en regresjon.
+- Full manuell gjennomgang av samtlige 43 linjer i den automatiserte batchen — 8 reelt
+  ødelagte endringer identifisert og reversert FØR levering (ingen av dem nådde
+  sluttfilen).
+
+**Kjente begrensninger / anbefaling til produkteier**
+
+Skal «0 % emoji» faktisk fullføres, anbefales et eget, avgrenset oppfølgingsoppdrag som
+eksplisitt godkjenner å:
+1. Splitte `HOVEDSTATUS_IKON`/`SAK_TYPE_IKON`/`KONTROLLAVVIK_IKON`/`DRIVSTOFF_IKON`/
+   `GRUPPE_IKON` i separate HTML- og tekst-varianter, ELLER
+2. Bygge en `escIkon()`-hjelpefunksjon som trygt kan skille mellom disse to
+   bruksmåtene automatisk.
+Uten en av disse er resten av emoji-forekomstene i praksis IKKE trygge å konvertere i
+et enkelt steg.
+
+---
+
 ## 2026-09-12
 
 ### Prioritet 55 — Standardiser Bilpark på Lucide-ikoner (delvis levert)

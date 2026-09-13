@@ -192,7 +192,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 | title | Title | tekst |
 | description | Description | tekst |
 | status | Status | tekst |
-| priority | Priority | tekst |
+| ~~priority~~ | Priority | tekst — **UTGÅTT (Prioritet 59).** Prioritetssystemet er avviklet. Feltet er fjernet fra `LIST_TABLES`, og appen verken leser eller skriver det. **Kolonnen skal IKKE slettes i Airtable** — den beholdes permanent som historisk data på eksisterende saker. Ingen datamigrering utført. |
 | sourceType | SourceType | tekst |
 | sourceId | SourceId | tekst |
 | reportedBy | ReportedBy | tekst |
@@ -533,3 +533,18 @@ gjenbrukes med UTVIDET betydning på applikasjonsnivå, uten noen endring i
 
 `storage.airtable.js` `versjon` forblir `v2.11.0`; `?v=` i
 `index.html`/`kontroll.html` forblir `2.11.0`.
+
+
+---
+
+## Prioritet 59 (2026-09-13) — ett felt tatt UT AV BRUK (ingen migrering)
+
+`AktiveSaker.Priority` er fjernet fra `LIST_TABLES` i `storage.airtable.js`
+(v2.13.0 → v2.14.0, `?v=` oppdatert samtidig).
+
+**Ingen handling kreves i Airtable.** Kolonnen `Priority` skal bli stående urørt.
+Eksisterende saker beholder sine verdier som historisk data. Ingen rader er endret,
+ingen kolonner slettet.
+
+Det samme gjelder `prioritet` inne i `Avvik`-JSON-bloben: eldre blober leses tolerant
+(verdien ignoreres), og nye avvikspunkter skrives uten feltet.
