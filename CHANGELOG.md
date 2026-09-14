@@ -15,6 +15,241 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-13
 
+### Prioritet 62 — Bestill tjenester forenklet til fire kort
+
+**Problem eller mål**
+
+Bestill tjenester viste fem kort. Fire av dem er planlagt vedlikehold; Verkstedtime
+passet ikke inn — den skal være et resultat av en sak, ikke et fritt valg i en
+bestillingsmeny. Samtidig skulle de fire gjenværende kortene gjøre mer av jobben.
+
+**Fjernet**
+
+Verkstedtime-kortet er borte fra alle fire flater som hadde det:
+
+| Flate | Før | Etter |
+|---|---|---|
+| Mobil forside (`komponentHtml.bestill`) | 5 kort, `.dash40-grid5` | 4 kort, `.dash40-grid4-bestill` |
+| Desktop dashboard | 4 kort (allerede uten) | uendret |
+| Kjøretøyprofil («Bestill tjenester for …») | 5 kort, `.dash40-grid5` | 4 kort, `.dash40-grid4-bestill` |
+| Bestill tjenester-skjermen | 5 kort, `.dash40-grid5` | 4 kort, `.dash40-grid2x2` |
+
+`bestillVerkstedtime()` og `case 'verksted'` i `attachBestillListeners()` er slettet.
+
+**Beholdt urørt:** verkstedmodulen, dens egen «+ Ny verkstedtime»-knapp,
+`bestillVerkstedForSak()`, alle eksisterende verkstedtimer og hele saksflyten.
+
+**Smartere hurtigopprettelse**
+
+| Kort | Fylles ut automatisk |
+|---|---|
+| Service | Standardverksted, dato (i dag), kl. 07:30 |
+| EU-kontroll | EU-avkryssing, standardverksted, **beskrivelse «EU-kontroll»**, dato, kl. |
+| Dekkskifte | Standardverksted, **retning utledet av `v.dekk`**, dato, kl. |
+| Ruteskift | Ruteskift-avkryssing, standardverksted, **beskrivelse «Ruteskift»**, dato, kl. |
+
+Beskrivelse er et OBLIGATORISK felt på en verkstedtime. Uten forhåndsutfylling måtte
+brukeren skrive «EU-kontroll» for hånd hver gang — nettopp det hurtigopprettelse skal
+fjerne. Ny hjelpefunksjon `vtBeskrivelseForslag(erEu, erRuteskift)`; ved begge typer
+krysset av gir den «EU-kontroll + ruteskift».
+
+Dekkretningen foreslås fra dekkene som står på bilen nå: `v.dekk === 'vinter'` gir
+«Vinter → Sommer», alt annet gir «Sommer → Vinter». Ingen ny datakilde — samme felt
+Dashboard allerede bruker til «Dekkskift nødvendig».
+
+Begge forslagene følger forslagsregelen fra Prioritet 61: de oppdateres når brukeren
+krysser av for en annen type, men kun hvis feltet fortsatt står på forrige forslag.
+Lytteren i `attachVerkstedListeners()` er utvidet til å dekke både verksted og
+beskrivelse i samme `oppdaterForslag()`.
+
+**Ryddet samtidig**
+
+- `bestillKortHtml` (død kode identifisert i Prioritet 58) er slettet — den inneholdt
+  både emoji og et Verkstedtime-kort.
+- CSS-klassen `.dash40-grid5` er fjernet med alle fire mediespørring-overstyringer; ingen
+  flate har fem kort lenger.
+- Bestillingskortene på Kjøretøyprofil er migrert fra emoji til Lucide. Denne flaten ble
+  ikke fanget opp i Prioritet 58.
+
+**Endrede filer**
+
+- `index.html` — 19 endringer
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v58 → bilpark-v59
+- `storage.airtable.js` — URØRT (v2.14.0, `?v=` uendret)
+
+**Airtable:** ingen endring, ingen datamigrering.
+
+**Verifisering**
+
+- `node --check`: OK
+- Node.js-simulering, 24 assertions, alle grønne: `bestillVerkstedtime` finnes ikke
+  lenger som funksjon; Bestill tjenester rendrer nøyaktig fire kort i 2x2 med alle fire
+  typene; ingen flate inneholder `data-bestill="verksted"`; Kjøretøyprofil har fire kort
+  uten emoji; `.dash40-grid5` finnes kun som forklarende kommentar; EU forhåndsutfyller
+  beskrivelse «EU-kontroll» + standardverksted + avkryssing; Ruteskift tilsvarende; uten
+  type er beskrivelsen tom; `vtBeskrivelseForslag(true,true)` gir kombinasjonen;
+  vinterdekk gir «Vinter → Sommer» og sommerdekk «Sommer → Vinter» med nøyaktig én
+  `selected`. Balanserte `<div>`-tagger kontrollert på Bestill tjenester og mobil forside.
+- `cmp index.html kontroll.html`: identiske
+
+---
+
+## 2026-09-13
+
+### Prioritet 61 — Standardverksted per tjenestetype
+
+**Problem eller mål**
+
+De samme verkstedene brukes i praksis nesten hver gang (Service → Mekonomen,
+Deler/Reparasjon → BOS Skolmar, Ruteskift → Hurtigruta Carglass Larvik). Brukeren skulle
+slippe å velge dette manuelt hver gang, uten å miste muligheten til å overstyre.
+
+**Løsning**
+
+*Innstillinger → Register → Verkstedregister* har fått en ny seksjon «Standardverksted»
+med én nedtrekksliste per tjenestetype: Service, EU-kontroll, Deler/Reparasjon,
+Ruteskift, Dekkskifte. Hver liste har «Ingen standard» som førstevalg. Valget lagres
+direkte ved endring — ingen egen lagre-knapp. Er Verkstedregisteret tomt, vises en
+hjelpetekst i stedet for fem tomme lister.
+
+Forhåndsutfylling ved opprettelse:
+
+| Skjema | Standard hentes fra |
+|---|---|
+| Planlegg service (`ps-verksted`) | Service |
+| Registrer utført service (`sv-verksted`) | Service |
+| Registrer dekkskifttime (`pd-verksted`) | Dekkskifte |
+| Verkstedtime fra en sak (saksveiviseren) | Deler/Reparasjon |
+| Ny verkstedtime koblet til sak | Deler/Reparasjon |
+| Ny verkstedtime, fritt valg | EU-kontroll / Ruteskift / Deler/Reparasjon, etter avkryssing |
+
+I «Ny verkstedtime» kan brukeren krysse av for EU-kontroll eller Ruteskift etter at
+skjemaet er åpnet. Forslaget oppdateres da — men kun hvis feltet fortsatt står på forrige
+forslag. Har brukeren valgt verksted selv, røres det aldri. Dette er løst med
+`data-std-default` på selecten og en lokal lytter, uten `render()`, slik at resten av
+skjemaet beholdes.
+
+**Datamodell**
+
+Én JSON-blob under Settings-nøkkelen `standardverksted`, samme mønster som `verksteder`
+og `bilkategorier`. Ingen ny Airtable-tabell, ingen `LIST_TABLES`-registrering.
+
+Verdiene er verkstedNAVN, ikke id-er — samme representasjon som `verkstedtime.verksted`
+og `verkstedSelectOptions()` allerede bruker, altså ingen ny sannhet. Det krever to
+konsistensregler, begge implementert:
+
+- `saveVerkstedEdit()` oppdaterer standardene når et verksted omdøpes
+- `deleteVerksted()` fjerner standardvalg som pekte på det slettede verkstedet
+
+I tillegg er `standardVerkstedFor()` tolerant: peker et lagret navn på et verksted som
+ikke finnes, returneres tom streng og skjemaet faller tilbake til «Velg verksted...».
+
+**Gjenbruk**
+
+Ingen nye mekanismer. `verkstedSelectOptions(selected)` hadde allerede støtte for
+forhåndsvalg og brukes uendret. Nedtrekkslistene i Innstillinger bruker samme funksjon,
+så et nytt verksted dukker opp overalt samtidig.
+
+**Endrede filer**
+
+- `index.html` — 15 endringer
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v57 → bilpark-v58
+- `storage.airtable.js` — URØRT (v2.14.0, `?v=` uendret)
+
+**Airtable:** ingen handling. Settings-raden `standardverksted` opprettes automatisk
+første gang et standardverksted lagres.
+
+**Verifisering**
+
+- `node --check`: OK
+- Node.js-simulering, 23 assertions, alle grønne: alle fem tjenestetyper definert i
+  riktig rekkefølge; oppslag per type; ukjent type gir tom streng; SLETTET verksted gir
+  tom streng (faller tilbake til «Velg verksted...»); EU og Ruteskift gir hver sin
+  standard; ingen avkryssing gir Deler/Reparasjon; EU vinner når begge er krysset;
+  `verkstedSelectOptions()` setter nøyaktig ÉN `selected`; Innstillinger viser fem
+  `data-std-verksted`-felt og «Ingen standard»; tomt Verkstedregister gir hjelpetekst og
+  null lister; «Ny verkstedtime» med forhåndskrysset Ruteskift forhåndsvelger riktig
+  verksted og setter `data-std-default`; uten noen standard står «Velg verksted...»
+  uvalgt. Balanserte `<div>`-tagger kontrollert på både Innstillinger og Verksted.
+- `cmp index.html kontroll.html`: identiske
+
+---
+
+## 2026-09-13
+
+### Prioritet 60 — Siste rester av prioritetssystemet fjernet
+
+**Problem eller mål**
+
+Prioritet 59 fjernet logikken bak prioritetssystemet, men enkelte synlige rester sto
+igjen. Målet: brukeren skal aldri se ordet «Prioritet» i Bilpark.
+
+**Identifiserte rester**
+
+| Sted | Rest |
+|---|---|
+| Saksveiviseren Steg 2 | Tomt `<div class="field"><label>Prioritet</label></div>` |
+| Registrer sak-skjemaet | Tomt prioritetsfelt i `row2` ved siden av Oppfølgingsdato |
+| Aktive saker → Filtre | Tomt prioritetsfelt med `target`-ikon i `row2` |
+| `sakWizardSteg1Html()` | Ubrukt variabel `prioritetVurdert` |
+| Statuskonstanter | `DAGENS_STATUS_CHIP_KLASSE` med nøkkelen `kritisk` (død kode) |
+| Dashboard-lyttere | Drilldown-grenen `kind === 'kritisk'` (død) |
+| Skaderapport | Kolonneoverskrift «Prioritet» som alltid har vist `ALVOR_LABEL` |
+| Dashboard-beregning | Variabelnavnene `kritiskeSakerAlle` og `krHarKritisk` |
+
+**Løsning**
+
+1. De tre tomme feltene er fjernet i sin helhet. Skjemaene er reorganisert i stedet for
+   å etterlate halvtomme `row2`-rutenett: registreringsskjemaet parer nå Oppfølgingsdato
+   med Neste handling, og filterpanelet parer Status med Oppfølging.
+2. `prioritetVurdert`, `DAGENS_STATUS_CHIP_KLASSE` og den døde drilldown-grenen er slettet.
+3. Skaderapportens kolonne heter nå «Alvorlighet» i både visning og Excel-eksport —
+   overskriften var feil, ikke innholdet.
+4. `kritiskeSakerAlle` → `forfalteSakerAlle` (7 forekomster), `krHarKritisk` →
+   `harHastesaker` (9 forekomster). Navnene beskrev prioritet; innholdet har siden
+   Prioritet 59 vært forfalt oppfølging.
+5. Den utdaterte kommentaren over `sakWizardSteg2Html()` («prioritet + status») er rettet.
+
+**Bevisst ikke endret**
+
+`ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'}` er skademodellens egen
+alvorlighetsgrad, et selvstendig felt på Damages-tabellen med nedtrekkslister i Min Bil,
+skaderegistreringen og skadedetaljer. Det er ikke en rest av saksprioriteten. Å fjerne
+den ville slette fungerende funksjonalitet og et databasefelt — krever egen instruks.
+
+Ordet «Prioritet» står fortsatt i kodekommentarer som sprintnavn. Det er intern
+historikk og vises aldri for brukeren.
+
+**Endrede filer**
+
+- `index.html` — 9 strukturelle endringer + 16 omdøpninger
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v56 → bilpark-v57
+- `storage.airtable.js` — URØRT (v2.14.0, `?v=` uendret)
+
+**Airtable:** ingen endring.
+
+**Verifisering**
+
+- `node --check`: OK
+- Statisk skanning: null forekomster av «Prioritet», «Kritisk» eller «Ikke vurdert»
+  utenfor kodekommentarer
+- Node.js-simulering, 23 assertions, alle grønne. Rendret faktisk markup fra
+  `sakWizardSteg1Html()`, `sakWizardSteg2Html()`, `sakCard()`, `sakKompaktKortHtml()`,
+  `renderAktiveSaker()`, `renderDashboard()`, `renderMobilHjem()`, `renderHistorikk()`,
+  `renderRapportSkade()` og `renderRegister()` og kontrollerte hver for forbudte ord
+  OG balanserte `<div>`-tagger. Sistnevnte fanget en reell feil underveis: omorganiseringen
+  av filterpanelet hadde etterlatt `row2` uten lukkende `</div>`.
+- Bakoverkompatibilitet: sak med historisk `priority:'kritisk'` og `avvik[].prioritet`
+  rendres og beregnes uten feil
+- `cmp index.html kontroll.html`: identiske
+
+---
+
+## 2026-09-13
+
 ### Prioritet 59 — Prioritetssystemet avviklet (arkitekturbeslutning, Alternativ B)
 
 **Problem eller mål**

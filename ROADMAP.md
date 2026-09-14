@@ -1283,3 +1283,92 @@ Ingen datamigrering, ingen sletting av kolonner. Appen verken leser eller skrive
 
 **Åpent:** «Krever handling nå»-tallet kan bli marginalt lavere. Bør verifiseres mot ekte
 data etter første synk — se CHANGELOG.md for hvilken sakstype som faller ut.
+
+
+## Prioritet 60 (2026-09-13) — Siste rester av prioritetssystemet fjernet
+
+Oppfølger til Prioritet 59. Prioritet 59 fjernet logikken; denne fjerner de siste synlige
+restene. Ordet «Prioritet» finnes ikke lenger noe sted i Bilparks grensesnitt.
+
+**Funnet og fjernet:** tre tomme `<div class="field"><label>Prioritet</label></div>`-
+skall som sto igjen etter Prioritet 59 (saksveiviseren Steg 2, registreringsskjemaet,
+filterpanelet) — de viste en synlig etikett uten innhold. Skjemaene er reorganisert i
+stedet for å etterlate halvtomme rutenett.
+
+**Død kode fjernet:** `DAGENS_STATUS_CHIP_KLASSE` (kun definisjon, ingen kall, inneholdt
+fortsatt nøkkelen `kritisk`), den ubrukte variabelen `prioritetVurdert`, og
+drilldown-grenen `kind === 'kritisk'` (data-verdien sendes ikke lenger ut noe sted).
+
+**Omdøpt:** `kritiskeSakerAlle` → `forfalteSakerAlle`, `krHarKritisk` → `harHastesaker`.
+Navnene beskrev prioritet, men innholdet har siden Prioritet 59 vært forfalt oppfølging.
+
+`sw.js` CACHE_VERSION bilpark-v56 → bilpark-v57. `storage.airtable.js` er URØRT (v2.14.0),
+så `?v=` er uendret. Ingen Airtable-endring.
+
+**Bevisst IKKE endret — krever egen beslutning:** `ALVOR_LABEL = {lav, middels, hoy}`,
+skademodellens egen alvorlighetsgrad. Den er et selvstendig felt på Damages-tabellen med
+egne nedtrekkslister (Min Bil, skaderegistrering, skadedetaljer), ikke en rest av
+saksprioriteten. Kolonneoverskriften i Skaderapporten het feilaktig «Prioritet» selv om
+den alltid har vist `ALVOR_LABEL` — overskriften er rettet til «Alvorlighet» i både
+visning og Excel-eksport. Skal selve alvorlighetsgraden også avvikles, er det et eget
+oppdrag med databasekonsekvenser.
+
+
+## Prioritet 61 (2026-09-13) — Standardverksted per tjenestetype
+
+Under Innstillinger → Register → Verkstedregister kan det nå settes ett standardverksted
+for hver av fem tjenestetyper: Service, EU-kontroll, Deler/Reparasjon, Ruteskift,
+Dekkskifte. Verdien foreslås automatisk i alle opprettelsesskjemaer, og kan alltid
+overstyres. Ingen låsing.
+
+**Lagring:** én JSON-blob under Settings-nøkkelen `standardverksted`, nøyaktig samme
+mønster som `verksteder` og `bilkategorier`. Ingen ny Airtable-tabell, ingen
+`LIST_TABLES`-registrering — `storage.airtable.js` faller automatisk tilbake til
+Settings-tabellen for nøkler som ikke står i `LIST_TABLES`.
+
+**Verdiene er verkstedNAVN, ikke id** — samme representasjon som `verkstedtime.verksted`
+og `verkstedSelectOptions()` allerede bruker. Ingen ny sannhet om hva et verksted er.
+Det krever til gjengjeld to konsistensregler, begge implementert: omdøping av et verksted
+oppdaterer standardene, og sletting fjerner dem.
+
+`sw.js` CACHE_VERSION bilpark-v57 → bilpark-v58. `storage.airtable.js` er URØRT (v2.14.0).
+
+**Åpent:** Verkstedtimeskjemaet har ikke en egen «Service»- eller «Dekkskifte»-avkryssing
+— bare EU-kontroll og Ruteskift. En verkstedtime uten kryss regnes derfor alltid som
+Deler/Reparasjon. Skal det finnes flere typer på en verkstedtime, er det en egen
+beslutning om `vtHarType()`-modellen.
+
+
+## Prioritet 62 (2026-09-13) — Bestill tjenester forenklet til fire kort
+
+Verkstedtime er fjernet som bestillingsvalg. De fire gjenværende kortene (Service,
+EU-kontroll, Dekkskifte, Ruteskift) er planlagt vedlikehold; en verkstedtime er et
+RESULTAT av en sak og opprettes kun via saksflyten:
+Aktiv sak → Under oppfølging → Bestill verksted → Planlagt verksted.
+
+`bestillVerkstedtime()` og `case 'verksted'` i `attachBestillListeners()` er slettet.
+`bestillVerkstedForSak()`, verkstedmodulens egen «+ Ny verkstedtime»-knapp og alle
+eksisterende verkstedtimer er URØRT.
+
+**Kortene gjør nå mer av jobben.** Ved klikk fylles type, standardverksted (Prioritet 61),
+dato og klokkeslett ut automatisk. I tillegg, nytt her: EU-kontroll og Ruteskift
+forhåndsutfyller det OBLIGATORISKE beskrivelsesfeltet på verkstedtimen, og Dekkskifte
+foreslår retning ut fra dekkene som står på bilen nå (`v.dekk === 'vinter'` →
+«Vinter → Sommer», ellers «Sommer → Vinter»). I praksis gjenstår bil og dato.
+
+Alle forslagsfelt følger samme regel som Prioritet 61: de oppdateres når brukeren krysser
+av for en annen type, men KUN hvis feltet fortsatt står på forrige forslag. Har brukeren
+skrevet eller valgt noe selv, røres det aldri.
+
+**Ryddet samtidig:** den døde `bestillKortHtml` (identifisert i Prioritet 58) er slettet,
+CSS-klassen `.dash40-grid5` er fjernet fordi ingen flate har fem kort lenger, og
+bestillingskortene på Kjøretøyprofil er migrert fra emoji til Lucide — en flate Prioritet
+58 ikke fanget opp.
+
+`sw.js` CACHE_VERSION bilpark-v58 → bilpark-v59. `storage.airtable.js` er URØRT (v2.14.0).
+Ingen Airtable-endring, ingen datamigrering.
+
+**Merk — bevisst fjerning:** Verkstedtime-kortet er også fjernet fra Kjøretøyprofilens
+«Bestill tjenester for …». Det var samme komponent og samme prinsippbrudd. Ingenting er
+tapt: Verksted-skjermens «+ Ny verkstedtime» står igjen for de tilfellene en time må
+opprettes uten sak.

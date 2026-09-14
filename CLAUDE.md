@@ -2414,3 +2414,77 @@ Disse feltene skal IGNORERES ved lesing, ikke nullstilles og ikke slettes. Kolon
 **Dashboard bruker hastegrad, ikke prioritet.** «Krever handling nå» fargelegges av
 `sakOppfolgingStatus()`: forfalt = rød, i dag = oransje, uten frist = amber. Ingen ny
 datakilde, ingen ny beregning.
+
+
+## Prioritet 60 (2026-09-13) — «Prioritet» er et forbudt ord i grensesnittet
+
+Utfyller Prioritet 59. Ordet **Prioritet** og verdiene **Kritisk / Høy / Normal / Lav /
+Ikke vurdert** skal aldri vises for brukeren i noen saksammenheng: ikke på sakskort, i
+detaljvisninger, modaler, oppsummeringer, etiketter, hjelpetekster, filtre eller
+rapportoverskrifter. Ordet er fortsatt greit i kodekommentarer som sprintnavn
+(«Prioritet 58», «Prioritet 59») — det er intern historikk, ikke grensesnitt.
+
+**Lærdom: å fjerne et `<select>` er ikke å fjerne en funksjon.** Prioritet 59 fjernet
+nedtrekkslistene, men lot `<div class="field"><label>Prioritet</label>` stå igjen tre
+steder. Brukeren så fortsatt etiketten — nå uten innhold, altså verre enn før. Ved
+fjerning av et skjemafelt skal HELE feltet fjernes, og rutenettet rundt (`row2`)
+reorganiseres slik at det ikke blir stående halvtomt.
+
+**Unntak som IKKE er en rest av prioritetssystemet:** `ALVOR_LABEL` ({lav, middels, hoy})
+er skademodellens egen alvorlighetsgrad på Damages-tabellen, med egne nedtrekkslister i
+skaderegistreringen. Den er urørt. Ikke forveksl de to — skal alvorlighetsgraden
+avvikles, krever det en egen beslutning med databasekonsekvenser.
+
+
+## Prioritet 61 (2026-09-13) — Standardverksted: forhåndsutfylling, aldri låsing
+
+**Prinsipp: et standardvalg er et forslag, ikke en regel.** Standardverkstedet fylles inn
+i skjemaet ved åpning og kan alltid endres. Ingen felt låses, ingen validering krever at
+standarden brukes, og ingenting skrives til en verkstedtime uten at brukeren lagrer
+skjemaet. Samme prinsipp gjelder for eventuelle framtidige standardvalg.
+
+**Lagres som navn, ikke id — og da MÅ konsistensen vedlikeholdes.** `standardVerksted`
+holder verkstedNAVN fordi det er samme representasjon som `verkstedtime.verksted` bruker.
+Prisen er at `saveVerkstedEdit()` må oppdatere standardene ved omdøping og
+`deleteVerksted()` må fjerne dem ved sletting. Begge er implementert. I tillegg er
+`standardVerkstedFor()` tolerant: peker et lagret navn på et verksted som ikke finnes,
+returnerer den tom streng, og skjemaet faller tilbake til «Velg verksted...». Et dødt
+standardvalg skal aldri kunne føre til at det står et verksted i feltet som ikke finnes
+i nedtrekkslisten.
+
+**Nye Settings-nøkler trenger ingen `LIST_TABLES`-registrering.** Feltregelen gjelder
+felt på et objekt i en LISTE-tabell. En frittstående Settings-blob (`verksteder`,
+`bilkategorier`, `dashboard-layout`, `standardverksted`) lagres via
+`window.storage.set(nøkkel, json, true)`, og storage-laget skriver den til
+Settings-tabellen automatisk. Ikke legg slike nøkler i `LIST_TABLES`.
+
+**«Samme funksjon = samme ikon» gjelder også her:** tjenestetypene i standardverksted-
+skjemaet bruker de samme Lucide-ikonene som resten av appen (`wrench`, `shield-check`,
+`factory`, `car-front`, `circle-dot`) — se ikontabellen under Prioritet 58.
+
+
+## Prioritet 62 (2026-09-13) — Bestill tjenester er planlagt vedlikehold, ikke «opprett noe»
+
+**Varig regel: Bestill tjenester har FIRE kort.** Service, EU-kontroll, Dekkskifte,
+Ruteskift. Ikke legg til et femte uten en ny beslutning, og legg spesielt aldri
+Verkstedtime tilbake. Skillet er prinsipielt, ikke kosmetisk:
+
+- De fire er **planlagt vedlikehold** — noe man bestemmer seg for å gjøre.
+- En **verkstedtime er et resultat** — den oppstår fordi noe er galt, og skal alltid ha
+  en sak bak seg: Aktiv sak → Under oppfølging → Bestill verksted → Planlagt verksted.
+
+Kan en verkstedtime opprettes fritt fra en bestillingsmeny, får Bilpark to veier til
+samme objekt, og den ene omgår saksmotoren. Da mister Aktive saker sin posisjon som
+hjertet i systemet. `bestillVerkstedForSak()` er den riktige inngangen; Verkstedskjermens
+egen «+ Ny verkstedtime» er unntaket for reell nødsituasjon, ikke hovedveien.
+
+**Hurtigopprettelse betyr at brukeren bare skal velge bil og dato.** Et bestillingskort
+skal fylle ut alt systemet allerede vet: type, standardverksted, dato, klokkeslett,
+obligatoriske tekstfelt og fornuftige valg utledet av bilens tilstand (f.eks.
+dekkretning fra `v.dekk`). Står det igjen et obligatorisk felt brukeren må skrive for
+hånd hver gang, er kortet ikke ferdig.
+
+**Forslagsregelen (fra Prioritet 61, nå gjeldende for alle forhåndsutfylte felt):** et
+forslag kan oppdateres automatisk når konteksten endres, men KUN hvis feltet fortsatt
+står på forrige forslag. Har brukeren rørt feltet, er det brukerens. Implementert med
+`data-std-default` på elementet og sammenligning mot `element.value`.

@@ -964,14 +964,12 @@
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
     .dash40-grid2{grid-template-columns:1fr 1fr;}
-    .dash40-grid5{grid-template-columns:repeat(3,1fr);}
     .dash40-grid4-bestill{grid-template-columns:repeat(2,1fr);}
     .dash40-split{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
     .dash40-grid4{grid-template-columns:1fr;}
     .dash40-grid2{grid-template-columns:1fr;}
-    .dash40-grid5{grid-template-columns:1fr 1fr;}
     .dash40-grid4-bestill{grid-template-columns:1fr 1fr;}
     .profil-ident{flex-direction:column;align-items:stretch;}
     .kal-dag{min-height:54px;}
@@ -1054,15 +1052,17 @@
   /* egen rad kun for de fire bestillingskortene (Service/EU-kontroll/
      Dekkskifte/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
      .dash40-grid4/.dash40-grid2 — KPI-radene skal forbli uendret. */
-  .dash40-grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
-  .dash40-grid5 .dash40-bestill{padding:14px 12px;min-height:112px;gap:3px;}
-  .dash40-grid5 .dash40-bestill-sub{font-size:11px;}
-  /* Dashboardets "Bestill tjenester" har kun fire hurtigvalg (Verkstedtime opprettes nå
-     kun via saksflyten, ikke fritt) — egen klasse, samme kortstørrelse som .dash40-grid5,
-     men ETT nettmønster mindre. Andre "Bestill tjenester"-forekomster i appen (mobil,
-     Kjøretøyprofil, den dedikerte Bestill tjenester-skjermen) er UENDRET og beholder
-     fortsatt fem valg inkl. Verkstedtime. */
+  /* Prioritet 62: .dash40-grid5 er FJERNET. Alle "Bestill tjenester"-flater har nå fire
+     kort — Verkstedtime opprettes kun via saksflyten — og bruker .dash40-grid4-bestill
+     (dashboard desktop/mobil + Kjøretøyprofil) eller .dash40-grid2x2 (den dedikerte
+     Bestill tjenester-skjermen). .dash40-grid4/.dash40-grid2 er KPI-rader og urørt. */
   .dash40-grid4-bestill{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+  /* Prioritet 62: den DEDIKERTE Bestill tjenester-skjermen viser de fire kortene som et
+     rent 2x2-rutenett i alle bredder — skjermen har én jobb ("Hva vil du bestille?"),
+     og fire store trykkflater leses raskere enn en rad på fire. Dashboardpanelene bruker
+     fortsatt .dash40-grid4-bestill over, som selv faller til 2 kolonner på smal skjerm. */
+  .dash40-grid2x2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;max-width:760px;}
+  .dash40-grid2x2 .dash40-bestill{padding:16px 14px;min-height:120px;gap:4px;}
   .dash40-grid4-bestill .dash40-bestill{padding:14px 12px;min-height:112px;gap:3px;}
   .dash40-grid4-bestill .dash40-bestill-sub{font-size:11px;}
   .dash40-kpi{
@@ -1309,9 +1309,6 @@
     /* Desktop 4.1 sine firekolonners rutenett blir to kolonner paa telefon —
        store touch-kort, ikke sma knapper. */
     .dash40-grid4{grid-template-columns:1fr 1fr;}
-    /* femkolonners bestillingsrad blir ogsaa to kolonner paa telefon,
-       samme touch-kort-storrelse som .dash40-grid4 sin mobiloverstyring. */
-    .dash40-grid5{grid-template-columns:1fr 1fr;}
     .dash40-bestill{min-height:126px;padding:15px;gap:3px;}
     .dash40-bestill-sub{font-size:11px;}
     .dash40-kpi{padding:15px 16px;}
@@ -1388,6 +1385,13 @@ let vehicles = [];
 let damages = [];
 let verkstedtimer = [];
 let verksteder = [];
+// Prioritet 61: standardverksted per tjenestetype. EN JSON-blob i den EKSISTERENDE
+// Settings-tabellen (noyaktig samme monster som `verksteder`/`bilkategorier`) - ingen ny
+// Airtable-tabell, ingen LIST_TABLES-registrering (set()/get() faller automatisk tilbake
+// til Settings for noekler som ikke staar i LIST_TABLES, se storage.airtable.js).
+// Verdiene er verkstedNAVN (ikke id), samme som `verkstedtime.verksted` og
+// `verkstedSelectOptions()` bruker - altsaa ingen ny sannhet om hva et verksted er.
+let standardVerksted = {};
 // redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
 // Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
 // tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
@@ -2017,7 +2021,9 @@ const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', verksted:'oppf-idag'
 // "under oppfølging". Prioritet: kritisk sak > mangler kontroll > verksted i dag > klar.
 // DAGENS_STATUS_IKON/DAGENS_STATUS_LABEL fjernet — bekreftet
 // ubrukte (kun definisjon, ingen kall/referanse noe sted i prosjektet).
-const DAGENS_STATUS_CHIP_KLASSE = {klar:'ok', 'mangler-kontroll':'warn', 'verksted-idag':'today', kritisk:'alert', reserve:'reserve'};
+// Prioritet 60: DAGENS_STATUS_CHIP_KLASSE er FJERNET — den var død kode (kun definisjon,
+// ingen kall noe sted) og inneholdt fortsatt nøkkelen 'kritisk' fra det avviklede
+// prioritetssystemet.
 // Fase 2/3: automatisk bilstatus utledet fra Aktive Saker (uavhengig av det manuelt
 // satte v.status-feltet som styrer "På verksted"/"Trenger oppfølging" andre steder).
 // RØD = minst én åpen sak med prioritet Kritisk, ORANSJE = minst én sak med status
@@ -3316,6 +3322,11 @@ async function loadAll(){
     await saveVerksteder();
   }
   try{
+    const sv = await window.storage.get('standardverksted', true);
+    standardVerksted = sv && sv.value ? JSON.parse(sv.value) : {};
+  }catch(e){ standardVerksted = {}; }
+  if(!standardVerksted || typeof standardVerksted !== 'object' || Array.isArray(standardVerksted)) standardVerksted = {};
+  try{
     const au = await window.storage.get('admin-users', true);
     adminUsers = au && au.value ? JSON.parse(au.value) : [];
   }catch(e){ adminUsers = []; }
@@ -3509,6 +3520,11 @@ async function saveBilkategorier(){
 async function saveVerksteder(){
   try{ await window.storage.set('verksteder', JSON.stringify(verksteder), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+// Prioritet 61 - samme mønster som saveVerksteder(): én JSON-blob i Settings-tabellen.
+async function saveStandardVerksted(){
+  try{ await window.storage.set('standardverksted', JSON.stringify(standardVerksted), true); }
+  catch(e){ alert('Kunne ikke lagre standardverkstedet. Prøv igjen.'); console.error(e); }
 }
 async function saveKontroller(){
   try{ await window.storage.set('kontroller', JSON.stringify(kontroller), true); }
@@ -5767,7 +5783,7 @@ function goToRegisterVT(vehicleId){
 //  EU-kontroll → renderVerksted() → submitVT() med type inneholder 'eu-kontroll'
 //  Ruteskift → renderVerksted() → submitVT() med type inneholder 'ruteskift'
 //  Dekkskifte → renderDekkSkjerm() → submitPlanlagtDekkskift() → submitFullforPlanlagtDekkskift()
-//  Verkstedtime → renderVerksted() → submitVT()
+// (Prioritet 62: "Verkstedtime" er ikke lenger et bestillingsvalg — se bestillVerkstedForSak().)
 // vehicleId = '' betyr "ingen bil valgt ennå" — brukeren velger bil i skjermens egen,
 // eksisterende bilvelger (Trykk → Velg bil → Bestill).
 function bestillService(vehicleId){
@@ -5784,6 +5800,16 @@ function bestillDekkskift(vehicleId){
   dekkSaveConfirmedId = null;
   goTo('dekk');
 }
+// Prioritet 62: forhåndsutfylt beskrivelse for hurtigopprettelse fra Bestill tjenester.
+// Beskrivelse er et OBLIGATORISK felt på en verkstedtime; uten dette måtte brukeren skrive
+// "EU-kontroll" for hånd hver eneste gang. Feltet er et helt vanlig tekstfelt og kan
+// overskrives fritt — ren forhåndsutfylling, ingen låsing.
+function vtBeskrivelseForslag(erEu, erRuteskift){
+  if(erEu && erRuteskift) return 'EU-kontroll + ruteskift';
+  if(erEu) return 'EU-kontroll';
+  if(erRuteskift) return 'Ruteskift';
+  return '';
+}
 function bestillEuKontroll(vehicleId){
   // Eneste eksisterende EU-bestillingsvei i koden: en verkstedtime med det strukturerte
   // feltet type (inneholder 'eu-kontroll', se vehicleHarRegistrertEuTime()). Her forhåndskrysses
@@ -5799,11 +5825,11 @@ function bestillRuteskift(vehicleId){
   vtEuForhandskrysset = false;
   goToRegisterVT(vehicleId || '');
 }
-function bestillVerkstedtime(vehicleId){
-  vtEuForhandskrysset = false;
-  vtRuteskiftForhandskrysset = false;
-  goToRegisterVT(vehicleId || '');
-}
+// Prioritet 62: bestillVerkstedtime() er FJERNET. En verkstedtime skal ikke lenger kunne
+// opprettes fritt fra Bestill tjenester — den er et RESULTAT av en sak
+// (Aktiv sak → Under oppfølging → Bestill verksted → Planlagt verksted).
+// Verkstedmodulen og dens egen "+ Ny verkstedtime"-knapp er urørt, likeså
+// bestillVerkstedForSak() og alle eksisterende verkstedtimer.
 function attachBestillListeners(scopeVehicleId){
   document.querySelectorAll('[data-bestill]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -5813,7 +5839,6 @@ function attachBestillListeners(scopeVehicleId){
       case 'eu': bestillEuKontroll(bil); break;
       case 'ruteskift': bestillRuteskift(bil); break;
       case 'dekk': bestillDekkskift(bil); break;
-      case 'verksted': bestillVerkstedtime(bil); break;
     }
   }));
 }
@@ -6407,6 +6432,11 @@ async function saveVerkstedEdit(id){
     let endret = false;
     verkstedtimer.forEach(t => { if(t.verksted === gammeltNavn){ t.verksted = nyttNavn; endret = true; } });
     if(endret) await saveVerkstedtimer();
+    // Prioritet 61: standardverkstedene lagrer NAVN, så de må følge med på navnebyttet -
+    // ellers ville standarden stille slutte å virke etter en omdøping.
+    let stdEndret = false;
+    Object.keys(standardVerksted).forEach(k => { if(standardVerksted[k] === gammeltNavn){ standardVerksted[k] = nyttNavn; stdEndret = true; } });
+    if(stdEndret) await saveStandardVerksted();
   }
   editingVerkstedId = null;
   render();
@@ -6417,8 +6447,22 @@ async function deleteVerksted(id){
     return w && t.verksted === w.navn;
   });
   if(inUse && !confirm('Dette verkstedet er brukt på registrerte verkstedtimer. Slette likevel? Eksisterende timer beholder navnet som tekst.')) return;
+  const slettet = verksteder.find(x => x.id === id);
   verksteder = verksteder.filter(w => w.id !== id);
   await saveVerksteder();
+  // Prioritet 61: rydd bort standardvalg som pekte på det slettede verkstedet.
+  if(slettet){
+    let stdEndret = false;
+    Object.keys(standardVerksted).forEach(k => { if(standardVerksted[k] === slettet.navn){ delete standardVerksted[k]; stdEndret = true; } });
+    if(stdEndret) await saveStandardVerksted();
+  }
+  render();
+}
+// Prioritet 61: lagrer étt standardvalg. Tom verdi = ingen standard (skjemaene faller
+// da tilbake til "Velg verksted..." som før).
+async function setStandardVerksted(type, navn){
+  if(navn) standardVerksted[type] = navn; else delete standardVerksted[type];
+  await saveStandardVerksted();
   render();
 }
 
@@ -7498,7 +7542,7 @@ function renderLoginShell(){
 //  👤 Konto → eksisterende ☰-meny/drawer (openDrawer(), ingen ny side)
 //  🔎 Søk → samme filterSearch som Biloversikt + goTo('register')
 //  KPI-kortene → Aktive saker / Kalender (samme klikkmål som desktop)
-//  Bestill-kortene → bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime
+//  Bestill-kortene → bestillService/bestillEuKontroll/bestillDekkskift/bestillRuteskift
 // Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
 function renderMobilHjem(){
   const d = dashboardBeregning();
@@ -7515,9 +7559,9 @@ function renderMobilHjem(){
     <div class="dash40-grid4">
       <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis">${luc('siren')}</span>
-        <span class="dash40-kpi-num" style="${d.krHarKritisk ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
+        <span class="dash40-kpi-num" style="${d.harHastesaker ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
         <span class="dash40-kpi-label">Aktive saker</span>
-        <span class="dash40-kpi-link">${d.kritiskeSakerAlle.length} forfalt${d.kritiskeSakerAlle.length===1?'':'e'} · Se alle →</span>
+        <span class="dash40-kpi-link">${d.forfalteSakerAlle.length} forfalt${d.forfalteSakerAlle.length===1?'':'e'} · Se alle →</span>
       </button>
       <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
         <span class="flis">${luc('calendar-days')}</span>
@@ -7528,7 +7572,7 @@ function renderMobilHjem(){
     </div>`,
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
-    <div class="dash40-grid5">
+    <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -7545,12 +7589,6 @@ function renderMobilHjem(){
         <span class="flis lg">${luc('circle-dot')}</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Planlegg dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">${luc('factory')}</span>
-        <span class="dash40-bestill-tittel">Verkstedtime</span>
-        <span class="dash40-bestill-sub">Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
@@ -7577,9 +7615,9 @@ function renderMobilHjem(){
       ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
     </div>`,
     kreverhandling: `
-    <div class="panel" style="margin-bottom:14px;${d.krHarKritisk ? 'border-color:var(--red);' : ''}">
+    <div class="panel" style="margin-bottom:14px;${d.harHastesaker ? 'border-color:var(--red);' : ''}">
       <div class="p38-panel-head">
-        <div class="tittel" style="color:${d.krHarKritisk ? 'var(--red)' : (d.dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
+        <div class="tittel" style="color:${d.harHastesaker ? 'var(--red)' : (d.dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
         ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
       </div>
       ${d.dashKreverListe.length === 0 ? `
@@ -7810,7 +7848,7 @@ function dashboardBeregning(){
   const sakerKreverHandlingMaster = aktiveSaker.filter(sakKreverHandlingSamletMaster);
   // Prioritet 59: splittes naa paa HASTEGRAD utledet av oppfolgingsdatoen, ikke paa
   // manuelt satt prioritet. "Forfalt" = oppfolgingsdato passert, "i dag" = forfaller i dag.
-  const kritiskeSakerAlle = sakerKreverHandlingMaster.filter(s => sakOppfolgingStatus(s) === 'forfalt');
+  const forfalteSakerAlle = sakerKreverHandlingMaster.filter(s => sakOppfolgingStatus(s) === 'forfalt');
   const oppfolgingKreverHandlingSaker = sakerKreverHandlingMaster.filter(s => sakOppfolgingStatus(s) !== 'forfalt');
   const uteAvDriftBiler = vehicles.filter(v => v.uteAvDrift);
   // "Se alle"-tallet på Dashboard skal ALDRI vise mer enn det som faktisk finnes i Aktive
@@ -7833,15 +7871,15 @@ function dashboardBeregning(){
   // allerede finnes en aktiv (kommende) dekkskifttime. En PASSERT, ikke fullført time faller
   // bevisst tilbake hit igjen (se vehicleHarAktivPlanlagtDekkskift()).
   const dekkKreverSkiftBiler = aktiveVehicles.filter(v => vehicleKreverDekkskift(v) && !vehicleHarAktivPlanlagtDekkskift(v.id));
-  const krHarKritisk = kritiskeSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0 || serviceForfalteBiler.length > 0 || dekkKreverSkiftBiler.length > 0;
+  const harHastesaker = forfalteSakerAlle.length > 0 || uteAvDriftBiler.length > 0 || euForfalteBiler.length > 0 || serviceForfalteBiler.length > 0 || dekkKreverSkiftBiler.length > 0;
   const dashKreverListe = [];
   // Regel 1 (Dashboard "Krever handling nå" — redusert støy): biler ute av drift skal IKKE
   // lenger vises som et eget element i denne listen — "ute av drift" er allerede en håndtert
   // tilstand (bevisst valg), ikke et uløst avvik som krever ny handling. Bilen forblir uendret
   // synlig i Biloversikt og i sin egen "ute av drift"-oversikt (uteAvDriftBiler brukes fortsatt
-  // under, både til krHarKritisk over og til fotnoten under selve listen i renderDashboard sitt
+  // under, både til harHastesaker over og til fotnoten under selve listen i renderDashboard sitt
   // returnerte markup — "+X biler ute av drift — ikke saker, vises kun her og i Biloversikt").
-  kritiskeSakerAlle.forEach(s => {
+  forfalteSakerAlle.forEach(s => {
     const alder = sakAlderDager(s);
     dashKreverListe.push({sort:0, ikon:luc('triangle-alert'), hast:'Forfalt', vehicleId:s.vehicleId, sakId:s.id, linje1:sakKortOverskrift(s), linje2:`Åpen i ${alder===null?'–':alder} dag${alder===1?'':'er'}`, aksjon: s.nextAction || 'Kontakt verksted'});
   });
@@ -7948,8 +7986,8 @@ function dashboardBeregning(){
     verksted: aktiveSaker.filter(s => sakFase(s) === 'verksted').length
   };
   return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
-    manglerKontrollCount, kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
-    krHarKritisk, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
+    manglerKontrollCount, forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
+    harHastesaker, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
     sakFaseAntall};
 }
@@ -7988,7 +8026,7 @@ function renderDashboard(){
   // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
   const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
-    kritiskeSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, krHarKritisk,
+    forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, harHastesaker,
     dashKreverListe, dashKreverTop5, kommendeFristerAntall, kommendeOppgaver, kommendeOppgaverTop,
     hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe, sakFaseAntall} = dashboardBeregning();
 
@@ -7997,31 +8035,9 @@ function renderDashboard(){
   const loggedInUser = adminUsers.find(u => u.rolle === loggedInRole);
   const displayTittel = loggedInUser && loggedInUser.tittel ? loggedInUser.tittel : '';
 
-  // Hurtigbestilling: fire kort som åpner EKSISTERENDE skjemaer
-  // (se bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime).
-  const bestillKortHtml = `
-    <div class="dash40-grid4">
-      <button type="button" class="dash40-bestill" data-bestill="service">
-        <span class="dash40-bestill-ikon">🔧</span>
-        <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg service</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu">
-        <span class="dash40-bestill-ikon">🚦</span>
-        <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Velg bil → Verkstedtime for EU</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk">
-        <span class="dash40-bestill-ikon">🛞</span>
-        <span class="dash40-bestill-tittel">Dekkskifte</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted">
-        <span class="dash40-bestill-ikon">🏭</span>
-        <span class="dash40-bestill-tittel">Verkstedtime</span>
-        <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
-      </button>
-    </div>`;
+  // Prioritet 62: `bestillKortHtml` er FJERNET herfra. Den var død kode — deklarert, men
+  // aldri brukt (erstattet av komponentHtml.bestill i Layout Editor-oppsettet), og den
+  // inneholdt fortsatt både emoji og Verkstedtime-kortet.
 
   // fargepar per tjeneste/alvorlighet — kun presentasjon (ikonflis-tint
   // og aksentfarge), ingen kobling til status- eller saksberegning.
@@ -8138,9 +8154,9 @@ function renderDashboard(){
           ${bilparkStatusInnholdHtml(hbp, hDriftCount)}
         </div>`,
     kreverhandling: `
-        <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${krHarKritisk ? 'border-color:var(--red);' : ''}">
+        <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${harHastesaker ? 'border-color:var(--red);' : ''}">
           <div class="p38-panel-head">
-            <div class="tittel" style="color:${krHarKritisk ? 'var(--red)' : (dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
+            <div class="tittel" style="color:${harHastesaker ? 'var(--red)' : (dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
             ${dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''} →</button>` : ''}
           </div>
           ${dashKreverListe.length === 0 ? `
@@ -8227,8 +8243,7 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-goto-aktivesaker-filter]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const kind = el.dataset.gotoAktivesakerFilter;
-    if(kind === 'kritisk') goToAktiveSakerFiltered({oppfolging: 'forfalt', kreverHandling: true});
-    else if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
+    if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
     else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
   }));
@@ -9703,21 +9718,18 @@ function renderBilkort(){
     </div>
 
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
-    <div class="dash40-grid5">
+    <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">🔧</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Planlegg service</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('wrench')}</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Planlegg service</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" data-bestill-bil="${v.id}" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">🚦</span><span class="dash40-bestill-tittel">EU-kontroll</span><span class="dash40-bestill-sub">Verkstedtime for EU</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('shield-check')}</span><span class="dash40-bestill-tittel">EU-kontroll</span><span class="dash40-bestill-sub">Verkstedtime for EU</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" data-bestill-bil="${v.id}" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">🛞</span><span class="dash40-bestill-tittel">Dekkskifte</span><span class="dash40-bestill-sub">Planlegg dekkskift</span><span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted" data-bestill-bil="${v.id}" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">🏭</span><span class="dash40-bestill-tittel">Verkstedtime</span><span class="dash40-bestill-sub">Ny verkstedtime</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('circle-dot')}</span><span class="dash40-bestill-tittel">Dekkskifte</span><span class="dash40-bestill-sub">Planlegg dekkskift</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" data-bestill-bil="${v.id}" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">💥</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Carglass ruteskift</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('car-front')}</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Carglass ruteskift</span><span class="dash40-bestill-pil">→</span>
       </button>
     </div>
 
@@ -9979,7 +9991,7 @@ function renderServiceSkjerm(){
           <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
             <select id="ps-verksted" required>
               <option value="">Velg verksted...</option>
-              ${verkstedSelectOptions('')}
+              ${verkstedSelectOptions(standardVerkstedFor('service'))}
             </select>
           </div>
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="ps-kommentar" type="text" placeholder="Valgfritt"></div>
@@ -10003,7 +10015,7 @@ function renderServiceSkjerm(){
           <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
             <select id="sv-verksted">
               <option value="">Ikke satt / internt</option>
-              ${verkstedSelectOptions('')}
+              ${verkstedSelectOptions(standardVerkstedFor('service'))}
             </select>
           </div>
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="sv-kommentar" type="text" placeholder="Valgfritt"></div>
@@ -10184,11 +10196,11 @@ function renderDekkSkjerm(){
           <div class="field" style="margin-bottom:10px;"><label>Dekkverksted</label>
             <select id="pd-verksted" required>
               <option value="">Velg verksted...</option>
-              ${verkstedSelectOptions('')}
+              ${verkstedSelectOptions(standardVerkstedFor('dekk'))}
             </select>
           </div>
           <div class="field" style="margin-bottom:10px;"><label>Type dekkskift</label>
-            <select id="pd-retning" required>${dekkRetningOptions('')}</select>
+            <select id="pd-retning" required>${dekkRetningOptions(v.dekk === 'vinter' ? 'vinter-sommer' : 'sommer-vinter')}</select>
           </div>
           <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="pd-kommentar" type="text" placeholder="Valgfritt"></div>
           <div class="form-msg" id="pd-msg"></div>
@@ -10573,7 +10585,6 @@ function sakWizardSteg1Html(s){
   // "Ikke vurdert" for status 'ny': ingen administrator har faktisk tatt stilling til
   // prioriteten ennå (det skjer først i Steg 2 — "Vurder sak") — selv om systemet har satt
   // en foreløpig startprioritet (f.eks. "Høy" på varsellamper), er den ikke bekreftet.
-  const prioritetVurdert = s.status !== 'ny';
   const aktiveAvvik = avvikListe.filter(a => a.status === 'aktiv');
   const utforteAvvik = avvikListe.filter(a => a.status !== 'aktiv');
   return `
@@ -10652,15 +10663,12 @@ function avvikRadHtml(s, a){
     </div>
   `;
 }
-// Steg 2 — Vurder sak: prioritet + status. Status og prioritet lagres og håndteres
-// bevisst adskilt (se strategisk foranalyse punkt 0/5) — "Lukket" er kun gyldig som
-// STATUS, aldri som prioritet, og selve lukkingen skjer alltid i Steg 4.
+// Steg 2 — Vurder sak: kun STATUS. Prioritet 60: prioritetsvalget som tidligere lå her
+// er fjernet sammen med resten av prioritetssystemet. "Lukket" er fortsatt kun en snarvei
+// til Steg 4 — selve lukkingen (med krav om resultat og sluttkommentar) skjer alltid der.
 function sakWizardSteg2Html(s){
   return `
     <h4 style="margin-bottom:10px;">Vurder sak</h4>
-    <div class="field" style="margin-bottom:12px;"><label>Prioritet</label>
-      <!-- Prioritet 59: prioritetsvalget er fjernet. Saken styres av status. -->
-    </div>
     <div class="field" style="margin-bottom:12px;"><label>Status</label>
       <select id="swz-status-${s.id}">
         ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${s.status===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
@@ -10701,7 +10709,7 @@ function sakWizardVtFormHtml(s){
       <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
         <select id="vt-verksted" required>
           <option value="">Velg verksted...</option>
-          ${verkstedSelectOptions('')}
+          ${verkstedSelectOptions(standardVerkstedFor('reparasjon'))}
         </select>
       </div>
       <div class="row2">
@@ -11130,7 +11138,7 @@ function flatePlanleggingData(periodeDager){
 // Menypunktet "🛠️ Bestill tjenester" fra referansebildet. Flaten inneholder INGEN ny
 // logikk og ingen ny datamodell — den viser de fire hurtigbestillingskortene som
 // allerede finnes på Dashboard og Kjøretøyprofil, og bruker nøyaktig de samme
-// funksjonene (bestillService/bestillEuKontroll/bestillDekkskift/bestillVerkstedtime).
+// funksjonene (bestillService/bestillEuKontroll/bestillDekkskift/bestillRuteskift).
 // Bilen velges som før i selve skjemaet man havner i: Trykk → Velg bil → Bestill.
 function renderBestillTjenester(){
   const plan7 = flatePlanleggingData(7);
@@ -11144,7 +11152,7 @@ function renderBestillTjenester(){
          Informasjonsveilederen, ikke ligge spredt rundt i appen». -->
     <div class="required-hint" style="margin-bottom:18px;">${kommende} kommende avtale${kommende===1?'':'r'} de neste 7 dagene.</div>
 
-    <div class="dash40-grid5">
+    <div class="dash40-grid2x2">
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
@@ -11161,12 +11169,6 @@ function renderBestillTjenester(){
         <span class="flis lg">${luc('circle-dot')}</span>
         <span class="dash40-bestill-tittel">Dekkskifte</span>
         <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="verksted" style="--tint:var(--purple-soft);--tone:var(--purple);">
-        <span class="flis lg">${luc('factory')}</span>
-        <span class="dash40-bestill-tittel">Verkstedtime</span>
-        <span class="dash40-bestill-sub">Velg bil → Ny verkstedtime</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
@@ -11585,13 +11587,10 @@ function renderAktiveSaker(){
       </div>
       <div class="field" style="margin-bottom:10px;"><label>Tittel</label><input id="sak-tittel" type="text" placeholder="F.eks. Motorlampe lyser" required></div>
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="sak-beskrivelse" placeholder="Valgfritt"></textarea></div>
-      <div class="row2">
-        <div class="field"><label>Prioritet</label>
-          <!-- Prioritet 59: prioritetsvalget er fjernet. -->
-        </div>
+      <div class="row2" style="margin-bottom:6px;">
         <div class="field"><label>Oppfølgingsdato</label><input id="sak-oppfolgingsdato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10"></div>
+        <div class="field"><label>Neste handling</label><input id="sak-neste-handling" type="text" placeholder="Valgfritt"></div>
       </div>
-      <div class="field" style="margin-bottom:6px;"><label>Neste handling</label><input id="sak-neste-handling" type="text" placeholder="Valgfritt"></div>
       <div class="form-msg" id="sak-msg"></div>
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
@@ -11628,18 +11627,15 @@ function renderAktiveSaker(){
             ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${sakFilterStatus===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>${luc('target')} Prioritet</label>
-          <!-- Prioritet 59: prioritetsfilteret er fjernet. -->
-        </div>
-      </div>
-      <div class="field"><label>${luc('calendar-days')} Oppfølging</label>
+        <div class="field"><label>${luc('calendar-days')} Oppfølging</label>
         <select id="sak-f-oppfolging">
           <option value="">Alle</option>
           <option value="idag" ${sakFilterOppfolging==='idag'?'selected':''}>🟠 Oppfølging i dag</option>
           <option value="forfalt" ${sakFilterOppfolging==='forfalt'?'selected':''}>🔴 Forfalt</option>
           <option value="7dager" ${sakFilterOppfolging==='7dager'?'selected':''}>Neste 7 dager</option>
           <option value="ingen-dato" ${sakFilterOppfolging==='ingen-dato'?'selected':''}>⚪ Ingen oppfølgingsdato</option>
-        </select>
+          </select>
+        </div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13.5px;font-weight:600;cursor:pointer;">
         <input type="checkbox" id="sak-f-krever-handling" style="width:20px;height:20px;flex-shrink:0;" ${sakFilterKreverHandling?'checked':''}>
@@ -11806,6 +11802,31 @@ function attachAktiveSakerListeners(){
 }
 
 
+// Prioritet 61: de fem tjenestetypene det kan settes standardverksted for. Rekkefolgen
+// her styrer bade Innstillinger-skjemaet og er eneste sted typene defineres.
+const STD_VERKSTED_TYPER = [
+  {id:'service',    label:'Service',            ikon:'wrench'},
+  {id:'eu',         label:'EU-kontroll',        ikon:'shield-check'},
+  {id:'reparasjon', label:'Deler/Reparasjon',   ikon:'factory'},
+  {id:'ruteskift',  label:'Ruteskift',          ikon:'car-front'},
+  {id:'dekk',       label:'Dekkskifte',         ikon:'circle-dot'}
+];
+// Slaar opp standardverkstedet for en tjenestetype. TOLERANT: returnerer tom streng hvis
+// det lagrede navnet ikke (lenger) finnes i Verkstedregisteret - f.eks. fordi verkstedet
+// er slettet. Da faller skjemaet tilbake til "Velg verksted..." i stedet for aa
+// forhaandsutfylle noe som ikke finnes i nedtrekkslisten.
+function standardVerkstedFor(type){
+  const navn = standardVerksted && standardVerksted[type];
+  if(!navn) return '';
+  return verksteder.some(w => w.navn === navn) ? navn : '';
+}
+// Standardverksted for en NY verkstedtime, utledet av hvilke typer som er krysset av.
+// EU og Ruteskift har egne standarder; alt annet regnes som Deler/Reparasjon.
+function standardVerkstedForVtType(erEu, erRuteskift){
+  if(erEu) return standardVerkstedFor('eu');
+  if(erRuteskift) return standardVerkstedFor('ruteskift');
+  return standardVerkstedFor('reparasjon');
+}
 function verkstedSelectOptions(selected){
   return verksteder
     .slice()
@@ -11957,7 +11978,7 @@ function renderVerksted(){
       <div class="field"><label>Verksted</label>
         <select id="vt-verksted" required>
           <option value="">Velg verksted...</option>
-          ${verkstedSelectOptions('')}
+          ${verkstedSelectOptions(standardVerkstedFor('reparasjon'))}
         </select>
       </div>
       ` : `
@@ -11969,9 +11990,9 @@ function renderVerksted(){
           </select>
         </div>
         <div class="field"><label>Verksted</label>
-          <select id="vt-verksted" required>
+          <select id="vt-verksted" required data-std-default="${esc(standardVerkstedForVtType(vtEuForhandskrysset, vtRuteskiftForhandskrysset))}">
             <option value="">Velg verksted...</option>
-            ${verkstedSelectOptions('')}
+            ${verkstedSelectOptions(standardVerkstedForVtType(vtEuForhandskrysset, vtRuteskiftForhandskrysset))}
           </select>
         </div>
       </div>
@@ -11980,7 +12001,7 @@ function renderVerksted(){
         <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
-      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." required></div>`}
+      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." value="${esc(vtBeskrivelseForslag(vtEuForhandskrysset, vtRuteskiftForhandskrysset))}" data-std-default="${esc(vtBeskrivelseForslag(vtEuForhandskrysset, vtRuteskiftForhandskrysset))}" required></div>`}
       <div class="row2">
         <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
         <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
@@ -12100,6 +12121,35 @@ function attachVerkstedListeners(){
   });
   const f = document.getElementById('add-vt-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
+  // Prioritet 61: krysser brukeren av for EU-kontroll eller Ruteskift ETTER at skjemaet er
+  // aapnet, oppdateres verkstedforslaget - men KUN hvis feltet fortsatt staar paa forrige
+  // forslag. Har brukeren valgt verksted selv, roeres det aldri. Ren forhaandsutfylling,
+  // ingen laasing. Bruker render() bevisst IKKE, slik at resten av skjemaet beholdes.
+  const vtEuBoks = document.getElementById('vt-eu-kontroll');
+  const vtRsBoks = document.getElementById('vt-ruteskift');
+  const vtVerkstedFelt = document.getElementById('vt-verksted');
+  const vtBeskrFelt = document.getElementById('vt-beskrivelse');
+  if(vtEuBoks && vtRsBoks){
+    const oppdaterForslag = () => {
+      // Verksted
+      if(vtVerkstedFelt && vtVerkstedFelt.dataset.stdDefault !== undefined
+         && vtVerkstedFelt.value === (vtVerkstedFelt.dataset.stdDefault || '')){
+        const nyttVerksted = standardVerkstedForVtType(vtEuBoks.checked, vtRsBoks.checked);
+        vtVerkstedFelt.value = nyttVerksted;
+        vtVerkstedFelt.dataset.stdDefault = nyttVerksted;
+      }
+      // Prioritet 62: beskrivelsen følger samme regel — oppdateres kun hvis den fortsatt
+      // står på forrige forslag. Har brukeren skrevet noe selv, røres den aldri.
+      if(vtBeskrFelt && vtBeskrFelt.dataset.stdDefault !== undefined
+         && vtBeskrFelt.value === (vtBeskrFelt.dataset.stdDefault || '')){
+        const nyBeskr = vtBeskrivelseForslag(vtEuBoks.checked, vtRsBoks.checked);
+        vtBeskrFelt.value = nyBeskr;
+        vtBeskrFelt.dataset.stdDefault = nyBeskr;
+      }
+    };
+    vtEuBoks.addEventListener('change', oppdaterForslag);
+    vtRsBoks.addEventListener('change', oppdaterForslag);
+  }
   document.getElementById('vt-filter-toggle-btn').addEventListener('click', () => {
     showVtFilterMeny = !showVtFilterMeny;
     render();
@@ -12632,7 +12682,7 @@ function rapportSkadeRader(){
 }
 function renderRapportSkade(){
   const rader = rapportSkadeRader();
-  const header = ['Bilnummer', 'Reg.nr', 'Skadetype', 'Registrert dato', 'Status', 'Prioritet', 'Bilder', 'Ansvarlig oppfølging'];
+  const header = ['Bilnummer', 'Reg.nr', 'Skadetype', 'Registrert dato', 'Status', 'Alvorlighet', 'Bilder', 'Ansvarlig oppfølging'];
   return `
     ${rapportHeaderHtml()}
     <div class="required-hint" style="margin-bottom:16px;">${rader.length} skader.</div>
@@ -12645,7 +12695,7 @@ function renderRapportSkade(){
 }
 function eksporterRapportSkade(){
   const rader = rapportSkadeRader();
-  const header = ['Bilnummer', 'Registreringsnummer', 'Skadetype', 'Registrert dato', 'Status', 'Prioritet', 'Antall bilder', 'Ansvarlig oppfølging'];
+  const header = ['Bilnummer', 'Registreringsnummer', 'Skadetype', 'Registrert dato', 'Status', 'Alvorlighet', 'Antall bilder', 'Ansvarlig oppfølging'];
   const rows = rader.map(r => [
     r.bilnummer, r.regnr, r.skadetype, fmtExcelDato(r.dato), SKADE_STATUS_LABEL[r.status] || r.status,
     ALVOR_LABEL[r.alvorlighet] || '', r.bilderCount, r.ansvarlig || ''
@@ -13815,6 +13865,21 @@ function renderInnstillinger(){
       <input id="new-verksted-navn" type="text" placeholder="Navn på nytt verksted">
       <button class="btn" id="add-verksted-btn">+ Legg til</button>
     </div>
+
+    <div class="ov-label" style="margin:18px 0 4px;">Standardverksted</div>
+    <div class="required-hint" style="margin-bottom:10px;">Foreslås automatisk når dere registrerer en ny aktivitet. Kan alltid overstyres i skjemaet.</div>
+    ${verksteder.length === 0 ? `<div class="empty-note">Legg til minst ett verksted først.</div>` : `
+    <div class="settings-list">
+      ${STD_VERKSTED_TYPER.map(t => `
+        <div class="settings-row">
+          <span>${luc(t.ikon)} ${t.label}</span>
+          <select data-std-verksted="${t.id}" style="min-height:44px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;max-width:60%;">
+            <option value="">Ingen standard</option>
+            ${verkstedSelectOptions(standardVerkstedFor(t.id))}
+          </select>
+        </div>
+      `).join('')}
+    </div>`}
   `;
 
   // ⚙️ Administrer bilkategorier.
@@ -14312,6 +14377,11 @@ function attachInnstillingerListeners(){
   document.querySelectorAll('[data-edit-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditVerksted(el.dataset.editVerksted); }));
   document.querySelectorAll('[data-save-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveVerkstedEdit(el.dataset.saveVerksted); }));
   document.querySelectorAll('[data-cancel-verksted]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingVerkstedId = null; render(); }));
+  // Prioritet 61: standardverksted lagres direkte ved endring - ingen egen lagre-knapp.
+  document.querySelectorAll('[data-std-verksted]').forEach(el => el.addEventListener('change', (e) => {
+    e.stopPropagation();
+    setStandardVerksted(el.dataset.stdVerksted, el.value);
+  }));
 
   document.querySelectorAll('[data-save-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveAdminUserCredentials(el.dataset.saveAdminUser); }));
   document.querySelectorAll('[data-del-admin-user]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteAdminUser(el.dataset.delAdminUser); }));

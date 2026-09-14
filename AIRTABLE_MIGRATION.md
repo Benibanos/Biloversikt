@@ -548,3 +548,23 @@ ingen kolonner slettet.
 
 Det samme gjelder `prioritet` inne i `Avvik`-JSON-bloben: eldre blober leses tolerant
 (verdien ignoreres), og nye avvikspunkter skrives uten feltet.
+
+
+---
+
+## Prioritet 61 (2026-09-13) — én ny Settings-nøkkel (ingen migrering)
+
+**Ingen handling kreves i Airtable.** Ingen ny tabell, ingen nye kolonner, ingen endring
+i `LIST_TABLES`.
+
+Ny frittstående Settings-nøkkel:
+
+- `standardverksted` — ÉN JSON-blob med standardverksted per tjenestetype, på formen
+  `{"service":"Mekonomen","eu":"...","reparasjon":"BOS Skolmar","ruteskift":"...","dekk":"..."}`.
+  Verdiene er verkstedNAVN (samme representasjon som `verkstedtime.verksted`), ikke id-er.
+  Nøkler uten verdi utelates.
+
+Raden opprettes automatisk i den eksisterende `Settings`-tabellen første gang et
+standardverksted lagres, på samme måte som `verksteder`, `bilkategorier` og
+`dashboard-layout`. `storage.airtable.js` ruter alle nøkler som ikke står i `LIST_TABLES`
+til `Settings` uten videre konfigurasjon.
