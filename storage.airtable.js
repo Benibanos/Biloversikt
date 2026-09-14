@@ -194,7 +194,10 @@
     aktiveSaker: { table: 'AktiveSaker', fields: {
       id: ['AppId'], caseId: ['CaseId'], vehicleId: ['VehicleId'], registrationNumber: ['RegistrationNumber'],
       caseType: ['CaseType'], title: ['Title'], description: ['Description'], status: ['Status'],
-      priority: ['Priority'], sourceType: ['SourceType'], sourceId: ['SourceId'], reportedBy: ['ReportedBy'],
+      // Prioritet 59: `priority` er fjernet fra feltkartet. Airtable-kolonnen
+      // AktiveSaker.Priority er BEVISST IKKE slettet — den står igjen som historisk
+      // data, men leses og skrives ikke lenger av appen.
+      sourceType: ['SourceType'], sourceId: ['SourceId'], reportedBy: ['ReportedBy'],
       reportedAt: ['ReportedAt'], assignedTo: ['AssignedTo'], nextAction: ['NextAction'],
       followUpDate: ['FollowUpDate'], resolvedAt: ['ResolvedAt'], resolvedBy: ['ResolvedBy'],
       resolutionNote: ['ResolutionNote'], createdAt: ['CreatedAt'], updatedAt: ['UpdatedAt'],
@@ -467,7 +470,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.13.0',
+    versjon: 'v2.14.0',
     bygget: '11.09.2026 00:00',
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
