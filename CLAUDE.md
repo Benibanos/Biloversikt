@@ -751,9 +751,11 @@ stille). Kun layout, CSS, komponenter og navigasjon.
    `goToRegisterSak('')`). Drawer-rekkefølgen følger nå desktopmenyen, med
    Historikk og Analyse i en egen «Oppslag»-seksjon nederst.
 6. **Biloversikt:** `galleryCard()` er redesignet til 4.1-kort (ikonflis,
-   skiltkomponent, radene Løyvenummer / Status / Aktiv sjåfør, pillerad for
-   kontroll, varsellamper, skader og kategori). Løyvenummer er synlig uten
-   ekstra klikk. Statuspillen bruker `vehicleHovedstatus()` +
+   pillerad for kontroll, varsellamper og skader). **Prioritet 64 komprimerte
+   kortet:** skiltkomponenten og radene Løyvenummer / Status / Aktiv sjåfør er
+   erstattet av statusprikk i tittellinjen + to infolinjer («Modell • Regnr» og
+   «Løyve • Km»), og Aktiv sjåfør er flyttet ned i pilleraden. Løyvenummer er
+   fortsatt synlig uten ekstra klikk. Statusfargen bruker `vehicleHovedstatus()` +
    `P38_STATUS_STIL`, samme som desktopens biltabell. Kortet skiller nå også
    «👤 Aktiv sjåfør» (`vehicleAktivSjafor()`) fra «🕓 … (i dag)»
    (`vehicleSisteSjafor()`) — jf. Prioritet 33. **Begge lesefunksjonene er
@@ -2614,3 +2616,34 @@ kant (mål horisontal variasjon per kant — vertikal variasjon kan være logoen
 gradient); motivet sentrert; og — viktigst — verste motivPIKSELS avstand fra midten under
 `0.4 × bredden`. Å måle bounding box-høyden alene er ikke nok, fordi et høyt, smalt motiv
 kan få hjørnene kuttet av launcherens sirkelmaske selv med god høydemargin.
+
+## Prioritet 64 (2026-09-14) — Bilkortet skal komprimeres, ikke utvides
+
+**Varig regel for Biloversikt: et bilkort skal svare på fire ting — hvilken bil, hvilken
+status, hvem kjører den, og er noe galt.** Alt annet hører hjemme på Kjøretøyprofilen.
+Kortet består derfor av nøyaktig: tittellinje med statusprikk, to infolinjer, og en
+pillerad. Nye felt legges ikke til her uten at noe annet fjernes.
+
+**Status kommuniseres med farge, ikke etikett.** `galleryCard()` bruker den eksisterende
+`.p48-dot` farget med `P38_STATUS_STIL[hs].tone` (🟢 `--green-ink` · 🟡 `--amber` ·
+🟠 `--orange` · 🔴 `--red` · ⚪ `--muted`), med `HOVEDSTATUS_IKON`/`HOVEDSTATUS_LABEL` som
+`title`. Ingen ny prikk-komponent, ingen nye statusfarger. `vehicleHovedstatus()` er urørt.
+
+**De to infolinjene har fast form:**
+
+| Linje | Innhold |
+|---|---|
+| 1 | `Merke Modell • Regnr` (fallback «Modell ikke satt») |
+| 2 | `Løyve <nr> • <km> km` (fallback `⚠️ Løyve mangler` via `.gcard-loyve.mangler` / «Km ikke satt») |
+
+Årsmodell og drivstoff vises IKKE på kortet. Dataene er urørte og vises fortsatt på
+Kjøretøyprofilen (`drivstoffTekst()` brukes fortsatt to steder der).
+
+**Kategori-/driftslagtaggen hører ikke hjemme på kortet.** Bilen ligger allerede inne i sin
+egen gruppe i Biloversikt, så taggen gjentok det brukeren nettopp klikket seg inn i.
+Unntaket er den flate listen «🚚 Biler i drift» (filter `har-aktiv-sjafor`), der kategori
+ikke lenger fremgår av kortet — se kjent begrensning i `ROADMAP.md`.
+
+**«Ingen varsellamper» er ikke informasjon.** Varsellampepillen vises kun når
+`activeVarsellysForVehicle()` returnerer noe. Grønn prikk i tittellinjen dekker det
+motsatte tilfellet. Samme prinsipp som skadepillen, som alltid har vært betinget.

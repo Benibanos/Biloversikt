@@ -1302,10 +1302,11 @@
   .gcard:hover{box-shadow:var(--sh-hover);}
   .gcard-head{padding:14px 14px 10px;display:flex;gap:12px;align-items:center;min-width:0;}
   .gcard-navn{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;line-height:1.15;}
-  .gcard-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
-  .gcard-rader{padding:0 14px;}
-  .gcard-rad{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:12.5px;}
-  .gcard-rad .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;}
+  /* PRIORITET 64: bilkortet er komprimert til topplinje + to infolinjer + badges.
+     .gcard-rader/.gcard-rad (STATUS-/Løyve-/Aktiv sjåfør-radene) er derfor fjernet —
+     ingen andre skjermer brukte dem. .gcard-loyve beholdes, den brukes fortsatt av
+     «⚠️ Løyve mangler» på infolinje 2. */
+  .gcard-sub{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35;}
   .gcard-loyve{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;color:var(--blue);}
   .gcard-loyve.mangler{color:var(--amber);font-size:12.5px;}
   .gcard-badges{display:flex;gap:6px;flex-wrap:wrap;padding:11px 14px 14px;border-top:1px solid var(--line-soft);margin-top:2px;}
@@ -8575,35 +8576,35 @@ function galleryCard(v, erMinAktiveBil){
   const sjaforIdag = vehicleSisteSjafor(v.id);
   const hs = vehicleHovedstatus(v.id);
   const st = P38_STATUS_STIL[hs] || {tint:'var(--surface-3)', tone:'var(--muted)'};
+  // PRIORITET 64 — komprimert bilkort. SAMME data og SAMME lesefunksjoner som før
+  // (vehicleHovedstatus/vehicleAktivSjafor/isKontrollertIdag/activeVarsellysForVehicle) —
+  // kun presentasjonen er strammet inn:
+  //   • Status vises som statusprikk i tittellinjen (eksisterende .p48-dot, farget med
+  //     P38_STATUS_STIL[hs].tone) i stedet for en egen STATUS-rad.
+  //   • Kjøretøyinfo er komprimert til to linjer: «Modell • Regnr» og «Løyve • Km».
+  //     Skiltkomponenten (.plate), årsmodell og drivstoff er derfor tatt ut av KORTET —
+  //     ingen data er slettet, alt vises fortsatt uendret på Kjøretøyprofilen.
+  //   • Aktiv sjåfør flyttet fra .gcard-rad til badge-raden (samme pille, samme kilde).
+  //   • Kategori-/driftslagtaggen er fjernet fra kortet — bilen ligger allerede i sin egen
+  //     gruppe i Biloversikt, så taggen gjentok informasjon brukeren allerede har.
+  const modellTekst = [v.merke, v.modell].filter(Boolean).join(' ').trim();
+  const kmTekst = v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt';
   return `
     <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);"' : ''}>
       <div class="gcard-head">
         <span class="flis" style="--tint:${st.tint};">${v.kategori === 'lastebil' ? '🚛' : '🚐'}</span>
         <div style="flex:1;min-width:0;">
           <div class="gcard-navn">${esc(v.bilnummer || '–')}${erMinAktiveBil ? ' ⭐' : ''}</div>
-          <div class="gcard-sub">${esc(v.merke || '')} ${esc(v.modell || '')}${v.km ? ' · ' + Number(v.km).toLocaleString('nb-NO') + ' km' : ' · Km ikke satt'}${v.arsmodell ? ' · ' + esc(v.arsmodell) : ''}${v.drivstoff ? ' · ' + esc(drivstoffTekst(v)) : ''}</div>
+          <div class="gcard-sub">${esc(modellTekst) || 'Modell ikke satt'} • ${esc(v.regnr)}</div>
+          <div class="gcard-sub">${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '<span class="gcard-loyve mangler">⚠️ Løyve mangler</span>'} • ${kmTekst}</div>
         </div>
-        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-      </div>
-      <div class="gcard-rader">
-        <div class="gcard-rad">
-          <span class="k">Løyvenummer</span>
-          <span class="gcard-loyve ${v.loyvenummer ? '' : 'mangler'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span>
-        </div>
-        <div class="gcard-rad">
-          <span class="k">Status</span>
-          <span class="p38-pill" style="--tint:${st.tint};--tone:${st.tone};">${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}</span>
-        </div>
-        <div class="gcard-rad">
-          <span class="k">Aktiv sjåfør</span>
-          <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 ' + esc(sjaforIdag) + ' (i dag)' : '⚪ Tilgjengelig')}</span>
-        </div>
+        <span class="p48-dot" style="background:${st.tone};" title="${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}"></span>
       </div>
       <div class="gcard-badges">
+        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 ' + esc(sjaforIdag) + ' (i dag)' : '⚪ Tilgjengelig')}</span>
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
-        <span class="p38-pill" style="--tint:${aktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${aktiveVarsler.length > 0 ? 'var(--red)' : 'var(--green-ink)'};">${aktiveVarsler.length > 0 ? `🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}` : '🟢 Ingen varsellamper'}</span>
+        ${aktiveVarsler.length > 0 ? `<span class="p38-pill" style="--tint:var(--red-soft);--tone:var(--red);">🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}</span>` : ''}
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
-        <span class="p38-pill" ${v.uteAvDrift ? 'style="--tint:var(--surface-3);--tone:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}</span>
       </div>
     </div>
   `;

@@ -1,6 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-10 (Prioritet 48.1 — kontrastfeil på «Registrer
+Sist oppdatert: 2026-09-14 (Prioritet 64 — Biloversikt-komprimering: bilkortet
+redusert til tittellinje med statusprikk, to infolinjer og pillerad; gruppering,
+filtre, statusmotor og sjåførlogikk urørt).
+Før det: 2026-09-10 (Prioritet 48.1 — kontrastfeil på «Registrer
 varsellampe»/«Registrer avvik» funnet og rettet: `.chip`/`.chip-text` manglet
 eksplisitt tekstfarge og falt tilbake på nettleserens standard knappefarge).
 Før det: Prioritet 48 — siste premium-polish av
@@ -1520,3 +1523,44 @@ box-høyden — innenfor den sikre sonen med 18 px margin. Motivet dekker 47,7 %
 **Åpent:** manifestfilene selv har uendrede URL-er. De hentes på nytt fordi service
 workeren er network-first og cachen tømmes ved CACHE_VERSION-bump, men en allerede
 installert PWA kan holde på gammelt ikon til den reinstalleres.
+
+## Prioritet 64 (2026-09-14) — Biloversikt-komprimering
+
+✅ Implementert og verifisert.
+
+Biloversikten fungerte operativt, men hvert bilkort var høyere enn nødvendig. Gruppering,
+lag, filtre, statusmotor og sjåførlogikk er URØRT — kun kortets presentasjon er strammet
+inn i `galleryCard()`.
+
+| Fjernet fra kortet | Erstattet av / flyttet til |
+|---|---|
+| STATUS-raden (pille med full etikett) | Statusprikk i tittellinjen (`.p48-dot` + `P38_STATUS_STIL`) |
+| Løyvenummer-raden | Infolinje 2: `Løyve 103028 • 79 040 km` |
+| Aktiv sjåfør-raden | Samme pille, flyttet ned i pilleraden |
+| Skiltkomponenten `.plate` | Infolinje 1: `Mercedes Sprinter • LS97571` |
+| Årsmodell og drivstoff | Vises fortsatt uendret på Kjøretøyprofilen |
+| Kategori-/driftslagtaggen | Gruppeoverskriften bilen ligger i |
+| «🟢 Ingen varsellamper» | Grønn statusprikk |
+
+Resultat: fra tittellinje + 3 radlinjer + 4 piller ned til tittellinje + 2 infolinjer +
+2–4 piller. Tre `.gcard-rad`-rader à ~30 px og skiltet er borte per kort; med 16 biler
+fordelt på grupper gir det merkbart mindre scrolling på mobil.
+
+CSS: `.gcard-rader` / `.gcard-rad` / `.gcard-rad .k` er slettet (ingen andre skjermer
+brukte dem). `.gcard-loyve` beholdes — `.mangler`-varianten brukes fortsatt på infolinje 2.
+Ingen nye radiusverdier, ingen nye farger, ingen nye komponenter.
+
+`sw.js` CACHE_VERSION bilpark-v64 → bilpark-v65. `storage.airtable.js` urørt (v2.14.0),
+ingen Airtable-endring, ingen nye felt, ingen `LIST_TABLES`-endring.
+
+**Kjente begrensninger:**
+
+1. I den flate listen «🚚 Biler i drift» (filter `har-aktiv-sjafor`) vises biler på tvers
+   av kategorier uten gruppeoverskrift. Der mistet kortet den eneste kategoriindikatoren.
+   Kan gjenopprettes med et valgfritt tredje argument til `galleryCard()` dersom det
+   savnes — ikke gjort nå, fordi det ville innføre betinget kortlogikk.
+2. Statusprikken har `title`-tekst, som ikke vises ved berøring på mobil. Full statustekst
+   finnes ett klikk unna, på Kjøretøyprofilen.
+3. Reservebil (`reserve`) og «ikke kontrollert» deler samme grå prikk (`--muted`), slik de
+   alltid har delt `P38_STATUS_STIL`-verdi. Pilleraden skiller dem fortsatt
+   («🚐 Ikke i bruk i dag» vs. «⚠️ Ikke kontrollert»).

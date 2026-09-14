@@ -15,6 +15,45 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 64 — Biloversikt-komprimering
+
+**Problem eller mål**
+
+Biloversikten fungerte operativt, men hvert bilkort var høyere enn nødvendig. Målet var
+samme informasjon, lavere kort, mindre scrolling — ingen endring i gruppering, lag,
+filtre, statusmotor, sjåførlogikk eller Airtable.
+
+**Løsning — `galleryCard()`**
+
+| Før | Nå |
+|---|---|
+| Egen STATUS-rad med full etikett | Statusprikk i tittellinjen (`.p48-dot`, farget med `P38_STATUS_STIL[hs].tone`) |
+| Egen Løyvenummer-rad | Infolinje 2: `Løyve 103028 • 79 040 km` |
+| Egen Aktiv sjåfør-rad | Samme pille, flyttet ned i pilleraden |
+| Skiltkomponent `.plate` + `Merke Modell · km · år · drivstoff` | Infolinje 1: `Mercedes Sprinter • LS97571` |
+| Kategori-/driftslagtagg i pilleraden | Fjernet — bilen ligger allerede i gruppen |
+| «🟢 Ingen varsellamper» alltid synlig | Vises kun når det faktisk finnes varsellamper |
+
+Beholdt uendret: aktiv sjåfør (👤 live / 🕓 i dag / ⚪ tilgjengelig), kontrollstatus
+(✅ / ⚠️ / 🚐 ikke i bruk i dag), varsellamper, skader, ⭐-markering av egen aktive bil,
+amber ramme på egen bil, og «⚠️ Løyve mangler»-varselet.
+
+Ingen data er slettet. Årsmodell og drivstoff vises fortsatt uendret på Kjøretøyprofilen.
+
+CSS: `.gcard-rader`, `.gcard-rad` og `.gcard-rad .k` er slettet (ubrukte etter endringen).
+`.gcard-sub` har fått `line-height:1.35`. Ingen nye farger, radier eller komponenter.
+
+CACHE_VERSION bilpark-v64 → bilpark-v65.
+
+**Verifisering**
+
+`node --check` på begge script-blokker, tag-balanse i `index.html` (div 1419/1419,
+span 554/554), og en gjengivelsessimulering av `galleryCard()` over åtte scenarioer
+(operativ, oppfølging med 2 varsellamper og åpen skade, ute av drift, ikke kontrollert,
+reservebil, bil uten løyve/km/modell, egen aktiv bil, utbedret skade) — alle bestått.
+
+---
+
 ### Prioritet 63.1 — Cache busting av PWA-ikoner
 
 **Problem eller mål**
