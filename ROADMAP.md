@@ -1491,3 +1491,32 @@ Ingen endring i Airtable, KPI-er, saksmotor, kalender eller verksted.
 Splash-skjermen viser derfor den mørke logobrikken på lys bakgrunn. Skal splashen matche
 logoens egen mørke bakgrunn, er det én verdi per manifest — men det påvirker også appens
 første maling, så det er en egen beslutning.
+
+
+## Prioritet 63.1 (2026-09-14) — Cache busting av PWA-ikoner
+
+Ikonfilene fra Prioritet 63 hadde generiske navn som allerede lå i nettleserens og
+launcherens cache fra før. Nye, versjonerte filnavn tvinger fram ny henting:
+
+| Gammelt | Nytt |
+|---|---|
+| `icons/icon-192.png` | `icons/bilpark-icon-192-v63.png` |
+| `icons/icon-512.png` | `icons/bilpark-icon-512-v63.png` |
+| `icons/icon-512-maskable.png` | `icons/bilpark-icon-512-maskable-v63.png` |
+
+14 referanser oppdatert: favicon, apple-touch-icon, CSS-kommentar og to `brand-mark`-img i
+`index.html`/`kontroll.html`, tre i `sw.js` sin precache-liste, og tre i hvert av de to
+manifestene. De gamle filnavnene finnes ikke lenger noe sted.
+
+`sw.js` CACHE_VERSION bilpark-v63 → bilpark-v64. Selve bildefilene er uendret — kun navn.
+
+**Maskable-ikonet er verifisert mot Android-reglene**, ikke bare antatt: heldekkende RGB
+uten alfakanal, bakgrunn helt ut i alle fire hjørner, ingen hjørnebortfall langs noen kant,
+motivet sentrert innenfor 2 px, og HELE motivet — målt per piksel, ikke bare bounding
+box-høyden — innenfor den sikre sonen med 18 px margin. Motivet dekker 47,7 % av bredden.
+
+`storage.airtable.js` urørt (v2.14.0). Ingen endring i Airtable, KPI-er eller saksmotor.
+
+**Åpent:** manifestfilene selv har uendrede URL-er. De hentes på nytt fordi service
+workeren er network-first og cachen tømmes ved CACHE_VERSION-bump, men en allerede
+installert PWA kan holde på gammelt ikon til den reinstalleres.

@@ -15,6 +15,83 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 63.1 — Cache busting av PWA-ikoner
+
+**Problem eller mål**
+
+Ikonene fra Prioritet 63 arvet de generiske filnavnene som allerede lå i cachen. Nye,
+versjonerte navn tvinger fram ny henting.
+
+**Løsning**
+
+| Gammelt | Nytt |
+|---|---|
+| `icons/icon-192.png` | `icons/bilpark-icon-192-v63.png` |
+| `icons/icon-512.png` | `icons/bilpark-icon-512-v63.png` |
+| `icons/icon-512-maskable.png` | `icons/bilpark-icon-512-maskable-v63.png` |
+
+14 referanser oppdatert:
+
+| Fil | Antall |
+|---|---|
+| `index.html` | 5 (favicon, apple-touch-icon, CSS-kommentar, 2 × `brand-mark`) |
+| `kontroll.html` | speiler index |
+| `sw.js` precache-liste | 3 |
+| `manifest.json` | 3 |
+| `manifest-sjafor.json` | 3 |
+
+Selve bildefilene er uendret — kun navn. Ingen redesign, ingen ny logo.
+
+CACHE_VERSION bilpark-v63 → bilpark-v64.
+
+**Maskable-verifikasjon**
+
+Målt på den faktiske filen, ikke antatt:
+
+| Kontroll | Resultat |
+|---|---|
+| Alfakanal | Ingen (RGB) |
+| Bakgrunn i alle fire hjørner | Heldekkende |
+| Hjørnebortfall langs kantene | Ingen (horisontal variasjon < 12 per kant) |
+| Logoens egen vertikale gradient | Bevart |
+| Sentrering | Avvik < 2 px |
+| Verste motivpiksel fra midten | 186,8 px mot sikker radius 204,8 px — **18 px margin** |
+| Motivdekning | 47,7 % bredde, 56,1 % høyde |
+
+Merk at det avgjørende målet er verste motivPIKSEL, ikke bounding box-høyden: et høyt,
+smalt motiv kan få hjørnene kuttet av launcherens sirkelmaske selv med god høydemargin.
+
+**Endrede filer**
+
+- `icons/` — tre filer omdøpt
+- `index.html` — 5 referanser
+- `kontroll.html` — eksakt kopi
+- `sw.js` — 3 referanser + CACHE_VERSION bilpark-v63 → bilpark-v64
+- `manifest.json`, `manifest-sjafor.json` — 3 referanser hver
+- `storage.airtable.js` — URØRT (v2.14.0)
+
+**Verifisering**
+
+`node --check`: OK. Begge manifester parser som gyldig JSON. Kontrollharness,
+**46 assertions, alle grønne**: alle tre nye filer finnes med riktige dimensjoner; de tre
+gamle filnavnene finnes ikke på disk og gir null treff i noen av de fem filene; `icons/`
+inneholder ingenting annet; favicon, apple-touch-icon og begge `brand-mark` peker på det
+nye navnet; begge manifester har tre ikoner med nye navn, alle `src` finnes på disk,
+`maskable` peker på maskable-filen, og `sizes` stemmer med filenes faktiske dimensjoner;
+`sw.js` cacher alle tre; 192- og 512-versjonen er samme bilde (snittavvik < 3 ved
+nedskalering til 64 px); full maskable-sjekkliste som over; storage-filnavnregelen fortsatt
+grønn; `index.html === kontroll.html`.
+
+**Kjente begrensninger**
+
+Manifestfilene har uendrede URL-er. De hentes på nytt fordi service workeren er
+network-first og cachen tømmes ved CACHE_VERSION-bump, men en allerede installert PWA kan
+holde på det gamle hjemskjermsikonet til den avinstalleres og installeres på nytt.
+
+---
+
+## 2026-09-14
+
 ### Prioritet 63 — Bilpark-identitet: logo, header og PWA-ikoner
 
 **Problem eller mål**

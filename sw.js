@@ -9,7 +9,7 @@
 //
 // VIKTIG VED OPPDATERING: øk CACHE_VERSION når index.html eller andre filer i
 // APP_SHELL endres, ellers kan brukere sitte fast på en gammel, cachet versjon.
-const CACHE_VERSION = 'bilpark-v63';
+const CACHE_VERSION = 'bilpark-v64';
 const APP_SHELL = [
   './',
   './index.html',
@@ -18,9 +18,9 @@ const APP_SHELL = [
   './manifest-sjafor.json',
   './airtable-config.js',
   './storage.airtable.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-512-maskable.png'
+  './icons/bilpark-icon-192-v63.png',
+  './icons/bilpark-icon-512-v63.png',
+  './icons/bilpark-icon-512-maskable-v63.png'
 ];
 
 self.addEventListener('install', (event) => {

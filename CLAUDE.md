@@ -2593,3 +2593,24 @@ launcherens sirkelmaske. Ved ny logo: mål bounding box, skaler til ~56 % høyde
 diagonalen.
 
 **Undertittelen er «Operativ kontroll»** i alle brand-blokker.
+
+
+## Prioritet 63.1 (2026-09-14) — Ikonfiler skal alltid være versjonerte
+
+**Varig regel: PWA-ikoner får aldri generiske filnavn.** Bruk mønsteret
+`bilpark-icon-<størrelse>[-maskable]-v<sprint>.png`. Ikoner caches hardt av nettleseren,
+av service workeren og av Android-launcheren — en `CACHE_VERSION`-bump alene tvinger ikke
+fram nytt hjemskjermsikon. Endres logoen, skal filnavnet endres i samme slengen.
+
+**Et ikonnavn finnes fjorten steder.** Ved bytte må ALLE oppdateres, ellers får man 404
+eller en blanding av gammel og ny logo: `index.html` (favicon, apple-touch-icon,
+CSS-kommentar, to `brand-mark`-img), `kontroll.html` (kopi), `sw.js` precache-liste (3),
+`manifest.json` (3) og `manifest-sjafor.json` (3). Verifiser med et søk på det GAMLE
+navnet — det skal gi null treff.
+
+**Maskable-ikonet skal verifiseres, ikke antas.** Sjekklisten som faktisk fanger feil:
+ingen alfakanal; bakgrunn helt ut i alle fire hjørner; ingen hjørnebortfall langs noen
+kant (mål horisontal variasjon per kant — vertikal variasjon kan være logoens egen
+gradient); motivet sentrert; og — viktigst — verste motivPIKSELS avstand fra midten under
+`0.4 × bredden`. Å måle bounding box-høyden alene er ikke nok, fordi et høyt, smalt motiv
+kan få hjørnene kuttet av launcherens sirkelmaske selv med god høydemargin.

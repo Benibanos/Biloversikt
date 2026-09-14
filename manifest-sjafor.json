@@ -12,19 +12,19 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/bilpark-icon-192-v63.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/bilpark-icon-512-v63.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512-maskable.png",
+      "src": "icons/bilpark-icon-512-maskable-v63.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
