@@ -15,6 +15,83 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 65.1 — Hurtigbestillingene snakker i handlingsform
+
+**Problem eller mål**
+
+Undertekstene på de fire bestillingskortene beskrev tjenesten («Verkstedtime for EU»,
+«Carglass ruteskift») eller et navigasjonssteg («Velg bil → Planlegg»). Kortene leste
+som informasjonskort, ikke som knapper.
+
+**Løsning**
+
+Samme tekst på alle fire flater (Dashboard desktop, Dashboard mobil, Kjøretøyprofil,
+Bestill tjenester) — 16 undertitler oppdatert:
+
+| Kort | Før | Nå |
+|---|---|---|
+| Service | Planlegg service / Velg bil → Planlegg service | Bestill service |
+| EU-kontroll | Verkstedtime for EU / Velg bil → Verkstedtime for EU | Bestill EU-kontroll |
+| Dekkskift | Planlegg dekkskift / Velg bil → Planlegg dekkskift | Bestill dekkskift |
+| Ruteskift | Carglass ruteskift / Velg bil → Carglass ruteskift | Bestill ruteskift |
+
+Titlene er uendret (Service · EU-kontroll · Dekkskift · Ruteskift). «Velg bil →» er
+fjernet fra undertekstene: bilvelgeren møter brukeren uansett i det skjemaet kortet åpner,
+og steget hører hjemme i flyten, ikke på knappen.
+
+Ingen logikk, ingen CSS og ingen bestillingsflyt er endret.
+
+CACHE_VERSION bilpark-v66 → bilpark-v67.
+
+**Layout- og autoutfyllingsverifisering**
+
+`.dash40-bestill` har ingen `white-space:nowrap`, ingen `overflow:hidden` og ingen
+`text-overflow` — tekst brytes, kortene har `min-height` og vokser i høyden. Ingen
+klipping, ingen horisontal scrolling. Verste tilfelle («Bestill EU-kontroll», 11 px) er
+ca. 106 px mot ca. 138 px tilgjengelig tekstbredde i to-kolonners mobilrutenett ved
+360 px skjerm — og ca. 118 px ved 320 px skjerm. Autoutfyllingen er uendret og bekreftet:
+kjøretøy, standardverksted og tjenestetype settes av `bestillService()` /
+`bestillEuKontroll()` / `bestillDekkskift()` / `bestillRuteskift()`.
+
+---
+
+### Prioritet 65 — Operativ Kjøretøyprofil
+
+**Problem eller mål**
+
+Kjøretøyprofilen hadde riktig informasjon, men spredt: historikk og referansedata lå på
+samme nivå som operative forhold, og brukeren måtte scrolle for å finne det som krever
+handling. Målet var ny informasjonsarkitektur — ingen ny funksjonalitet, ingen datamigrering.
+
+**Løsning**
+
+| Område | Endring |
+|---|---|
+| Toppseksjon | Bilnavn + statusprikk, `Mercedes Sprinter • LS97571`, `Løyve 103028 • 79 040 km`, 👤 sjåfør, 🛟 mobilitetsgaranti. Skiltkomponenten er ute (regnr står på infolinje 1), samme mønster som bilkortet i Prioritet 64 |
+| Mobilitetsgaranti | Eget stort kort fjernet. Vises som pille øverst, **live-beregnet**: siste service hos Mekonomen + 12 måneder, eller dato lest ut av det eksisterende fritekstfeltet. Ingen nedtelling, ingen nye felt |
+| Operativ status | Ny rad rett under toppen: ✅ Kontrollstatus · 🔴 Varsellamper · ⚠️ Skader · 📂 Aktive saker. Gjenbruker `.profil-stat4` |
+| Statsraden | Den gamle raden (Kilometerstand · Siste service · Neste service · EU-godkjent til) er fjernet — samme tall fantes allerede i Kommende oppgaver og Oversikt-fanen. Siste servicedato/km og EU-dato er lagt inn i Kommende oppgaver-radene |
+| Bestill tjenester | Uendret flyt, «Dekkskifte» → «Dekkskift» på alle fire flater |
+| Kjøretøyinformasjon | → **▼ Kjøretøydetaljer**, lukket som standard. Kilometerstand og mobilitetsgaranti-detaljer lagt inn der |
+| Kommende oppgaver | Komprimert med ny modifier `.dmg-simple-list.kompakt` |
+
+Nye funksjoner: `vehicleMobilitetsgaranti()`, `mobgarantiDatoFraTekst()`,
+`mobilitetsgarantiPille()`. Den tidligere ubrukte `bilkortAccordionRow()` er tatt i bruk
+igjen, med nøkkelen `detaljer` (ikke `info`, som `formInProgress()` tolker som aktivt skjema).
+
+CSS: `.profil-mobgaranti` slettet i begge stilblokker. Ingen nye farger, radier eller
+komponenter.
+
+CACHE_VERSION bilpark-v65 → bilpark-v66.
+
+**Verifisering**
+
+`node --check` på begge script-blokker, tag-balanse uendret (div 1419/1419, span 555/555),
+rekkefølgekontroll av hele returmalen (16 markører i stigende rekkefølge), og elleve
+simulerte mobilitetsgaranti-scenarioer — alle bestått.
+
+---
+
 ### Prioritet 64 — Biloversikt-komprimering
 
 **Problem eller mål**

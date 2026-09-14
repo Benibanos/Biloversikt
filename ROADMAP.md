@@ -1,6 +1,11 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 64 — Biloversikt-komprimering: bilkortet
+Sist oppdatert: 2026-09-14 (Prioritet 65.1 — bestillingskortene snakker i
+handlingsform: «Bestill service/EU-kontroll/dekkskift/ruteskift» på alle fire flater).
+Før det: 2026-09-14 (Prioritet 65 — Operativ Kjøretøyprofil: ny toppseksjon
+med statusprikk, mobilitetsgaranti live-beregnet fra Mekonomen-service, operativ
+statusrad over folden, Kjøretøydetaljer kollapset).
+Før det: 2026-09-14 (Prioritet 64 — Biloversikt-komprimering: bilkortet
 redusert til tittellinje med statusprikk, to infolinjer og pillerad; gruppering,
 filtre, statusmotor og sjåførlogikk urørt).
 Før det: 2026-09-10 (Prioritet 48.1 — kontrastfeil på «Registrer
@@ -1564,3 +1569,58 @@ ingen Airtable-endring, ingen nye felt, ingen `LIST_TABLES`-endring.
 3. Reservebil (`reserve`) og «ikke kontrollert» deler samme grå prikk (`--muted`), slik de
    alltid har delt `P38_STATUS_STIL`-verdi. Pilleraden skiller dem fortsatt
    («🚐 Ikke i bruk i dag» vs. «⚠️ Ikke kontrollert»).
+
+## Prioritet 65 (2026-09-14) — Operativ Kjøretøyprofil
+
+✅ Implementert og verifisert.
+
+Kun informasjonsarkitektur i `renderBilkort()` + én ny live-beregning. Sjåførlogikk,
+saksmotor, kontrollstatuslogikk, servicehistorikk, verkstedmodul, Airtable-struktur og
+`storage.airtable.js` er URØRT. Ingen datamigrering.
+
+| Del | Resultat |
+|---|---|
+| 1 | Ny toppseksjon: bilnavn + statusprikk, `Modell • Regnr`, `Løyve • Km`, 👤 sjåfør. Samme mønster som bilkortet i Prioritet 64 |
+| 2 | Mobilitetsgaranti flyttet opp som pille i toppseksjonen. Eget stort kort (`.profil-mobgaranti`) fjernet, CSS slettet |
+| 2 | Automatisk beregning: siste Mekonomen-service + 12 måneder. Ingen nedtelling, kun dato/utløpt/ingen |
+| 3 | Operativ statusrad rett under toppen: Kontrollstatus · Varsellamper · Skader · Aktive saker (gjenbruker `.profil-stat4`) |
+| 4 | Fire bestillingskort beholdt; «Dekkskifte» → «Dekkskift» på alle fire flater. Autoutfylling verifisert (eksisterende, fra Prioritet 61/62) |
+| 5 | «🚐 Kjøretøyinformasjon» → **▼ Kjøretøydetaljer**, lukket som standard via den tidligere ubrukte `bilkortAccordionRow()` |
+| 6 | «Kommende oppgaver» komprimert med modifieren `.dmg-simple-list.kompakt` |
+| 7 | Ingen endring i beskyttede områder |
+
+**Fjernet:** den gamle 4-fliters statsraden (Kilometerstand · Siste service · Neste service ·
+EU-godkjent til). Alle fire verdiene finnes fortsatt: km i toppseksjonen og i
+Kjøretøydetaljer, sist kontroll i Kontrollstatus-flisen, siste servicedato/km og EU-dato
+lagt inn i Kommende oppgaver-radene, neste service uendret i Kommende oppgaver og
+Oversikt-fanen. Dette var tre parallelle visninger av samme tall på samme side.
+
+`sw.js` CACHE_VERSION bilpark-v65 → bilpark-v66. `storage.airtable.js` urørt (v2.14.0).
+
+**Kjente begrensninger:**
+
+1. **Mekonomen gjenkjennes på navn**, ikke på et strukturert felt: `verksted`-strengen må
+   inneholde «mekonomen» (ikke-sensitiv for store/små bokstaver). Heter verkstedet noe
+   annet i Verkstedregisteret, uteblir den automatiske garantien.
+2. **12 måneder er hardkodet** (`MOBGARANTI_MANEDER`). Endres garantivilkårene, må
+   konstanten endres — bevisst, for å unngå enda et felt som må vedlikeholdes.
+3. **Fritekstfeltet `v.mobilitetsgaranti` er beholdt uendret.** Står det en dato der,
+   leses den; står det bare tekst, vises «🛟 Mobilitetsgaranti registrert» uten dato.
+4. **Datoformatet følger appens `fmt()`** (DD/MM/ÅÅÅÅ), ikke punktumformatet i
+   bestillingen — konsistens med resten av Bilpark er prioritert.
+5. Statusprikkens `title` vises ikke ved berøring på mobil (samme som Prioritet 64).
+
+## Prioritet 65.1 (2026-09-14) — Hurtigbestillinger i handlingsform
+
+✅ Implementert og verifisert.
+
+16 undertitler på bestillingskortene endret til «Bestill service» / «Bestill EU-kontroll» /
+«Bestill dekkskift» / «Bestill ruteskift», likt på alle fire flater. Titlene er uendret.
+«Velg bil → »-prefikset er fjernet fra Dashboard- og Bestill tjenester-flatene.
+
+Ren tekstendring: ingen JS-logikk, ingen CSS, ingen endring i bestillingsflyt eller
+autoutfylling. `sw.js` CACHE_VERSION bilpark-v66 → bilpark-v67.
+
+**Kjent begrensning:** kortene på Dashboard og Bestill tjenester-skjermen kjenner ingen bil
+ennå. «Bestill service» der fører først til bilvelgeren i Service-arbeidsflaten — kun kortet
+på Kjøretøyprofilen åpner et ferdig forhåndsutfylt skjema.

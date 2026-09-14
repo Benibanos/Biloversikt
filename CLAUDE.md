@@ -2647,3 +2647,70 @@ ikke lenger fremgår av kortet — se kjent begrensning i `ROADMAP.md`.
 **«Ingen varsellamper» er ikke informasjon.** Varsellampepillen vises kun når
 `activeVarsellysForVehicle()` returnerer noe. Grønn prikk i tittellinjen dekker det
 motsatte tilfellet. Samme prinsipp som skadepillen, som alltid har vært betinget.
+
+## Prioritet 65 (2026-09-14) — Kjøretøyprofilen er en kontrollflate, ikke en databasevisning
+
+**Varig regel for rekkefølgen på Kjøretøyprofilen.** Siden skal svare på fem spørsmål før
+brukeren scroller: er bilen operativ, hvem kjører den, finnes åpne saker, må noe bestilles,
+har bilen mobilitetsgaranti. Rekkefølgen er derfor fast:
+
+1. Toppseksjon — bilnavn + statusprikk, `Modell • Regnr`, `Løyve • Km`, sjåførpille,
+   mobilitetsgarantipille
+2. ⛔ Ute av drift-banner (kun når aktuelt)
+3. Operativ status — Kontrollstatus · Varsellamper · Skader · Aktive saker
+4. ➕ Bestill tjenester (fire kort) + hurtighandlinger
+5. Faner (Oversikt/Historikk/Skader/Dekk/Kostnader) | Kommende oppgaver · Aktive saker ·
+   ▼ Kjøretøydetaljer
+6. ⚠️ Faresone
+
+Referansedata (kategori, biltype, årsmodell, drivstoff, driftslag, telefon, reg.nr,
+kilometerstand, mobilitetsgaranti-detaljer) hører hjemme i **▼ Kjøretøydetaljer**, som er
+LUKKET som standard (`bilkortAccordionRow('detaljer', …)`). Nye referansefelt legges dit,
+ikke på forsiden av profilen.
+
+**Nøkkelen 'detaljer', ikke 'info'.** `formInProgress()` behandler
+`bilkortOpenSections.has('info')` som «brukeren står midt i et skjema» og stopper
+bakgrunnsoppdatering. Kjøretøydetaljer er ren lesing og skal ikke blokkere synk — derfor
+egen nøkkel.
+
+**Mobilitetsgaranti er LIVE-BEREGNET, ikke et felt som vedlikeholdes.**
+`vehicleMobilitetsgaranti(v)` leser to kilder og velger den seneste datoen:
+
+| Kilde | Regel |
+|---|---|
+| Automatisk | Siste service i `servicehistorikk` der `verksted` inneholder «mekonomen» + 12 måneder |
+| Manuelt | En dato lest ut av fritekstfeltet `v.mobilitetsgaranti` (DD/MM/ÅÅÅÅ, DD.MM.ÅÅÅÅ, DD-MM-ÅÅÅÅ eller ÅÅÅÅ-MM-DD) |
+
+Ingen nye Airtable-felt, ingen migrering, ingen `LIST_TABLES`-endring. Fire tilstander:
+`gyldig` · `utlopt` · `ukjent` (fritekst uten lesbar dato — vises som «registrert», aldri
+som «ingen») · `ingen`.
+
+**Nedtelling er forbudt her.** Mobilitetsgaranti vises som gyldig-til-dato, utløpt eller
+ingen garanti. Aldri «X dager igjen», aldri teller.
+
+**Service/EU-status skal finnes ÉN gang over folden.** Den gamle 4-fliters statsraden
+(Kilometerstand · Siste service · Neste service · EU-godkjent til) er fjernet fordi de
+samme tallene allerede fantes i «Kommende oppgaver» og i Oversikt-fanen. Kilometerstand
+står nå på infolinje 2 i toppseksjonen, «sist kontroll» i Kontrollstatus-flisen, og siste
+servicedato/EU-dato i Kommende oppgaver. Ikke gjenopprett raden — utvid Kommende oppgaver.
+
+**Bestillingskortet heter «Dekkskift», ikke «Dekkskifte»**, på alle fire flater
+(Dashboard desktop, Dashboard mobil, Kjøretøyprofil, Bestill tjenester). Tjenestetypen i
+Innstillinger (`STD_VERKSTED_TYPER`) heter fortsatt «Dekkskifte» — den er en verksted-
+kategori, ikke en knapp.
+
+## Prioritet 65.1 (2026-09-14) — Bestillingskort skal snakke i handlingsform
+
+**Varig regel: undertittelen på et hurtigbestillingskort er en handling, ikke en
+beskrivelse.** Mønsteret er «Bestill <tjeneste>» — Bestill service · Bestill EU-kontroll ·
+Bestill dekkskift · Bestill ruteskift. Ikke leverandørnavn («Carglass ruteskift»), ikke
+systembegrep («Verkstedtime for EU»), ikke navigasjonssteg («Velg bil → …»). Bilvelgeren
+møter brukeren i skjemaet kortet åpner; det steget hører til flyten, ikke knappen.
+
+**Teksten skal være identisk på alle fire flater:** Dashboard desktop, Dashboard mobil,
+Kjøretøyprofil og den dedikerte Bestill tjenester-skjermen. Endres én, endres alle fire.
+
+**Kortene skal aldri klippe tekst.** `.dash40-bestill` har bevisst ingen
+`white-space:nowrap`, `overflow:hidden` eller `text-overflow` — kortet vokser i høyden i
+stedet. Legg aldri til klippende egenskaper for å «rydde» i lange etiketter; kort ned
+teksten i stedet.

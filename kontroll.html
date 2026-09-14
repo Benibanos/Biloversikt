@@ -466,6 +466,12 @@
   .dmg-simple-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
   .dmg-simple-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--line);border-radius:9px;padding:9px 12px;}
   .dmg-simple-main{font-size:13px;}
+  /* Prioritet 65: kompakt variant brukt av «Kommende oppgaver» på Kjøretøyprofilen —
+     en MODIFIER på den eksisterende listen (samme farger, radius og ramme), ikke en ny
+     listekomponent. Kun luft og skriftstørrelse er strammet inn. */
+  .dmg-simple-list.kompakt{gap:5px;}
+  .dmg-simple-list.kompakt li{padding:7px 10px;border-radius:8px;}
+  .dmg-simple-list.kompakt .dmg-simple-main{font-size:12.5px;line-height:1.4;}
   .dmg-simple-list li[data-goto-vt]{cursor:pointer;}
   .dmg-simple-list li[data-goto-vt]:hover{border-color:var(--ink);}
 
@@ -937,11 +943,6 @@
   }
   .profil-loyve-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--blue);}
   .profil-loyve-verdi{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink);}
-  .profil-mobgaranti{
-    display:flex;gap:8px;align-items:flex-start;background:var(--green-soft);border:1.5px solid var(--green);
-    border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13.5px;font-weight:600;color:var(--ink);
-  }
-  .profil-mobgaranti.mangler{background:var(--bg);border-color:var(--line);color:var(--muted);font-weight:500;}
   .profil-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
   /* pillefanene fra P37 er erstattet av understrekfaner — se .profil-tab
      lenger ned i denne stilblokken. Ingen andre skjermer brukte disse klassene. */
@@ -1151,13 +1152,8 @@
   .profil-ident-venstre{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
   .profil-ident-navn{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;line-height:1.15;letter-spacing:-.015em;}
   .profil-ident-meta{font-size:12.5px;color:var(--muted);margin-top:5px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;}
-  .profil-mobgaranti{
-    display:flex;align-items:center;gap:13px;background:var(--green-soft);
-    border:1px solid var(--green);border-radius:16px;padding:14px 18px;margin-bottom:16px;
-  }
-  .profil-mobgaranti.mangler{background:var(--surface);border-color:var(--line);}
-  .profil-mobgaranti b{font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:block;}
-  .profil-mobgaranti span{font-size:12.5px;color:var(--ink-2);}
+  /* Prioritet 65: .profil-mobgaranti er fjernet — mobilitetsgaranti vises nå som en
+     vanlig .p38-pill i toppseksjonen, live-beregnet av vehicleMobilitetsgaranti(). */
   .profil-stat4{
     display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);
     border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-card);overflow:hidden;margin-bottom:18px;
@@ -7591,25 +7587,25 @@ function renderMobilHjem(){
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg</span>
+        <span class="dash40-bestill-sub">Bestill service</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
         <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Verkstedtime for EU</span>
+        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
         <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskifte</span>
-        <span class="dash40-bestill-sub">Planlegg dekkskift</span>
+        <span class="dash40-bestill-tittel">Dekkskift</span>
+        <span class="dash40-bestill-sub">Bestill dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Carglass — ruteskift</span>
+        <span class="dash40-bestill-sub">Bestill ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
     </div>`,
@@ -8143,25 +8139,25 @@ function renderDashboard(){
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg service</span>
+        <span class="dash40-bestill-sub">Bestill service</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
         <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Velg bil → Verkstedtime for EU</span>
+        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
         <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskifte</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
+        <span class="dash40-bestill-tittel">Dekkskift</span>
+        <span class="dash40-bestill-sub">Bestill dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
+        <span class="dash40-bestill-sub">Bestill ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
     </div>`,
@@ -9217,6 +9213,64 @@ function attachVarslerOversiktListeners(){
   if(deleteSelectedVlhBtn) deleteSelectedVlhBtn.addEventListener('click', deleteSelectedVarsellysHistorikk);
 }
 
+// ================= Mobilitetsgaranti (Prioritet 65) =================
+// LIVE-BEREGNING, ikke et nytt felt. Ingen Airtable-endring, ingen migrering, ingen
+// vedlikehold. To kilder, i prioritert rekkefølge — den SENESTE datoen vinner:
+//   1. Automatisk: siste registrerte service hos Mekonomen + 12 måneder
+//      (servicehistorikk[].verksted, samme data Servicehistorikk allerede eier).
+//   2. Manuelt: en dato som allerede står i fritekstfeltet v.mobilitetsgaranti
+//      (f.eks. "Mercedes Service24h – gyldig til 14/08/2027"). Feltet er UENDRET og
+//      redigeres fortsatt på samme sted som før.
+// Returnerer {status:'gyldig'|'utlopt'|'ukjent'|'ingen', tilDato, kilde}.
+// 'ukjent' = fritekst finnes, men uten lesbar dato — da vises garantien som registrert
+// uten dato, aldri som "ingen garanti".
+const MOBGARANTI_VERKSTED = 'mekonomen';
+const MOBGARANTI_MANEDER = 12;
+// Leser en dato ut av fritekst. Godtar DD/MM/ÅÅÅÅ, DD.MM.ÅÅÅÅ, DD-MM-ÅÅÅÅ og ÅÅÅÅ-MM-DD.
+// Returnerer ISO (ÅÅÅÅ-MM-DD) eller ''.
+function mobgarantiDatoFraTekst(tekst){
+  if(!tekst) return '';
+  const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(tekst);
+  if(iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const no = /(\d{2})[./-](\d{2})[./-](\d{4})/.exec(tekst);
+  if(no) return `${no[3]}-${no[2]}-${no[1]}`;
+  return '';
+}
+function vehicleMobilitetsgaranti(v){
+  if(!v) return {status:'ingen', tilDato:'', kilde:''};
+  let tilDato = '', kilde = '';
+  // 1. Automatisk fra siste Mekonomen-service
+  const mekonomenService = servicehistorikk
+    .filter(s => s.vehicleId === v.id && (s.verksted || '').toLowerCase().includes(MOBGARANTI_VERKSTED))
+    .sort((a,b) => (b.dato || '').localeCompare(a.dato || ''))[0] || null;
+  if(mekonomenService && /^\d{4}-\d{2}-\d{2}$/.test(mekonomenService.dato || '')){
+    const d = new Date(mekonomenService.dato + 'T00:00:00');
+    d.setMonth(d.getMonth() + MOBGARANTI_MANEDER);
+    tilDato = d.toISOString().slice(0,10);
+    kilde = 'Automatisk — service hos ' + (mekonomenService.verksted || 'Mekonomen') + ' ' + fmt(mekonomenService.dato);
+  }
+  // 2. Manuell dato i fritekstfeltet — brukes hvis den er senere (eller eneste kilde)
+  const manuellDato = mobgarantiDatoFraTekst(v.mobilitetsgaranti);
+  if(manuellDato && manuellDato > tilDato){
+    tilDato = manuellDato;
+    kilde = 'Registrert manuelt';
+  }
+  if(!tilDato){
+    if((v.mobilitetsgaranti || '').trim()) return {status:'ukjent', tilDato:'', kilde:'Registrert manuelt'};
+    return {status:'ingen', tilDato:'', kilde:''};
+  }
+  return {status: tilDato >= todayISO() ? 'gyldig' : 'utlopt', tilDato, kilde};
+}
+// Kort etikett til toppseksjonen. BEVISST uten nedtelling/dager igjen — kun gyldig til
+// dato, utløpt eller ingen garanti (ticket-krav).
+function mobilitetsgarantiPille(v){
+  const mg = vehicleMobilitetsgaranti(v);
+  if(mg.status === 'gyldig') return {tint:'var(--green-soft)', tone:'var(--green-ink)', tekst:'🛟 Mobilitetsgaranti til ' + fmt(mg.tilDato)};
+  if(mg.status === 'utlopt') return {tint:'var(--amber-soft)', tone:'var(--amber)', tekst:'🛟 Mobilitetsgaranti utløpt ' + fmt(mg.tilDato)};
+  if(mg.status === 'ukjent') return {tint:'var(--surface-3)', tone:'var(--ink-2)', tekst:'🛟 Mobilitetsgaranti registrert'};
+  return {tint:'var(--surface-3)', tone:'var(--muted)', tekst:'⚪ Ingen mobilitetsgaranti'};
+}
+
 // ================= scrBilkort =================
 // Dekkskifttime: utvidet med 4 nye typer (samme felt, "retning", gjenbrukt
 // uendret — se planlagteDekkskift). Alt som allerede leser DEKK_RETNING_LABEL (bl.a.
@@ -9649,10 +9703,10 @@ function renderBilkort(){
   const vDekkSesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
   const vDekkAlder = dekkAlderStatus(vDekkSesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot);
   const kommendeOppgaverBilBody = `
-    <ul class="dmg-simple-list">
-      <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · ${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + ' — ' + esc(vPlanlagtService.verksted || '') : ''}</span></li>
+    <ul class="dmg-simple-list kompakt">
+      <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · ${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}${vSisteService ? ' · sist ' + fmt(vSisteService.dato) + (vSisteService.km ? ' ved ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : '') : ' · ingen service registrert'}${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + ' — ' + esc(vPlanlagtService.verksted || '') : ''}</span></li>
       <li style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="dmg-simple-main">🛞 Dekk · ${DEKK_LABEL[v.dekk] || 'Ikke satt'}${vDekkAlder ? ' · ' + vDekkAlder.ikon + ' ' + esc(vDekkAlder.tekst) : ''}${vPlanlagtDekkskift ? '<br>📅 Dekkskift ' + fmt(vPlanlagtDekkskift.dato) + (vPlanlagtDekkskift.tidspunkt ? ' kl. ' + esc(vPlanlagtDekkskift.tidspunkt) : '') : ''}</span></li>
-      <li><span class="dmg-simple-main">🚦 EU-kontroll · ${euKontrollStatus.ikon} ${v.euGodkjentTil ? esc(euKontrollStatus.tekst) : 'Mangler registrering'}${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
+      <li><span class="dmg-simple-main">🚦 EU-kontroll · ${euKontrollStatus.ikon} ${v.euGodkjentTil ? 'godkjent til ' + fmt(v.euGodkjentTil) + ' · ' + esc(euKontrollStatus.tekst) : 'Mangler registrering'}${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
       ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
       <li${vNesteVT ? ` style="cursor:pointer;" data-goto-vt="${v.id}"` : ''}><span class="dmg-simple-main">🏭 Verkstedtime · ${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + esc(vNesteVT.tidspunkt) : '') : 'Ingen planlagt'}</span></li>
     </ul>`;
@@ -9735,21 +9789,24 @@ function renderBilkort(){
   const p38HovedStil = P38_STATUS_STIL[hovedstatus] || {tint:'var(--surface-3)', tone:'var(--muted)'};
   const p38SjaforNa = vehicleAktivSjafor(v.id);
   const p38SjaforIdag = vehicleSisteSjafor(v.id);
+  // Prioritet 65: mobilitetsgaranti som operativ status i toppseksjonen (live-beregnet,
+  // se vehicleMobilitetsgaranti()) — ikke lenger et eget stort informasjonskort.
+  const vMobgaranti = vehicleMobilitetsgaranti(v);
+  const mgPille = mobilitetsgarantiPille(v);
 
   return `
     <div class="backrow"><button class="backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>
 
     <div class="profil-ident">
       <div class="profil-ident-venstre">
-        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-        <div>
-          <div class="profil-ident-navn">${esc(v.bilnummer || '–')} — ${esc(v.merke)} ${esc(v.modell)}</div>
+        <span class="flis" style="--tint:${p38HovedStil.tint};">${v.kategori === 'lastebil' ? '🚛' : '🚐'}</span>
+        <div style="min-width:0;">
+          <div class="profil-ident-navn">${esc(v.bilnummer || '–')} <span class="p48-dot" style="background:${p38HovedStil.tone};vertical-align:middle;margin-left:4px;" title="${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}"></span></div>
+          <div class="profil-ident-meta"><span>${esc([v.merke, v.modell].filter(Boolean).join(' ')) || 'Modell ikke satt'} • ${esc(v.regnr)}</span></div>
+          <div class="profil-ident-meta"><span>${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '⚠️ Løyve mangler'} • ${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}</span></div>
           <div class="profil-ident-meta">
-            ${v.arsmodell ? `<span>${esc(v.arsmodell)}</span>` : ''}
-            <span>${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span>
-            ${v.drivstoff ? `<span>${esc(drivstoffTekst(v))}</span>` : ''}
-            <span class="p38-pill" style="--tint:${p38HovedStil.tint};--tone:${p38HovedStil.tone};">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span>
-            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) : '⚪ Tilgjengelig')}</span>
+            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span>
+            <span class="p38-pill" style="--tint:${mgPille.tint};--tone:${mgPille.tone};" title="${esc(vMobgaranti.kilde || 'Ingen mobilitetsgaranti registrert')}">${mgPille.tekst}</span>
           </div>
         </div>
       </div>
@@ -9758,48 +9815,40 @@ function renderBilkort(){
       </div>
     </div>
 
-    <div class="profil-mobgaranti ${v.mobilitetsgaranti ? '' : 'mangler'}">
-      <span class="flis" style="--tint:${v.mobilitetsgaranti ? 'var(--green-soft)' : 'var(--surface-2)'};">🛟</span>
-      <span>
-        <b>Mobilitetsgaranti</b>
-        <span>${v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : 'Ikke registrert — se Informasjonsveilederen i Innstillinger.'}</span>
-      </span>
-    </div>
-
     ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--red-soft);color:var(--red);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--red);">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
 
     <div class="profil-stat4">
       <div>
-        <span class="flis" style="--tint:var(--blue-soft);">📍</span>
-        <span><span class="l">Kilometerstand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</span><span class="s">${vLastKontroll ? 'Sist kontroll ' + fmt(vLastKontroll.dato) : 'Ingen kontroll registrert'}</span></span>
-      </div>
-      <div data-goto-service="${v.id}" style="cursor:pointer;">
-        <span class="flis" style="--tint:var(--green-soft);">🔧</span>
-        <span><span class="l">Siste service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : '–'}</span><span class="s">${vSisteService ? 'ved ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : 'Mangler registrering'}</span></span>
-      </div>
-      <div data-goto-service="${v.id}" style="cursor:pointer;">
-        <span class="flis" style="--tint:var(--amber-soft);">⏱️</span>
-        <span><span class="l">Neste service</span><span class="v" style="color:${serviceStatusFarge};">${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}</span><span class="s">Km-basert serviceintervall</span></span>
+        <span class="flis" style="--tint:${vKontrollertIdag || vehicleErReserveUnntatt(v.id) ? 'var(--green-soft)' : 'var(--amber-soft)'};">${vKontrollertIdag ? '✅' : (vehicleErReserveUnntatt(v.id) ? '🚐' : '⚠️')}</span>
+        <span><span class="l">Kontrollstatus</span><span class="v" style="font-size:15px;">${vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (vKontrollertIdag ? 'Kontrollert i dag' : 'Ikke kontrollert')}</span><span class="s">${vLastKontroll ? 'Sist ' + fmt(vLastKontroll.dato) : 'Ingen kontroll registrert'}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:var(--red-soft);">🚦</span>
-        <span><span class="l">EU-godkjent til</span><span class="v" style="color:${euKontrollFarge};">${v.euGodkjentTil ? fmt(v.euGodkjentTil) : '–'}</span><span class="s">${euKontrollStatus.ikon} ${v.euGodkjentTil ? esc(euKontrollStatus.tekst) : 'Mangler registrering'}</span></span>
+        <span class="flis" style="--tint:${vAktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};">${vAktiveVarsler.length > 0 ? '🔴' : '🟢'}</span>
+        <span><span class="l">Varsellamper</span><span class="v" style="${vAktiveVarsler.length > 0 ? 'color:var(--red);' : ''}">${vAktiveVarsler.length}</span><span class="s">${vAktiveVarsler.length > 0 ? 'Aktive nå' : 'Ingen aktive'}</span></span>
+      </div>
+      <div data-profil-fane="skader" style="cursor:pointer;">
+        <span class="flis" style="--tint:${vDamagesAktive.length > 0 ? 'var(--orange-soft)' : 'var(--green-soft)'};">${vDamagesAktive.length > 0 ? '⚠️' : '🟢'}</span>
+        <span><span class="l">Skader</span><span class="v" style="${vDamagesAktive.length > 0 ? 'color:var(--orange);' : ''}">${vDamagesAktive.length}</span><span class="s">${vDamages.length} registrert totalt →</span></span>
+      </div>
+      <div>
+        <span class="flis" style="--tint:${vAktiveSakerListe.length > 0 ? 'var(--amber-soft)' : 'var(--green-soft)'};">${vAktiveSakerListe.length > 0 ? '📂' : '🟢'}</span>
+        <span><span class="l">Aktive saker</span><span class="v" style="${vAktiveSakerListe.length > 0 ? 'color:var(--amber);' : ''}">${vAktiveSakerListe.length}</span><span class="s">${vForfalteOppfolginger.length > 0 ? '⏰ ' + vForfalteOppfolginger.length + ' forfalt' : (vNesteOppfolging && vNesteOppfolging.followUpDate ? 'Neste ' + fmt(vNesteOppfolging.followUpDate) : 'Ingen oppfølging')}</span></span>
       </div>
     </div>
 
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
     <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">${luc('wrench')}</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Planlegg service</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('wrench')}</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Bestill service</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" data-bestill-bil="${v.id}" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">${luc('shield-check')}</span><span class="dash40-bestill-tittel">EU-kontroll</span><span class="dash40-bestill-sub">Verkstedtime for EU</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('shield-check')}</span><span class="dash40-bestill-tittel">EU-kontroll</span><span class="dash40-bestill-sub">Bestill EU-kontroll</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" data-bestill-bil="${v.id}" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">${luc('circle-dot')}</span><span class="dash40-bestill-tittel">Dekkskifte</span><span class="dash40-bestill-sub">Planlegg dekkskift</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('circle-dot')}</span><span class="dash40-bestill-tittel">Dekkskift</span><span class="dash40-bestill-sub">Bestill dekkskift</span><span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" data-bestill-bil="${v.id}" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">${luc('car-front')}</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Carglass ruteskift</span><span class="dash40-bestill-pil">→</span>
+        <span class="flis lg">${luc('car-front')}</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Bestill ruteskift</span><span class="dash40-bestill-pil">→</span>
       </button>
     </div>
 
@@ -9836,11 +9885,7 @@ function renderBilkort(){
           ${aktiveSakerBody}
         </div>
 
-        <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head">
-            <div class="tittel">🚐 Kjøretøyinformasjon</div>
-            <button type="button" class="p38-lenke" id="profil-rediger-btn-2">Rediger →</button>
-          </div>
+        ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
           <div class="ov-grid">
             <div class="ov-item"><span class="ov-label">${luc('folder-tree')} Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
             <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
@@ -9852,10 +9897,13 @@ function renderBilkort(){
             <div class="ov-item"><span class="ov-label">⛽ Drivstoff</span><span class="ov-value">${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</span></div>
             <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
             <div class="ov-item"><span class="ov-label">Driftslag</span><span class="ov-value">${esc(v.driftslag || '–')}</span></div>
-            <div class="ov-item"><span class="ov-label">🛟 Mobilitetsgaranti</span><span class="ov-value">${v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : '–'}</span></div>
+            <div class="ov-item"><span class="ov-label">📍 Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
+            <div class="ov-item"><span class="ov-label">🛟 Mobilitetsgaranti</span><span class="ov-value">${vMobgaranti.tilDato ? 'Gyldig til ' + fmt(vMobgaranti.tilDato) : (v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : '–')}${vMobgaranti.kilde ? '<span style="display:block;font-size:11.5px;color:var(--muted);font-weight:500;">' + esc(vMobgaranti.kilde) + '</span>' : ''}</span></div>
+            ${v.mobilitetsgaranti ? `<div class="ov-item"><span class="ov-label">🛟 Registrert tekst</span><span class="ov-value" style="font-size:13px;">${esc(v.mobilitetsgaranti)}</span></div>` : ''}
             <div class="ov-item"><span class="ov-label">📞 Telefon</span><span class="ov-value">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;text-decoration:none;">📞 Ring ${esc(v.telefon)}</a>` : '–'}</span></div>
           </div>
-        </div>
+          <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
+        `)}
       </div>
     </div>
 
@@ -11226,25 +11274,25 @@ function renderBestillTjenester(){
       <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
         <span class="flis lg">${luc('wrench')}</span>
         <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg service</span>
+        <span class="dash40-bestill-sub">Bestill service</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
         <span class="flis lg">${luc('shield-check')}</span>
         <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Velg bil → Verkstedtime for EU</span>
+        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
         <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskifte</span>
-        <span class="dash40-bestill-sub">Velg bil → Planlegg dekkskift</span>
+        <span class="dash40-bestill-tittel">Dekkskift</span>
+        <span class="dash40-bestill-sub">Bestill dekkskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
       <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis lg">${luc('car-front')}</span>
         <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Velg bil → Carglass ruteskift</span>
+        <span class="dash40-bestill-sub">Bestill ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
     </div>
