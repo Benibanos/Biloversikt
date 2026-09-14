@@ -1372,3 +1372,122 @@ Ingen Airtable-endring, ingen datamigrering.
 «Bestill tjenester for …». Det var samme komponent og samme prinsippbrudd. Ingenting er
 tapt: Verksted-skjermens «+ Ny verkstedtime» står igjen for de tilfellene en time må
 opprettes uten sak.
+
+
+## Prioritet 62.0 (2026-09-13) — Storage-filnavn sanert (ingen funksjonelle endringer)
+
+Prosjektet hadde to skrivemåter i omløp. `index.html`, `kontroll.html` og `sw.js` pekte
+korrekt på `storage.airtable.js`, mens selve FILEN lå under navnet `storage_airtable.js`,
+og fire tekstreferanser i appen brukte understrek-varianten.
+
+**Rettet:**
+
+1. Filen er omdøpt til `storage.airtable.js`. Innholdet er byte-identisk (v2.14.0).
+2. Fire understrek-referanser i `index.html`/`kontroll.html` er rettet — to av dem var
+   SYNLIG tekst i Database status-panelet under Systeminnstillinger, altså nettopp den
+   diagnoseskjermen som skal avsløre filnavnfeil.
+3. `CLAUDE.md` er oppdatert: påstanden om at feilskrivinger «kun forekommer i løpende
+   kommentartekst» stemmer ikke lenger — de er borte.
+
+`sw.js` CACHE_VERSION bilpark-v59 → bilpark-v60 (nødvendig fordi app-shell endret seg).
+`storage.airtable.js` er innholdsmessig URØRT, så verken intern versjon eller `?v=` er
+endret — begge står på 2.14.0.
+
+**Ikke rørt:** `window.storageAirtableInfo` er et JavaScript-variabelnavn, ikke et
+filnavn, og er gyldig som det er.
+
+**Kan ikke verifiseres herfra:** at GitHub-repoet faktisk har filen under punktum-navnet.
+Må bekreftes manuelt — se KJENTE BEGRENSNINGER i CHANGELOG.md.
+
+
+## Prioritet 62.1 (2026-09-14) — Kontrollstatus + Aktive sjåfører erstatter «Biler i drift nå»
+
+Oppfølger til rotårsaksanalysen. KPI-en «Biler i drift nå» var ikke ødelagt — den målte
+`vehicleAktivSjafor()`, altså «har aktiv biløkt akkurat nå». Det er riktig for
+sjåførmotoren, men feil spørsmål for driftskoordinatoren. De to spørsmålene er nå skilt
+i hver sin KPI.
+
+**Nytt:** `kontrollstatusKpiHtml()` («X / Y kontrollert i dag» + «N mangler kontroll»,
+klikk → Biloversikt filtrert på ikke kontrollert) og `aktiveSjaforerKpiHtml()`
+(«X aktive» + klikk → Ringelisten under Innstillinger → Sjåførside). Begge er delte
+funksjoner, samme mønster som `bilparkStatusInnholdHtml()`, så desktop og mobil viser
+identisk markup.
+
+**Ingen nye beregninger.** Alle fire tallene (`kontrollertIdagCount`, `aktiveVehicles`,
+`manglerKontrollCount`, `hDriftCount`) fantes allerede i `dashboardBeregning()`. Eneste
+tillegg i returobjektet er `reserveUnntattCount`, brukt til en forklarende `title`.
+
+**Bilpark status** er forenklet til to linjer (🟢 Operative, 🟡 Må følges opp).
+🔴 Ute av drift og «X biler i drift nå»-linjen er fjernet fra DASHBOARDVISNINGEN.
+Ute-av-drift-logikken er urørt i `vehicleHovedstatus()`, Biloversikt, filtrene,
+Kjøretøyprofil og rapportene.
+
+**Sjåførmotoren er ikke rørt.** `vehicleAktivSjafor()`, `vehicleSisteSjafor()`,
+`settAktivSjafor()` og `settAktivSjaforForKontroll()` står uendret. Alternativ A fra
+analysen er IKKE implementert.
+
+`sw.js` CACHE_VERSION bilpark-v60 → bilpark-v61. `storage.airtable.js` urørt (v2.14.0).
+Ingen Airtable-endring.
+
+**Åpent:** «N mangler kontroll» gjenbruker `manglerKontrollCount`, som unntar reservebiler
+som ikke er tatt i bruk ennå (Optimalisering 14). Nevneren Y er derimot alle biler som ikke
+er ute av drift, jf. briefen. Står det reservebiler på vent, summerer X + N derfor ikke til
+Y. Forskjellen forklares i `title`-attributtet. Skal nevneren i stedet trekke fra
+reserve-unntatte biler, er det en liten endring — men det avviker fra briefens Y-definisjon.
+
+
+## Prioritet 62.1a (2026-09-14) — Kontrollstatus matematisk konsistent + Aktive biler
+
+Retter det åpne punktet fra 62.1: teller og nevner brukte ulike populasjoner, slik at
+«4 / 13 kontrollert» kunne stå sammen med «8 mangler kontroll».
+
+Alle tre tallene bruker nå nøyaktig samme populasjon — biler som verken er ute av drift
+eller en reservebil som ikke er tatt i bruk i dag:
+
+    Y = aktiveVehicles − reserveUnntatt
+    X = kontrollertIdagCount
+    N = manglerKontrollCount = Y − X
+
+`X + N = Y` holder uten unntak. Det følger av at `vehicleErReserveUnntatt()` returnerer
+false så snart bilen er kontrollert i dag — en reserve-unntatt bil kan derfor aldri ligge
+i X. Ingen ny beregning; kun nevneren i visningen er rettet.
+
+KPI-kortet «Aktive sjåfører» er erstattet av **«Aktive biler»**: samme tall
+(`hDriftCount`), men nå en hurtigknapp til Biloversikt filtrert på «Har aktiv sjåfør» via
+det eksisterende `data-goto-biloversikt-filter="har-aktiv-sjafor"`. `goToRingeliste()` og
+`data-goto-ringeliste`, innført i 62.1 utelukkende for det kortet, er fjernet.
+Ringelisten nås som før under Innstillinger → 👤 Sjåførside.
+
+`sw.js` CACHE_VERSION bilpark-v61 → bilpark-v62. `storage.airtable.js` urørt (v2.14.0).
+Sjåførmotoren, Bilpark status, Airtable og storage er ikke rørt.
+
+
+## Prioritet 63 (2026-09-14) — Bilpark-identitet implementert
+
+Den vedlagte Bilpark-logoen (Variant 1) er tatt i bruk overalt. Ingen redesign, ingen
+alternative varianter, ingen nye farger.
+
+**PWA-ikoner** generert fra logofilen og lagt i `icons/`: `icon-192.png`, `icon-512.png`
+og `icon-512-maskable.png`. Begge manifester og `sw.js` sin cache-liste pekte allerede på
+disse filnavnene — mappen manglet bare innhold.
+
+**Maskable-versjonen** er den samme logoen tilpasset Android sine regler: bakgrunnen går
+helt ut til kanten (ingen egen hjørneavrunding, launcheren maskerer selv), og B-merket er
+sentrert med DIAGONALEN innenfor den sikre sonen — 377 px mot en sone på 410 px.
+Bakgrunnsgradienten er hentet fra originalfilen.
+
+**Header:** lastebil-SVG-en er fjernet fra `brandBlockHtml()` (sidebar, drawer,
+sjåførheader, innloggingsskjerm) og fra mobilforsidens `p41-brand`. Begge bruker nå
+`icons/icon-192.png` — samme fil som hjemskjermsikonet. Én identitet, én fil.
+
+**Undertittel:** «Kontroller • Registrer • Reager» og «Dine biler. Full kontroll.» er
+begge erstattet av **«Operativ kontroll»**. Valgt fordi «Bilpark Operativsystem» gjentar
+produktnavnet som allerede står rett over.
+
+`sw.js` CACHE_VERSION bilpark-v62 → bilpark-v63. `storage.airtable.js` urørt (v2.14.0).
+Ingen endring i Airtable, KPI-er, saksmotor, kalender eller verksted.
+
+**Åpent:** `background_color` i begge manifester står fortsatt på `#EEF0F0` (lys).
+Splash-skjermen viser derfor den mørke logobrikken på lys bakgrunn. Skal splashen matche
+logoens egen mørke bakgrunn, er det én verdi per manifest — men det påvirker også appens
+første maling, så det er en egen beslutning.

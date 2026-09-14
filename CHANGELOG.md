@@ -13,6 +13,335 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-14
+
+### Prioritet 63 — Bilpark-identitet: logo, header og PWA-ikoner
+
+**Problem eller mål**
+
+Bilpark hadde ingen egen visuell identitet. Headeren brukte et generisk lastebil-ikon
+fra Lucide-tiden, og `icons/`-mappen manglet innhold selv om begge manifester, favicon,
+apple-touch-icon og `sw.js` allerede pekte på tre filer der. Den vedlagte Bilpark-logoen
+skulle implementeres — ikke tolkes, ikke redesignes.
+
+**PWA-ikoner**
+
+Generert fra den leverte logofilen (1254×1254):
+
+| Fil | Innhold |
+|---|---|
+| `icons/icon-192.png` | logoen beskåret til brikkekanten, skalert |
+| `icons/icon-512.png` | samme, 512×512 |
+| `icons/icon-512-maskable.png` | samme logo tilpasset Android maskable |
+
+Maskable-versjonen har heldekkende bakgrunn uten egen hjørneavrunding — launcheren
+maskerer selv, og en logo med egne avrundede hjørner ville gitt dobbel avrunding.
+B-merket er sentrert med høyde 56 % av ikonet, slik at DIAGONALEN (377 px) holder seg
+innenfor den sikre sonen (410 px). Å bare måle høyden hadde ikke vært nok for et høyt,
+smalt motiv. Bakgrunnsgradienten er samplet fra originalfilen, så fargene er uendret.
+
+**Header**
+
+Lastebil-SVG-en er fjernet fra `brandBlockHtml()` — som dekker sidebar, drawer,
+sjåførheader og innloggingsskjerm — og fra mobilforsidens `p41-brand`. Begge bruker nå
+`<img class="brand-mark" src="icons/icon-192.png">`, altså nøyaktig samme fil som
+hjemskjermsikonet. Merket vises 28×28 px med 8 px radius, 22×22 px på smal skjerm.
+Den gamle `.brand svg`-regelen er erstattet.
+
+**Undertittel**
+
+«Kontroller • Registrer • Reager» (desktop) og «Dine biler. Full kontroll.» (mobil) er
+begge erstattet av **«Operativ kontroll»**. «Bilpark Operativsystem» ble vurdert, men
+gjentar produktnavnet som står rett over merket.
+
+**Ikke endret**
+
+Airtable, storage, KPI-er, Kontrollstatus, Aktive biler, Bilpark status, saksmotor,
+kalender, verksted. `luc('truck')` er beholdt som Lucide-ikon for kjøretøy i
+grensesnittet — det er innhold, ikke merkevare.
+
+**Endrede filer**
+
+- `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-512-maskable.png` — NYE
+- `index.html` — 4 endringer (2 CSS, 2 brand-blokker)
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v62 → bilpark-v63
+- `manifest.json`, `manifest-sjafor.json` — URØRT (pekte allerede riktig)
+- `storage.airtable.js` — URØRT (v2.14.0)
+
+**Verifisering**
+
+`node --check`: OK. Kontrollharness, **34 assertions, alle grønne**:
+
+- Alle tre ikonfilene finnes, og PNG-headerne bekrefter 192×192 / 512×512 / 512×512
+- Begge manifester har tre ikoner, alle `src` finnes på disk, `maskable` og begge
+  `any`-størrelser er til stede
+- `sw.js` cacher alle tre
+- Lastebil-SVG-en finnes ikke lenger; ingen av de to gamle undertitlene finnes
+- Logomerket refereres nøyaktig to steder, begge mot `icons/icon-192.png`; ingen
+  alternativ logofil refereres noe sted
+- Favicon og apple-touch-icon peker på samme fil
+- `brandBlockHtml()` brukes fire steder; «Operativ kontroll» finnes to steder
+- `.brand-mark` har både full og nedskalert størrelse; den foreldede `.brand svg`-regelen
+  er borte
+- `cmp index.html kontroll.html`: identiske
+- Storage-filnavnregelen fortsatt grønn i alle fire serverte filer
+
+Ikonene er i tillegg inspisert visuelt i både 192 px og maskable-versjon.
+
+**Kjente begrensninger**
+
+`background_color` står fortsatt på `#EEF0F0` i begge manifester, så splash-skjermen viser
+den mørke logobrikken på lys bakgrunn. Fungerer, men er ikke maksimalt sammenhengende.
+
+---
+
+## 2026-09-14
+
+### Prioritet 62.1a — Kontrollstatus matematisk konsistent + Aktive biler
+
+**Problem eller mål**
+
+Prioritet 62.1 fungerte, men Kontrollstatus kunne vise «4 / 13 kontrollert» sammen med
+«8 mangler kontroll»: nevneren var alle biler som ikke er ute av drift, mens teller og
+differanse i tillegg unntok reservebiler som ikke var tatt i bruk. Dashboardet skal ikke
+kreve forklaring.
+
+**Løsning — Del 1: konsistens**
+
+Alle tre tallene bruker nå samme populasjon — bilene som faktisk har kontrollkrav i dag:
+
+| | Definisjon |
+|---|---|
+| Y | `aktiveVehicles.length − reserveUnntattCount` |
+| X | `kontrollertIdagCount` |
+| N | `manglerKontrollCount` = `aktiveVehicles − X − reserveUnntatt` = `Y − X` |
+
+`X + N = Y` holder uten unntak. Det er ikke tilfeldig: `vehicleErReserveUnntatt()`
+returnerer `false` så snart bilen er kontrollert i dag, så en reserve-unntatt bil kan
+aldri ligge inne i X. N er fortsatt samme tall som Biloversikt-filteret klikket lander på
+(`goToRegisterFiltered('ikke')`). Ingen ny beregning — kun nevneren i visningen er rettet,
+og `title`-forklaringen om reservebiler er fjernet fordi den ikke lenger trengs.
+
+**Løsning — Del 2: Aktive biler**
+
+`aktiveSjaforerKpiHtml()` → `aktiveBilerKpiHtml()`. Samme tall (`hDriftCount` fra
+`vehicleAktivSjafor()`), ny rolle: hurtigknapp til Biloversikt filtrert på «Har aktiv
+sjåfør». Klikket gjenbruker det eksisterende
+`data-goto-biloversikt-filter="har-aktiv-sjafor"` → `goToRegisterHovedstatus()` — ingen ny
+filtreringsmodell, ingen ny skjerm. Ikon byttet fra `user-round` til `truck`, siden kortet
+nå handler om biler. Teksten er «X aktive biler · Se hvilke →», med entallsformen
+«1 aktiv bil».
+
+**Ryddet**
+
+`goToRingeliste()` og `data-goto-ringeliste` ble innført i 62.1 utelukkende for
+«Aktive sjåfører»-kortet og er fjernet sammen med det. Ringelisten nås som før under
+Innstillinger → 👤 Sjåførside — ingen funksjonalitet er borte.
+
+**Ikke rørt**
+
+`vehicleAktivSjafor()`, `vehicleSisteSjafor()`, `settAktivSjafor()`,
+`settAktivSjaforForKontroll()`, Bilpark status, Airtable og storage.
+
+**Endrede filer**
+
+- `index.html` — 7 endringer
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v61 → bilpark-v62
+- `storage.airtable.js` — URØRT (v2.14.0, `?v=` uendret)
+
+**Airtable:** ingen endring.
+
+**Verifisering**
+
+`node --check`: OK. Node.js-simulering, **42 assertions, alle grønne**:
+
+- *Scenario A:* 12 tellende biler + 1 ute av drift, 4 kontrollert → «4 / 12», «8 mangler
+  kontroll», og `4 + 8 = 12`
+- *Scenario C:* `X + N = Y` verifisert i fem ulike sammensetninger — med 3 ubrukte
+  reservebiler og 2 biler ute av drift samtidig, med alle kontrollert (5 + 0 = 5), med
+  ingen kontrollert (0 + 6 = 6), og med kun biler ute av drift (0 / 0)
+- *Scenario B:* 7 aktive biler → kortet viser 7, teksten «7 aktive biler», label «Aktive
+  biler», klikk setter `filterHovedstatus = 'har-aktiv-sjafor'`. Entallsformen «1 aktiv bil»
+- `aktiveSjaforerKpiHtml`, `goToRingeliste` og `data-goto-ringeliste` finnes ikke lenger;
+  Ringelisten står fortsatt i Innstillinger
+- Bilpark status uendret: to statusrader, uten «Ute av drift»
+- Desktop og mobil rendrer uten `undefined`/`NaN`, balanserte `<div>`
+- `kontrollstatusKpiHtml()` inneholder ingen referanse til `vehicleAktivSjafor`
+- De fire sjåførmotor-signaturene finnes uendret i kilden
+- *Scenario D:* `storage.airtable.js` finnes; ingen av de fem ugyldige filnavnvariantene
+
+`cmp index.html kontroll.html`: identiske.
+
+---
+
+## 2026-09-14
+
+### Prioritet 62.1 — Kontrollstatus + Aktive sjåfører erstatter «Biler i drift nå»
+
+**Problem eller mål**
+
+Rotårsaksanalysen konkluderte med at «Biler i drift nå» fungerte som designet: den måler
+`vehicleAktivSjafor()` — «har aktiv biløkt akkurat nå». Riktig for sjåførmotoren, feil
+KPI for dashboardet. Problemet skulle løses i KPI-en, ikke i sjåførlogikken.
+
+**Løsning**
+
+*Del 1–2 — Kontrollstatus.* Ny delt komponent `kontrollstatusKpiHtml(d)`:
+«X / Y kontrollert i dag», der X = `kontrollertIdagCount` og Y = antall biler som ikke er
+markert `uteAvDrift`. Underlinjen viser «N mangler kontroll». Klikk bruker den
+EKSISTERENDE `data-stat-nav="mangler-kontroll"` → `goToRegisterFiltered('ikke')` → Bil­over­sikt
+filtrert på ikke kontrollert i dag. Ingen ny skjerm, ingen ny modul.
+
+*Del 3–4 — Aktive sjåfører.* Ny delt komponent `aktiveSjaforerKpiHtml(d)`: «X aktive»,
+fortsatt basert på `vehicleAktivSjafor()` via `hDriftCount`, fordi det faktisk svarer på
+«hvem kjører akkurat nå». Klikk åpner Ringelisten under Innstillinger → 👤 Sjåførside via
+ny `goToRingeliste()`, som kun legger `'sjaforside'` i `settingsOpenSections` — samme
+mønster som db-banneret bruker for Database status.
+
+*Del 5 — Bilpark status.* Forenklet til to linjer: 🟢 Operative og 🟡 Må følges opp.
+🔴 Ute av drift og «X biler i drift nå»-linjen er fjernet fra kortet.
+`bilparkStatusInnholdHtml()` tar ikke lenger `hDriftCount` som parameter.
+
+*Layout.* Desktop KPI-rad: ny `.dash40-grid3` med Kontrollstatus, Aktive sjåfører og
+Kalender. Mobil KPI-rad: `.dash40-grid4` med Aktive saker, Kontrollstatus, Aktive sjåfører
+og Kommende frister. Begge faller til to kolonner på smal skjerm.
+
+**Ikke rørt**
+
+`vehicleAktivSjafor()`, `vehicleSisteSjafor()`, `settAktivSjafor()` og
+`settAktivSjaforForKontroll()` er uendret. Alternativ A fra rotårsaksanalysen er IKKE
+implementert. Ute-av-drift-logikken er intakt i `vehicleHovedstatus()`, Biloversikt,
+filtrene, Kjøretøyprofil og rapportene — kun dashboardvisningen er forenklet.
+
+Ingen nye beregninger: alle tallene fantes i `dashboardBeregning()`. Eneste tillegg i
+returobjektet er `reserveUnntattCount`, brukt til en forklarende `title`. `renderDashboard()`
+holder nå `d` ved siden av destruktureringen — fortsatt bare ETT kall til
+`dashboardBeregning()`.
+
+**Endrede filer**
+
+- `index.html` — 15 endringer
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v60 → bilpark-v61
+- `storage.airtable.js` — URØRT (v2.14.0, `?v=` uendret)
+
+**Airtable:** ingen endring.
+
+**Verifisering**
+
+`node --check`: OK. Node.js-simulering mot faktiske app-funksjoner, **46 assertions, alle
+grønne**:
+
+- *Scenario A:* 13 biler ikke ute av drift + 1 ute av drift, 4 kontroller i dag →
+  kortet viser «4 / 13», label «Kontrollert i dag»
+- *Scenario B:* «9 mangler kontroll», og kortet lenker til `data-stat-nav="mangler-kontroll"`
+- *Del 7 (viktigst):* med 13 `settAktivSjafor()`-kall på SAMME navn kollapser `hDriftCount`
+  til 1 — mens Kontrollstatus fortsatt viser «4 / 13». Nøyaktig symptomet fra
+  rotårsaksanalysen, nå uten at KPI-en lyver
+- *Scenario C:* 7 ulike sjåfører → «7», «7 aktive», og entallsformen «1 aktiv» ved én
+- *Scenario D:* Bilpark status har nøyaktig to statusrader, uten «Ute av drift» og uten
+  «i drift nå»
+- Ute av drift står fortsatt i `hbp`, i `HOVEDSTATUS_ORDER` og i Biloversikt-filteret
+- Desktop og mobil rendrer uten «Biler i drift», uten `undefined`/`NaN`, med balanserte
+  `<div>`-tagger, og med begge nye kort til stede
+- `goToRingeliste()` åpner `'sjaforside'`-seksjonen
+- De fire sjåførmotor-signaturene finnes uendret i kilden, og `kontrollstatusKpiHtml()`
+  inneholder ingen referanse til `vehicleAktivSjafor`
+- *Scenario E:* `storage.airtable.js` finnes; ingen av de fem ugyldige filnavnvariantene
+  i `index.html`, `kontroll.html`, `sw.js` eller `storage.airtable.js`
+
+`cmp index.html kontroll.html`: identiske.
+
+**Kjente begrensninger**
+
+«N mangler kontroll» gjenbruker `manglerKontrollCount`, som unntar reservebiler som ikke
+er tatt i bruk ennå (Optimalisering 14) — samme definisjon som skjermen klikket leder til.
+Nevneren Y er derimot alle biler som ikke er ute av drift, jf. briefen. Står det
+reservebiler på vent, summerer X + N derfor ikke til Y. Forskjellen forklares i kortets
+`title`-attributt.
+
+---
+
+## 2026-09-13
+
+### Prioritet 62.0 — Storage-filnavn sanert
+
+**Problem eller mål**
+
+Ett autoritativt filnavn: `storage.airtable.js`. Prosjektet hadde to skrivemåter i omløp.
+
+**Kartlegging (før)**
+
+| Sted | Verdi | Status |
+|---|---|---|
+| Fil på disk | `storage_airtable.js` | ❌ understrek |
+| `index.html:21` `<script src>` | `storage.airtable.js?v=2.14.0` | ✅ |
+| `kontroll.html:21` `<script src>` | `storage.airtable.js?v=2.14.0` | ✅ |
+| `sw.js:20` cache-liste | `'./storage.airtable.js'` | ✅ |
+| `index.html:14095` synlig etikett | `Kjørende fil-versjon (storage_airtable.js)` | ❌ |
+| `index.html:14108` synlig feilmelding | `...annen versjon av storage_airtable.js...` | ❌ |
+| `index.html:14060` kodekommentar | `...den kjørende storage_airtable.js...` | ❌ |
+| `index.html:4327` kodekommentar | `storage_airtable.js — kind:'json'...` | ❌ |
+| `kontroll.html` | speiler de fire over | ❌ |
+| `storage.airtable.js` egen header | `storage.airtable.js` | ✅ |
+| README, AIRTABLE_MIGRATION, ROADMAP, CHANGELOG | 75 treff, alle punktum | ✅ |
+| `CLAUDE.md` | 4 treff, alle i pitfall-dokumentasjon | ✅ (skal stå) |
+
+Alvorligst var `index.html:14095` og `:14108`: de ligger i **Database status**-panelet —
+skjermen som er bygget for å avsløre nettopp denne feilen — og pekte brukeren mot feil
+filnavn.
+
+**Løsning**
+
+1. Filen omdøpt `storage_airtable.js` → `storage.airtable.js`. **Innholdet er ikke rørt**
+   (v2.14.0, byte-identisk).
+2. Fire understrek-referanser rettet i `index.html`, speilet til `kontroll.html`.
+3. `CLAUDE.md`: den utdaterte parentesen om at feilskrivinger «kun forekommer i løpende
+   kommentartekst» er erstattet, og en ny, varig regel er lagt til.
+
+**Ikke endret**
+
+`window.storageAirtableInfo` (`index.html:14078/14084/14099` + `storage.airtable.js`) er
+et JavaScript-variabelnavn, ikke et filnavn. Gyldig, og bevisst urørt.
+
+Ingen funksjonelle endringer. Ingen Airtable-endringer. Sync-logikk, routing,
+storage-modell og sjåførmotoren er ikke berørt.
+
+**Endrede filer**
+
+- `storage_airtable.js` → `storage.airtable.js` (kun navn)
+- `index.html` — 4 tekstreferanser
+- `kontroll.html` — eksakt kopi
+- `sw.js` — CACHE_VERSION bilpark-v59 → bilpark-v60
+- `CLAUDE.md`, `ROADMAP.md`
+
+`?v=` og intern versjon står begge uendret på 2.14.0, som er riktig: filens INNHOLD er
+uendret.
+
+**Verifisering**
+
+- `node --check` på `index.html`-skriptblokken og `storage.airtable.js`: OK
+- Kontrollharness, 23 assertions, alle grønne. Alle fem ugyldige varianter
+  (`storage_airtable.js`, `airtable_storage.js`, `airtable-storage.js`,
+  `storageAirtable.js`, `airtable.storage.js`) søkt opp i hver enkelt `.js`-, `.html`-,
+  `.md`- og `.json`-fil. Eneste fil med treff er `CLAUDE.md`, der samtlige står i
+  passasjer som eksplisitt erklærer dem ugyldige. I tillegg bekreftet: kun ett
+  storage-filnavn på disk; `<script src>` korrekt i begge HTML-filer; `sw.js` cacher
+  `'./storage.airtable.js'`; `?v=` samsvarer med intern versjon; Database status og
+  feilmeldingen viser nå riktig filnavn; `window.storageAirtableInfo` urørt
+- `cmp index.html kontroll.html`: identiske
+
+**Kjente begrensninger**
+
+Jeg har ikke tilgang til GitHub-repoet og kan derfor ikke verifisere kontrollpunkt 3
+(«Repoet inneholder `storage.airtable.js`»). Ved opplasting må en eventuell gammel
+`storage_airtable.js` SLETTES fra repoet — ellers ligger begge filene der samtidig, og
+forvekslingen kan oppstå på nytt.
+
+---
+
 ## 2026-09-13
 
 ### Prioritet 62 — Bestill tjenester forenklet til fire kort

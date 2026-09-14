@@ -137,6 +137,10 @@
   }
   .brand-block{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
   .brand{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;letter-spacing:0.01em;text-transform:uppercase;display:flex;align-items:center;gap:9px;}
+  /* Bilpark-identiteten: NØYAKTIG samme logofil som PWA-ikonet (icons/icon-192.png), slik
+     at merket brukeren møter i header, sidemeny, drawer og på hjemskjermen er identisk.
+     Én identitet, én fil — ingen egen header-variant som kan komme i utakt. */
+  .brand-mark{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:block;}
   .brand-sub{font-size:11.5px;color:var(--muted);font-weight:500;}
   .header-link.active{background:var(--chrome-bg);color:var(--chrome-text);border-color:var(--chrome-bg);}
   .header-action-btn{
@@ -854,7 +858,7 @@
        plassering som originalen, men et renere, kortere toppområde. */
     .shell-top{padding:10px 16px;margin-bottom:12px;}
     .brand{font-size:19px;gap:7px;}
-    .brand svg{width:18px;height:18px;}
+    .brand-mark{width:22px;height:22px;border-radius:6px;}
     .brand-sub{font-size:10.5px;}
   }
 
@@ -964,12 +968,14 @@
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
     .dash40-grid2{grid-template-columns:1fr 1fr;}
+    .dash40-grid3{grid-template-columns:1fr 1fr;}
     .dash40-grid4-bestill{grid-template-columns:repeat(2,1fr);}
     .dash40-split{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
     .dash40-grid4{grid-template-columns:1fr;}
     .dash40-grid2{grid-template-columns:1fr;}
+    .dash40-grid3{grid-template-columns:1fr;}
     .dash40-grid4-bestill{grid-template-columns:1fr 1fr;}
     .profil-ident{flex-direction:column;align-items:stretch;}
     .kal-dag{min-height:54px;}
@@ -1049,6 +1055,9 @@
   /* ---- KPI-kort ---- */
   .dash40-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
   .dash40-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:18px;}
+  /* Prioritet 62.1: desktop sin KPI-rad har tre kort (Kontrollstatus, Aktive sjaforer,
+     Kalender). Egen klasse, ikke en endring av .dash40-grid2/.dash40-grid4. */
+  .dash40-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;}
   /* egen rad kun for de fire bestillingskortene (Service/EU-kontroll/
      Dekkskifte/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
      .dash40-grid4/.dash40-grid2 — KPI-radene skal forbli uendret. */
@@ -1309,6 +1318,7 @@
     /* Desktop 4.1 sine firekolonners rutenett blir to kolonner paa telefon —
        store touch-kort, ikke sma knapper. */
     .dash40-grid4{grid-template-columns:1fr 1fr;}
+    .dash40-grid3{grid-template-columns:1fr 1fr;}
     .dash40-bestill{min-height:126px;padding:15px;gap:3px;}
     .dash40-bestill-sub{font-size:11px;}
     .dash40-kpi{padding:15px 16px;}
@@ -4324,7 +4334,7 @@ function resizeImage(file){
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         // KRITISK FEILRETTING: Airtable sin "Long text"-felttype (Photos-tabellen, se
-        // storage_airtable.js — kind:'json' → multilineText) har en praktisk grense på
+        // storage.airtable.js — kind:'json' → multilineText) har en praktisk grense på
         // ca. 100 000 tegn per celle. Én fast JPEG-kvalitet (0,72) kunne lett overstige
         // dette for travle/detaljerte bilder — skrivingen feilet da STILLE i savePhoto(),
         // og resultatet var nøyaktig det rapporterte symptomet: "📷 Bilder (1)" vist, men
@@ -4440,6 +4450,10 @@ function goToAktiveSakerFiltered(opts){
   showSakFilterMeny = false;
   goTo('aktivesaker');
 }
+// Prioritet 62.1a: goToRingeliste() er FJERNET. Den ble innført i 62.1 utelukkende for
+// KPI-kortet "Aktive sjåfører", som nå er erstattet av "Aktive biler" (hurtigknapp til
+// Biloversikt → Har aktiv sjåfør). Ringelisten nås fortsatt som før under
+// Innstillinger → 👤 Sjåførside — ingen funksjonalitet er fjernet.
 function goToRegisterFiltered(kontrollStatus){
   filterSearch = ''; filterKategori = ''; filterLoyve = ''; filterHovedstatus = '';
   filterKontrollStatus = kontrollStatus || '';
@@ -6579,12 +6593,10 @@ function brandBlockHtml(){
   return `
     <div class="brand-block">
       <div class="brand">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#0B8457" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" aria-hidden="true">
-          <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V16a1 1 0 0 1-1 1h-1a2 2 0 1 1-4 0H9a2 2 0 1 1-4 0H4a1 1 0 0 1-1-1v-3.5A1.5 1.5 0 0 1 4.5 11H5z"/>
-        </svg>
+        <img class="brand-mark" src="icons/icon-192.png" alt="" aria-hidden="true">
         Bilpark
       </div>
-      <div class="brand-sub">Kontroller • Registrer • Reager</div>
+      <div class="brand-sub">Operativ kontroll</div>
     </div>
   `;
 }
@@ -7563,6 +7575,8 @@ function renderMobilHjem(){
         <span class="dash40-kpi-label">Aktive saker</span>
         <span class="dash40-kpi-link">${d.forfalteSakerAlle.length} forfalt${d.forfalteSakerAlle.length===1?'':'e'} · Se alle →</span>
       </button>
+      ${kontrollstatusKpiHtml(d)}
+      ${aktiveBilerKpiHtml(d)}
       <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
         <span class="flis">${luc('calendar-days')}</span>
         <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
@@ -7612,7 +7626,7 @@ function renderMobilHjem(){
     bilparkstatus: `
     <div class="panel" style="margin-bottom:14px;">
       <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
-      ${bilparkStatusInnholdHtml(d.hbp, d.hDriftCount)}
+      ${bilparkStatusInnholdHtml(d.hbp)}
     </div>`,
     kreverhandling: `
     <div class="panel" style="margin-bottom:14px;${d.harHastesaker ? 'border-color:var(--red);' : ''}">
@@ -7634,12 +7648,10 @@ function renderMobilHjem(){
     <div class="p41-head">
       <div>
         <div class="p41-brand">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="#19A66B" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" aria-hidden="true">
-            <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V16a1 1 0 0 1-1 1h-1a2 2 0 1 1-4 0H9a2 2 0 1 1-4 0H4a1 1 0 0 1-1-1v-3.5A1.5 1.5 0 0 1 4.5 11H5z"/>
-          </svg>
+          <img class="brand-mark" src="icons/icon-192.png" alt="" aria-hidden="true">
           Bilpark
         </div>
-        <div class="p41-brand-sub">Dine biler. Full kontroll.</div>
+        <div class="p41-brand-sub">Operativ kontroll</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
@@ -7791,20 +7803,78 @@ function dashKreverRadHtml(item){
             </div>`;
 }
 
+// ================= Prioritet 62.1: Kontrollstatus + Aktive sjaforer =================
+// Bakgrunn (se rotarsaksanalysen i ROADMAP.md): KPI-en "Biler i drift na" malte
+// vehicleAktivSjafor() - altsa "har aktiv bilokt akkurat na". Det er RIKTIG for
+// sjaformotoren, men feil sporsmal for driftskoordinatoren, som trenger a vite hvor mange
+// biler som er kontrollert i dag. De to tallene er na SKILT i hver sin KPI, slik at ingen
+// av dem lenger later som om de svarer pa det andre sporsmalet.
+//
+// Begge kortene er delte funksjoner (samme monster som bilparkStatusInnholdHtml()), slik
+// at desktop og mobil viser IDENTISK markup. Ingen ny beregning: alle fire tallene
+// (kontrollertIdagCount, aktiveVehicles, manglerKontrollCount, hDriftCount) kommer
+// uendret fra dashboardBeregning().
+//
+// VIKTIG: Kontrollstatus bruker ALDRI vehicleAktivSjafor(). Den leser kun
+// isKontrollertIdag() via kontrollertIdagCount - fire kontroller i dag gir alltid fire,
+// uavhengig av hvor mange biloekter som er aktive.
+function kontrollstatusKpiHtml(d){
+  // Prioritet 62.1a — MATEMATISK KONSISTENS. Alle tre tallene bruker nå NØYAKTIG samme
+  // populasjon: biler som verken er ute av drift ELLER en reservebil som ikke er tatt i
+  // bruk i dag. Det gir X + N = Y uten unntak:
+  //   Y = aktiveVehicles − reserveUnntatt   (bilene som faktisk har kontrollkrav i dag)
+  //   X = kontrollertIdagCount              (en reserveUnntatt bil er per definisjon
+  //                                          IKKE kontrollert, se vehicleErReserveUnntatt(),
+  //                                          så X ligger alltid innenfor Y)
+  //   N = manglerKontrollCount = aktiveVehicles − X − reserveUnntatt = Y − X
+  // N er fortsatt SAMME tall som Biloversikt-filteret klikket lander på
+  // (data-stat-nav="mangler-kontroll" → goToRegisterFiltered('ikke')) — étt tall, én sannhet.
+  const nevner = d.aktiveVehicles.length - d.reserveUnntattCount;
+  const mangler = d.manglerKontrollCount;
+  return `
+      <button type="button" class="dash40-kpi" data-stat-nav="mangler-kontroll" style="--tint:var(--blue-soft);--tone:var(--blue);" title="Viser bilene som mangler kontroll i dag">
+        <span class="flis">${luc('clipboard-check')}</span>
+        <span class="dash40-kpi-num"${mangler > 0 ? ' style="color:var(--amber);"' : ''}>${d.kontrollertIdagCount} / ${nevner}</span>
+        <span class="dash40-kpi-label">Kontrollert i dag</span>
+        <span class="dash40-kpi-link">${mangler} mangler kontroll →</span>
+      </button>`;
+}
+// Prioritet 62.1a: kortet heter nå "Aktive biler" og er en HURTIGKNAPP til Biloversikt
+// filtrert på "Har aktiv sjåfør" — altså bilene som faktisk er i bruk akkurat nå.
+// Tallet er uendret (hDriftCount fra vehicleAktivSjafor()); det er den eneste kilden som
+// svarer på "hvilke biler kjører akkurat nå". Sjåførmotoren er urørt.
+// Klikket gjenbruker det EKSISTERENDE filteret data-goto-biloversikt-filter="har-aktiv-sjafor"
+// → goToRegisterHovedstatus() — ingen ny filtreringsmodell, ingen ny skjerm.
+function aktiveBilerKpiHtml(d){
+  return `
+      <button type="button" class="dash40-kpi" data-goto-biloversikt-filter="har-aktiv-sjafor" style="--tint:var(--green-soft);--tone:var(--green-ink);" title="Åpner Biloversikt filtrert på biler med aktiv sjåfør">
+        <span class="flis">${luc('truck')}</span>
+        <span class="dash40-kpi-num">${d.hDriftCount}</span>
+        <span class="dash40-kpi-label">Aktive biler</span>
+        <span class="dash40-kpi-link">${d.hDriftCount === 1 ? '1 aktiv bil' : d.hDriftCount + ' aktive biler'} · Se hvilke →</span>
+      </button>`;
+}
+
 // innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
-// og desktop viser identisk panel. Tellingene (hbp/hDriftCount) kommer fortsatt fra
-// dashboardBeregning() — altså fra vehicleHovedstatus()/vehicleAktivSjafor(), uendret.
+// og desktop viser identisk panel. Tellingen (hbp) kommer fortsatt fra
+// dashboardBeregning() — altså fra vehicleHovedstatus(), uendret. Prioritet 62.1 fjernet
+// hDriftCount herfra; det tallet bor nå i KPI-kortet Aktive sjåfører.
 // DEL 8 (Dashboard 5.0): komprimert fra syv detaljerte kategorier til tre — leser
 // FORTSATT de samme, uendrede tellingene fra hbp (vehicleHovedstatus() sitt
 // sju-nivås hierarki er urørt, kun VISNINGEN her slår sammen kategoriene). Detaljert
 // nedbryting per kategori finnes fortsatt på Bil-siden/Biloversikt (uendret).
-function bilparkStatusInnholdHtml(hbp, hDriftCount){
+// Prioritet 62.1: panelet er forenklet til TO linjer - Operative og Ma folges opp.
+// "Ute av drift" er fjernet fra DASHBOARDVISNINGEN (den var et tall uten neste handling
+// her), og "X biler i drift na"-linjen er erstattet av det nye KPI-kortet Aktive sjaforer.
+// Ute-av-drift-logikken selv er URORT: den ligger fortsatt i vehicleHovedstatus() (niva 1),
+// i Biloversikt, i filtrene, pa Kjoretoyprofilen og i rapportene. Kun visningen her er
+// forenklet. hDriftCount er derfor ikke lenger en parameter til denne funksjonen.
+function bilparkStatusInnholdHtml(hbp){
   const grupper = [
     {key:'operativ', ikon:'🟢', label:'Operative', antall: hbp['operativ'] || 0, nav:'data-goto-biloversikt-filter="operativ"'},
     {key:'ma-folges-opp', ikon:'🟡', label:'Må følges opp',
       antall: (hbp['oppfolging']||0) + (hbp['verksted']||0) + (hbp['reserve']||0) + (hbp['ikke-kontrollert']||0),
-      nav:'data-quick-page="register"'},
-    {key:'ute-av-drift', ikon:'🔴', label:'Ute av drift', antall: hbp['ute-av-drift'] || 0, nav:'data-quick-page="register"'}
+      nav:'data-quick-page="register"'}
   ];
   return `
           ${grupper.map(g => `
@@ -7813,7 +7883,6 @@ function bilparkStatusInnholdHtml(hbp, hDriftCount){
               <span class="n">${g.antall}</span>
               <span class="l">${g.label}</span>
             </div>`).join('')}
-          <div class="required-hint" style="margin-top:10px;">${luc('truck')} <b>${hDriftCount}</b> ${hDriftCount===1?'bil':'biler'} i drift nå · <span style="cursor:pointer;text-decoration:underline;" data-goto-biloversikt-filter="har-aktiv-sjafor">se hvilke →</span></div>
   `;
 }
 
@@ -7986,7 +8055,7 @@ function dashboardBeregning(){
     verksted: aktiveSaker.filter(s => sakFase(s) === 'verksted').length
   };
   return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
-    manglerKontrollCount, forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
+    manglerKontrollCount, reserveUnntattCount, forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
     harHastesaker, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
     sakFaseAntall};
@@ -8025,10 +8094,14 @@ function renderDashboard(){
   // Mobil får en helt annen forside her — ingen av
   // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
+  // Prioritet 62.1: `d` holdes tilgjengelig ved siden av destruktureringen, slik at de
+  // delte KPI-komponentene (kontrollstatusKpiHtml/aktiveBilerKpiHtml) kan ta imot hele
+  // beregningen — nøyaktig samme objekt, kun ETT kall til dashboardBeregning().
+  const d = dashboardBeregning();
   const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
     forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, harHastesaker,
     dashKreverListe, dashKreverTop5, kommendeFristerAntall, kommendeOppgaver, kommendeOppgaverTop,
-    hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe, sakFaseAntall} = dashboardBeregning();
+    hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe, sakFaseAntall} = d;
 
   const g = greetingInfo();
   const displayNavn = loggedInRole || '';
@@ -8053,14 +8126,10 @@ function renderDashboard(){
   // to-kolonners oppsettet (dash40-split), men i sin innbyrdes rekkefølge innad i kolonnen.
   const komponentHtml = {
     kpi: `
-    <div class="dash40-grid2">
-      <button type="button" class="dash40-kpi" data-goto-biloversikt-filter="har-aktiv-sjafor" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis">${luc('truck')}</span>
-        <span class="dash40-kpi-num">${hDriftCount}</span>
-        <span class="dash40-kpi-label">Biler i drift</span>
-        <span class="dash40-kpi-link">${kontrollertIdagCount} kontrollert i dag →</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--green-soft);--tone:var(--green-ink);">
+    <div class="dash40-grid3">
+      ${kontrollstatusKpiHtml(d)}
+      ${aktiveBilerKpiHtml(d)}
+      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
         <span class="flis">${luc('calendar-days')}</span>
         <span class="dash40-kpi-num">${upcomingVT.length}</span>
         <span class="dash40-kpi-label">Kalender</span>
@@ -8151,7 +8220,7 @@ function renderDashboard(){
     bilparkstatus: `
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
-          ${bilparkStatusInnholdHtml(hbp, hDriftCount)}
+          ${bilparkStatusInnholdHtml(hbp)}
         </div>`,
     kreverhandling: `
         <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${harHastesaker ? 'border-color:var(--red);' : ''}">
@@ -14057,7 +14126,7 @@ function renderInnstillinger(){
         <div class="required-hint" style="margin-top:10px;">Dette er reelle, mislykkede lagringsforsøk — appen viste en feilmelding med én gang dette skjedde. Registreringen ble ikke lagret til Airtable og bør gjøres på nytt.</div>` : `<div class="required-hint" style="margin-top:10px;">Ingen mislykkede lagringsforsøk registrert denne økten.</div>`}
       </div>
     `;
-    // Filversjonssjekk — avslører DIREKTE om den kjørende storage_airtable.js faktisk
+    // Filversjonssjekk — avslører DIREKTE om den kjørende storage.airtable.js faktisk
     // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
     // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
     //
@@ -14092,7 +14161,7 @@ function renderInnstillinger(){
     const forventetVersjonVisning = FORVENTET_VERSJON || 'Ukjent (fant ingen ?v=-parameter på script-taggen)';
     const versjonHtml = `
       <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
-        <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage_airtable.js)</div>
+        <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage.airtable.js)</div>
         ${!info ? `
         <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 storage.airtable.js er ikke lastet eller rapporterer ikke versjon.</div>
         <div class="ov-grid" style="margin-top:10px;">
@@ -14105,7 +14174,7 @@ function renderInnstillinger(){
           <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
           <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei'}</span></div>
         </div>`}
-        ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage_airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
+        ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage.airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
         ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Kunne ikke lese forventet storage-versjon fra script-taggen. Sjekk at script-taggen har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
       </div>
     `;

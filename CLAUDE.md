@@ -1418,8 +1418,10 @@ fjernet. Introduser det ikke igjen uten en eksplisitt, ny beslutning.
   `set()`/`delete()` (se "Dataintegritet" under) — dette er den
   ENESTE Airtable-storage-filen i prosjektet — ingen
   konkurrerende varianter (`storage_airtable.js`, `airtable_storage.js`,
-  `airtable.storage.js`) finnes som egne filer (kun feilskrivinger i
-  løpende kommentartekst forekommer — se AIRTABLE_MIGRATION.md). Siden
+  `airtable.storage.js`) finnes som egne filer. **Prioritet 62.0: heller ikke
+  i kommentar- eller grensesnittekst lenger** — de fire siste forekomstene av
+  understrek-varianten er sanert, og prosjektet har nå nøyaktig ett gyldig
+  filnavn overalt. Siden
   Prioritet 29 har filen en internt serialisert per-ressurs skrivekø
   (`_koKjor()`) rundt `set()`/`del()` — se "Dataintegritet" under.
 - **Autoritative datakilder:** `v.km` er eneste autoritative NÅVÆRENDE
@@ -2488,3 +2490,106 @@ hånd hver gang, er kortet ikke ferdig.
 forslag kan oppdateres automatisk når konteksten endres, men KUN hvis feltet fortsatt
 står på forrige forslag. Har brukeren rørt feltet, er det brukerens. Implementert med
 `data-std-default` på elementet og sammenligning mot `element.value`.
+
+
+## Prioritet 62.0 (2026-09-13) — Storage-filnavnet er sanert. Hold det slik.
+
+Prosjektet har **nøyaktig ett** gyldig navn på Airtable-storage-filen:
+
+    storage.airtable.js
+
+Ingen andre varianter er gyldige — ikke `storage_airtable.js`, ikke
+`airtable_storage.js`, ikke `airtable-storage.js`, ikke `storageAirtable.js`, ikke
+`airtable.storage.js`. Dette gjelder **filnavnet, `<script src>`, `sw.js` sin cache-liste,
+kommentarer, grensesnittekst og dokumentasjon**. Et feilskrevet filnavn i en kommentar er
+ikke ufarlig: det var nettopp slik den historiske forvekslingen oppsto, og i Prioritet
+62.0 pekte selve *diagnoseskjermen* (Database status) mot feil navn — altså den skjermen
+som skal avsløre problemet.
+
+**Ett unntak som IKKE skal «rettes»:** `window.storageAirtableInfo` er et
+JavaScript-variabelnavn, ikke et filnavn. Det er gyldig og skal stå urørt.
+
+**Regel før hver leveranse:** kjør en kontroll på alle fem ugyldige varianter i
+`index.html`, `kontroll.html`, `sw.js`, `storage.airtable.js` og alle `.md`-filer. Eneste
+tillatte treff er de i denne filen som eksplisitt beskriver variantene som ugyldige.
+
+
+## Prioritet 62.1 (2026-09-14) — Én KPI, ett spørsmål
+
+**Varig regel: en KPI skal svare på nøyaktig ett spørsmål, og tallet skal komme fra kilden
+som faktisk måler det spørsmålet.** «Biler i drift nå» brøt dette: den het som om den
+svarte på «hvor mange biler er i bruk i dag», men målte «hvor mange aktive biløkter finnes
+akkurat nå». Ingen feil i koden — feil spørsmål i kortet.
+
+Dashboardets KPI-er og deres ENESTE gyldige kilde:
+
+| KPI | Spørsmål | Kilde |
+|---|---|---|
+| Kontrollstatus | Hvor mange biler er kontrollert i dag? | `isKontrollertIdag()` via `kontrollertIdagCount` |
+| Aktive sjåfører | Hvem kjører akkurat nå? | `vehicleAktivSjafor()` via `hDriftCount` |
+| Aktive saker / Under oppfølging / Planlagt verksted | Hva må gjøres? | `sakFaseAntall` |
+| Kommende frister / Kalender | Hva kommer? | `upcomingVT` |
+| Bilpark status | Er bilparken operativ? | `vehicleHovedstatus()` via `hbp` |
+
+**Kontrollstatus skal ALDRI bruke `vehicleAktivSjafor()`.** Fire kontroller i dag skal gi
+fire, uavhengig av hvor mange biløkter som er aktive. Motsatt: Aktive sjåfører skal aldri
+utledes av kontroller — `vehicleSisteSjafor()` hører til informasjonsvisning, ikke til
+denne tellingen.
+
+**Dashboardvisning ≠ datamodell.** 🔴 Ute av drift er fjernet fra dashboardkortet fordi
+tallet ikke hadde en neste handling der. Statusnivået, filtrene, Biloversikt,
+Kjøretøyprofil og rapportene er uendret. Når et tall fjernes fra Dashboard, skal det
+alltid fortsatt finnes hos eieren av informasjonen — Dashboard eier aldri data.
+
+**Ett tall, én sannhet på tvers av klikk.** «N mangler kontroll» bruker samme definisjon
+(`manglerKontrollCount`) som Biloversikt-filteret klikket lander på
+(`goToRegisterFiltered('ikke')`). Et KPI-tall som ikke stemmer med skjermen det leder til,
+er verre enn ingen KPI.
+
+
+## Prioritet 62.1a (2026-09-14) — Tall på Dashboard skal aldri kreve forklaring
+
+**Varig regel: et sammensatt tall må være matematisk konsistent i seg selv.** Viser et kort
+«X / Y» og «N mangler», skal `X + N = Y` alltid holde. Et `title`-attributt som forklarer
+hvorfor tallene ikke går opp, er ikke en løsning — det er en innrømmelse av at kortet er
+feil. Dashboard skal forstås på under to sekunder; et tall som må forklares har allerede
+brukt dem opp.
+
+**Praktisk konsekvens:** når teller, nevner og differanse skal vises sammen, må alle tre
+avledes av SAMME populasjon. Feilen i Prioritet 62.1 var at nevneren var «alle biler som
+ikke er ute av drift», mens telleren og differansen i tillegg unntok reservebiler som
+ikke var tatt i bruk. Riktig populasjon her er «biler som faktisk har kontrollkrav i dag»
+= `aktiveVehicles − reserveUnntatt`.
+
+**KPI-er skal være hurtigknapper, ikke oppslagsverk.** «Aktive biler» erstattet «Aktive
+sjåfører» fordi verdien ikke ligger i tallet alene, men i å komme rett til Biloversikt →
+Har aktiv sjåfør uten å stille filtre manuelt. Et KPI-kort som bare viser et tall uten en
+naturlig neste skjerm hører ikke hjemme på Dashboard.
+
+**Rydd opp etter deg.** `goToRingeliste()` ble innført i 62.1 for ett kort. Da kortet ble
+erstattet i 62.1a, ble funksjonen og dens `data-`attributt fjernet i samme slengen. Hjelpere
+uten kallesteder er død kode, ikke beredskap.
+
+
+## Prioritet 63 (2026-09-14) — Bilpark-identiteten: én logo, én fil
+
+**Varig regel: det finnes ÉN Bilpark-logo, og den ligger i `icons/icon-192.png`.**
+Header, sidemeny, drawer, innloggingsskjerm, mobilforside, favicon, apple-touch-icon og
+PWA-ikonet refererer alle den samme filen. Ikke lag en egen header-variant, en egen
+SVG-kopi eller et «forenklet merke for små størrelser» — to filer kommer alltid i utakt.
+
+**Ikke redesign logoen.** Ingen nye B-varianter, ingen nye farger, ingen kjøretøysymboler,
+ingen emoji som logo. Grønn er primærfarge, oransje er aksent, begge hentet fra logofilen.
+Det gamle lastebil-ikonet i `brandBlockHtml()` er fjernet og skal ikke tilbake.
+
+**Skill logo fra UI-ikoner.** `luc('truck')` brukes fortsatt som Lucide-ikon for
+kjøretøy/biloversikt i grensesnittet — det er innhold, ikke merkevare. Logoen opptrer kun
+i brand-blokkene.
+
+**Maskable-regel:** `icon-512-maskable.png` skal ha heldekkende bakgrunn uten egen
+hjørneavrunding, og motivets DIAGONAL må ligge innenfor den sikre sonen (80 % av bredden).
+Å bare sjekke høyden er ikke nok — et høyt, smalt motiv kan likevel få hjørnene kuttet av
+launcherens sirkelmaske. Ved ny logo: mål bounding box, skaler til ~56 % høyde, verifiser
+diagonalen.
+
+**Undertittelen er «Operativ kontroll»** i alle brand-blokker.
