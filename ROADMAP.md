@@ -1,8 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-15 (Prioritet 69 — operativ oppstartsskjerm med reell lastestatus
-per datasett; appen åpnes ikke ved lesefeil på kjøretøyregisteret).
-Før det: 2026-09-14 (Prioritet 68.1 — boilerplate fjernet fra utvidet sak).
+Sist oppdatert: 2026-09-14 (Prioritet 68.1 — boilerplate fjernet fra utvidet sak).
 Før det: 2026-09-14 (Prioritet 68 — saksdetaljer, kilde og bilder direkte i
 Aktive saker, lest live fra originalkilden).
 Før det: 2026-09-14 (Prioritet 67 — gyldige kontroller oppdaterer v.km automatisk;
@@ -1917,37 +1915,3 @@ Kollapset visning uendret. Kun `index.html`/`kontroll.html`. CACHE_VERSION v76 �
 2. **En auto-generert sak med brukerredigert beskrivelse** (endret via Avansert
    redigering) vises ikke lenger i detaljseksjonen, siden `sourceType` fortsatt er `auto`.
    Teksten finnes i Avansert redigering. Sjeldent tilfelle; si ifra hvis det skal dekkes.
-
-## Prioritet 69 (2026-09-15) — Operativ oppstartsskjerm
-
-✅ Implementert og verifisert i ekte Chromium (desktop, mobil, sjåførmodus).
-
-Oppstarten viser nå reell status for Kjøretøy, Kontroller, Aktive saker, Skader og
-«Forbereder dashboard/sjåførkontroll» (⏳ → ✅ / ⚠️). Kjøretøy-raden leses direkte fra
-`vehiclesLoadStatus` (66.9). Ved lesefeil på Vehicles åpnes appen ikke. Ved feil på andre
-datasett, eller bekreftet tomt register, stopper oppstarten med «Last på nytt» /
-«Åpne Bilpark». Uventet feil i `loadAll()` vises som feil i stedet for å henge stille.
-Versjon vises nederst (fra CACHE_VERSION + kjørende storage-fil — ingen ny konstant).
-
-Kun `index.html`/`kontroll.html` + `sw.js`. CACHE_VERSION v77 → v78. Ingen endring i
-`storage.airtable.js`, ingen nye Airtable-felt.
-
-**Kjente begrensninger:**
-
-1. **Kontroller, Aktive saker og Skader har fortsatt `catch(e){ x = []; }`** — samme
-   mønster som forårsaket datahendelsen for Vehicles. P69 gjør feilen synlig, men velger
-   brukeren «Åpne Bilpark» etter en slik feil, finnes ingen skrivesperre for disse
-   tabellene. En ny registrering kan da i verste fall reconciliere mot en tom liste.
-   **Anbefalt neste prioritet (69.1): lastestatus + skrivesperre for DriverChecks,
-   AktiveSaker og Damages** — egen analyse først, jf. 66.9-begrensning 2.
-2. **Oppstartsskjermen gjelder kun første lasting.** Feil i bakgrunnspollingen etter at
-   appen er åpnet vises fortsatt kun via 66.9-panelet (Vehicles) og Database status.
-3. **Varsellys, Servicehistorikk, Verkstedtimer m.fl. vises ikke som egne rader** (bevisst,
-   briefen lister fire datasett). Korrupte Settings-blobber varsles fortsatt med den
-   eksisterende alerten.
-4. **Appversjonen vises først når service workeren har cachet appen** (andre besøk).
-   Ved første besøk vises kun storage-versjonen.
-5. **Normal oppstart er ca. 0,6 s lengre** («✅ Klar» 450 ms + 180 ms fade). Fade er av
-   ved `prefers-reduced-motion`.
-6. **Oppstartsskjermen er alltid mørk** inntil lagret temavalg er hentet fra Airtable;
-   brukere med lys drakt ser mørk oppstart og deretter lys app.
