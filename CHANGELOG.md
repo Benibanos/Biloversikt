@@ -15,6 +15,23 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-15
 
+### Midlertidig sperring av sjåførkontroll
+
+Sjåførkontrollen er sperret under vedlikehold og dataverifisering. Sjåførmodus viser kun:
+«⚠️ Sjåførkontrollen er midlertidig utilgjengelig — Det pågår vedlikehold og
+dataverifisering. Kontakt driftskoordinator ved behov.»
+
+Blokkert: kontroller, kilometerstand (via kontroll), skader, varsellamper og avvik fra
+Min Bil, sjåførkommentarer, start/overføring av biløkt. Kontrollskjemaet er også sperret
+fra administrasjonssiden. Resten av Bilpark er uendret.
+
+Bryter: `SJAFORKONTROLL_SPERRET` i index.html. CACHE_VERSION bilpark-v78 → **bilpark-v79**.
+
+**Verifisering** — Chromium: sjåførmodus viser kun meldingen (ingen bunnmeny); direkte
+kall til alle sju skrivefunksjoner gir null skrivinger og uendrede lister; Dashboard,
+Biloversikt, Kjøretøyprofil, Aktive saker, Kalender, Verksted, Service, Historikk, Skader
+og Innstillinger rendres uten feil; P69-regresjon (11 scenarier) bestått.
+
 ### Prioritet 69 — Operativ oppstartsskjerm
 
 «Laster inn...» er erstattet av en statusflate som viser hva som faktisk lastes:

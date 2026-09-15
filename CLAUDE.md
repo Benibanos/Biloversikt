@@ -2977,3 +2977,13 @@ annen kode skal endres.
 `bilpark-vNN` fra `caches.keys()` og `storageAirtableInfo.versjon`. Ikke innfør en egen
 APP_VERSION-konstant (samme felle som den falske versjonsfeilen i Database status).
 
+## Midlertidig sperring av sjåførkontroll (2026-09-15) — AKTIV
+
+**`SJAFORKONTROLL_SPERRET` er eneste bryter.** Når den er `true` rendres sjåførmodus og
+kontrollskjemaet som sperremelding, og `sjaforkontrollSperret(handling)` blokkerer
+FØRST i hver sjåførrelatert skrivefunksjon (før noen mutasjon av lokal state).
+`startBilokt()`/`overforAktivSjafor()` KASTER i stedet for å returnere, slik at kalleren
+ikke fortsetter. Ny sjåførrelatert skrivefunksjon skal ha samme portvakt. Sperren skal
+ikke utvides til administrators egne registreringer. Fjernes ved å sette flagget til
+`false` — koden kan bli liggende som beredskap.
+

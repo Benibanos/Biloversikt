@@ -1657,7 +1657,7 @@ const OVERSIKT_SCREENS = ['register', 'kontrolloversikt', 'verksted', 'skader', 
 // redigering av skade, verkstedtime eller bilinfo, eller rett og slett har fokus i et
 // hvilket som helst tekstfelt/nedtrekksmeny akkurat nå.
 function formInProgress(){
-  if(screen === 'kontroll') return true;
+  if(screen === 'kontroll' && !SJAFORKONTROLL_SPERRET) return true; // sperret: panelet har ingen skjemadata
   if(showAddVehicleForm) return true;
   if(showAddSkade || editingDamageId) return true;
   if(showAddVT || editingVTId) return true;
@@ -2463,6 +2463,29 @@ function vehicleSisteSjafor(vehicleId){
 // Nullstilling skjer fortsatt kun i avsluttBilokt() og ryddOppBiloktDagskille().
 // Returnerer navnet på en ev. ANNEN bil samme sjåfør ble sjekket ut av, slik at
 // den som kaller kan gjøre kryss-bil-utsjekkingen synlig (uten blokkerende alert).
+// ================= Midlertidig sperring av sjåførkontroll =================
+// Vedlikehold og dataverifisering. Sett til false (og øk CACHE_VERSION) for å åpne igjen.
+// Sperren gjelder KUN sjåførkontrollen: sjåførmodus (kontroll.html / ?sjafor=1) og
+// kontrollskjemaet (screen 'kontroll'). Resten av Bilpark — inkl. administrators egne
+// registreringer i Skader, Aktive saker, Verksted, Service og Rediger informasjon — er urørt.
+// Portvakten under ligger i tillegg FØRST i hver sjåførrelatert skrivefunksjon, slik at
+// ingen vei rundt visningssperren kan lagre noe.
+const SJAFORKONTROLL_SPERRET = true;
+const SJAFORKONTROLL_SPERRE_TEKST = 'Sjåførkontrollen er midlertidig utilgjengelig. Det pågår vedlikehold og dataverifisering. Kontakt driftskoordinator ved behov.';
+function sjaforkontrollSperret(handling){
+  if(!SJAFORKONTROLL_SPERRET) return false;
+  console.warn('[SJÅFØRKONTROLL-SPERRE] Blokkert:', handling);
+  alert('⚠️ ' + SJAFORKONTROLL_SPERRE_TEKST + '\n\nIngenting er lagret.');
+  return true;
+}
+function renderSjaforkontrollSperretPanel(){
+  return `
+    <div class="panel" role="alert" style="max-width:520px;margin:40px auto;border-color:var(--amber);">
+      <div class="p38-panel-head"><div class="tittel" style="color:var(--amber);">⚠️ Sjåførkontrollen er midlertidig utilgjengelig</div></div>
+      <p style="margin:0 0 10px;line-height:1.55;">Det pågår vedlikehold og dataverifisering.</p>
+      <p style="margin:0;line-height:1.55;">Kontakt driftskoordinator ved behov.</p>
+    </div>`;
+}
 async function settAktivSjafor(vehicleId, navn){
   const navnTrim = (navn || '').trim();
   let utsjekketFra = '';
@@ -2482,6 +2505,8 @@ async function settAktivSjafor(vehicleId, navn){
 // UENDRET oppførsel: tildelingen skjer nå via settAktivSjafor(), og denne funksjonen
 // står igjen med det som er unikt for sjåførmodus — den lokale enhets-sesjonen.
 async function startBilokt(vehicleId, navn){
+  // Kaster (ikke return) slik at kalleren ikke fortsetter som om biløkten startet.
+  if(sjaforkontrollSperret('Start av biløkt')) throw new Error('Sjåførkontrollen er sperret');
   const utsjekketFra = await settAktivSjafor(vehicleId, navn);
   driverActiveVehicleId = vehicleId;
   driverNavn = (navn || '').trim();
@@ -2503,6 +2528,7 @@ async function settAktivSjaforForKontroll(vehicleId, navn){
 // den nye sjåføren — derfor oppdateres Biler i drift, Dashboard, Biloversikt og
 // Kjøretøyprofil umiddelbart, siden alle disse leser vehicleAktivSjafor() live.
 async function overforAktivSjafor(vehicleId, navn){
+  if(sjaforkontrollSperret('Overføring av aktiv sjåfør')) throw new Error('Sjåførkontrollen er sperret');
   return await settAktivSjafor(vehicleId, navn);
 }
 // "Sjekk ut bil": avslutter biløkten. Kontrollstatus skal IKKE påvirkes — den står
@@ -5067,6 +5093,7 @@ async function submitAddSkade(ev){
 // bilforhåndsvalgt inngang for en sjåfør som allerede har sjekket inn for dagen og
 // oppdager noe nytt midt på dagen (kontrollen i seg selv trenger ikke gjøres på nytt).
 async function submitMinBilSkade(){
+  if(sjaforkontrollSperret('Skaderegistrering fra sjåfør')) return;
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v) return;
   const beskrivelse = minBilSkadeBeskrivelse.trim();
@@ -5099,6 +5126,7 @@ async function submitMinBilSkade(){
   render();
 }
 async function submitMinBilVarsel(){
+  if(sjaforkontrollSperret('Varsellampe fra sjåfør')) return;
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v || !minBilVarselType){ alert('Velg en varsellampe.'); return; }
   const dato = todayISO();
@@ -5123,6 +5151,7 @@ async function submitMinBilVarsel(){
   render();
 }
 async function submitMinBilAvvik(){
+  if(sjaforkontrollSperret('Kontrollavvik fra sjåfør')) return;
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v || !minBilAvvikType){ alert('Velg et avvik.'); return; }
   const dato = todayISO();
@@ -6376,6 +6405,7 @@ window.rapporterKmAvvik = function(){
 
 async function submitKontroll(ev){
   ev.preventDefault();
+  if(sjaforkontrollSperret('Registrering av kontroll')) return;
   const msgEl = document.getElementById('kt-msg');
   const vehicleId = kontrollFormVehicleId;
   const km = document.getElementById('kt-km').value;
@@ -7265,7 +7295,7 @@ function render(){
   else if(screen === 'skader') body = renderSkader();
   else if(screen === 'verksted') body = renderVerksted();
   else if(screen === 'innstillinger') body = renderInnstillinger();
-  else if(screen === 'kontroll') body = renderKontroll();
+  else if(screen === 'kontroll') body = SJAFORKONTROLL_SPERRET ? renderSjaforkontrollSperretPanel() : renderKontroll();
   else if(screen === 'varsler') body = renderVarslerOversikt();
   else if(screen === 'dekkoversikt') body = renderDekkoversikt();
   else if(screen === 'kontrolloversikt') body = renderKontrolloversikt();
@@ -7347,7 +7377,7 @@ function render(){
   else if(screen === 'skader') attachSkaderListeners();
   else if(screen === 'verksted') attachVerkstedListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
-  else if(screen === 'kontroll') attachKontrollListeners();
+  else if(screen === 'kontroll' && !SJAFORKONTROLL_SPERRET) attachKontrollListeners();
   else if(screen === 'varsler') attachVarslerOversiktListeners();
   else if(screen === 'dekkoversikt') attachDekkoversiktListeners();
   else if(screen === 'kontrolloversikt') attachKontrolloversiktListeners();
@@ -7563,6 +7593,17 @@ function attachKontrollSlettModalListeners(){
 // Bunnmenyen vises på ALLE sjåførskjermer (også Velg bil/Kontroll/Allerede kontrollert), slik
 // at Ringeliste og Kommentarer alltid er tilgjengelige, uansett hvor i flyten sjåføren er.
 function renderDriverShell(){
+  if(SJAFORKONTROLL_SPERRET){
+    app.innerHTML = `
+      <div class="shell-top">
+        ${brandBlockHtml()}
+        <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span></div>
+      </div>
+      ${renderSjaforkontrollSperretPanel()}
+    `;
+    refreshLucideIcons();
+    return;
+  }
   let body = '';
   if(driverScreen === 'kontroll') body = renderKontroll();
   else if(driverScreen === 'allerede-kontrollert') body = renderDriverAlleredeKontrollert();
@@ -8130,6 +8171,7 @@ function renderDriverNyKommentar(){
   `;
 }
 async function submitDriverNyKommentar(){
+  if(sjaforkontrollSperret('Kommentar fra sjåfør')) return;
   const tekst = (document.getElementById('dnk-tekst').value || '').trim();
   if(!tekst){ alert('Skriv en kommentar først.'); return; }
   if(!driverVelgBilId){ alert('Fant ikke aktiv bil. Velg bil på nytt.'); return; }
