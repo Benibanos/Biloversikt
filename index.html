@@ -6142,7 +6142,7 @@ function kmAvvikMerknad(val, sjafor){
     : val.kilde;
   return KM_AVVIK_PREFIX + ' +' + val.differanse.toLocaleString('nb-NO') + ' km siden forrige registrering (fra ' +
     val.gjeldende.toLocaleString('nb-NO') + ' km' + (kildeTekst ? ' [' + kildeTekst + ']' : '') + ' til ' + val.ny.toLocaleString('nb-NO') +
-    ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + ')';
+    ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + '). Kjøretøyets kilometerstand er IKKE endret automatisk — godkjennes via Rediger informasjon.';
 }
 function kontrollHarKmAvvik(k){
   return !!(k && typeof k.kommentar === 'string' && k.kommentar.startsWith(KM_AVVIK_PREFIX));
@@ -6324,12 +6324,29 @@ async function submitKontroll(ev){
     // Prioritet 66.1: km skrives fortsatt først, men nå som steg 1 i en sekvens som rulles
     // tilbake SAMLET dersom et senere steg feiler — så det motsatte avviket (kjøretøy med
     // høyere km enn noen kontroll) heller ikke kan oppstå.
-    try{
-      v.km = km;
-      await saveVehiclesOrThrow();
-      lagret.push('vehicles');
-    }catch(kmErr){ await rullTilbake('Kilometerstanden', kmErr); return; }
-    console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
+    //
+    // PRIORITET 67 — AUTOMATISK KM-SYNKRONISERING:
+    // En gyldig kontroll er normalt den beste kilden til bilens faktiske kilometerstand,
+    // og skal derfor oppdatere v.km automatisk. Ett unntak: et BEKREFTET STORTHOPP
+    // (>= 1 000 km over km-gulvet) oppdaterer IKKE v.km. Kontrollen lagres som normalt og
+    // merkes med KM_AVVIK_PREFIX, men selve kjøretøystanden krever en bevisst
+    // administrativ godkjenning via Rediger informasjon. Det beskytter mot at en
+    // tastefeil (31 000 → 310 000) blir kjøretøyets nye autoritative km.
+    // Merk konsekvensen: etter et bekreftet storthopp er v.km LAVERE enn siste kontroll,
+    // og km-avviksvarselet fra Prioritet 66 vises — det er hensikten, ikke en feil.
+    // Km-gulvet (kontrollKmGulv) ser uansett på hele kontrollhistorikken, så neste
+    // kontroll kan fortsatt ikke registreres under storthoppets verdi.
+    const oppdaterKjoretoyKm = kmVal.status !== 'storthopp';
+    if(oppdaterKjoretoyKm){
+      try{
+        v.km = km;
+        await saveVehiclesOrThrow();
+        lagret.push('vehicles');
+      }catch(kmErr){ await rullTilbake('Kilometerstanden', kmErr); return; }
+      console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
+    } else {
+      console.log('[submitKontroll] Bekreftet storthopp — v.km IKKE oppdatert automatisk. Kjøretøy', vehicleId, 'står fortsatt på', v.km, '— kontrollen registreres med', km);
+    }
 
     let linkedDamageId = null;
     // KRITISK FEILRETTING: lagre bildene FØRST og tell kun de som faktisk lyktes — et
@@ -11480,6 +11497,78 @@ function sakAvvikChecklistHtml(s){
     return `<div style="font-size:12.5px;line-height:1.5;">${luc('square-check')} ${ikon} ${esc(tekst)}</div>`;
   }).join('')}</div>`;
 }
+// ================= Prioritet 68: saksdetaljer direkte i Aktive saker =================
+// DEL 5 — INGEN DUPLISERING. Ingenting under kopieres inn i saken; alt leses LIVE fra
+// originalkilden (damages[], kontroller[], sakens egen historikk). Endres skaden eller
+// kontrollen, endres det som vises her automatisk. Ingen nye Airtable-felt.
+const SAK_KILDE_IKON = {
+  'Skaderegistrering': '📷', 'Sjåførkontroll': '✅', 'Varsellampe': '⚠️',
+  'Kontrollavvik': '✅', 'Verksted': '🔧', 'Registrert manuelt i Aktive Saker': '✍️'
+};
+// DEL 4: kilden vises som ikon + tekst, basert på den EKSISTERENDE sakKildeLabel().
+function sakKildeMedIkon(s){
+  const label = sakKildeLabel(s);
+  return (SAK_KILDE_IKON[label] || 'ℹ️') + ' ' + label;
+}
+// Hvem som faktisk registrerte hendelsen, lest fra kilden framfor fra saken der det
+// finnes en mer presis verdi (skaden vet hvilken sjåfør som meldte den).
+function sakRegistrertAv(s){
+  const skader = sakSkadeDamages(s);
+  const fraSkade = skader.map(d => d.registrertAv).filter(Boolean);
+  if(fraSkade.length) return [...new Set(fraSkade)].join(', ');
+  if(s.createdByControlId){
+    const k = kontroller.find(x => x.id === s.createdByControlId);
+    if(k && k.sjafor) return k.sjafor;
+  }
+  return s.reportedBy || 'Ukjent';
+}
+// Selve saksteksten, lest fra kilden. Skade: beskrivelse + sjåførens kommentar.
+// Varsellampe/kontrollavvik: kontrollens kommentar, ev. sakens første historikklinje.
+// Returnerer en liste {label, tekst} slik at flere skader på samme sak vises hver for seg.
+function sakKildeTekster(s){
+  const ut = [];
+  sakSkadeDamages(s).forEach(d => {
+    const deler = [];
+    if(d.beskrivelse) deler.push(esc(d.beskrivelse));
+    if(d.kommentar) deler.push(esc(d.kommentar));
+    if(deler.length) ut.push({label: '💥 Skade ' + fmt(d.dato), tekst: deler.join('\n')});
+  });
+  if(s.createdByControlId){
+    const k = kontroller.find(x => x.id === s.createdByControlId);
+    if(k && k.kommentar) ut.push({label: '✅ Kontrollkommentar ' + fmt(k.dato), tekst: esc(k.kommentar)});
+    if(k && k.annetTekst) ut.push({label: '✅ Registrert som «annet»', tekst: esc(k.annetTekst)});
+  }
+  const forste = Array.isArray(s.historikk) && s.historikk.length > 0 ? (s.historikk[0].kommentar || '') : '';
+  if(forste && !ut.some(x => x.tekst === esc(forste))) ut.push({label: '🗒️ Registrert med saken', tekst: esc(forste)});
+  if(s.sourceType === 'manuell' && s.description) ut.push({label: '✍️ Beskrivelse', tekst: esc(s.description)});
+  return ut;
+}
+// DEL 1/2/3 — selve detaljseksjonen. Rendres KUN når kortet er utvidet, så bildene
+// hentes heller ikke før brukeren faktisk åpner detaljene (se attachSakDetaljBilder()).
+function sakMerInfoHtml(s){
+  const tekster = sakKildeTekster(s);
+  const bilder = sakBilderKeys(s);
+  return `
+    <div class="ov-grid" style="margin-bottom:10px;">
+      <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeMedIkon(s))}</span></div>
+      <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(sakRegistrertAv(s))}</span></div>
+      <div class="ov-item"><span class="ov-label">Dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
+    </div>
+    ${tekster.length
+      ? tekster.map(t => `<div class="field" style="margin-bottom:10px;"><label>${t.label}</label><div class="kt-history-meta" style="white-space:pre-line;">${t.tekst}</div></div>`).join('')
+      : `<div class="kt-history-meta" style="margin-bottom:10px;">Ingen kommentar registrert på kilden.</div>`}
+    ${bilder.length ? bildeGalleriHtml(bilder, 'sak-' + s.id) : ''}
+  `;
+}
+// Bildene lastes først her — altså etter at brukeren har åpnet detaljene.
+function attachSakDetaljBilder(){
+  sakDetaljApneIds.forEach(id => {
+    const s = aktiveSaker.find(x => x.id === id);
+    if(!s) return;
+    const keys = sakBilderKeys(s);
+    if(keys.length) attachBildeGalleriListeners(keys, 'sak-' + s.id);
+  });
+}
 function sakKompaktKortHtml(s, fase){
   const v = sakVehicle(s);
   const apen = sakDetaljApneIds.has(s.id);
@@ -11499,9 +11588,11 @@ function sakKompaktKortHtml(s, fase){
         </div>
       </div>
       <div class="panel-actions" style="margin-top:8px;gap:8px;">${handlingHtml}</div>
+      <div style="margin-top:6px;"><button type="button" class="p38-lenke" data-toggle-sak-kort="${s.id}">ℹ️ ${apen ? 'Skjul informasjon' : 'Mer informasjon'}</button></div>
       ${apen ? `
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);">
         <div class="desc" style="margin-bottom:8px;">${esc(s.description || sakProblemLabel(s) || 'Ingen beskrivelse.')}</div>
+        ${sakMerInfoHtml(s)}
         <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">${luc('pencil')} Avansert redigering →</button>
       </div>` : ''}
     </div>`;
@@ -12192,11 +12283,15 @@ function attachAktiveSakerListeners(){
     sakAktivFane = el.dataset.sakFane;
     render();
   }));
-  document.querySelectorAll('[data-toggle-sak-kort]').forEach(el => el.addEventListener('click', () => {
+  document.querySelectorAll('[data-toggle-sak-kort]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
     const id = el.dataset.toggleSakKort;
     if(sakDetaljApneIds.has(id)) sakDetaljApneIds.delete(id); else sakDetaljApneIds.add(id);
     render();
   }));
+  // Prioritet 68: bildene i «ℹ️ Mer informasjon» hentes først når kortet faktisk er
+  // utvidet — getPhoto() kalles ikke for lukkede saker.
+  attachSakDetaljBilder();
   document.querySelectorAll('[data-godta-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); godtaSak(el.dataset.godtaSak); }));
   document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
   document.querySelectorAll('[data-bestill-vt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); bestillVerkstedForSak(el.dataset.bestillVtSak); }));

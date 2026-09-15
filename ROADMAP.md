@@ -1,6 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 66.9 — permanent sikring av kjøretøyregisteret:
+Sist oppdatert: 2026-09-14 (Prioritet 68 — saksdetaljer, kilde og bilder direkte i
+Aktive saker, lest live fra originalkilden).
+Før det: 2026-09-14 (Prioritet 67 — gyldige kontroller oppdaterer v.km automatisk;
+bekreftet storthopp krever administrativ godkjenning).
+Før det: 2026-09-14 (Prioritet 66.9 — permanent sikring av kjøretøyregisteret:
 lastestatus, ingen automatisk seeding, skrivesperre, masseslettingssperre, retry/backoff
 og synlig feilmodus).
 Før det: 2026-09-14 (Prioritet 66.3 — kritisk regresjon rettet: renderBilkort()
@@ -1841,3 +1845,55 @@ ikke finnes i kodebasen, heller ikke som et ufarlig no-op. CACHE_VERSION v73 →
 3. Manuell seeding, retry/backoff og masseslettingsvern er allerede levert i 66.9, der
    66.9a ber om å utsette dem. De fjernes ikke — å ta bort virkende beskyttelse ville vært
    en regresjon.
+
+## Prioritet 67 (2026-09-14) — Automatisk oppdatering av kjøretøyets kilometerstand
+
+✅ Implementert og verifisert i nettleser.
+
+`v.km` oppdateres nå automatisk av enhver gyldig kontroll, med ett unntak: et bekreftet
+storthopp (≥ 1 000 km over km-gulvet) lagrer kontrollen, men lar kjøretøystanden stå til
+administrator godkjenner den. Km-avviksvarselet fra Prioritet 66 blir dermed unntaket i
+stedet for normalen.
+
+Én betinget blokk i `submitKontroll()`. Ingen ny UI. `sw.js` CACHE_VERSION v74 → v75.
+`storage.airtable.js` urørt (v2.15.0).
+
+**Kjente begrensninger:**
+
+1. **Ingen egen «godkjenn km»-knapp.** Et bekreftet storthopp godkjennes via den
+   eksisterende adminflyten Rediger informasjon, der km skrives inn manuelt. Del 6 forbød
+   ny UI — si ifra hvis en dedikert godkjenningsknapp likevel er ønsket.
+2. **Km-avviksvarselet skiller ikke på årsak.** Et ikke-godkjent storthopp og et gammelt
+   historisk avvik ser like ut i Oversikt-fanen. Merknaden på selve kontrollen skiller dem.
+3. **Flere storthopp etter hverandre** lar `v.km` ligge stadig lenger bak, mens km-gulvet
+   følger den høyeste kontrollen. Blokkeringen av lavere km virker fortsatt korrekt, men
+   profilen viser en gammel km til noen godkjenner.
+4. `v.km` lagres som strengen fra skjemafeltet til neste innlasting fra Airtable. Uendret
+   fra før; all sammenligning går gjennom `Number()`.
+
+## Prioritet 68 (2026-09-14) — Saksdetaljer direkte i Aktive saker
+
+✅ Implementert og verifisert i nettleser.
+
+«ℹ️ Mer informasjon» utvider sakskortet inline med kilde, registrert av, dato, saksteksten
+fra kilden og klikkbare miniatyrbilder. Alt leses live — ingen duplisering, ingen nye
+Airtable-felt, ingen ny sakslogikk. Bilder lastes først ved utvidelse.
+
+Kun `index.html`/`kontroll.html`. `sw.js` CACHE_VERSION v75 → v76.
+`storage.airtable.js` urørt (v2.15.0).
+
+**Kjente begrensninger:**
+
+1. **Den generiske beskrivelseslinjen står fortsatt øverst** i det utvidede kortet
+   («Automatisk generert fra skaderegistrering»), rett over den ekte teksten fra kilden.
+   Den er nå overflødig støy, men å fjerne den er en visningsbeslutning utenfor mandatet —
+   si ifra, så tas den bort.
+2. **Kildeheuristikken er uendret fra før.** `sakKildeLabel()` kan ikke alltid skille
+   Aktiv Biløkt fra admins manuelle skaderegistrering; begge lagres som
+   `sourceType:'auto'` uten `createdByControlId`. Å rette det krever et nytt Airtable-felt.
+3. **Bilder vises kun for skadesaker.** En varsellampe- eller kontrollavvikssak har ingen
+   egne bilder i datamodellen — kontrollens bilder er knyttet til skaden, ikke til lampen.
+4. **Flere skader på samme sak vises som separate tekstblokker.** Riktig, men kortet blir
+   høyt ved mange skader.
+5. **Detaljene lukkes ved skjermbytte** (`sakDetaljApneIds` nullstilles i `goTo()`).
+   Uendret oppførsel fra før.

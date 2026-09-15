@@ -2896,3 +2896,45 @@ slike funksjoner skal gjøre det samme.
 **Denne feilklassen testes i nettleser, ikke ved kodelesing.** `node --check`, grep og
 templatesimulering fanger den ikke. Kjør faktiske scenarier med 429, 5xx, timeout, tom
 tabell og stale cache, og verifiser at det er null POST/PATCH/DELETE mot Vehicles.
+
+## Prioritet 67 (2026-09-14) — Når v.km oppdateres automatisk
+
+**En gyldig kontroll oppdaterer `v.km` automatisk. Ett unntak: bekreftet storthopp.**
+`submitKontroll()` skriver `v.km` når `kmVal.status !== 'storthopp'`. Er hoppet ≥ 1 000 km
+over km-gulvet og sjåføren har bekreftet det, lagres kontrollen — men kjøretøyets
+kilometerstand står urørt til en administrator godkjenner den via Rediger informasjon.
+Begrunnelsen er tastefeilen 31 000 → 310 000: en sjåfør skal kunne registrere hva som
+faktisk står på telleren, men ikke alene kunne gjøre det til bilens autoritative stand.
+
+**Etter et bekreftet storthopp er `v.km` LAVERE enn siste kontroll, og km-avviksvarselet
+vises. Det er hensikten.** Varselet fra Prioritet 66 er nå forbeholdt fire tilfeller:
+historiske data som allerede er feil, manuell adminkorrigering, et bekreftet storthopp som
+ikke er godkjent ennå, og inkonsistente gamle data. Det skal ikke forekomme i vanlig
+daglig drift — dukker det opp ellers, er det en feil å undersøke.
+
+**Km-gulvet beskytter fortsatt.** `kontrollKmGulv()` ser på hele kontrollhistorikken, ikke
+bare `v.km`. Et storthopp som ikke er godkjent hever derfor likevel gulvet, og neste
+kontroll kan ikke registreres under det.
+
+**Rollback-sekvensen er kortere ved storthopp.** `vehicles` legges ikke i `lagret`-listen
+når km-skrivingen hoppes over — ikke «fiks» dette ved å skrive `v.km` likevel.
+
+## Prioritet 68 (2026-09-14) — Saksdetaljer leses, aldri kopieres
+
+**Aktive saker lagrer ALDRI en kopi av kommentar, bilde eller skade.** Detaljseksjonen
+under «ℹ️ Mer informasjon» leser live fra originalkilden: `damages[]` via
+`sakSkadeDamages()`, `kontroller[]` via `s.createdByControlId`, og bilder via
+`sakBilderKeys()` → `damagePhotoKeys()`. Endres skaden, endres det saken viser. Ikke innfør
+et felt på saken for å «slippe oppslaget» — det ville gjenskapt dobbeltlagringen.
+
+**Bilder hentes først når kortet er utvidet.** `attachSakDetaljBilder()` går gjennom
+`sakDetaljApneIds` og kaller `getPhoto()` kun for dem. Ikke flytt bildelastingen inn i
+kortrenderingen — en liste med tjue saker ville da hentet hvert eneste bilde ved hver
+render.
+
+**Kilden vises med ikon, avledet fra den eksisterende `sakKildeLabel()`.** En skade meldt
+via sjåførkontroll viser «✅ Sjåførkontroll», ikke «📷 Skaderegistrering» — kilden er der
+hendelsen faktisk ble registrert. `SAK_KILDE_IKON` mapper label → ikon; legges en ny
+kildetype til i `sakKildeLabel()`, legg ikonet der.
+
+**Godta/Avslå-flyten er urørt.** Prioritet 68 la til kontekst, ikke sakslogikk.

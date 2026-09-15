@@ -15,6 +15,82 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 68 — Saksdetaljer direkte i Aktive saker
+
+**Problem eller mål**
+
+For å avgjøre Godta/Avslå måtte driftskoordinator ofte gå Aktive saker → kjøretøy →
+Skader → kommentar → bilde. Målet: all nødvendig kontekst uten å forlate Aktive saker.
+
+**Løsning**
+
+«ℹ️ Mer informasjon» på hvert sakskort utvider kortet inline — ingen ny side, ingen modal.
+Detaljseksjonen viser kilde med ikon (📷 Skaderegistrering · ✅ Sjåførkontroll ·
+⚠️ Varsellampe · 🔧 Verksted · ✍️ Manuelt), registrert av, dato, saksteksten fra kilden,
+og klikkbare miniatyrbilder som åpnes i den eksisterende lightboxen.
+
+**Ingen duplisering (Del 5).** Ingenting kopieres inn i saken. Fire nye visningsfunksjoner
+leser LIVE fra originalkilden: `sakKildeMedIkon()`, `sakRegistrertAv()`,
+`sakKildeTekster()` og `sakMerInfoHtml()`. De bygger på eksisterende
+`sakSkadeDamages()`, `sakBilderKeys()`, `damagePhotoKeys()`, `bildeGalleriHtml()` og
+`attachBildeGalleriListeners()`. Ingen nye Airtable-felt, ingen nye komponenter.
+
+**Lat bildelasting (Del 3).** `attachSakDetaljBilder()` kaller `getPhoto()` kun for saker
+som faktisk er utvidet. Lukkede kort henter ingenting.
+
+Godta/Avslå, statusflyt, varsellamper og skadehistorikk er urørt.
+
+CACHE_VERSION bilpark-v75 → bilpark-v76.
+
+**Verifisering**
+
+Ekte nettleser: skade med kommentar og 2 bilder (kilde, registrert av, dato, begge
+tekstene og bildegalleriet vises), skade uten bilde (kommentar vises, ingen tom
+bildeseksjon, ingen feil), varsellampe (kilde, sjåfør og fritekst), Godta → status
+`under-oppfolging`, Avslå → status `avslatt`. 0 miniatyrer i DOM før utvidelse.
+Regresjon: 18 skjermer uten JS-feil, P67 (6/6) og P66.9-sikringene (12/12) re-testet.
+
+---
+
+### Prioritet 67 — Automatisk oppdatering av kjøretøyets kilometerstand
+
+**Problem eller mål**
+
+En gyldig sjåførkontroll oppdaterte kjøretøyets km, men et bekreftet storthopp gjorde det
+også. Samtidig ga hver km-differanse et avviksvarsel. Målet: normal drift skal holde `v.km`
+oppdatert automatisk, og avvik skal være unntaket.
+
+**Løsning — ett betinget steg i `submitKontroll()`**
+
+| Tilfelle | Kontroll lagres | `v.km` oppdateres |
+|---|---|---|
+| Lavere enn km-gulvet | Nei — blokkeres | Nei |
+| Normal økning (< 1 000 km) | Ja | **Ja, automatisk** |
+| Lik km-gulvet | Ja | Ja |
+| Bekreftet storthopp (≥ 1 000 km) | Ja, med merknad | **Nei — krever administrativ godkjenning** |
+
+Ved storthopp hoppes hele km-skrivingen over, så `vehicles` inngår ikke i
+rollback-sekvensen for den kontrollen. Merknaden på kontrollen er utvidet med «Kjøretøyets
+kilometerstand er IKKE endret automatisk — godkjennes via Rediger informasjon».
+
+Km-gulvet (`kontrollKmGulv`) er urørt og ser fortsatt på hele kontrollhistorikken, så neste
+kontroll kan ikke registreres under storthoppets verdi selv om `v.km` er lavere.
+
+Ingen ny UI, ingen nye kort eller knapper. Ingen endring i P66-validering, storthopp-regel,
+dagskillelogikk, kontrollhistorikk, skademodul, servicehistorikk, mobilitetsgaranti eller
+Airtable-struktur.
+
+CACHE_VERSION bilpark-v74 → bilpark-v75.
+
+**Verifisering**
+
+Alle fem testkrav kjørt i ekte nettleser med simulert Airtable: 1 832→2 113 oppdaterer,
+31 345→31 200 blokkeres, 31 345→32 344 oppdaterer, 31 345→32 345 og 31 345→32 500 lagres
+uten km-oppdatering. Pluss lik-km-tilfellet. Masseslettingssperren og skrivesperren
+re-testet (12/12), full regresjonssveip uten JS-feil.
+
+---
+
 ### Prioritet 66.9a — Nødbrems: verifisert, og siste rest av det forbudte mønsteret fjernet
 
 Alle ferdigkrav i 66.9a var allerede oppfylt av Prioritet 66.9. Verifisert med 66.9a sine
