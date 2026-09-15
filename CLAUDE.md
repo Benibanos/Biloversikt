@@ -2855,3 +2855,44 @@ eller overlays.
 
 **Test klikk i nettleser, ikke ved kodelesing.** Regresjonen var usynlig for `node --check`,
 tag-balanse og templatesimulering — den krevde et ekte museklikk mot en ekte DOM.
+
+## Prioritet 66.9 (2026-09-14) — Datasikring for kjøretøyregisteret
+
+**EN LESEFEIL ER IKKE ET TOMT DATASETT.** Dette er den viktigste regelen i hele
+kodebasen etter datahendelsen i september 2026. `vehiclesLoadStatus` er eneste sannhet om
+hvorvidt registeret faktisk er lest: `ikke-startet` · `laster` · `lastet` ·
+`bekreftet-tom` · `lesefeil`. `bekreftet-tom` og `lesefeil` skal ALDRI behandles likt, i
+noen kodevei.
+
+**`saveVehiclesOrThrow()` er eneste vei inn til kjøretøyregisteret, og den spør
+`vehiclesSkrivingTillatt()` først.** Minimumskrav per kjøretøy er id, bilnummer og regnr —
+IKKE km eller løyvenummer, som kan være legitimt tomme. Ikke legg til en ny skrivevei
+utenom denne funksjonen, og ikke svekk kravene.
+
+**DEFAULT_FLEET skal aldri kjøre automatisk.** Den finnes kun bak den manuelle knappen i
+Innstillinger → Database status: admin, `vehiclesLoadStatus === 'bekreftet-tom'`, skrevet
+bekreftelsesfrase, og `vehiclesAdminSeedingGodkjent` settes og nullstilles rundt det ene
+kallet. Det flagget er eneste måte å omgå skrivesperren på, og skal aldri settes andre
+steder.
+
+**Masseslettingssperren i `reconcileList()` gjelder `vehicles` og skal ikke kopieres blindt
+til andre tabeller.** Terskler: ≥ 3 slettinger, ≥ 20 % av radene, eller flertallet av
+AppId-ene erstattet med nye. Konsekvensen beregnes og kastes FØR første skriving. Bygg
+ALDRI en generell «fortsett likevel»-knapp inn i normal flyt.
+
+**Destruktiv reconcile bruker aldri en cache som kan være utdatert.** Før en
+Vehicles-reconcile hentes radene ferskt fra Airtable. Det er denne sikringen som gjør at en
+app som sto åpen under en gjenoppretting fra Trash ikke kan slette de restaurerte radene.
+
+**Retry kun på det som faktisk er forbigående:** 429, 500, 502, 503, 504 og nettverksfeil,
+tre nye forsøk med økende ventetid, `Retry-After` respektert. 400/401/403/404 og
+skjemafeil kastes umiddelbart — de krever korrigering, ikke nye forsøk.
+
+**`krevVehiclesSkriving(handling)` kalles FØRST i enhver funksjon som kan endre Vehicles
+eller relasjoner til Vehicles** — før noen mutasjon av lokal state. Gjelder i dag
+`submitAddVehicle()`, `saveVehicleForm()`, `deleteVehicle()` og `submitKontroll()`. Nye
+slike funksjoner skal gjøre det samme.
+
+**Denne feilklassen testes i nettleser, ikke ved kodelesing.** `node --check`, grep og
+templatesimulering fanger den ikke. Kjør faktiske scenarier med 429, 5xx, timeout, tom
+tabell og stale cache, og verifiser at det er null POST/PATCH/DELETE mot Vehicles.

@@ -1,6 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 66.3 — kritisk regresjon rettet: renderBilkort()
+Sist oppdatert: 2026-09-14 (Prioritet 66.9 — permanent sikring av kjøretøyregisteret:
+lastestatus, ingen automatisk seeding, skrivesperre, masseslettingssperre, retry/backoff
+og synlig feilmodus).
+Før det: 2026-09-14 (Prioritet 66.3 — kritisk regresjon rettet: renderBilkort()
 kastet ReferenceError, slik at bilkort og grupper ikke reagerte på trykk).
 Før det: 2026-09-14 (Prioritet 66.2 — km-gulv basert på hele kontrollhistorikken
 med kildeinformasjon, og én kilde til aktiv sjåfør).
@@ -1791,3 +1794,50 @@ fra gruppetoggelen — kastet samme feil. Én årsak, begge symptomene.
    gruppe**, selv om telleren øverst («X av Y kjøretøy») teller det med. Oppdaget under
    testingen; ikke en del av denne regresjonen og derfor ikke endret — meld fra hvis det
    skal håndteres.
+
+## Prioritet 66.9 (2026-09-14) — Permanent sikring mot re-seeding og massesletting
+
+✅ Implementert og verifisert i ekte nettlesermiljø.
+
+Seks sikringsnivåer: lastestatus for Vehicles, ingen automatisk seeding, skrivesperre,
+masseslettingssperre, retry/backoff, og synlig feilmodus + skrivebeskyttet sikkerhetsmodus.
+Database status utvidet. Dagskillehåndhevingen gjør nå ingenting når ingenting er foreldet.
+
+`storage.airtable.js` v2.14.0 → v2.15.0 (`?v=` oppdatert i index.html og kontroll.html).
+`sw.js` CACHE_VERSION bilpark-v72 → v73.
+
+**Gjenværende begrensninger:**
+
+1. **Tersklene er faste, ikke konfigurerbare.** 3 slettinger / 20 % / flertallet av
+   AppId-er ligger i `MASSESLETT_VAKT` i storage.airtable.js. En legitim opprydding av
+   4 biler på én gang vil derfor blokkeres, og må gjøres i Airtable eller i flere omganger.
+   Bevisst valg — en «fortsett likevel»-knapp i normal flyt ville gjenåpnet hullet.
+2. **Sperren gjelder kun `vehicles`.** Damages, DriverChecks, AktiveSaker m.fl. har ingen
+   masseslettingssperre. De har andre livssykluser og krever egen analyse først.
+3. **Retry øker tiden før en ekte feil vises.** Verste tilfelle er ca. 4,6 sekunder ekstra
+   (400 + 1200 + 3000 ms) før feilpanelet kommer opp.
+4. **Timeout-grenen er testet via nettverksfeil**, ikke ved å la et kall henge i 20
+   sekunder × 4 forsøk. Det er samme kodevei (`AbortError` → `forbigaende` → retry), men
+   selve 20-sekundersgrensen er ikke tidtatt i test.
+5. **Skrivebeskyttet modus dekker Vehicles og kontrollinnsending.** Registrering av skade,
+   sak eller verkstedtime på en allerede lastet bil blokkeres ikke, siden disse ikke
+   skriver til Vehicles.
+6. **Bekreftelsesfrasen er norsk og hardkodet** («OPPRETT STANDARD BILPARK»).
+
+## Prioritet 66.9a (2026-09-14) — Nødbrems mot re-seeding
+
+✅ Allerede dekket av Prioritet 66.9. Verifisert med 66.9a sine fire egne testkrav.
+
+Én kodeendring: `catch(e){ vehicles = []; }` i `loadAll()` fjernet helt — mønsteret skal
+ikke finnes i kodebasen, heller ikke som et ufarlig no-op. CACHE_VERSION v73 → v74.
+
+**Avvik fra 66.9a-teksten, bevisst beholdt fra 66.9:**
+
+1. Statusnavnene er norske (`ikke-startet` / `laster` / `lastet` / `bekreftet-tom` /
+   `lesefeil`) i stedet for `not-loaded` / `loaded` / `error`. Funksjonelt likt; omdøping
+   ville gitt endringer i mange filer uten gevinst.
+2. `bekreftet-tom` finnes i tillegg til de tre påkrevde, fordi en ekte tom tabell og en
+   lesefeil må kunne skilles.
+3. Manuell seeding, retry/backoff og masseslettingsvern er allerede levert i 66.9, der
+   66.9a ber om å utsette dem. De fjernes ikke — å ta bort virkende beskyttelse ville vært
+   en regresjon.

@@ -41,25 +41,57 @@
   // og forkastes med en tydelig feil, slik at den alltid AVGJØRES — og _koKjor sin kø dermed
   // alltid kan fortsette til neste operasjon, uansett hvor dårlig forbindelsen er.
   const AIRTABLE_TIMEOUT_MS = 20000;
+  // ---- Prioritet 66.9 DEL 5: begrenset retry med økende ventetid ----
+  // Et enkelt 429 fra Airtable (5 kall/sekund per base) var nok til å utløse
+  // datahendelsen i september 2026: get('vehicles') kastet, loadAll() tolket det som
+  // «tom tabell», og hele registeret ble re-seedet. Forbigående feil skal derfor
+  // forsøkes på nytt et lite, FAST antall ganger før de blir en ekte lesefeil.
+  // Retry KUN på det som faktisk er forbigående. 400/401/403/404 og skjemafeil
+  // krever korrigering, ikke flere forsøk — de kastes umiddelbart.
+  const RETRY_STATUS = [429, 500, 502, 503, 504];
+  const RETRY_VENTETID_MS = [400, 1200, 3000];   // 3 nye forsøk etter det første
+  const sov = (ms) => new Promise(r => setTimeout(r, ms));
+  function retryVentetid(forsok, res) {
+    // Respekter Retry-After når Airtable sender den (sekunder eller HTTP-dato).
+    const h = res && res.headers && res.headers.get ? res.headers.get('Retry-After') : null;
+    if (h) {
+      const sek = Number(h);
+      if (Number.isFinite(sek) && sek >= 0) return Math.min(sek * 1000, 10000);
+      const dato = Date.parse(h);
+      if (!Number.isNaN(dato)) return Math.min(Math.max(dato - Date.now(), 0), 10000);
+    }
+    return RETRY_VENTETID_MS[Math.min(forsok, RETRY_VENTETID_MS.length - 1)];
+  }
   async function airtableFetch(path, options) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AIRTABLE_TIMEOUT_MS);
-    let res;
-    try {
-      res = await fetch(API_BASE + path, Object.assign({ headers: HEADERS, signal: controller.signal }, options || {}));
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        throw new Error('Ingen svar fra Airtable innen ' + (AIRTABLE_TIMEOUT_MS / 1000) + ' sekunder (' + path + '). Sjekk nettforbindelsen og prøv igjen.');
+    let sisteFeil = null;
+    for (let forsok = 0; forsok <= RETRY_VENTETID_MS.length; forsok++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), AIRTABLE_TIMEOUT_MS);
+      let res;
+      try {
+        res = await fetch(API_BASE + path, Object.assign({ headers: HEADERS, signal: controller.signal }, options || {}));
+      } catch (e) {
+        clearTimeout(timeoutId);
+        // Timeout og nettverksfeil er forbigående — forsøk på nytt.
+        sisteFeil = (e && e.name === 'AbortError')
+          ? new Error('Ingen svar fra Airtable innen ' + (AIRTABLE_TIMEOUT_MS / 1000) + ' sekunder (' + path + '). Sjekk nettforbindelsen og prøv igjen.')
+          : e;
+        sisteFeil.forbigaende = true;
+        if (forsok < RETRY_VENTETID_MS.length) { await sov(retryVentetid(forsok, null)); continue; }
+        throw sisteFeil;
       }
-      throw e;
-    } finally {
       clearTimeout(timeoutId);
-    }
-    if (!res.ok) {
+      if (res.ok) return res.json();
       const body = await res.text().catch(() => '');
-      throw new Error('Airtable-feil ' + res.status + ' på ' + path + ': ' + body);
+      const feil = new Error('Airtable-feil ' + res.status + ' på ' + path + ': ' + body);
+      feil.status = res.status;
+      if (RETRY_STATUS.indexOf(res.status) === -1) throw feil;   // 400/401/403/404 m.fl.
+      feil.forbigaende = true;
+      sisteFeil = feil;
+      if (forsok < RETRY_VENTETID_MS.length) { await sov(retryVentetid(forsok, res)); continue; }
+      throw feil;
     }
-    return res.json();
+    throw sisteFeil || new Error('Airtable-feil på ' + path);
   }
 
   // Henter ALLE rader i en tabell (håndterer Airtables paginering automatisk).
@@ -312,13 +344,54 @@
     return naaverende;
   }
 
+  // ---- Prioritet 66.9 DEL 4/9/11: masseslettingssperre for Vehicles ----
+  // reconcileList() sletter enhver Airtable-rad hvis AppId ikke finnes i den innkommende
+  // listen. Det er nøyaktig mekanismen som slettet hele kjøretøyregisteret i september
+  // 2026. Terskler nedenfor gjelder BEVISST kun 'vehicles' — andre tabeller har andre
+  // livssykluser og skal ikke få samme terskel uten egen analyse.
+  const MASSESLETT_VAKT = {
+    vehicles: {
+      maksSlettinger: 3,        // 3 eller flere slettinger blokkeres
+      maksSlettAndel: 0.20,     // 20 % eller mer av eksisterende rader blokkeres
+      blokkerIdBytte: true      // flertallet av AppId-ene erstattet med nye blokkeres
+    }
+  };
+  const vaktLogg = [];          // vises i Innstillinger → Database status
+  window.storageVaktLogg = vaktLogg;
+  function vurderReconcile(key, plan) {
+    const regler = MASSESLETT_VAKT[key];
+    if (!regler) return null;
+    const { eksisterende, slettes, opprettes, oppdateres } = plan;
+    const andel = eksisterende > 0 ? slettes / eksisterende : 0;
+    if (slettes >= regler.maksSlettinger) {
+      return 'Skrivingen ville slettet ' + slettes + ' av ' + eksisterende + ' kjøretøyrader (grense: ' + regler.maksSlettinger + ').';
+    }
+    if (eksisterende > 0 && andel >= regler.maksSlettAndel && slettes > 0) {
+      return 'Skrivingen ville slettet ' + slettes + ' av ' + eksisterende + ' kjøretøyrader — ' + Math.round(andel * 100) + ' % (grense: ' + Math.round(regler.maksSlettAndel * 100) + ' %).';
+    }
+    // Flertallet av AppId-ene erstattet med nye — re-seedingens signatur, selv når
+    // radantallet er omtrent uendret.
+    if (regler.blokkerIdBytte && eksisterende > 0 && opprettes > 0 && oppdateres < eksisterende / 2) {
+      return 'Skrivingen ville erstattet flertallet av AppId-ene (' + opprettes + ' nye, kun ' + oppdateres + ' av ' + eksisterende + ' gjenkjent). Dette er mønsteret fra re-seedingen.';
+    }
+    return null;
+  }
+
   async function reconcileList(key, arr) {
     const config = LIST_TABLES[key];
     const cache = cacheFor(config.table);
+    const vakt = MASSESLETT_VAKT[key];
     if (Object.keys(cache).length === 0) {
       // Første gang denne tabellen brukes i denne siden — hent hva som faktisk finnes.
       const existing = await listAll(config.table);
       existing.forEach(r => { if (r.fields['AppId']) cache[r.fields['AppId']] = r.id; });
+    } else if (vakt) {
+      // DEL 9: cachen kan være bygget FØR eksterne endringer (f.eks. en gjenoppretting
+      // fra Airtable Trash mens appen sto åpen). En destruktiv operasjon skal aldri
+      // bygge på en utdatert cache — hent fasit på nytt før vi regner ut konsekvensen.
+      const ferske = await listAll(config.table);
+      Object.keys(cache).forEach(k => delete cache[k]);
+      ferske.forEach(r => { if (r.fields['AppId']) cache[r.fields['AppId']] = r.id; });
     }
     const incomingIds = new Set(arr.map(x => x.id));
     const toCreate = [], toUpdate = [], toDeleteIds = [];
@@ -328,6 +401,24 @@
       else toCreate.push({ item, fields });
     });
     Object.keys(cache).forEach(appId => { if (!incomingIds.has(appId)) toDeleteIds.push(cache[appId]); });
+
+    // Konsekvensen beregnes og vurderes FØR første PATCH, POST eller DELETE.
+    const plan = {
+      eksisterende: Object.keys(cache).length, innkommende: arr.length,
+      opprettes: toCreate.length, oppdateres: toUpdate.length, slettes: toDeleteIds.length
+    };
+    const blokkering = vurderReconcile(key, plan);
+    if (blokkering) {
+      const oppf = {
+        tidspunkt: new Date().toISOString(), ressurs: key, plan: plan, arsak: blokkering
+      };
+      vaktLogg.unshift(oppf);
+      if (vaktLogg.length > 20) vaktLogg.length = 20;
+      const feil = new Error('BLOKKERT av masseslettingssperren: ' + blokkering +
+        ' Ingenting er skrevet eller slettet. Last siden på nytt og kontroller Airtable før du prøver igjen.');
+      feil.blokkertAvVakt = true; feil.plan = plan;
+      throw feil;   // kastes før enhver skriving
+    }
 
     if (toUpdate.length) await batchUpdate(config.table, toUpdate);
     if (toDeleteIds.length) { await batchDelete(config.table, toDeleteIds); Object.keys(cache).forEach(id => { if (toDeleteIds.includes(cache[id])) delete cache[id]; }); }
@@ -470,8 +561,11 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.14.0',
-    bygget: '11.09.2026 00:00',
+    versjon: 'v2.15.0',
+    bygget: '14.09.2026 00:00',
+    // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
+    // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
+    masseslettVakt: MASSESLETT_VAKT,
     vehiclesFelt: Object.keys(LIST_TABLES.vehicles.fields)
   };
 

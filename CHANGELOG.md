@@ -15,6 +15,52 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 66.9a — Nødbrems: verifisert, og siste rest av det forbudte mønsteret fjernet
+
+Alle ferdigkrav i 66.9a var allerede oppfylt av Prioritet 66.9. Verifisert med 66.9a sine
+egne fire testkrav i ekte nettleser — alle bestått, null Airtable-skrivinger mot Vehicles.
+
+Én faktisk kodeendring: `catch(e){ vehicles = []; }` i `loadAll()` er fjernet helt.
+Tilordningen var et no-op ved oppstart (`vehicles` er allerede tom der), men mønsteret er
+selve kjernen i datahendelsen og skal ikke finnes i kodebasen i noen form. `vehicles` røres
+nå ikke ved lesefeil — kun `vehiclesLoadStatus` settes, og skrivesperren gjør listen
+ufarlig uansett.
+
+CACHE_VERSION bilpark-v73 → bilpark-v74. Ingen andre endringer.
+
+---
+
+### Prioritet 66.9 — Permanent sikring mot re-seeding og massesletting
+
+**Rotårsak bekreftet.** `storage.get('vehicles')` feilet → `loadAll()` tolket lesefeilen som
+tom tabell → `vehicles = []` → DEFAULT_FLEET med nye AppId-er → `saveVehicles()` →
+`reconcileList()` slettet de originale radene. Seks sikringsnivåer innført.
+
+| Del | Sikring |
+|---|---|
+| 1 | `vehiclesLoadStatus`: ikke-startet / laster / lastet / bekreftet-tom / lesefeil. Lesefeil og tom behandles aldri likt |
+| 2 | All automatisk DEFAULT_FLEET-seeding fjernet fra `loadAll()` — også ved bekreftet tom tabell |
+| 2 | Manuell seeding flyttet til Innstillinger → Database status: kun admin, kun ved bekreftet-tom, krever frasen «OPPRETT STANDARD BILPARK», sletter aldri eksisterende rader |
+| 3 | `saveVehiclesOrThrow()` nekter ved lesefeil, ikke-lastet, bekreftet-tom, tomt array eller manglende id/bilnummer/regnr. Operative felt som km og løyvenummer kreves ikke |
+| 4 | Masseslettingssperre i `reconcileList()` for `vehicles`: ≥ 3 slettinger, ≥ 20 % av radene, eller flertallet av AppId-ene erstattet. Beregnes og kastes FØR første PATCH/POST/DELETE |
+| 5 | Retry med backoff på 429/500/502/503/504 og nettverksfeil: 3 nye forsøk (400/1200/3000 ms), `Retry-After` respekteres. Aldri retry på 400/401/403/404 |
+| 6 | Blokkerende feilpanel ved lesefeil — kun «Prøv å laste på nytt» og «Åpne Database status» |
+| 7 | Skrivebeskyttet sikkerhetsmodus: opprett/rediger/slett kjøretøy og kontrollinnsending blokkeres via `krevVehiclesSkriving()` |
+| 8 | `handhevOperativtDogn()` returnerer umiddelbart når døgnet ikke har skiftet og ingen biløkt er foreldet — null Airtable-trafikk ved skjermbytte |
+| 9 | Cachen leses ferskt fra Airtable før enhver destruktiv Vehicles-reconcile. En app som sto åpen under ekstern restaurering kan ikke slette de restaurerte radene |
+| 10 | Database status utvidet med lastestatus, radantall, siste lesing/lesefeil, skriving tillatt, sperrestatus og logg over blokkerte operasjoner |
+
+`storage.airtable.js` v2.14.0 → **v2.15.0**, `?v=` oppdatert i både `index.html` og
+`kontroll.html`. CACHE_VERSION bilpark-v72 → bilpark-v73.
+
+**Verifisering** — ekte Chromium mot simulert Airtable med nettverksavlytting:
+429, 500, nettverksfeil, tom tabell, 19 rader, seks masseslettingsscenarier, seks
+skrivesperrescenarier, stale cache etter ekstern restaurering, manuell seeding i tre
+tilstander, og et fullt regresjonssveip. Null POST/PATCH/DELETE mot Vehicles i alle
+blokkerte tilfeller.
+
+---
+
 ### Prioritet 66.3 — Kritisk regresjon: bilkort og grupper reagerte ikke på trykk
 
 **Rotårsak: temporal dead zone i `renderBilkort()`**

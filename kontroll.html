@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.14.0"></script>
+<script src="storage.airtable.js?v=2.15.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -2521,12 +2521,24 @@ async function ryddOppBiloktDagskille(){
 let sisteKjenteOperativeDag = '';
 let dogngHandhevingPagar = false;
 async function handhevOperativtDogn({rerender = false} = {}){
+  // Prioritet 66.9 DEL 8: idempotent og billig. Kallet gjør INGENTING — ingen Airtable-
+  // trafikk, ingen render — når døgnet ikke har skiftet og ingen bil har en foreldet
+  // biløkt. Det er det normale tilfellet ved hvert skjermbytte.
+  // Parallelle kall serialiseres av dogngHandhevingPagar-flagget under; samme hendelse
+  // kan dermed ikke starte to samtidige Airtable-operasjoner.
   if(dogngHandhevingPagar) return false;
+  const idagFor = todayISO();
+  const harForeldetBilokt = Array.isArray(vehicles) && vehicles.some(v =>
+    v && v.aktivSjafor && v.aktivSjaforSiden && isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== idagFor);
+  if(sisteKjenteOperativeDag === idagFor && !harForeldetBilokt) return false;
   dogngHandhevingPagar = true;
   try{
     const idag = todayISO();
     const dagSkiftet = sisteKjenteOperativeDag !== '' && sisteKjenteOperativeDag !== idag;
     sisteKjenteOperativeDag = idag;
+    // ryddOppBiloktDagskille() lagrer kun når noe faktisk er foreldet — og er den
+    // eneste veien inn til saveVehicles() herfra. Ved lesefeil stopper skrivesperren
+    // den uansett, uten å påvirke visningen.
     await ryddOppBiloktDagskille();
     if(dagSkiftet && rerender && loaded) render();
     return dagSkiftet;
@@ -3262,23 +3274,70 @@ const DEFAULT_FLEET = [
   {bilnummer:'Montering 2', regnr:'KU14798', merke:'Ford',   kategori:'montering'},
 ];
 
+// ================= Prioritet 66.9: lastestatus for Vehicles =================
+// EN LESEFEIL ER IKKE ET TOMT DATASETT. Før 66.9 kollapset loadAll() begge deler til
+// `vehicles = []`, og den tomme listen utløste automatisk DEFAULT_FLEET-seeding +
+// saveVehicles() → reconcileList() slettet hele registeret. Denne statusen er eneste
+// sannhet om hvorvidt kjøretøyregisteret faktisk er lest, og alle skrivinger til
+// vehicles spør den først.
+//   ikke-startet  — loadAll() har ikke kjørt ennå
+//   laster        — lesing pågår
+//   lastet        — vellykket lesing med minst én rad (normal drift)
+//   bekreftet-tom — vellykket lesing som returnerte NULL rader (ekte tom tabell)
+//   lesefeil      — timeout, 429, 5xx eller nettverksfeil. ALDRI det samme som tom.
+let vehiclesLoadStatus = 'ikke-startet';
+let vehiclesSisteOkLesing = null;     // ISO-tidspunkt
+let vehiclesSisteLesefeil = null;     // {tidspunkt, melding}
+let vehiclesSisteBlokkering = null;   // {tidspunkt, arsak, antall}
+let vehiclesBlokkerteSlettinger = 0;
+// Settes KUN av den manuelle seedingen i Innstillinger, og nullstilles umiddelbart
+// etterpå. Eneste måte å skrive et tomt/nytt register på.
+let vehiclesAdminSeedingGodkjent = false;
+
+function vehiclesSkrivingTillatt(){
+  if(vehiclesAdminSeedingGodkjent) return {ok:true};
+  if(vehiclesLoadStatus === 'lesefeil') return {ok:false, arsak:'Kjøretøyregisteret kunne ikke leses fra Airtable. Skriving er stoppet for å beskytte dataene.'};
+  if(vehiclesLoadStatus === 'ikke-startet' || vehiclesLoadStatus === 'laster') return {ok:false, arsak:'Kjøretøyregisteret er ikke ferdig lastet. Skriving er stoppet.'};
+  if(vehiclesLoadStatus === 'bekreftet-tom') return {ok:false, arsak:'Kjøretøyregisteret er tomt. Ordinær lagring er stoppet — bruk administrativ opprettelse i Innstillinger.'};
+  if(!Array.isArray(vehicles) || vehicles.length === 0) return {ok:false, arsak:'Kjøretøylisten er tom i minnet. Skriving er stoppet.'};
+  // Minimumsidentitet. Operative felt (km, løyvenummer) kan være legitimt tomme.
+  const utenIdentitet = vehicles.filter(v => !v || !v.id || !v.bilnummer || !v.regnr);
+  if(utenIdentitet.length) return {ok:false, arsak:utenIdentitet.length + ' kjøretøy mangler id, bilnummer eller reg.nr. Skriving er stoppet.'};
+  return {ok:true};
+}
+// DEL 7: portvakt foran enhver operasjon som kan endre Vehicles eller relasjoner til
+// Vehicles. Kalles FØRST i funksjonen, før noen mutasjon av lokal state.
+function krevVehiclesSkriving(handling){
+  const v = vehiclesSkrivingTillatt();
+  if(v.ok) return true;
+  loggVehiclesBlokkering(handling + ': ' + v.arsak);
+  alert('⛔ ' + handling + ' er stoppet.\n\n' + v.arsak + '\n\nIngenting er endret. Last siden på nytt når forbindelsen til Airtable er tilbake.');
+  return false;
+}
+function loggVehiclesBlokkering(arsak){
+  vehiclesSisteBlokkering = {tidspunkt: new Date().toISOString(), arsak};
+  vehiclesBlokkerteSlettinger++;
+  console.error('[VEHICLES-SPERRE] Skriving blokkert:', arsak);
+}
+
 // ================= Storage =================
 async function loadAll(){
-  let vehiclesRaw = null;
-  try{ vehiclesRaw = await window.storage.get('vehicles', true); vehicles = vehiclesRaw && vehiclesRaw.value ? JSON.parse(vehiclesRaw.value) : []; }
-  catch(e){ vehicles = []; }
-  if(vehicles.length === 0){
-    // Førstegangsoppstart: "vehicles"-tabellen er tom ennå. I stedet for en
-    // importfunksjon fylles bilregisteret automatisk med standard flåtedata, lagret
-    // på nøyaktig samme måte (samme datastruktur, samme saveVehicles()) som biler
-    // registrert manuelt via "+ Ny bil". Skjer kun én gang — sletter en bruker alle
-    // biler senere, kommer de ikke tilbake av seg selv.
-    vehicles = DEFAULT_FLEET.map(row => ({
-      id: uid(), bilnummer: row.bilnummer, regnr: row.regnr, merke: row.merke,
-      modell: '', arsmodell: '', kategori: row.kategori, status: 'ok',
-      dekk: '', km: '', loyvenummer: '', hasPhoto: false
-    }));
-    await saveVehicles();
+  vehiclesLoadStatus = 'laster';
+  try{
+    const vehiclesRaw = await window.storage.get('vehicles', true);
+    vehicles = vehiclesRaw && vehiclesRaw.value ? JSON.parse(vehiclesRaw.value) : [];
+    vehiclesLoadStatus = vehicles.length > 0 ? 'lastet' : 'bekreftet-tom';
+    vehiclesSisteOkLesing = new Date().toISOString();
+  }catch(e){
+    // DEL 2: ingen automatisk DEFAULT_FLEET-seeding, ingen saveVehicles(), ingen
+    // fortsettelse som om alt er normalt.
+    // Prioritet 66.9a: `vehicles` røres IKKE her. Det forbudte mønsteret
+    // `catch(e){ vehicles = []; }` er selve kjernen i datahendelsen, og skal ikke finnes
+    // i kodebasen i noen form — heller ikke som et ufarlig no-op ved oppstart.
+    // Listen beholdes som den var, og skrivesperren under gjør den uansett ufarlig.
+    vehiclesLoadStatus = 'lesefeil';
+    vehiclesSisteLesefeil = {tidspunkt: new Date().toISOString(), melding: (e && e.message) ? e.message : String(e)};
+    console.error('[loadAll] LESEFEIL på vehicles — skrivebeskyttet sikkerhetsmodus aktivert', e);
   }
   try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; }
   catch(e){ damages = []; }
@@ -3460,7 +3519,14 @@ async function reloadOne(key){
       return;
     }
     const parsed = raw && raw.value ? JSON.parse(raw.value) : [];
-    if(key === 'vehicles') vehicles = parsed;
+    if(key === 'vehicles'){
+      // Prioritet 66.9: en vellykket oppfriskning oppdaterer også lastestatusen, slik at
+      // en app som har stått i skrivebeskyttet modus kommer tilbake i normal drift av seg
+      // selv når forbindelsen er tilbake.
+      vehicles = parsed;
+      vehiclesLoadStatus = parsed.length > 0 ? 'lastet' : 'bekreftet-tom';
+      vehiclesSisteOkLesing = new Date().toISOString();
+    }
     else if(key === 'damages') damages = parsed;
     else if(key === 'verkstedtimer') verkstedtimer = parsed;
     else if(key === 'verksteder') verksteder = parsed;
@@ -3470,7 +3536,15 @@ async function reloadOne(key){
     else if(key === 'dekkhistorikk') dekkhistorikk = parsed;
     else if(key === 'dekkkostnader') dekkkostnader = parsed;
     else if(key === 'aktiveSaker') aktiveSaker = parsed;
-  }catch(e){ console.error('[reloadOne] Feilet for', key, e); }
+  }catch(e){
+    console.error('[reloadOne] Feilet for', key, e);
+    if(key === 'vehicles'){
+      // Ikke rør den lokale listen — den er fortsatt gyldig fra forrige vellykkede
+      // lesing. Men skriving stoppes: vi vet ikke lenger om Airtable er i takt med oss.
+      vehiclesLoadStatus = 'lesefeil';
+      vehiclesSisteLesefeil = {tidspunkt: new Date().toISOString(), melding: (e && e.message) ? e.message : String(e)};
+    }
+  }
 }
 // ================= Samle bakgrunnspoll til ÉN render() =================
 // subscribeLiveSync (storage.airtable.js) kaller callback-en synkront én gang PER
@@ -3546,11 +3620,30 @@ async function changeAdminPassword(id){
 // opp — brukes der en mislykket lagring må føre til rollback i stedet for at appen går
 // videre med en verdi som aldri ble lagret (se submitKontroll, Prioritet 66).
 async function saveVehiclesOrThrow(){
+  // Prioritet 66.9 DEL 3: ENESTE vei til å skrive kjøretøyregisteret, og den spør
+  // lastestatusen først. Blokkering gir ingen Airtable-skriving, ingen «lagret»-status
+  // og en logglinje i Database status.
+  const vurdering = vehiclesSkrivingTillatt();
+  if(!vurdering.ok){
+    loggVehiclesBlokkering(vurdering.arsak);
+    const feil = new Error('Lagring av kjøretøy er stoppet: ' + vurdering.arsak);
+    feil.blokkertAvSperre = true;
+    throw feil;
+  }
   await window.storage.set('vehicles', JSON.stringify(vehicles), true);
 }
 async function saveVehicles(){
   try{ await saveVehiclesOrThrow(); }
-  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+  catch(e){
+    console.error(e);
+    if(e && (e.blokkertAvSperre || e.blokkertAvVakt)){
+      loggVehiclesBlokkering(e.message);
+      alert('⛔ Lagring stoppet av datasikringen.\n\n' + e.message + '\n\nIngenting er skrevet til Airtable. Last siden på nytt, og kontakt administrator dersom meldingen gjentar seg.');
+      render();
+      return;
+    }
+    alert('Kunne ikke lagre. Prøv igjen.');
+  }
 }
 async function saveDamages(){
   try{ await window.storage.set('damages', JSON.stringify(damages), true); }
@@ -4467,8 +4560,9 @@ function goTo(scr, vehicleId, _isBack){
   // siden. Gjelder KUN når man faktisk bytter til/åpner en bil (vehicleId er satt) — ikke
   // ved re-render av samme profil, som ville hoppet til toppen hver gang noe endret seg.
   if(scr === 'bilkort' && vehicleId !== undefined) window.scrollTo(0, 0);
-  // Prioritet 66: hver skjermnavigasjon er også et inngangspunkt — dekker «åpning av
-  // Dashboard» og «åpning av Sjåførkontroll» uten egne, skjermspesifikke kall.
+  // Prioritet 66: hver skjermnavigasjon er også et inngangspunkt. Prioritet 66.9 DEL 8:
+  // kallet er nå gratis når døgnet ikke har skiftet og ingen biløkt er foreldet — se
+  // handhevOperativtDogn(), som returnerer med én gang i det tilfellet.
   if(loaded) handhevOperativtDogn().catch(e => console.error('[handhevOperativtDogn] Feilet', e));
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
@@ -4582,6 +4676,7 @@ function drivstoffTekst(v){
   return (DRIVSTOFF_IKON[v.drivstoff] || '⛽') + ' ' + (DRIVSTOFF_LABEL[v.drivstoff] || v.drivstoff);
 }
 async function submitAddVehicle(ev){
+  if(!krevVehiclesSkriving('Å opprette kjøretøy')) return;
   ev.preventDefault();
   const bilnummer = document.getElementById('new-bilnummer').value.trim();
   const regnr = document.getElementById('new-regnr').value.trim().toUpperCase();
@@ -4609,6 +4704,7 @@ async function submitAddVehicle(ev){
   goTo('bilkort', v.id);
 }
 async function saveVehicleForm(id){
+  if(!krevVehiclesSkriving('Å redigere kjøretøy')) return;
   const v = vehicles.find(x => x.id === id);
   if(!v) return;
   // DEL 6: v.km er kjøretøyets ENESTE autoritative kilometerstand og skal
@@ -4659,6 +4755,7 @@ async function saveVehicleForm(id){
 }
 let vehicleSaveConfirmedId = null;
 async function deleteVehicle(id){
+  if(!krevVehiclesSkriving('Å slette kjøretøy')) return;
   if(!confirm('Slette dette kjøretøyet og all historikk? Dette kan ikke angres.')) return;
   const vDamages = damages.filter(d => d.vehicleId === id);
   const v = vehicles.find(x => x.id === id);
@@ -6086,6 +6183,10 @@ async function submitKontroll(ev){
     msgEl.textContent = 'Fyll ut sjåførnavn, velg bil, og fyll ut kilometerstand.';
     return;
   }
+  // Prioritet 66.9 DEL 7: en kontroll skriver v.km og kan starte en biløkt. Er
+  // kjøretøyregisteret ikke sikkert lastet, vet vi ikke om vehicleId peker på riktig bil
+  // — da skal ingen kontroll registreres i det hele tatt.
+  if(!krevVehiclesSkriving('Å registrere kontroll')){ if(submitBtn) submitBtn.disabled = false; return; }
   const v = vehicles.find(x => x.id === vehicleId);
   // Prioritet 66 DEL 6: lavere kilometerstand enn v.km BLOKKERES — ingen kontroll, ingen
   // sak, ingen bilder, ingen aktiv sjåfør, ingen endring av v.km. Tidligere var dette kun
@@ -6900,8 +7001,42 @@ function brandBlockHtml(){
 }
 
 // ================= Render dispatch =================
+// Prioritet 66.9 DEL 6: blokkerende feilpanel. Bilpark skal ALDRI vise en tom bilpark
+// som om alt er normalt når kjøretøyregisteret ikke kunne leses — det var nettopp den
+// stille tomheten som gjorde datahendelsen usynlig helt til den var skrevet til Airtable.
+// Panelet tilbyr bevisst KUN «prøv på nytt» og «Database status» — ingen «opprett
+// standard bilpark», ingen «fortsett med tomt register», ingen «lagre likevel».
+function renderVehiclesLesefeilPanel(){
+  const f = vehiclesSisteLesefeil || {};
+  return `
+    <div class="panel" style="max-width:640px;margin:48px auto;border:2px solid var(--red);">
+      <div class="p38-panel-head"><div class="tittel" style="color:var(--red);">⛔ Kjøretøyregisteret kunne ikke lastes</div></div>
+      <div style="padding:18px 20px 22px;line-height:1.6;">
+        <p style="margin:0 0 12px;"><b>Bilpark har stoppet automatisk lagring for å beskytte dataene.</b></p>
+        <p style="margin:0 0 12px;">Ikke opprett eller rediger kjøretøy før forbindelsen til Airtable er gjenopprettet.</p>
+        ${f.melding ? `<div class="kt-history-meta" style="margin:0 0 16px;white-space:pre-line;">Teknisk årsak: ${esc(f.melding)}</div>` : ''}
+        ${f.tidspunkt ? `<div class="kt-history-meta" style="margin:0 0 16px;">Tidspunkt: ${esc(new Date(f.tidspunkt).toLocaleString('nb-NO'))}</div>` : ''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button type="button" class="btn" id="lesefeil-prov-igjen">🔄 Prøv å laste på nytt</button>
+          <button type="button" class="btn secondary" id="lesefeil-db-status">🗄️ Åpne Database status</button>
+        </div>
+      </div>
+    </div>`;
+}
 function render(){
   if(!loaded){ app.innerHTML = 'Laster inn...'; return; }
+  if(vehiclesLoadStatus === 'lesefeil' && !driverMode && loggedInRole && screen !== 'innstillinger'){
+    app.innerHTML = renderVehiclesLesefeilPanel();
+    const p = document.getElementById('lesefeil-prov-igjen');
+    if(p) p.addEventListener('click', async () => {
+      p.disabled = true; p.textContent = 'Laster...';
+      await reloadOne('vehicles');
+      render();
+    });
+    const d = document.getElementById('lesefeil-db-status');
+    if(d) d.addEventListener('click', () => goTo('innstillinger'));
+    return;
+  }
   if(driverMode){ renderDriverShell(); return; }
   if(!loggedInRole && screen !== 'login'){ screen = 'login'; }
   if(screen === 'login'){ renderLoginShell(); return; }
@@ -14484,7 +14619,40 @@ function renderInnstillinger(){
     const riktigVersjonKjorer = !!(info && FORVENTET_VERSJON && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
     const visVersjonSomFeil = !!info && !kanIkkeBekrefte && !riktigVersjonKjorer;
     const forventetVersjonVisning = FORVENTET_VERSJON || 'Ukjent (fant ingen ?v=-parameter på script-taggen)';
-    const versjonHtml = `
+    // ---- Prioritet 66.9 DEL 10 + manuell seeding ----
+    const vSkriv = vehiclesSkrivingTillatt();
+    const vaktLogg = window.storageVaktLogg || [];
+    const statusFarge = {lastet:'var(--green)', 'bekreftet-tom':'var(--amber)', lesefeil:'var(--red)',
+                         'ikke-startet':'var(--muted)', laster:'var(--muted)'}[vehiclesLoadStatus] || 'var(--muted)';
+    const kanSeede = vehiclesLoadStatus === 'bekreftet-tom';
+    const vehiclesStatusHtml = `
+      <div class="panel" style="margin-bottom:16px;${vehiclesLoadStatus === 'lesefeil' ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
+        <div class="ov-label" style="margin-bottom:8px;">Kjøretøyregister (Vehicles) — datasikring</div>
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Lastestatus</span><span class="ov-value" style="color:${statusFarge};font-weight:700;">${esc(vehiclesLoadStatus)}</span></div>
+          <div class="ov-item"><span class="ov-label">Antall rader</span><span class="ov-value">${vehicles.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste vellykkede lesing</span><span class="ov-value">${vehiclesSisteOkLesing ? esc(new Date(vehiclesSisteOkLesing).toLocaleString('nb-NO')) : '–'}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste lesefeil</span><span class="ov-value" style="${vehiclesSisteLesefeil ? 'color:var(--red);' : ''}">${vehiclesSisteLesefeil ? esc(new Date(vehiclesSisteLesefeil.tidspunkt).toLocaleString('nb-NO')) : 'Ingen'}</span></div>
+          <div class="ov-item"><span class="ov-label">Skriving tillatt</span><span class="ov-value" style="color:${vSkriv.ok ? 'var(--green)' : 'var(--red)'};font-weight:700;">${vSkriv.ok ? '🟢 Ja' : '🔴 Nei'}</span></div>
+          <div class="ov-item"><span class="ov-label">Masseslettingssperre</span><span class="ov-value" style="color:var(--green);font-weight:700;">🟢 Aktiv</span></div>
+          <div class="ov-item"><span class="ov-label">Blokkerte operasjoner (denne økten)</span><span class="ov-value">${vehiclesBlokkerteSlettinger + vaktLogg.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste blokkerte operasjon</span><span class="ov-value" style="font-size:12.5px;">${vehiclesSisteBlokkering ? esc(vehiclesSisteBlokkering.arsak) : (vaktLogg[0] ? esc(vaktLogg[0].arsak) : 'Ingen')}</span></div>
+        </div>
+        ${!vSkriv.ok ? `<div class="required-hint" style="margin-top:10px;color:var(--red);font-weight:600;">${esc(vSkriv.arsak)}</div>` : ''}
+        ${vaktLogg.length ? `<div class="ov-label" style="margin:14px 0 6px;">Blokkert av masseslettingssperren</div>
+        <ul class="dmg-simple-list kompakt">${vaktLogg.slice(0,5).map(l => `<li><span class="dmg-simple-main">${esc(new Date(l.tidspunkt).toLocaleString('nb-NO'))} · ${esc(l.ressurs)}<br>${esc(l.arsak)}<br>Plan: ${l.plan.eksisterende} eksisterende → ${l.plan.opprettes} nye, ${l.plan.oppdateres} oppdatert, ${l.plan.slettes} slettet</span></li>`).join('')}</ul>` : ''}
+        ${kanSeede ? `
+        <div class="required-hint" style="margin-top:14px;background:var(--amber-soft);color:var(--ink);padding:12px 14px;border-radius:10px;">
+          <b>Kjøretøyregisteret er bekreftet tomt.</b><br>
+          Du kan opprette standard bilpark (${DEFAULT_FLEET.length} kjøretøy: ${esc(DEFAULT_FLEET.map(r => r.bilnummer).join(', '))}).
+          Ingen eksisterende rader slettes. Skriv bekreftelsesteksten nedenfor for å aktivere knappen.
+          <div class="field" style="margin-top:10px;"><label>Skriv: OPPRETT STANDARD BILPARK</label>
+            <input id="seed-bekreft" type="text" autocomplete="off" placeholder="OPPRETT STANDARD BILPARK"></div>
+          <button type="button" class="btn small" id="seed-btn" disabled>🚐 Opprett standard bilpark</button>
+        </div>` : ''}
+      </div>
+    `;
+    const versjonHtml = vehiclesStatusHtml + `
       <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
         <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage.airtable.js)</div>
         ${!info ? `
@@ -14719,6 +14887,47 @@ async function hardRefreshApp(){
 function attachInnstillingerListeners(){
   document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
+  // ---- Prioritet 66.9: manuell seeding (eneste vei til DEFAULT_FLEET) ----
+  // Kun administrator, kun når en VELLYKKET lesing har bekreftet null rader, aldri ved
+  // lesefeil, aldri som del av oppstart, og bare etter at bekreftelsesteksten er skrevet.
+  const seedInput = document.getElementById('seed-bekreft');
+  const seedBtn = document.getElementById('seed-btn');
+  if(seedInput && seedBtn){
+    const FRASE = 'OPPRETT STANDARD BILPARK';
+    seedInput.addEventListener('input', () => { seedBtn.disabled = seedInput.value.trim().toUpperCase() !== FRASE; });
+    seedBtn.addEventListener('click', async () => {
+      if(seedInput.value.trim().toUpperCase() !== FRASE) return;
+      if(vehiclesLoadStatus !== 'bekreftet-tom'){
+        alert('⛔ Stoppet. Standard bilpark kan kun opprettes når en vellykket Airtable-lesing har bekreftet at registeret er tomt. Nåværende status: ' + vehiclesLoadStatus + '.');
+        return;
+      }
+      if(vehicles.length > 0){ alert('⛔ Stoppet. Registeret er ikke tomt.'); return; }
+      if(!confirm('Oppretter ' + DEFAULT_FLEET.length + ' kjøretøy i et tomt register.\n\nIngen eksisterende rader slettes.\n\nFortsette?')) return;
+      seedBtn.disabled = true;
+      const nye = DEFAULT_FLEET.map(row => ({
+        id: uid(), bilnummer: row.bilnummer, regnr: row.regnr, merke: row.merke,
+        modell: '', arsmodell: '', kategori: row.kategori, status: 'ok',
+        dekk: '', km: '', loyvenummer: '', hasPhoto: false
+      }));
+      const forrige = vehicles;
+      vehicles = nye;
+      vehiclesAdminSeedingGodkjent = true;   // eneste sted dette settes
+      try{
+        await saveVehiclesOrThrow();
+        vehiclesLoadStatus = 'lastet';
+        vehiclesSisteOkLesing = new Date().toISOString();
+        alert('✅ ' + nye.length + ' kjøretøy opprettet. Fyll inn km, løyvenummer og øvrige felt på hver bil.');
+      }catch(e){
+        vehicles = forrige;
+        console.error('[seeding] Feilet', e);
+        alert('⛔ Kunne ikke opprette standard bilpark: ' + (e && e.message ? e.message : 'ukjent feil') + '\n\nIngenting er skrevet.');
+      }finally{
+        vehiclesAdminSeedingGodkjent = false;
+        render();
+      }
+    });
+  }
+
   const dbCheckBtn = document.getElementById('db-check-btn');
   if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); runDatabaseSync(); });
   document.querySelectorAll('input[name="theme-pref"]').forEach(el => el.addEventListener('change', (e) => {
