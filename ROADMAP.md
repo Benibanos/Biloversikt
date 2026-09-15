@@ -1,6 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 66.2 — km-gulv basert på hele kontrollhistorikken
+Sist oppdatert: 2026-09-14 (Prioritet 66.3 — kritisk regresjon rettet: renderBilkort()
+kastet ReferenceError, slik at bilkort og grupper ikke reagerte på trykk).
+Før det: 2026-09-14 (Prioritet 66.2 — km-gulv basert på hele kontrollhistorikken
 med kildeinformasjon, og én kilde til aktiv sjåfør).
 Før det: 2026-09-14 (Prioritet 66.1 — kilometergulv basert på høyeste kjente
 verdi, og samlet rollback i submitKontroll()).
@@ -1762,3 +1764,30 @@ filnavnvarianter i de serverte filene.
    siden automatisk opprydding er utenfor mandatet (punkt 7).
 4. **«Sist kontrollert av» er en ekstra brikke** i toppseksjonen og på bilkortet når bilen
    ikke har aktiv sjåfør. Det er én linje mer enn før, men fjerner en reell tvetydighet.
+
+## Prioritet 66.3 (2026-09-14) — Kritisk regresjon: bilkort og grupper
+
+✅ Rettet og verifisert i nettleser.
+
+**Rotårsak:** `const vKmAvvik` (innført i Prioritet 66) ble deklarert etter fane-objektet
+som leser den → `renderBilkort()` kastet `Cannot access 'vKmAvvik' before initialization`
+ved hver profilvisning. Klikket traff, navigasjonen skjedde i state, men skjermen ble aldri
+tegnet. Etterpå pekte `screen` på `'bilkort'`, så alle påfølgende `render()`-kall — også de
+fra gruppetoggelen — kastet samme feil. Én årsak, begge symptomene.
+
+**Løsning:** deklarasjonen flyttet over fane-objektet. Ingen andre endringer.
+
+`sw.js` CACHE_VERSION bilpark-v71 → v72. `storage.airtable.js` urørt.
+
+**Kjente begrensninger:**
+
+1. **Ingen automatisk test fanger denne klassen feil.** Den ble funnet med et
+   engangs-oppsett i headless Chromium. Et fast røyktestoppsett i repoet ville fanget den
+   ved neste anledning — ikke gjort her, fordi det er ny infrastruktur og utenfor mandatet.
+2. **Grupper er fortsatt lukket som standard** i Biloversikt (uendret oppførsel, ikke en del
+   av regresjonen). En gruppe åpnes automatisk kun når den er eneste treff i kategorifilteret
+   eller inneholder driftskoordinatorens egen aktive bil.
+3. **Et kjøretøy med en `kategori` som ikke finnes i kategoriregisteret vises ikke i noen
+   gruppe**, selv om telleren øverst («X av Y kjøretøy») teller det med. Oppdaget under
+   testingen; ikke en del av denne regresjonen og derfor ikke endret — meld fra hvis det
+   skal håndteres.
