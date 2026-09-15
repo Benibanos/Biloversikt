@@ -1331,6 +1331,34 @@
     .kal-topp{gap:8px;}
     .kal-mnd{font-size:15px;}
   }
+  /* ================= Prioritet 69: Operativ oppstartsskjerm =================
+     Kun eksisterende tokens (--surface/--line/--ink/--muted/--green/--amber/--red) og
+     eksisterende radius (.panel). Ingen ny komponentfamilie — et .panel med statusrader. */
+  .oppstart{min-height:70vh;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:opacity .18s ease;}
+  .oppstart.oppstart-ut{opacity:0;}
+  .oppstart-kort{width:100%;max-width:380px;margin:0;}
+  .oppstart-merke{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;}
+  .oppstart-under{color:var(--muted);font-size:14px;margin:2px 0 18px;}
+  .oppstart-rad{display:flex;align-items:flex-start;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:14.5px;}
+  .oppstart-rad:first-of-type{border-top:none;}
+  .oppstart-rad .ikon{width:22px;flex:0 0 22px;text-align:center;}
+  .oppstart-rad.venter{color:var(--muted);opacity:.55;}
+  .oppstart-rad.feil{color:var(--amber);font-weight:600;}
+  .oppstart-rad.kritisk{color:var(--red);font-weight:600;}
+  .oppstart-treg{display:block;color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px;}
+  .oppstart-melding{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);line-height:1.55;font-size:14px;}
+  .oppstart-melding p{margin:0 0 8px;}
+  .oppstart-melding .teknisk{color:var(--muted);font-size:12.5px;white-space:pre-line;word-break:break-word;}
+  .oppstart-knapper{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .oppstart-klar{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--green-ink);font-weight:600;}
+  .oppstart-klar span{display:block;color:var(--muted);font-weight:400;font-size:13px;margin-top:2px;}
+  .oppstart-versjon{margin-top:22px;color:var(--muted);font-size:12px;opacity:.7;}
+  #app.oppstart-inn{animation:oppstartInn .22s ease;}
+  @keyframes oppstartInn{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){
+    .oppstart{transition:none;}
+    #app.oppstart-inn{animation:none;}
+  }
 </style>
 </head>
 <body>
@@ -1356,7 +1384,7 @@
      (egen container utenfor #app), fylles av renderKontrollSlettModal(). -->
 <div id="kontroll-slett-modal"></div>
 <div id="bilde-lightbox-modal"></div>
-<div id="app">Laster inn...</div>
+<div id="app"><div class="oppstart"><div class="panel oppstart-kort"><div class="oppstart-merke">BILPARK</div><div class="oppstart-under">Operativ kontroll</div></div></div></div>
 
 <script>
 // ---- Nettverksstatus ----
@@ -2590,7 +2618,9 @@ async function fetchWeather(){
 // ---- Lys-/mørkemodus ----
 // 'system' (standard) følger enhetens innstilling live; 'light'/'dark' er et eksplisitt
 // valg som huskes til neste innlogging (lagres per enhet, ikke delt mellom brukere).
-let themePreference = 'system'; // 'light' | 'dark' | 'system'
+// Prioritet 69: startverdi 'dark' = samme standard som loadAll() bruker når ingenting er
+// lagret, slik at oppstartsskjermen er mørk før lagret valg er hentet fra Airtable.
+let themePreference = 'dark'; // 'light' | 'dark' | 'system'
 // 🎨 Layout Editor sin lagrede tilstand: { [flateKey]: {order, hidden} }.
 // null = ikke lastet ennå / ingenting lagret (getLayoutFlate() faller da tilbake til
 // standardrekkefølgen, se DASHBOARD_LAYOUT_FLATER lenger ned i denne filen). Delt/global på
@@ -3320,9 +3350,177 @@ function loggVehiclesBlokkering(arsak){
   console.error('[VEHICLES-SPERRE] Skriving blokkert:', arsak);
 }
 
+// ================= Prioritet 69: Operativ oppstartsskjerm =================
+// Oppstarten er en statusflate, ikke en lasteanimasjon. Den viser KUN reell status for
+// datasettene som faktisk leses — ingen prosent, ingen gjettet fremdrift, ingen KPI-er.
+// Kjøretøy-raden leses fra vehiclesLoadStatus (66.9), aldri fra en egen parallell
+// sannhet. De andre radene settes i loadAll() sine eksisterende catch-grener.
+//   Fase: laster → klar → (appen åpnes)
+//         laster → advarsel  (et annet datasett feilet, eller registeret er bekreftet tomt)
+//         laster → stoppet   (Vehicles = lesefeil: Dashboard/Biloversikt åpnes IKKE)
+//         laster → krasj     (uventet feil i loadAll())
+const OPPSTART_TREG_MS = 6000;   // etter dette vises «Airtable svarer tregt» på raden som laster
+const OPPSTART_KLAR_MS = 450;    // hvor lenge «✅ Klar» står før appen åpnes
+const OPPSTART_STEG = [
+  {key:'vehicles',    navn:'Kjøretøy',     laster:'Laster kjøretøy…'},
+  {key:'kontroller',  navn:'Kontroller',   laster:'Laster kontroller…'},
+  {key:'aktiveSaker', navn:'Aktive saker', laster:'Laster aktive saker…'},
+  {key:'damages',     navn:'Skader',       laster:'Laster skader…'},
+  {key:'klargjor',    navn:null,           laster:null},
+];
+const oppstartStatus = {};  // key → {status:'laster'|'lastet'|'tom'|'feil', start, melding}
+let oppstartFase = 'laster';
+let oppstartKrasj = null;
+let oppstartApner = false;
+let oppstartVersjon = '';
+function oppstartKlargjorNavn(){ return driverMode ? 'Sjåførkontroll' : 'Dashboard'; }
+function oppstartMerk(key, status, melding){
+  oppstartStatus[key] = {status, start: Date.now(), melding: melding || ''};
+  // Kalles inne i loadAll() sine try-blokker: en visningsfeil her skal ALDRI kunne
+  // havne i datasettets catch og gjøre en vellykket lesing om til en tom liste.
+  try{
+    if(status === 'laster') setTimeout(() => { if(!loaded) renderOppstart(); }, OPPSTART_TREG_MS + 100);
+    if(!loaded) renderOppstart();
+  }catch(e){ console.error('[oppstart] Visningsfeil', e); }
+}
+// Kjøretøy-raden speiler 66.9-statusen direkte.
+function oppstartMerkVehicles(){
+  const m = {laster:'laster', lastet:'lastet', 'bekreftet-tom':'tom', lesefeil:'feil'}[vehiclesLoadStatus];
+  if(!m) return;
+  oppstartMerk('vehicles', m, m === 'feil' && vehiclesSisteLesefeil ? vehiclesSisteLesefeil.melding : '');
+}
+async function hentOppstartVersjon(){
+  // Ingen ny manuell versjonskonstant (se «falsk versjonsfeil» i Database status):
+  // appversjonen leses fra CACHE_VERSION som sw.js allerede vedlikeholder, og
+  // storage-versjonen fra filen som faktisk kjører.
+  let app = '';
+  try{
+    if(window.caches && caches.keys){
+      const nr = (await caches.keys())
+        .map(k => /^bilpark-v(\d+)$/.exec(k)).filter(Boolean).map(m => Number(m[1]));
+      if(nr.length) app = 'v' + Math.max(...nr);
+    }
+  }catch(e){ /* versjon er kun til feilsøking — aldri en grunn til å stoppe oppstarten */ }
+  const st = window.storageAirtableInfo && window.storageAirtableInfo.versjon;
+  oppstartVersjon = 'Bilpark' + (app ? ' ' + app : '') + (st ? ' (storage ' + st + ')' : '');
+  if(!loaded) renderOppstart();
+}
+function oppstartRadHtml(steg){
+  const st = oppstartStatus[steg.key];
+  const navn = steg.navn || oppstartKlargjorNavn();
+  const lasterTekst = steg.laster || ('Forbereder ' + navn.toLowerCase() + '…');
+  // Ikke startet ennå: dempet, og uten «Laster…» — det ville vært falsk fremdrift.
+  if(!st) return `<div class="oppstart-rad venter"><span class="ikon">⏳</span><span>${esc(navn)}</span></div>`;
+  if(st.status === 'laster'){
+    const treg = (Date.now() - st.start) >= OPPSTART_TREG_MS
+      ? '<span class="oppstart-treg">Airtable svarer tregt — venter fortsatt</span>' : '';
+    return `<div class="oppstart-rad"><span class="ikon">⏳</span><span>${esc(lasterTekst)}${treg}</span></div>`;
+  }
+  if(st.status === 'lastet') return `<div class="oppstart-rad"><span class="ikon">✅</span><span>${esc(navn)}</span></div>`;
+  if(st.status === 'tom') return `<div class="oppstart-rad feil"><span class="ikon">⚠️</span><span>Kjøretøyregisteret er tomt</span></div>`;
+  const kritisk = steg.key === 'vehicles';
+  return `<div class="oppstart-rad ${kritisk ? 'kritisk' : 'feil'}"><span class="ikon">⚠️</span><span>${esc(navn)} kunne ikke lastes</span></div>`;
+}
+function oppstartMeldingHtml(){
+  const reload = `<button type="button" class="btn" data-oppstart="reload">🔄 Last på nytt</button>`;
+  if(oppstartFase === 'klar'){
+    return `<div class="oppstart-klar">✅ Klar<span>Åpner Bilpark…</span></div>`;
+  }
+  if(oppstartFase === 'stoppet'){
+    const f = vehiclesSisteLesefeil || {};
+    const dbKnapp = driverMode ? '' : `<button type="button" class="btn secondary" data-oppstart="dbstatus">🗄️ Database status</button>`;
+    return `<div class="oppstart-melding" role="alert">
+      <p style="color:var(--red);font-weight:700;">⚠️ Kjøretøyregisteret kunne ikke lastes</p>
+      <p>Bilpark har stoppet automatisk lagring for å beskytte dataene.</p>
+      <p>${driverMode ? 'Prøv på nytt om litt. Si fra til driftskoordinator hvis feilen står.' : 'Prøv på nytt eller sjekk Database status.'}</p>
+      ${f.melding ? `<div class="teknisk">Teknisk årsak: ${esc(f.melding)}</div>` : ''}
+      ${f.tidspunkt ? `<div class="teknisk">Tidspunkt: ${esc(new Date(f.tidspunkt).toLocaleString('nb-NO'))}</div>` : ''}
+      <div class="oppstart-knapper">${reload}${dbKnapp}</div>
+    </div>`;
+  }
+  if(oppstartFase === 'advarsel'){
+    const feilede = OPPSTART_STEG.filter(x => x.navn && oppstartStatus[x.key] && oppstartStatus[x.key].status === 'feil');
+    const tom = oppstartStatus.vehicles && oppstartStatus.vehicles.status === 'tom';
+    const tekniske = feilede.map(x => oppstartStatus[x.key].melding ? `${x.navn}: ${oppstartStatus[x.key].melding}` : '').filter(Boolean);
+    return `<div class="oppstart-melding" role="alert">
+      ${feilede.length ? `<p style="color:var(--amber);font-weight:700;">⚠️ ${esc(feilede.map(x => x.navn).join(', '))} kunne ikke lastes</p>
+      <p>Bilpark kan vise ufullstendig informasjon for dette. Ikke registrer nytt her før data er lastet.</p>` : ''}
+      ${tom ? `<p style="color:var(--amber);font-weight:700;">⚠️ Kjøretøyregisteret er tomt</p>
+      <p>Airtable svarte, men uten kjøretøy. Ordinær lagring er stoppet${driverMode ? '' : ' — administrator kan opprette bilparken i Database status'}.</p>` : ''}
+      ${tekniske.length ? `<div class="teknisk">${esc(tekniske.join('\n'))}</div>` : ''}
+      <div class="oppstart-knapper">${reload}<button type="button" class="btn secondary" data-oppstart="apne">Åpne Bilpark</button></div>
+    </div>`;
+  }
+  if(oppstartFase === 'krasj'){
+    return `<div class="oppstart-melding" role="alert">
+      <p style="color:var(--red);font-weight:700;">⚠️ Bilpark kunne ikke startes</p>
+      ${oppstartKrasj ? `<div class="teknisk">Teknisk årsak: ${esc(oppstartKrasj)}</div>` : ''}
+      <div class="oppstart-knapper">${reload}</div>
+    </div>`;
+  }
+  return '';
+}
+function renderOppstart(){
+  if(loaded || oppstartApner) return;
+  // Ved stopp skjules «Dashboard»-raden: en ✅ der ville antydet at appen åpnes.
+  app.innerHTML = `
+    <div class="oppstart" aria-live="polite">
+      <div class="panel oppstart-kort">
+        <h1 class="oppstart-merke">BILPARK</h1>
+        <div class="oppstart-under">Operativ kontroll</div>
+        ${OPPSTART_STEG.filter(x => !(x.key === 'klargjor' && oppstartFase === 'stoppet')).map(oppstartRadHtml).join('')}
+        ${oppstartMeldingHtml()}
+      </div>
+      ${oppstartVersjon ? `<div class="oppstart-versjon">${esc(oppstartVersjon)}</div>` : ''}
+    </div>`;
+  app.querySelectorAll('[data-oppstart]').forEach(b => b.addEventListener('click', () => {
+    const h = b.getAttribute('data-oppstart');
+    if(h === 'reload'){ b.disabled = true; b.textContent = 'Laster…'; window.location.reload(); }
+    else if(h === 'apne') oppstartApne();
+    else if(h === 'dbstatus') oppstartApne('innstillinger');
+  }));
+}
+// Kalles én gang, helt til slutt i loadAll(). Avgjør om appen kan åpnes.
+function oppstartFullfor(){
+  const vs = oppstartStatus.vehicles && oppstartStatus.vehicles.status;
+  const andreFeil = OPPSTART_STEG.some(x => x.key !== 'vehicles' && oppstartStatus[x.key] && oppstartStatus[x.key].status === 'feil');
+  if(vs === 'feil') oppstartFase = 'stoppet';
+  else if(vs === 'tom' || andreFeil) oppstartFase = 'advarsel';
+  else oppstartFase = 'klar';
+  renderOppstart();
+  if(oppstartFase === 'klar') setTimeout(() => oppstartApne(), OPPSTART_KLAR_MS);
+}
+function oppstartApne(tilSkjerm){
+  if(loaded || oppstartApner) return;
+  oppstartApner = true;
+  const rot = app.querySelector('.oppstart');
+  const redusert = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const apne = () => {
+    loaded = true;
+    // «Database status» fra stoppet oppstart: samme vei som 66.9-panelet (goTo innstillinger).
+    // Uten innlogging går render() til innlogging som vanlig; 66.9-panelet tar over derfra.
+    if(tilSkjerm && !driverMode && loggedInRole) screen = tilSkjerm;
+    window.subscribeLiveSync(_lagBatchetLiveSyncHandler());
+    render();
+    if(!redusert){
+      app.classList.add('oppstart-inn');
+      setTimeout(() => app.classList.remove('oppstart-inn'), 300);
+    }
+    if(isAdmin){
+      // Stille bakgrunnssjekk av Airtable-strukturen ved oppstart — varsler kun
+      // (se banneret på Dashboard), oppretter ALDRI noe automatisk uten at en
+      // administrator selv trykker «🔄 Synkroniser Airtable» i Innstillinger.
+      runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
+    }
+  };
+  if(rot && !redusert){ rot.classList.add('oppstart-ut'); setTimeout(apne, 180); }
+  else apne();
+}
+
 // ================= Storage =================
 async function loadAll(){
   vehiclesLoadStatus = 'laster';
+  oppstartMerkVehicles();
   try{
     const vehiclesRaw = await window.storage.get('vehicles', true);
     vehicles = vehiclesRaw && vehiclesRaw.value ? JSON.parse(vehiclesRaw.value) : [];
@@ -3339,12 +3537,18 @@ async function loadAll(){
     vehiclesSisteLesefeil = {tidspunkt: new Date().toISOString(), melding: (e && e.message) ? e.message : String(e)};
     console.error('[loadAll] LESEFEIL på vehicles — skrivebeskyttet sikkerhetsmodus aktivert', e);
   }
-  try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; }
-  catch(e){ damages = []; }
+  oppstartMerkVehicles();
+  // Prioritet 69: catch-grenene under er uendret i oppførsel (tom liste), men feilen
+  // registreres nå og vises på oppstartsskjermen i stedet for å være usynlig.
+  const oppstartFeiltekst = e => (e && e.message) ? e.message : String(e);
+  oppstartMerk('damages', 'laster');
+  try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; oppstartMerk('damages', 'lastet'); }
+  catch(e){ damages = []; oppstartMerk('damages', 'feil', oppstartFeiltekst(e)); }
   try{ const t = await window.storage.get('verkstedtimer', true); verkstedtimer = t && t.value ? JSON.parse(t.value) : []; }
   catch(e){ verkstedtimer = []; }
-  try{ const k = await window.storage.get('kontroller', true); kontroller = k && k.value ? JSON.parse(k.value) : []; }
-  catch(e){ kontroller = []; }
+  oppstartMerk('kontroller', 'laster');
+  try{ const k = await window.storage.get('kontroller', true); kontroller = k && k.value ? JSON.parse(k.value) : []; oppstartMerk('kontroller', 'lastet'); }
+  catch(e){ kontroller = []; oppstartMerk('kontroller', 'feil', oppstartFeiltekst(e)); }
   try{ const w = await window.storage.get('varsellys', true); varsellys = w && w.value ? JSON.parse(w.value) : []; }
   catch(e){ varsellys = []; }
   try{ const dh = await window.storage.get('dekkhistorikk', true); dekkhistorikk = dh && dh.value ? JSON.parse(dh.value) : []; }
@@ -3395,8 +3599,10 @@ async function loadAll(){
     const korrupteNavn = {servicehistorikk:'servicehistorikk', planlagteservicer:'planlagte servicer', planlagtedekkskift:'planlagte dekkskift', kommentarer:'kommentarer'};
     alert('⚠️ Kunne ikke lese ' + korrupteVedOppstart.map(k => korrupteNavn[k] || k).join(' og ') + ' — dataene ser ut til å være korrupte.\n\nFor å unngå å slette eksisterende historikk er lagring til dette/disse datasettet(ene) blokkert. Se Innstillinger → Database status for detaljer, og ikke registrer mer service/dekkskift før dette er undersøkt.');
   }
-  try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; }
-  catch(e){ aktiveSaker = []; }
+  oppstartMerk('aktiveSaker', 'laster');
+  try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; oppstartMerk('aktiveSaker', 'lastet'); }
+  catch(e){ aktiveSaker = []; oppstartMerk('aktiveSaker', 'feil', oppstartFeiltekst(e)); }
+  oppstartMerk('klargjor', 'laster');
   if(oppdaterVerkstedStatuser()) await saveAktiveSaker();
   // bilkategorier lastes fra Settings-blobben, med seeding av
   // standardkategoriene ved førstegangsoppstart. Oppslagene (KATEGORI_ORDER/
@@ -3489,15 +3695,10 @@ async function loadAll(){
     sisteKjenteOperativeDag = todayISO();
     ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
   }
-  loaded = true;
-  window.subscribeLiveSync(_lagBatchetLiveSyncHandler());
-  render();
-  if(isAdmin){
-    // Stille bakgrunnssjekk av Airtable-strukturen ved oppstart — varsler kun
-    // (se banneret på Dashboard), oppretter ALDRI noe automatisk uten at en
-    // administrator selv trykker «🔄 Synkroniser Airtable» i Innstillinger.
-    runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
-  }
+  // Prioritet 69: loaded/subscribeLiveSync/render/runDatabaseCheck er flyttet uendret
+  // inn i oppstartApne(), som kjøres først når oppstartsskjermen har godkjent åpning.
+  oppstartMerk('klargjor', 'lastet');
+  oppstartFullfor();
 }
 async function reloadOne(key){
   try{
@@ -7041,7 +7242,7 @@ function renderVehiclesLesefeilPanel(){
     </div>`;
 }
 function render(){
-  if(!loaded){ app.innerHTML = 'Laster inn...'; return; }
+  if(!loaded){ renderOppstart(); return; }
   if(vehiclesLoadStatus === 'lesefeil' && !driverMode && loggedInRole && screen !== 'innstillinger'){
     app.innerHTML = renderVehiclesLesefeilPanel();
     const p = document.getElementById('lesefeil-prov-igjen');
@@ -15550,7 +15751,15 @@ if(driverMode){
   const manifestLink = document.querySelector('link[rel="manifest"]');
   if(manifestLink) manifestLink.setAttribute('href', 'manifest-sjafor.json');
 }
-loadAll();
+// Prioritet 69: en uventet feil i loadAll() skal aldri etterlate en stille, hengende
+// oppstartsskjerm — den vises som en ekte feil med «Last på nytt».
+hentOppstartVersjon();
+loadAll().catch(e => {
+  console.error('[loadAll] Oppstart feilet', e);
+  oppstartKrasj = (e && e.message) ? e.message : String(e);
+  oppstartFase = 'krasj';
+  if(!loaded) renderOppstart();
+});
 if(!driverMode) fetchWeather();
 
 // Adaptiv Layout: reagerer på faktisk vindusendring (nettleser endres i
