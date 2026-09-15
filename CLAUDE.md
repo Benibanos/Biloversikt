@@ -2949,3 +2949,31 @@ generert fra …»), og for manuelle saker vises den allerede som «✍️ Beskr
 
 **Fallbacken er eksplisitt.** Finnes ingen tekst på noen kilde, skriver `sakMerInfoHtml()`
 «Ingen kommentar registrert på kilden.» Det er et svar, ikke en tom seksjon.
+
+## Prioritet 69 (2026-09-15) — Oppstart er en statusflate
+
+**Appen åpnes kun gjennom `oppstartApne()`.** `loaded = true`, `subscribeLiveSync()`,
+første `render()` og `runDatabaseCheck()` ligger der — ikke i `loadAll()`. `loadAll()`
+avslutter med `oppstartFullfor()`, som avgjør fasen: `klar` (åpnes automatisk),
+`advarsel` (bruker velger), `stoppet` (åpnes ikke) eller `krasj`. Ikke sett
+`loaded = true` noe annet sted.
+
+**Kjøretøy-raden har ingen egen sannhet.** `oppstartMerkVehicles()` speiler
+`vehiclesLoadStatus`. `lesefeil` → fase `stoppet`: Dashboard og Biloversikt åpnes ikke,
+kun «Last på nytt» og (admin) «Database status». Ingen «åpne likevel» ved lesefeil.
+
+**Kun reell status.** Rader som ikke har startet vises dempet uten «Laster…». Ingen
+prosent, ingen fremdriftslinje, ingen KPI-er eller dashboarddata før appen er åpnet.
+«Airtable svarer tregt» vises først når en faktisk lesing har pågått i 6 s.
+
+**`oppstartMerk()` kalles inne i datasettenes `try`, og kaster aldri.** En visningsfeil
+skal ikke kunne havne i `catch` og gjøre en vellykket lesing om til en tom liste.
+
+**Nytt datasett på oppstartsskjermen:** legg det i `OPPSTART_STEG` og kall
+`oppstartMerk(key, 'laster'|'lastet'|'feil')` rundt den eksisterende lesingen. Ingen
+annen kode skal endres.
+
+**Versjonen leses, den vedlikeholdes ikke.** `hentOppstartVersjon()` bruker høyeste
+`bilpark-vNN` fra `caches.keys()` og `storageAirtableInfo.versjon`. Ikke innfør en egen
+APP_VERSION-konstant (samme felle som den falske versjonsfeilen i Database status).
+
