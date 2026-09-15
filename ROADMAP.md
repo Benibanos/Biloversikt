@@ -1,6 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 68 — saksdetaljer, kilde og bilder direkte i
+Sist oppdatert: 2026-09-14 (Prioritet 68.1 — boilerplate fjernet fra utvidet sak).
+Før det: 2026-09-14 (Prioritet 68 — saksdetaljer, kilde og bilder direkte i
 Aktive saker, lest live fra originalkilden).
 Før det: 2026-09-14 (Prioritet 67 — gyldige kontroller oppdaterer v.km automatisk;
 bekreftet storthopp krever administrativ godkjenning).
@@ -1897,3 +1898,20 @@ Kun `index.html`/`kontroll.html`. `sw.js` CACHE_VERSION v75 → v76.
    høyt ved mange skader.
 5. **Detaljene lukkes ved skjermbytte** (`sakDetaljApneIds` nullstilles i `goTo()`).
    Uendret oppførsel fra før.
+
+## Prioritet 68.1 (2026-09-14) — Fjernet boilerplate i utvidet sak
+
+✅ Implementert og verifisert.
+
+Den generiske beskrivelseslinjen er fjernet fra den utvidede saksvisningen. Brukerskrevne
+beskrivelser bevares via «✍️ Beskrivelse»; saker uten tekst får en tydelig fallback.
+Kollapset visning uendret. Kun `index.html`/`kontroll.html`. CACHE_VERSION v76 → v77.
+
+**Kjente begrensninger:**
+
+1. **Presiseringen i ticketen stemte ikke helt med koden:** boilerplate-linjen ble ALDRI
+   vist i den kollapsede visningen — kun i den utvidede. Kollapset kort viser fortsatt
+   «Skade · 15/09/2026», som før. Ingenting å beholde der, altså.
+2. **En auto-generert sak med brukerredigert beskrivelse** (endret via Avansert
+   redigering) vises ikke lenger i detaljseksjonen, siden `sourceType` fortsatt er `auto`.
+   Teksten finnes i Avansert redigering. Sjeldent tilfelle; si ifra hvis det skal dekkes.

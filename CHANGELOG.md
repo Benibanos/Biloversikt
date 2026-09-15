@@ -15,6 +15,29 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 68.1 — Fjernet boilerplate i utvidet sak
+
+Den generiske linjen «Automatisk generert fra skaderegistrering» sto rett over den ekte
+teksten fra kilden i den utvidede saksvisningen. Den er nå fjernet.
+
+Brukerskrevne beskrivelser går ikke tapt: manuelle saker vises som «✍️ Beskrivelse» via
+`sakKildeTekster()`, og en sak helt uten tekst på kilden får linjen «Ingen kommentar
+registrert på kilden.» Den kompakte, kollapsede visningen er uendret.
+
+Kun visning. Saksmotor, godta/avslå, bildevisning, kildevisning, kommentarer, Airtable og
+statusflyt er urørt.
+
+CACHE_VERSION bilpark-v76 → bilpark-v77.
+
+**Verifisering**
+
+Lukket sak: kompakt tekst uendret. Åpen sak fra skade: boilerplate skjult, kilde,
+registrert av, dato, begge kommentarene og bildegalleriet vises. Åpen manuell sak:
+brukerskrevet beskrivelse bevart. Sak uten tekst: tydelig fallback. Godta og Avslå
+uendret. Full regresjonssveip uten JS-feil.
+
+---
+
 ### Prioritet 68 — Saksdetaljer direkte i Aktive saker
 
 **Problem eller mål**

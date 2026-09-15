@@ -11591,7 +11591,13 @@ function sakKompaktKortHtml(s, fase){
       <div style="margin-top:6px;"><button type="button" class="p38-lenke" data-toggle-sak-kort="${s.id}">ℹ️ ${apen ? 'Skjul informasjon' : 'Mer informasjon'}</button></div>
       ${apen ? `
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);">
-        <div class="desc" style="margin-bottom:8px;">${esc(s.description || sakProblemLabel(s) || 'Ingen beskrivelse.')}</div>
+        ${/* Prioritet 68.1: den generiske beskrivelseslinjen ("Automatisk generert fra
+             skaderegistrering") er fjernet fra den UTVIDEDE visningen. Den sto rett over
+             den ekte teksten fra kilden og tilførte ingenting. Brukerskrevne beskrivelser
+             går ikke tapt: manuelle saker vises som «✍️ Beskrivelse» via
+             sakKildeTekster(), og saker uten kilde-tekst får en tydelig
+             "Ingen kommentar registrert"-linje i sakMerInfoHtml(). Den kompakte,
+             kollapsede visningen er uendret. */ ''}
         ${sakMerInfoHtml(s)}
         <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">${luc('pencil')} Avansert redigering →</button>
       </div>` : ''}

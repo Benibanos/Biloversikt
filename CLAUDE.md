@@ -2938,3 +2938,14 @@ hendelsen faktisk ble registrert. `SAK_KILDE_IKON` mapper label → ikon; legges
 kildetype til i `sakKildeLabel()`, legg ikonet der.
 
 **Godta/Avslå-flyten er urørt.** Prioritet 68 la til kontekst, ikke sakslogikk.
+
+## Prioritet 68.1 (2026-09-14) — Ingen systemtekst i utvidet sak
+
+**Den utvidede saksvisningen viser kun informasjon som hjelper en beslutning.** Sakens egen
+`description` rendres ikke der: for auto-genererte saker er den boilerplate («Automatisk
+generert fra …»), og for manuelle saker vises den allerede som «✍️ Beskrivelse» gjennom
+`sakKildeTekster()`. Ikke legg den tilbake — legg i stedet til kilden i
+`sakKildeTekster()` hvis en ny sakstype mangler tekst.
+
+**Fallbacken er eksplisitt.** Finnes ingen tekst på noen kilde, skriver `sakMerInfoHtml()`
+«Ingen kommentar registrert på kilden.» Det er et svar, ikke en tom seksjon.
