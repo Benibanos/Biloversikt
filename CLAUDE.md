@@ -2838,20 +2838,3 @@ Rå `v.aktivSjafor` skal aldri leses direkte i visningen, uten døgnkontroll.
 kompenserende skriving = MULIG DELVIS LAGRING, og brukeren skal da IKKE sende inn på nytt
 før Database status eller kontrollhistorikken er undersøkt — et nytt forsøk kan gi
 dobbeltregistrering.
-
-## Prioritet 66.3 (2026-09-14) — Deklarasjonsrekkefølge i renderBilkort()
-
-**`renderBilkort()` bygger fane-innholdet FØR den bygger returmalen.** Enhver `const` som
-leses av `faneBody`-objektet (Oversikt/Historikk/Skader/Dekk/Kostnader) må deklareres over
-det objektet — ikke nede ved `vMobgaranti`/`p38SjaforNa`, som bare brukes i returmalen.
-Bryter man dette, kaster funksjonen `Cannot access 'X' before initialization`.
-
-**En exception i `renderBilkort()` ser ut som en klikkfeil.** `goTo()` setter `screen` og
-`currentVehicleId` FØR `render()`. Kaster `render()`, står appen igjen med riktig state men
-gammel DOM — og siden alle senere `render()`-kall treffer den samme ødelagte skjermen, dør
-også knapper og grupper på den forrige skjermen. Symptomet «trykk gjør ingenting» skal
-derfor alltid sjekkes mot nettleserkonsollen FØR man leter i event delegation, z-index
-eller overlays.
-
-**Test klikk i nettleser, ikke ved kodelesing.** Regresjonen var usynlig for `node --check`,
-tag-balanse og templatesimulering — den krevde et ekte museklikk mot en ekte DOM.

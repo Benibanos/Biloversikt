@@ -9744,12 +9744,6 @@ function renderBilkort(){
   // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
   const euKontrollStatus = vehicleEuKontrollStatus(v);
   const euKontrollFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
-  // Prioritet 66 DEL 10: ren RAPPORTERING av et eksisterende avvik — korrigerer ingenting.
-  // MÅ deklareres FØR fane-objektet under, som leser den i Oversikt-fanen. Ble den stående
-  // lenger nede, kastet renderBilkort() «Cannot access 'vKmAvvik' before initialization»
-  // (temporal dead zone) — se Prioritet 66.3.
-  const vKmAvvik = kmAvvikForVehicle(v);
-
   // Prioritet 65.2: operativStatusBody er FJERNET. Alle radene der (Bilgruppe, Biltype,
   // Hovedstatus, Kontrollstatus, Aktiv sjåfør, Aktive saker, Forfalte oppfølginger, Neste
   // handling, Neste oppfølgingsdato, Neste verkstedtime, Sist oppdatert) fantes allerede
@@ -10077,6 +10071,8 @@ function renderBilkort(){
   const p38SisteKontrollor = p38SjaforNa ? null : vehicleSisteSjafor(v.id);
   // Prioritet 65: mobilitetsgaranti som operativ status i toppseksjonen (live-beregnet,
   // se vehicleMobilitetsgaranti()) — ikke lenger et eget stort informasjonskort.
+  // Prioritet 66 DEL 10: ren RAPPORTERING av et eksisterende avvik — korrigerer ingenting.
+  const vKmAvvik = kmAvvikForVehicle(v);
   const vMobgaranti = vehicleMobilitetsgaranti(v);
   const mgPille = mobilitetsgarantiPille(v);
 

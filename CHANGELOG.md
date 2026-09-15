@@ -15,49 +15,6 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
-### Prioritet 66.3 — Kritisk regresjon: bilkort og grupper reagerte ikke på trykk
-
-**Rotårsak: temporal dead zone i `renderBilkort()`**
-
-Prioritet 66 la inn `const vKmAvvik = kmAvvikForVehicle(v);` sammen med de andre
-kjøretøyvariablene — men Oversikt-fanen, som LESER `vKmAvvik`, bygges tidligere i
-funksjonen. En `const` kan ikke leses før sin egen deklarasjon, så `renderBilkort()` kastet
-`ReferenceError: Cannot access 'vKmAvvik' before initialization` hver eneste gang en
-kjøretøyprofil skulle tegnes.
-
-Konsekvens, bekreftet i nettleser: trykket på bilkortet TRAFF — lytteren kjørte,
-`goTo('bilkort', v.id)` satte `screen = 'bilkort'` og riktig `currentVehicleId` — men
-`render()` kastet før DOM-en ble byttet ut. Skjermen sto igjen på Biloversikt, og for
-brukeren så det ut som ingenting skjedde.
-
-Dette forklarer også gruppefeilen: etter det første mislykkede kortklikket sto `screen` på
-`'bilkort'`. Neste trykk på en gruppe kjørte `toggleRegisterGruppe()` → `render()` →
-`renderBilkort()` → ny exception. Gruppens åpne/lukke-tilstand ble faktisk oppdatert i
-minnet, men skjermen ble aldri tegnet på nytt. Begge symptomene hadde altså ÉN felles
-årsak.
-
-**Utelukket:** event delegation, `data-open`, vehicleId-flyten, `stopPropagation()`,
-`preventDefault()`, overlay-elementer, z-index og statusprikken fra Prioritet 64. Alt
-verifisert intakt med `elementFromPoint()` — midtpunktet på hvert bilkort treffer kortet.
-
-**Løsning**
-
-`vKmAvvik` deklareres nå FØR fane-objektet som leser den. Ingen andre endringer — ingen
-designendring, og ingen endring i kilometerlogikk, dagsreset, mobilitetsgaranti,
-kontrollstatus, hurtigbestillinger, Airtable eller `storage.airtable.js`.
-
-CACHE_VERSION bilpark-v71 → bilpark-v72.
-
-**Verifisering (headless Chromium, ekte museklikk)**
-
-30 av 30 klikk på desktop og 30 av 30 på mobil åpnet riktig kjøretøyprofil — 6 bilkort ×
-5 punkter (alle fire hjørner + midten). Gruppe åpne/lukke verifisert med chevron og
-`registerGrupperApne`. Bilantall per gruppe korrekt. `elementFromPoint()` traff kortet på
-alle 6 kort i begge visninger. Feilsveip over 18 skjermer og alle 5 profilfaner: null
-JS-feil. Filtertilstand bevares gjennom profilbesøk.
-
----
-
 ### Prioritet 66.2 — Siste integritetskontroll før deploy
 
 **1–2. Gulvet dekker hele kontrollhistorikken**
