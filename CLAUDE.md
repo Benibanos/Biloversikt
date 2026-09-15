@@ -2714,3 +2714,78 @@ Kjøretøyprofil og den dedikerte Bestill tjenester-skjermen. Endres én, endres
 `white-space:nowrap`, `overflow:hidden` eller `text-overflow` — kortet vokser i høyden i
 stedet. Legg aldri til klippende egenskaper for å «rydde» i lange etiketter; kort ned
 teksten i stedet.
+
+## Prioritet 65.2 (2026-09-14) — Tomtilstander skal ikke ta plass
+
+**Varig regel: en seksjon som bare kan vise «0», «–», «Ingen planlagt» eller «Ikke satt»
+skal ikke rendres i det hele tatt.** Informasjon som ikke krever handling, skal ikke
+konkurrere om plassen med informasjon som gjør det. Unntaket er felt der fraværet SELV er
+handlingen — manglende EU-registrering, manglende løyve og dekk som ikke er satt vises
+fortsatt, fordi de betyr «registrer dette».
+
+Konkret på Kjøretøyprofilen:
+
+| Seksjon | Regel |
+|---|---|
+| 🗂️ Aktive saker (panel) | Rendres kun når `vAktiveSakerListe.length > 0` |
+| 🏭 Verkstedtime | Kun når `vNesteVT` finnes |
+| ⏰ Neste oppfølging | Kun når `followUpDate` finnes |
+| 💥 Ruteskift | Kun når `vehicleHarRegistrertRuteskiftTime()` |
+| 📅 Planlagt service/dekkskift | Kun når timen faktisk finnes |
+
+**Kjøretøyprofilen har ÉN statusliste.** Oversikt-fanen er eneste sted Service/Dekk/EU/
+Verksted/oppfølging vises på profilen. Panelet «📋 Kommende oppgaver» og blokken «Operativ
+status» (`ov-split-grid`) er fjernet fordi de var tredje og fjerde visning av samme tall.
+Ikke gjenopprett dem — utvid Oversikt-fanen.
+
+**Profilen har ingen egen hurtighandlingsrad.** Registrer kontroll, Registrer skade og
+Åpne aktive saker finnes på sine egne arbeidsflater. Det som står over bestillingskortene
+er status, ikke knapper. Eneste navigasjon fra statusraden: Skader-flisen → Skader-fanen,
+Aktive saker-flisen → Aktive saker (kun når det finnes saker).
+
+**Ny bil = ny side = scrollposisjon 0.** `goTo()` scroller til toppen når `scr === 'bilkort'`
+OG `vehicleId !== undefined`. Begge betingelsene er nødvendige: uten den andre ville hver
+re-render av samme profil (lagring, fanebytte, synk) hoppet til toppen.
+
+## Prioritet 66 (2026-09-14) — Dataintegritet: operativt døgn og kilometerstand
+
+**Varig regel: `v.km` kan aldri gå NEDOVER via Sjåførkontroll.** `validerKontrollKm()` er
+eneste definisjon av hva som er en gyldig ny kilometerstand, og brukes av både
+blur-valideringen og `submitKontroll()`. Lavere enn `v.km` = hard blokkering (ingen
+kontroll, ingen sak, ingen bilder, ingen aktiv sjåfør, ingen km-endring). Nedjustering er
+kun mulig via den beskyttede adminflyten i `saveVehicleForm()`, som viser gammel og ny
+verdi og krever bekreftelse. Gjør aldri blokkeringen om til en bekreftelse igjen — det var
+nettopp den «Registrere likevel?»-dialogen som gjorde tastefeil til dataavvik.
+
+**Grensene er eksakte:** < 1 000 km differanse = ingen ekstra bekreftelse · nøyaktig
+1 000 km = advarsel · > 1 000 km = advarsel · lavere enn `v.km` = alltid blokkert · lik
+`v.km` = tillatt.
+
+**`v.km` skrives FØRST i `submitKontroll()`, ikke sist.** Rekkefølgen er en
+dataintegritetsgaranti, ikke en tilfeldighet: skrives kontrollen først og km-lagringen så
+feiler, står historikken med høyere km enn kjøretøyet — akkurat det avviket som ble meldt
+fra drift. Bruk `saveVehiclesOrThrow()` der en mislykket lagring må gi rollback;
+`saveVehicles()` svelger feilen med vilje og er kun for steder der det er greit.
+
+**Fire — og bare fire — skrivestier til `v.km`:** `submitKontroll()`,
+`performKontrollDeletion()`, `resetFleetData()` og `saveVehicleForm()` (administrativ
+korrigering). `submitService()` og `saveServiceEdit()` skal ALDRI røre `v.km`.
+
+**Operativt døgn håndheves ved inngangspunkter, ikke av en timer.** Appen ligger på GitHub
+Pages og har ingen prosess som kan kjøre kl. 04:00. `handhevOperativtDogn()` kalles ved
+oppstart, `visibilitychange`, `pageshow`, hver live-synk og hver `goTo()`. Den er
+idempotent og skriver kun når det faktisk finnes en foreldet biløkt. Legg aldri til en
+`setInterval` som «backup» — en PWA i bakgrunnen kjører den ikke uansett.
+
+**Én definisjon av «i dag».** `todayISO()`/`isoDateForOperationalDay()` er eneste kilde.
+Ikke innfør `new Date().toISOString().slice(0,10)` noe sted.
+
+**Stort kilometerhopp merkes i kontrollens kommentarfelt**, med prefikset `⚠️ Kontroller km:`
+(konstanten `KM_AVVIK_PREFIX`, testet med `kontrollHarKmAvvik()`). Det er bevisst ingen ny
+tabell og intet nytt Airtable-felt — kjøretøy, sjåfør, dato og tidspunkt er allerede
+kolonner på kontrollen, og kommentaren rendres allerede i historikk og detaljvisning.
+Et hopp skal ALDRI opprette en verkstedsak automatisk: dette er mulig feilregistrering,
+ikke en kjøretøyfeil.
+
+**Historiske km-avvik korrigeres aldri automatisk.** `kmAvvikForVehicle()` og
+`window.rapporterKmAvvik()` rapporterer; korrigering er en bevisst adminhandling.

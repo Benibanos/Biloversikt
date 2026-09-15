@@ -445,13 +445,8 @@
 
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;}
   .ov-item{display:flex;flex-direction:column;gap:2px;}
-  /* Operativ status i to kolonner. auto-fit/minmax lar
-     layouten selv avgjøre: ekte 2-kolonne side ved side når det er nok bredde (typisk
-     desktop/bredere mobil), automatisk stabling til to tydelige seksjoner når det ikke er
-     det (typisk smal mobil) — samme mønster .ov-grid selv allerede bruker, ingen egen
-     mobil/desktop-forgrening nødvendig. */
-  .ov-split-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;}
-  .ov-split-col{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  /* Prioritet 65.2: .ov-split-grid/.ov-split-col er fjernet sammen med den todelte
+     "Operativ status"-blokken på Kjøretøyprofilen. Ingen andre skjermer brukte dem. */
   .sjafor-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
   .dekk-status-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 16px;}
   .ov-item-clickable{
@@ -677,6 +672,9 @@
   .kt-vehicle-card .model{font-weight:700;font-size:15px;}
   .kt-vehicle-card .model-sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
   .kt-km-input{font-size:22px !important;font-weight:700;padding:14px 12px !important;text-align:center;}
+  /* Prioritet 66: feilmarkering av kilometerfeltet. Modifier på eksisterende felt,
+     med eksisterende --red-token — ingen ny komponent, ingen ny farge. */
+  .kt-km-input.kt-km-feil{border-color:var(--red) !important;background:var(--red-soft) !important;color:var(--red) !important;}
   .chip-grid{display:grid;grid-template-columns:1fr;gap:10px;}
   .chip{
     display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;min-height:56px;
@@ -2509,6 +2507,43 @@ async function ryddOppBiloktDagskille(){
     driverScreen = 'velg-bil';
   }
 }
+// ================= Prioritet 66: håndheving av operativt døgn =================
+// Appen kjører på GitHub Pages og har ingen serverprosess som kan kjøre noe presis kl.
+// 04:00. Løsningen er derfor IKKE en timer, men at dagskillet håndheves ved hvert
+// inngangspunkt: oppstart, retur fra bakgrunnen (visibilitychange/pageshow), hver
+// live-synk og hver skjermnavigasjon (goTo). Selve STATUSEN er alltid korrekt uansett,
+// fordi vehicleAktivSjafor() og isKontrollertIdag() regnes live mot todayISO() — denne
+// funksjonen rydder i tillegg opp de LAGREDE feltene og sørger for at en skjerm som
+// allerede står åpen (typisk sjåførens Min Bil) faktisk tegnes på nytt når døgnet skifter.
+//
+// Ingen Airtable-skriving per render: ryddOppBiloktDagskille() kaller kun saveVehicles()
+// når det FAKTISK finnes en foreldet biløkt, og etter første opprydding finnes det ingen.
+let sisteKjenteOperativeDag = '';
+let dogngHandhevingPagar = false;
+async function handhevOperativtDogn({rerender = false} = {}){
+  if(dogngHandhevingPagar) return false;
+  dogngHandhevingPagar = true;
+  try{
+    const idag = todayISO();
+    const dagSkiftet = sisteKjenteOperativeDag !== '' && sisteKjenteOperativeDag !== idag;
+    sisteKjenteOperativeDag = idag;
+    await ryddOppBiloktDagskille();
+    if(dagSkiftet && rerender && loaded) render();
+    return dagSkiftet;
+  }catch(e){
+    // Visningen skal være korrekt selv om selve oppryddingen/lagringen feiler.
+    console.error('[handhevOperativtDogn] Feilet', e);
+    return false;
+  }finally{
+    dogngHandhevingPagar = false;
+  }
+}
+// Retur til appen fra bakgrunnen (mobil-PWA lukkes sjelden — den bakgrunnslegges), og
+// bfcache-retur (pageshow). Dekker testkrav 2 og 3.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') handhevOperativtDogn({rerender:true});
+});
+window.addEventListener('pageshow', () => { handhevOperativtDogn({rerender:true}); });
 
 // ---- Værmelding (Larvik) ----
 // Henter gjeldende temperatur/værtype fra Open-Meteo (gratis, ingen API-nøkkel).
@@ -3379,6 +3414,7 @@ async function loadAll(){
   if(driverMode){
     // Rydd opp ev. biløkter fra en tidligere operativ dag (dagskille kl. 04:00) FØR vi
     // avgjør hvilken skjerm denne enheten skal starte på.
+    sisteKjenteOperativeDag = todayISO();
     await ryddOppBiloktDagskille();
     loadDriverLocalSession();
     if(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId)){
@@ -3391,6 +3427,7 @@ async function loadAll(){
     // Administrasjonssiden holder ofte appen åpnest lengst (Dashboard) — kjør samme
     // opprydding her også, slik at biløkter fra en tidligere operativ dag ikke blir
     // stående i Airtable selv om ingen sjåfør åpner appen før driftskoordinator gjør det.
+    sisteKjenteOperativeDag = todayISO();
     ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
   }
   loaded = true;
@@ -3455,6 +3492,9 @@ function _lagBatchetLiveSyncHandler(){
     pending.clear();
     await Promise.all(nokler.map(k => reloadOne(k)));
     batchPagaar = false;
+    // Prioritet 66: nyinnlest kjøretøydata kan inneholde en biløkt fra forrige operative
+    // døgn (satt på en annen enhet). Håndhev dagskillet før skjermen tegnes på nytt.
+    await handhevOperativtDogn();
     if(formInProgress()) return;
     render();
   };
@@ -3502,8 +3542,14 @@ async function changeAdminPassword(id){
   alert('Passord endret for ' + u.rolle + '.');
   render();
 }
+// ÉN skriver til 'vehicles'. saveVehiclesOrThrow() er samme skriving, men LAR feilen boble
+// opp — brukes der en mislykket lagring må føre til rollback i stedet for at appen går
+// videre med en verdi som aldri ble lagret (se submitKontroll, Prioritet 66).
+async function saveVehiclesOrThrow(){
+  await window.storage.set('vehicles', JSON.stringify(vehicles), true);
+}
 async function saveVehicles(){
-  try{ await window.storage.set('vehicles', JSON.stringify(vehicles), true); }
+  try{ await saveVehiclesOrThrow(); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function saveDamages(){
@@ -4416,6 +4462,14 @@ function goTo(scr, vehicleId, _isBack){
   // på nøyaktig samme måte som de tidligere akkordion-seksjonene gjorde (se bilkort-linjen over).
   if(scr === 'bilkort' && vehicleId !== undefined){ bilkortAktivFane = 'oversikt'; showBilinfoRediger = false; }
   render();
+  // Prioritet 65.2: en kjøretøyprofil skal alltid åpnes på toppen. Uten dette arver den
+  // scrollposisjonen fra Biloversikt, slik at Bil 12 (langt nede i listen) åpnet midt på
+  // siden. Gjelder KUN når man faktisk bytter til/åpner en bil (vehicleId er satt) — ikke
+  // ved re-render av samme profil, som ville hoppet til toppen hver gang noe endret seg.
+  if(scr === 'bilkort' && vehicleId !== undefined) window.scrollTo(0, 0);
+  // Prioritet 66: hver skjermnavigasjon er også et inngangspunkt — dekker «åpning av
+  // Dashboard» og «åpning av Sjåførkontroll» uten egne, skjermspesifikke kall.
+  if(loaded) handhevOperativtDogn().catch(e => console.error('[handhevOperativtDogn] Feilet', e));
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
 // Dashboard (eller en oppgitt fallback-skjerm) dersom historikken er tom, f.eks. ved
@@ -5890,6 +5944,83 @@ function vehicleErReserveUnntatt(vehicleId){
   if(vehicleAktivSjafor(vehicleId)) return false;
   return true;
 }
+// ================= Prioritet 66: kilometervalidering =================
+// v.km er kjøretøyets ENESTE autoritative kilometerstand (se CLAUDE.md «Kilometerregel»).
+// Denne funksjonen er ENESTE definisjon av hva som er en gyldig ny kilometerstand fra
+// Sjåførkontroll, og brukes av BÅDE blur-valideringen i skjemaet og av submitKontroll().
+// UI-valideringen alene er ikke autoritativ — submitKontroll() kaller den på nytt rett
+// før lagring.
+const KM_HOPP_GRENSE = 1000;              // ≥ 1 000 km gir advarsel (nøyaktig 1 000 inkludert)
+const KM_AVVIK_PREFIX = '⚠️ Kontroller km:'; // markør i kontrollens kommentarfelt, se Del 8
+// Felles feilvisning for kilometerfeltet: tydelig melding i skjemaet, rød markering og
+// fokus på feltet — brukeren blir stående i skjemaet.
+function visKontrollKmFeil(melding){
+  const msgEl = document.getElementById('kt-msg');
+  if(msgEl) msgEl.textContent = melding;
+  const el = document.getElementById('kt-km');
+  if(el){ el.classList.add('kt-km-feil'); el.focus(); el.select && el.select(); }
+}
+function fjernKontrollKmFeil(){
+  const el = document.getElementById('kt-km');
+  if(el) el.classList.remove('kt-km-feil');
+  const msgEl = document.getElementById('kt-msg');
+  if(msgEl && msgEl.textContent && msgEl.textContent.indexOf('Kilometerstanden') === 0) msgEl.textContent = '';
+}
+function validerKontrollKm(v, kmRaw){
+  const ny = Number(kmRaw);
+  if(kmRaw === '' || kmRaw === null || !Number.isFinite(ny) || ny < 0){
+    return {status:'blokkert', gjeldende:null, ny:null, differanse:null,
+      melding:'Fyll ut en gyldig kilometerstand.'};
+  }
+  const harGjeldende = v && v.km !== '' && v.km !== null && v.km !== undefined && Number.isFinite(Number(v.km));
+  const gjeldende = harGjeldende ? Number(v.km) : null;
+  // Bil uten registrert km fra før: ingenting å sammenligne mot, alt er lov.
+  if(gjeldende === null) return {status:'ok', gjeldende:null, ny, differanse:null, melding:''};
+  const differanse = ny - gjeldende;
+  if(differanse < 0){
+    return {status:'blokkert', gjeldende, ny, differanse,
+      melding:'Kilometerstanden kan ikke være lavere enn bilens registrerte kilometerstand på ' + gjeldende.toLocaleString('nb-NO') + ' km. Kontroller tallet og prøv igjen.'};
+  }
+  if(differanse >= KM_HOPP_GRENSE){
+    return {status:'storthopp', gjeldende, ny, differanse,
+      melding:'Kilometerstanden er ' + differanse.toLocaleString('nb-NO') + ' km høyere enn sist registrert. Kontroller at tallet er riktig.'};
+  }
+  return {status:'ok', gjeldende, ny, differanse, melding:''};
+}
+// Del 8: merknaden lagres i kontrollens EKSISTERENDE kommentarfelt — ingen ny datamodell,
+// intet nytt Airtable-felt, ingen ny modul. Kjøretøy, sjåfør, dato og tidspunkt er allerede
+// egne kolonner på kontrollen; linjen under legger til det som mangler (tidligere km,
+// differanse og at sjåføren bekreftet verdien). Vises automatisk i kontrollhistorikken og
+// i kontrollens detaljvisning, som allerede rendrer kommentaren (Del 9).
+function kmAvvikMerknad(val, sjafor){
+  return KM_AVVIK_PREFIX + ' +' + val.differanse.toLocaleString('nb-NO') + ' km siden forrige registrering (fra ' +
+    val.gjeldende.toLocaleString('nb-NO') + ' km til ' + val.ny.toLocaleString('nb-NO') + ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + ')';
+}
+function kontrollHarKmAvvik(k){
+  return !!(k && typeof k.kommentar === 'string' && k.kommentar.startsWith(KM_AVVIK_PREFIX));
+}
+// Del 10: REN RAPPORTERING av eksisterende motstridende data. Korrigerer ingenting.
+// Returnerer bilene der siste registrerte kontroll har HØYERE km enn kjøretøyets
+// autoritative v.km — altså akkurat det avviket som er meldt fra drift.
+function kmAvvikForVehicle(v){
+  if(!v || v.km === '' || v.km === null || v.km === undefined) return null;
+  const siste = lastKontrollForVehicle(v.id);
+  if(!siste || siste.km === '' || siste.km === null || siste.km === undefined) return null;
+  const vKm = Number(v.km), kKm = Number(siste.km);
+  if(!Number.isFinite(vKm) || !Number.isFinite(kKm) || kKm <= vKm) return null;
+  return {vKm, kontrollKm: kKm, differanse: kKm - vKm, dato: siste.dato, tidspunkt: siste.tidspunkt || '', sjafor: siste.sjafor || ''};
+}
+// Kjøres manuelt fra nettleserkonsollen av administrator: rapporterKmAvvik()
+window.rapporterKmAvvik = function(){
+  const rader = vehicles.map(v => ({v, a: kmAvvikForVehicle(v)})).filter(x => x.a).map(({v, a}) => ({
+    Bil: vehicleLabel(v), 'v.km': a.vKm, 'Siste kontroll km': a.kontrollKm,
+    Differanse: a.differanse, Kontrolldato: a.dato + (a.tidspunkt ? ' kl. ' + a.tidspunkt : ''), Sjåfør: a.sjafor
+  }));
+  if(rader.length === 0){ console.log('Ingen biler har kontroll-km høyere enn v.km.'); return []; }
+  console.table(rader);
+  return rader;
+};
+
 async function submitKontroll(ev){
   ev.preventDefault();
   const msgEl = document.getElementById('kt-msg');
@@ -5901,8 +6032,29 @@ async function submitKontroll(ev){
     return;
   }
   const v = vehicles.find(x => x.id === vehicleId);
-  if(Number(km) < Number(v.km || 0)){
-    if(!confirm('Kilometerstanden du oppga (' + Number(km).toLocaleString('nb-NO') + ' km) er lavere enn det som er registrert fra før (' + Number(v.km||0).toLocaleString('nb-NO') + ' km). Registrere likevel?')) return;
+  // Prioritet 66 DEL 6: lavere kilometerstand enn v.km BLOKKERES — ingen kontroll, ingen
+  // sak, ingen bilder, ingen aktiv sjåfør, ingen endring av v.km. Tidligere var dette kun
+  // en «Registrere likevel?»-bekreftelse, som gjorde det mulig for en sjåfør å skrive
+  // kjøretøyets autoritative kilometerstand NEDOVER ved en tastefeil. Administrativ
+  // korrigering nedover er fortsatt mulig — men kun via den beskyttede adminflyten i
+  // saveVehicleForm() (Rediger informasjon), aldri herfra.
+  const kmVal = validerKontrollKm(v, km);
+  if(kmVal.status === 'blokkert'){
+    visKontrollKmFeil(kmVal.melding);
+    return;
+  }
+  // DEL 7: hopp på 1 000 km eller mer er en ADVARSEL, ikke en blokkering.
+  if(kmVal.status === 'storthopp'){
+    const fortsett = confirm(kmVal.melding + '\n\nForrige registrering: ' + kmVal.gjeldende.toLocaleString('nb-NO') + ' km' +
+      '\nNy verdi: ' + kmVal.ny.toLocaleString('nb-NO') + ' km' +
+      '\nDifferanse: ' + kmVal.differanse.toLocaleString('nb-NO') + ' km' +
+      '\n\nOK = Bekreft og fortsett\nAvbryt = Kontroller tallet');
+    if(!fortsett){
+      const el = document.getElementById('kt-km');
+      if(el){ el.classList.add('kt-km-feil'); el.focus(); el.select && el.select(); }
+      msgEl.textContent = 'Kontroller kilometerstanden og send inn på nytt.';
+      return;
+    }
   }
 
   const varsellamper = kontrollFormVarsellamper.slice();
@@ -5911,7 +6063,7 @@ async function submitKontroll(ev){
   const annetTekst = kontrollFormAnnet ? (document.getElementById('kt-annet-tekst').value || '').trim() : '';
   const harNyeSkader = kontrollFormHarSkader;
   const skadeBeskrivelse = harNyeSkader ? (document.getElementById('kt-skade-beskrivelse').value || '').trim() : '';
-  const kommentar = (document.getElementById('kt-kommentar').value || '').trim();
+  const brukerKommentar = (document.getElementById('kt-kommentar').value || '').trim();
 
   if(harNyeSkader && !skadeBeskrivelse){
     msgEl.textContent = 'Beskriv skaden du har oppdaget.';
@@ -5922,6 +6074,12 @@ async function submitKontroll(ev){
   const dato = todayISO();
   const tidspunkt = nowTimeOslo();
   const sjafor = sjaforNavn;
+  // DEL 8: et bekreftet stort kilometerhopp merkes på selve kontrollen, i det eksisterende
+  // kommentarfeltet. Bevisst IKKE en automatisk verkstedsak — dette er først og fremst
+  // mulig feilregistrering, ikke en kjøretøyfeil.
+  const kommentar = kmVal.status === 'storthopp'
+    ? [kmAvvikMerknad(kmVal, sjafor), brukerKommentar].filter(Boolean).join('\n')
+    : brukerKommentar;
 
   // Logging av alt som sendes inn, slik at eventuelle lagringsproblemer (spesielt på
   // mobil) er enkle å diagnostisere via nettleserkonsollen (F12 / eksterne debug-verktøy).
@@ -5936,6 +6094,30 @@ async function submitKontroll(ev){
   msgEl.textContent = '';
 
   try{
+    // Prioritet 66 DEL 5 — ROTÅRSAK TIL AVVIKET «profil 31 076 km / siste kontroll
+    // 31 345 km»: v.km ble tidligere skrevet HELT TIL SLUTT, etter at kontrollen allerede
+    // var lagret med saveKontroller(). Feilet saveVehicles() (nettverk/Airtable) etter
+    // det, ble kontrollen stående i historikken med den NYE kilometerstanden mens
+    // kjøretøyet beholdt den GAMLE — nøyaktig det observerte avviket. I tillegg svelget
+    // saveVehicles() feilen (alert + console), så submitKontroll() gikk videre som om alt
+    // hadde gått bra.
+    // Nå skrives v.km FØRST, med saveVehiclesOrThrow() og rollback: lykkes den ikke,
+    // opprettes ingen kontroll i det hele tatt. Invarianten v.km >= siste kontroll.km kan
+    // dermed ikke lenger brytes av en delvis feilet lagring.
+    const forrigeKm = v.km;
+    try{
+      v.km = km;
+      await saveVehiclesOrThrow();
+    }catch(kmErr){
+      v.km = forrigeKm; // rollback i minnet — ingen falsk oppdatering i UI
+      console.error('[submitKontroll] Kunne ikke lagre kilometerstand — kontrollen ble IKKE opprettet', kmErr);
+      if(submitBtn) submitBtn.disabled = false;
+      msgEl.innerHTML = '⚠️ Kunne ikke lagre kilometerstanden (' + esc(kmErr && kmErr.message ? kmErr.message : 'ukjent feil') + '). Kontrollen er IKKE registrert. Sjekk nettforbindelsen og prøv igjen.';
+      render();
+      return;
+    }
+    console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
+
     let linkedDamageId = null;
     // KRITISK FEILRETTING: lagre bildene FØRST og tell kun de som faktisk lyktes — et
     // stort/detaljert bilde kan feile mot Airtables feltgrense (se resizeImage()) uten at
@@ -6029,16 +6211,14 @@ async function submitKontroll(ev){
       console.log('[submitKontroll] Aktive Saker oppdatert (Fase 2)');
     }
 
-    // v.km — DEN ENESTE autoritative, jevnlig oppdaterte kilden til bilens nåværende
-    // kilometerstand. Kun kontrollregistrering (denne funksjonen) skal skrive hit.
+    // v.km er allerede skrevet og lagret ØVERST i denne try-blokken (Prioritet 66).
+    // Kun kontrollregistrering (denne funksjonen), performKontrollDeletion(),
+    // resetFleetData() og administrativ korrigering i saveVehicleForm() skal skrive hit.
     // Servicehistorikk (submitService()/saveServiceEdit()) har et HELT SEPARAT km-felt
     // (service.km — historisk verdi, "km ved utført service") som ALDRI skal kobles til
     // v.km, uansett hvor fristende en "oppdater km hvis høyere"-snarvei kan virke — se
     // CLAUDE.md "Servicehistorikk vs. kjøretøyets kilometerstand" for en tidligere,
     // rettet dataintegritetsfeil av nøyaktig denne typen.
-    v.km = km;
-    await saveVehicles();
-    console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
 
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
@@ -8769,7 +8949,7 @@ function kontrollHistorikkRow(k){
         <div class="ov-item"><span class="ov-label">Aktive varsellamper</span><span class="ov-value">${esc(varselTekst)}</span></div>
         <div class="ov-item"><span class="ov-label">Registrerte skader</span><span class="ov-value">${esc(skadeTekst)}</span></div>
       </div>
-      ${k.kommentar ? `<div class="kt-history-meta">Kommentar: ${esc(k.kommentar)}</div>` : ''}
+      ${k.kommentar ? `<div class="kt-history-meta"${kontrollHarKmAvvik(k) ? ' style="color:var(--amber);font-weight:600;white-space:pre-line;"' : ' style="white-space:pre-line;"'}>Kommentar: ${esc(k.kommentar)}</div>` : ''}
       ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">${luc('trash-2')} Slett kontroll</button></div>` : ''}
     </div>
   `;
@@ -9440,42 +9620,12 @@ function renderBilkort(){
   // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
   const euKontrollStatus = vehicleEuKontrollStatus(v);
   const euKontrollFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
-  // den tidligere "🚐 Kjøretøyprofil"-boksen med fire faste felt er erstattet
-  // av nøkkeltallsraden øverst i profilen (Kilometerstand / Siste service / Neste service /
-  // EU-godkjent til) pluss identitetslinjen (bilnummer, reg.nr, løyvenummer, biltype,
-  // bilgruppe, status, aktiv sjåfør). Samme felt, samme kilder — kun ny plassering.
-  // Operativ status er nå ENESTE sted all operativ informasjon om bilen vises — identitet
-  // (bilgruppe/biltype), driftsstatus (hovedstatus/kontrollstatus), saksbilde (aktive/
-  // kritiske/forfalte saker, neste handling/oppfølgingsdato) og neste verkstedtime, samlet.
-  // Operativ status delt i to kolonner for raskere skanning —
-  // venstre: identitet/driftsstatus, høyre: saksbilde/tidslinje. .ov-split-grid bruker
-  // auto-fit/minmax slik at layouten selv avgjør ekte 2-kolonne (nok bredde, typisk
-  // desktop) vs. to stablede seksjoner (for smalt, typisk mobil) — ingen egen
-  // mobil/desktop-gren nødvendig, samme CSS-mønster som .ov-grid allerede bruker internt.
-  const operativStatusBody = `
-    <div class="ov-split-grid">
-      <div class="ov-split-col">
-        <div class="ov-grid">
-          <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
-          <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
-          <div class="ov-item"><span class="ov-label">Hovedstatus</span><span class="ov-value">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span></div>
-          <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚪ Ikke kontrollert i dag')}</span></div>
-          <div class="ov-item"><span class="ov-label">Aktiv sjåfør</span><span class="ov-value">${vehicleSisteSjafor(v.id) ? '👤 ' + esc(vehicleSisteSjafor(v.id)) : '– Ingen aktiv sjåfør'}</span></div>
-        </div>
-      </div>
-      <div class="ov-split-col">
-        <div class="ov-grid">
-          <div class="ov-item"><span class="ov-label">Aktive saker</span><span class="ov-value">${vAktiveSakerListe.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Forfalte oppfølginger</span><span class="ov-value">${vForfalteOppfolginger.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Neste handling</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.nextAction ? esc(vNesteOppfolging.nextAction) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
-          <div class="ov-item"><span class="ov-label">Neste oppfølgingsdato</span><span class="ov-value">${vNesteOppfolging && vNesteOppfolging.followUpDate ? fmt(vNesteOppfolging.followUpDate) : (vAktiveSakerListe.length > 0 ? '⚠️ Mangler' : '–')}</span></div>
-          <div class="ov-item"><span class="ov-label">Neste verkstedtime</span><span class="ov-value">${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + vNesteVT.tidspunkt : '') : 'Ingen planlagt'}</span></div>
-          <div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${sisteHendelse ? fmt(sisteHendelse.dato) : '–'}</span></div>
-        </div>
-      </div>
-    </div>
-    ${v.uteAvDrift ? `<div class="required-hint" style="margin-top:10px;background:var(--red-soft);color:var(--red);padding:10px 12px;border-radius:10px;font-weight:600;">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
-  `;
+  // Prioritet 65.2: operativStatusBody er FJERNET. Alle radene der (Bilgruppe, Biltype,
+  // Hovedstatus, Kontrollstatus, Aktiv sjåfør, Aktive saker, Forfalte oppfølginger, Neste
+  // handling, Neste oppfølgingsdato, Neste verkstedtime, Sist oppdatert) fantes allerede
+  // i toppseksjonen, den operative statusraden eller Kjøretøydetaljer — og de fleste viste
+  // "0" eller "–" på en normal bil. Det som faktisk krever handling (neste verkstedtime,
+  // neste oppfølging) vises nå i Oversikt-fanen, men KUN når det finnes.
 
   // selve "Marker ute av drift"-knappen/skjemaet er flyttet ned
   // til Faresone (sammen med Slett bil — begge er spesielle/risikofylte handlinger, ikke
@@ -9702,14 +9852,11 @@ function renderBilkort(){
     .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))[0] || null;
   const vDekkSesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
   const vDekkAlder = dekkAlderStatus(vDekkSesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot);
-  const kommendeOppgaverBilBody = `
-    <ul class="dmg-simple-list kompakt">
-      <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · ${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}${vSisteService ? ' · sist ' + fmt(vSisteService.dato) + (vSisteService.km ? ' ved ' + Number(vSisteService.km).toLocaleString('nb-NO') + ' km' : '') : ' · ingen service registrert'}${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + ' — ' + esc(vPlanlagtService.verksted || '') : ''}</span></li>
-      <li style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="dmg-simple-main">🛞 Dekk · ${DEKK_LABEL[v.dekk] || 'Ikke satt'}${vDekkAlder ? ' · ' + vDekkAlder.ikon + ' ' + esc(vDekkAlder.tekst) : ''}${vPlanlagtDekkskift ? '<br>📅 Dekkskift ' + fmt(vPlanlagtDekkskift.dato) + (vPlanlagtDekkskift.tidspunkt ? ' kl. ' + esc(vPlanlagtDekkskift.tidspunkt) : '') : ''}</span></li>
-      <li><span class="dmg-simple-main">🚦 EU-kontroll · ${euKontrollStatus.ikon} ${v.euGodkjentTil ? 'godkjent til ' + fmt(v.euGodkjentTil) + ' · ' + esc(euKontrollStatus.tekst) : 'Mangler registrering'}${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
-      ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
-      <li${vNesteVT ? ` style="cursor:pointer;" data-goto-vt="${v.id}"` : ''}><span class="dmg-simple-main">🏭 Verkstedtime · ${vNesteVT ? fmt(vNesteVT.dato) + (vNesteVT.tidspunkt ? ' kl. ' + esc(vNesteVT.tidspunkt) : '') : 'Ingen planlagt'}</span></li>
-    </ul>`;
+  // Prioritet 65.2: panelet "📋 Kommende oppgaver" er FJERNET fra Kjøretøyprofilen —
+  // det gjentok Service/Dekk/EU/Verksted, og blandet inn historikk ("sist service") som
+  // ikke er en kommende oppgave. Variablene over (vPlanlagtService/vPlanlagtDekkskift/
+  // vDekkAlder) er beholdt og gjenbrukes nå i Oversikt-fanen, som er eneste sted denne
+  // statusen vises på profilen.
 
   // ---- Fane "🛞 Dekk": ren VISNING av eksisterende dekkdata for bilen. All registrering
   // og redigering skjer fortsatt kun på den dedikerte Dekk-arbeidsflaten (renderDekkSkjerm) —
@@ -9774,12 +9921,15 @@ function renderBilkort(){
   const aktivFane = PROFIL_FANER.some(f => f.key === bilkortAktivFane) ? bilkortAktivFane : 'oversikt';
   const faneBody = {
     oversikt: `
-      ${operativStatusBody}
-      <div class="ov-grid" style="margin-top:12px;">
-        <div class="ov-item" style="cursor:pointer;" data-goto-service="${v.id}"><span class="ov-label">🔧 Service</span><span class="ov-value" style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${vServiceStatus.tekst} →</span></div>
-        <div class="ov-item" style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="ov-label">🛞 Dekk</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'} →</span></div>
-        <div class="ov-item"><span class="ov-label">🚦 EU-kontroll</span><span class="ov-value" style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? euKontrollStatus.tekst : 'Mangler registrering'}</span></div>
-      </div>`,
+      <ul class="dmg-simple-list kompakt">
+        <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · <span style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}</span>${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + (vPlanlagtService.verksted ? ' — ' + esc(vPlanlagtService.verksted) : '') : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>
+        <li style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="dmg-simple-main">🛞 Dekk · ${DEKK_LABEL[v.dekk] || 'Ikke satt'}${vDekkAlder ? ' · ' + vDekkAlder.ikon + ' ' + esc(vDekkAlder.tekst) : ''}${vPlanlagtDekkskift ? '<br>📅 Dekkskift ' + fmt(vPlanlagtDekkskift.dato) + (vPlanlagtDekkskift.tidspunkt ? ' kl. ' + esc(vPlanlagtDekkskift.tidspunkt) : '') : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>
+        <li><span class="dmg-simple-main">🚦 EU-kontroll · <span style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? 'godkjent til ' + fmt(v.euGodkjentTil) : 'Mangler registrering'}</span>${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
+        ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
+        ${vNesteVT ? `<li style="cursor:pointer;" data-goto-vt="${v.id}"><span class="dmg-simple-main">🏭 Verkstedtime · 📅 ${fmt(vNesteVT.dato)}${vNesteVT.tidspunkt ? ' kl. ' + esc(vNesteVT.tidspunkt) : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>` : ''}
+        ${vNesteOppfolging && vNesteOppfolging.followUpDate ? `<li><span class="dmg-simple-main">⏰ Neste oppfølging · ${fmt(vNesteOppfolging.followUpDate)}${vNesteOppfolging.nextAction ? ' — ' + esc(vNesteOppfolging.nextAction) : ''}</span></li>` : ''}
+        ${vKmAvvik ? `<li><span class="dmg-simple-main" style="color:var(--amber);font-weight:600;">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, siste kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Korrigeres kun via Rediger informasjon.</span></li>` : ''}
+      </ul>`,
     historikk: historikkSamletBody,
     skader: skadeBody,
     dekk: dekkFaneBody,
@@ -9791,6 +9941,8 @@ function renderBilkort(){
   const p38SjaforIdag = vehicleSisteSjafor(v.id);
   // Prioritet 65: mobilitetsgaranti som operativ status i toppseksjonen (live-beregnet,
   // se vehicleMobilitetsgaranti()) — ikke lenger et eget stort informasjonskort.
+  // Prioritet 66 DEL 10: ren RAPPORTERING av et eksisterende avvik — korrigerer ingenting.
+  const vKmAvvik = kmAvvikForVehicle(v);
   const vMobgaranti = vehicleMobilitetsgaranti(v);
   const mgPille = mobilitetsgarantiPille(v);
 
@@ -9830,9 +9982,9 @@ function renderBilkort(){
         <span class="flis" style="--tint:${vDamagesAktive.length > 0 ? 'var(--orange-soft)' : 'var(--green-soft)'};">${vDamagesAktive.length > 0 ? '⚠️' : '🟢'}</span>
         <span><span class="l">Skader</span><span class="v" style="${vDamagesAktive.length > 0 ? 'color:var(--orange);' : ''}">${vDamagesAktive.length}</span><span class="s">${vDamages.length} registrert totalt →</span></span>
       </div>
-      <div>
+      <div ${vAktiveSakerListe.length > 0 ? 'id="op-saker-flis" style="cursor:pointer;"' : ''}>
         <span class="flis" style="--tint:${vAktiveSakerListe.length > 0 ? 'var(--amber-soft)' : 'var(--green-soft)'};">${vAktiveSakerListe.length > 0 ? '📂' : '🟢'}</span>
-        <span><span class="l">Aktive saker</span><span class="v" style="${vAktiveSakerListe.length > 0 ? 'color:var(--amber);' : ''}">${vAktiveSakerListe.length}</span><span class="s">${vForfalteOppfolginger.length > 0 ? '⏰ ' + vForfalteOppfolginger.length + ' forfalt' : (vNesteOppfolging && vNesteOppfolging.followUpDate ? 'Neste ' + fmt(vNesteOppfolging.followUpDate) : 'Ingen oppfølging')}</span></span>
+        <span><span class="l">Aktive saker</span><span class="v" style="${vAktiveSakerListe.length > 0 ? 'color:var(--amber);' : ''}">${vAktiveSakerListe.length}</span><span class="s">${vAktiveSakerListe.length === 0 ? 'Ingen åpne saker' : (vForfalteOppfolginger.length > 0 ? '⏰ ' + vForfalteOppfolginger.length + ' forfalt →' : (vNesteOppfolging && vNesteOppfolging.followUpDate ? 'Neste ' + fmt(vNesteOppfolging.followUpDate) + ' →' : 'Åpne saksliste →'))}</span></span>
       </div>
     </div>
 
@@ -9852,12 +10004,6 @@ function renderBilkort(){
       </button>
     </div>
 
-    <div class="dash-quick-links" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
-      <button class="btn secondary small" id="hh-kontroll-btn" style="justify-content:flex-start;">✅ Registrer kontroll</button>
-      <button class="btn secondary small" id="hh-skade-btn" style="justify-content:flex-start;">⚠️ Registrer skade</button>
-      <button class="btn secondary small" id="hh-saker-btn" style="justify-content:flex-start;">🗂️ Åpne aktive saker</button>
-    </div>
-
     ${showBilinfoRediger ? `
     <div class="panel" style="margin-bottom:18px;">
       <div class="p38-panel-head"><div class="tittel">✏️ Bilinformasjon</div></div>
@@ -9875,15 +10021,11 @@ function renderBilkort(){
       </div>
 
       <div>
-        <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">📋 Kommende oppgaver</div></div>
-          ${kommendeOppgaverBilBody}
-        </div>
-
+        ${vAktiveSakerListe.length === 0 ? '' : `
         <div class="panel" style="margin-bottom:16px;">
           <div class="p38-panel-head"><div class="tittel">🗂️ Aktive saker (${vAktiveSakerListe.length})</div></div>
           ${aktiveSakerBody}
-        </div>
+        </div>`}
 
         ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
           <div class="ov-grid">
@@ -9935,15 +10077,13 @@ function attachBilkortListeners(){
   document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
   document.querySelectorAll('[data-toggle-bilkort-historikk]').forEach(el => el.addEventListener('click', () => toggleBilkortHistorikkSub(el.dataset.toggleBilkortHistorikk)));
 
-  // Fase 7 — Hurtighandlinger på Kjøretøyprofil (gjenbruker eksisterende skjemaer)
-  const hhKontrollBtn = document.getElementById('hh-kontroll-btn');
-  if(hhKontrollBtn) hhKontrollBtn.addEventListener('click', () => goToRegisterKontroll(currentVehicleId));
-  const hhSkadeBtn = document.getElementById('hh-skade-btn');
-  if(hhSkadeBtn) hhSkadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
-  // den gamle "🔧 Registrer verkstedtime"-knappen er erstattet av
-  // hurtigbestillingskortet 🏭 Verkstedtime over (samme funksjon, goToRegisterVT()).
-  const hhSakerBtn = document.getElementById('hh-saker-btn');
-  if(hhSakerBtn) hhSakerBtn.addEventListener('click', () => goToAktiveSakerForVehicle(currentVehicleId));
+  // Prioritet 65.2: raden med ✅ Registrer kontroll / ⚠️ Registrer skade / 🗂️ Åpne aktive
+  // saker er fjernet fra profilen — alle tre finnes på sine egne arbeidsflater, og raden
+  // konkurrerte med bestillingskortene rett over. Funksjonene er URØRT:
+  // goToRegisterKontroll() brukes fortsatt av Dashboard og menyen, goToRegisterSkade() av
+  // Skader-fanen lenger ned, og goToAktiveSakerForVehicle() av statusflisen under.
+  const opSakerFlis = document.getElementById('op-saker-flis');
+  if(opSakerFlis) opSakerFlis.addEventListener('click', () => goToAktiveSakerForVehicle(currentVehicleId));
 
   // Fase 7 — Ute av drift
   const uadMarkerBtn = document.getElementById('uad-marker-btn');
@@ -14749,7 +14889,26 @@ function attachKontrollListeners(){
     render();
   });
   const kmInput = document.getElementById('kt-km');
-  if(kmInput) kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; saveKontrollDraft(); });
+  if(kmInput){
+    kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; fjernKontrollKmFeil(); saveKontrollDraft(); });
+    // Prioritet 66: tidlig tilbakemelding når feltet mister fokus. Dette er KUN en
+    // hjelp — den autoritative valideringen kjøres på nytt i submitKontroll().
+    kmInput.addEventListener('blur', e => {
+      const bil = vehicles.find(x => x.id === kontrollFormVehicleId);
+      if(!bil || e.target.value === '') return;
+      const val = validerKontrollKm(bil, e.target.value);
+      const msgEl = document.getElementById('kt-msg');
+      if(val.status === 'blokkert'){
+        e.target.classList.add('kt-km-feil');
+        if(msgEl) msgEl.textContent = val.melding;
+      } else if(val.status === 'storthopp'){
+        e.target.classList.remove('kt-km-feil');
+        if(msgEl) msgEl.textContent = val.melding;
+      } else {
+        fjernKontrollKmFeil();
+      }
+    });
+  }
   const sjaforInput = document.getElementById('kt-sjafornavn');
   if(sjaforInput) sjaforInput.addEventListener('input', e => { kontrollFormSjaforNavn = e.target.value; saveKontrollDraft(); });
   const kommentarInput = document.getElementById('kt-kommentar');

@@ -15,6 +15,84 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 66 — Operativ dagsreset og kilometerbeskyttelse
+
+**Rotårsak — kilometeravviket**
+
+`submitKontroll()` skrev `v.km` HELT TIL SLUTT, etter at kontrollen allerede var lagret med
+`saveKontroller()`. Feilet `saveVehicles()` etter det (nett/Airtable), ble kontrollen stående
+i historikken med den NYE kilometerstanden mens kjøretøyet beholdt den GAMLE. I tillegg
+svelget `saveVehicles()` feilen (alert + `console.error`), så funksjonen gikk videre som om
+alt hadde gått bra. Sekundær årsak: en sjåfør kunne skrive `v.km` NEDOVER via en
+«Registrere likevel?»-bekreftelse.
+
+**Rotårsak — foreldet aktiv sjåfør**
+
+04:00-regelen (`isoDateForOperationalDay`/`todayISO`) var korrekt og sentral, og
+`vehicleAktivSjafor()`/`isKontrollertIdag()` regnet allerede live mot den.
+`ryddOppBiloktDagskille()` og revurderingen av sjåførens `driverScreen` kjørte derimot KUN
+ved `init()`. En PWA bakgrunnslegges i stedet for å lukkes, så en sjåførtelefon som sto på
+«Min Bil» over dagskillet fortsatte i gårsdagens biløkt. Det fantes ingen
+`visibilitychange`- eller `pageshow`-håndtering i appen.
+
+**Løsning**
+
+| Del | Endring |
+|---|---|
+| 2/3 | Nytt `handhevOperativtDogn()` kalles ved oppstart, `visibilitychange`, `pageshow`, hver live-synk og hver `goTo()`. Ingen timer. Skriver kun til Airtable når det faktisk finnes en foreldet biløkt |
+| 4 | Ingen endring nødvendig — `isKontrollertIdag()` baserte seg allerede utelukkende på kontroller + `todayISO()` |
+| 5 | `v.km` skrives nå FØRST i `submitKontroll()`, med ny `saveVehiclesOrThrow()` og rollback. Feiler lagringen, opprettes ingen kontroll |
+| 6 | Lavere km enn `v.km` BLOKKERES i Sjåførkontroll. Validering ved blur og ved innsending; innsendingsvalideringen er autoritativ |
+| 7 | Hopp på ≥ 1 000 km gir advarsel med differanse og valget «Bekreft og fortsett» / «Kontroller tallet» |
+| 8 | Bekreftet hopp merkes på kontrollen via det EKSISTERENDE kommentarfeltet — ingen ny datamodell, intet nytt Airtable-felt, ingen automatisk verkstedsak |
+| 9 | Merknaden vises automatisk i kontrollhistorikken og detaljvisningen, uthevet i amber |
+| 10 | `kmAvvikForVehicle()` + `rapporterKmAvvik()` rapporterer avvik. Ingen automatisk korrigering |
+
+CSS: `.kt-km-input.kt-km-feil` (modifier på eksisterende felt, eksisterende `--red`-token).
+
+CACHE_VERSION bilpark-v68 → bilpark-v69. `storage.airtable.js` urørt (v2.14.0).
+
+**Verifisering**
+
+`node --check`, tag-balanse (div 1394/1394, span 534/534, li 35/35), kartlegging av alle
+`v.km`-skrivere (4 tillatte + rollback, ingen andre), 11 simulerte km-scenarioer og 9
+simulerte døgnskille-scenarioer inkludert vintertid — alle bestått.
+
+---
+
+### Prioritet 65.2 — Operativ opprydding av Kjøretøyprofil
+
+**Problem eller mål**
+
+Profilen var fortsatt for lang: den viste samme informasjon flere steder, og store
+seksjoner var fylt med tomtilstander («0», «–», «Ingen planlagt») på en helt normal bil.
+
+**Løsning**
+
+| Del | Endring |
+|---|---|
+| 1 | Åpning av en kjøretøyprofil scroller alltid til toppen. `goTo()` kaller `window.scrollTo(0,0)` KUN når `vehicleId` er satt — altså ved bytte av bil, ikke ved re-render av samme profil |
+| 2 | Raden ✅ Registrer kontroll / ⚠️ Registrer skade / 🗂️ Åpne aktive saker er fjernet. Funksjonene er urørt; `goToAktiveSakerForVehicle()` er flyttet til statusflisen «Aktive saker», som nå er klikkbar når bilen har saker |
+| 3 | Panelet 📋 Kommende oppgaver er fjernet. Det gjentok Service/Dekk/EU/Verksted og blandet inn historikk («sist service») som ikke er en kommende oppgave |
+| 4 | Blokken «Operativ status» (todelt `ov-split-grid` med 11 rader) er fjernet. Alt fantes allerede i toppseksjonen, statusraden eller Kjøretøydetaljer, og viste stort sett «0»/«–» |
+| 5 | Panelet 🗂️ Aktive saker rendres kun når bilen faktisk har saker. Ellers står «Ingen åpne saker» i statusflisen |
+| 6 | Oversikt-fanen er nå én kompakt liste: Service · Dekk · EU alltid; Ruteskift, Verkstedtime og Neste oppfølging **kun når de finnes** |
+
+Fra 3 rader ved tom bil til 6 når alt er planlagt — ingen faste tomrader.
+
+CSS: `.ov-split-grid` og `.ov-split-col` slettet (ingen andre brukere). Ingen nye
+komponenter, farger eller radier.
+
+CACHE_VERSION bilpark-v67 → bilpark-v68.
+
+**Verifisering**
+
+`node --check` på begge script-blokker, tag-balanse (div 1394/1394, span 533/533,
+li 34/34), og simulering av Oversikt-fanen i tre tilstander (ny bil uten data, normal bil,
+bil med alt planlagt) — ingen rad med «0», «–» eller «Ingen planlagt».
+
+---
+
 ### Prioritet 65.1 — Hurtigbestillingene snakker i handlingsform
 
 **Problem eller mål**

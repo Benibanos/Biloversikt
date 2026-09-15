@@ -1,6 +1,11 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 65.1 — bestillingskortene snakker i
+Sist oppdatert: 2026-09-14 (Prioritet 66 — operativ dagsreset og kilometerbeskyttelse:
+dagskillet håndheves ved alle inngangspunkter, lavere km blokkeres i Sjåførkontroll,
+hopp ≥ 1 000 km krever bekreftelse og merkes på kontrollen).
+Før det: 2026-09-14 (Prioritet 65.2 — operativ opprydding av Kjøretøyprofil:
+scroll til topp, hurtighandlinger og Kommende oppgaver fjernet, tomtilstander skjult).
+Før det: 2026-09-14 (Prioritet 65.1 — bestillingskortene snakker i
 handlingsform: «Bestill service/EU-kontroll/dekkskift/ruteskift» på alle fire flater).
 Før det: 2026-09-14 (Prioritet 65 — Operativ Kjøretøyprofil: ny toppseksjon
 med statusprikk, mobilitetsgaranti live-beregnet fra Mekonomen-service, operativ
@@ -1624,3 +1629,75 @@ autoutfylling. `sw.js` CACHE_VERSION bilpark-v66 → bilpark-v67.
 **Kjent begrensning:** kortene på Dashboard og Bestill tjenester-skjermen kjenner ingen bil
 ennå. «Bestill service» der fører først til bilvelgeren i Service-arbeidsflaten — kun kortet
 på Kjøretøyprofilen åpner et ferdig forhåndsutfylt skjema.
+
+## Prioritet 65.2 (2026-09-14) — Operativ opprydding av Kjøretøyprofil
+
+✅ Implementert og verifisert. Ren opprydding — ingen endring i mobilitetsgaranti,
+Mekonomen-regelen, hurtigbestillingene, sjåførlogikk, statusmotor, saksmotor, Airtable,
+storage eller Biloversikt.
+
+**Fjernet fra profilen:**
+
+1. Hurtighandlingsraden (3 knapper) — funksjonene urørt
+2. Panelet 📋 Kommende oppgaver — duplikat av Service/Dekk/EU/Verksted
+3. Blokken «Operativ status» (`ov-split-grid`, 11 rader) — duplikat av toppseksjon,
+   statusrad og Kjøretøydetaljer
+4. Panelet 🗂️ Aktive saker når bilen ikke har saker
+5. Alle faste tomrader i Oversikt-fanen
+
+**Lagt til:** scroll til toppen ved åpning av ny bil; klikkbar Aktive saker-flis.
+
+CSS: `.ov-split-grid` / `.ov-split-col` slettet. `sw.js` CACHE_VERSION bilpark-v67 → v68.
+
+**Kjente begrensninger:**
+
+1. **Planlagte timer vises nå kun i Oversikt-fanen**, ikke i en egen alltid-synlig seksjon.
+   Er en annen fane aktiv, må brukeren bytte tilbake til Oversikt for å se dem.
+   Kalenderen er fortsatt eneste fullstendige planleggingsflate.
+2. **«Sist service» er ikke lenger synlig på profilens forside.** Datoen finnes i
+   Historikk-fanen og på Service-arbeidsflaten. Oversikt-fanen viser nå kun neste service.
+3. **Scroll-til-topp gjelder kun Kjøretøyprofilen.** Andre skjermer arver fortsatt
+   scrollposisjon ved navigasjon — bevisst, for å holde endringsflaten minst mulig.
+   Utvides enkelt til all navigasjon hvis ønskelig.
+4. `goBack()` til en kjøretøyprofil scroller også til toppen, siden den går via `goTo()`
+   med `vehicleId` satt.
+
+## Prioritet 66 (2026-09-14) — Operativ dagsreset og kilometerbeskyttelse
+
+✅ Implementert og verifisert. Dataintegritetsoppgave — ingen designendring.
+
+**Rotårsak 1 (kilometeravvik):** `submitKontroll()` skrev `v.km` sist, etter at kontrollen
+var lagret, og `saveVehicles()` svelget lagringsfeil. En feilet km-lagring etterlot derfor
+en kontroll med høyere km enn kjøretøyet. Sekundært: sjåfør kunne skrive km nedover via en
+«Registrere likevel?»-bekreftelse.
+
+**Rotårsak 2 (foreldet sjåfør):** 04:00-logikken var korrekt, men
+`ryddOppBiloktDagskille()` og revurderingen av `driverScreen` kjørte kun ved `init()`.
+Ingen `visibilitychange`/`pageshow`-håndtering fantes.
+
+**Nytt:** `handhevOperativtDogn()`, `saveVehiclesOrThrow()`, `validerKontrollKm()`,
+`kmAvvikMerknad()`, `kontrollHarKmAvvik()`, `kmAvvikForVehicle()`, `window.rapporterKmAvvik()`,
+`.kt-km-input.kt-km-feil`.
+
+`sw.js` CACHE_VERSION bilpark-v68 → v69. `storage.airtable.js` URØRT (v2.14.0) — ingen nye
+felt, ingen `LIST_TABLES`-endring, ingen migrering.
+
+**Storage-regel verifisert:** `index.html` og `kontroll.html` peker begge på
+`storage.airtable.js?v=2.14.0`; `sw.js` cacher `./storage.airtable.js`. Ingen
+filnavnvarianter i de serverte filene.
+
+**Kjente begrensninger / åpne punkter:**
+
+1. **Storthopp-bekreftelsen bruker `confirm()`**, ikke en egen dialog med knappene
+   «Kontroller tallet» / «Bekreft og fortsett». Valgene står i teksten (OK/Avbryt).
+   Samme mønster som resten av appens bekreftelser.
+2. **Merknaden om stort hopp lagres i kontrollens kommentarfelt.** Skriver sjåføren selv en
+   kommentar, står merknaden som egen første linje. Den er maskinlesbar via
+   `KM_AVVIK_PREFIX`, men en administrator som redigerer kommentaren kan fjerne markøren.
+3. **Del 10-rapporten kunne ikke kjøres her** — det finnes ingen tilgang til produksjons-
+   dataene i utviklingsmiljøet. Kjør `rapporterKmAvvik()` i nettleserkonsollen på
+   Dashboard for full liste. Avvik vises også direkte på Kjøretøyprofilens Oversikt-fane.
+4. **Ingen automatisk reparasjon av historiske data** er gjort, i tråd med Del 10.
+5. `performKontrollDeletion()` setter `v.km = remaining[0].km` kun når det finnes
+   gjenværende kontroller. Slettes den siste kontrollen på en bil, beholder bilen km fra
+   den slettede kontrollen. Uendret oppførsel — ikke rørt i denne prioriteten.
