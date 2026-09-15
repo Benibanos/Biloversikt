@@ -13,36 +13,6 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
-## 2026-09-15
-
-### Prioritet 69 — Operativ oppstartsskjerm
-
-«Laster inn...» er erstattet av en statusflate som viser hva som faktisk lastes:
-Kjøretøy, Kontroller, Aktive saker, Skader og Forbereder dashboard (sjåførkontroll i
-sjåførmodus). Hver rad går ⏳ → ✅ eller ⚠️ i takt med reelle Airtable-lesinger.
-
-| Situasjon | Resultat |
-|---|---|
-| Alt lastet | «✅ Klar — Åpner Bilpark…» i 450 ms, rolig fade til Dashboard |
-| Vehicles lesefeil | Appen åpnes ikke. Ekte feilmelding fra 66.9 (teknisk årsak + tidspunkt), «Last på nytt» og «Database status» (kun admin) |
-| Kontroller/Aktive saker/Skader feiler | Stopper med tydelig melding, «Last på nytt» eller «Åpne Bilpark» |
-| Kjøretøyregisteret bekreftet tomt | Stopper med forklaring, «Last på nytt» eller «Åpne Bilpark» |
-| Treg Airtable | Skjermen står stabilt; etter 6 s: «Airtable svarer tregt — venter fortsatt» |
-| Uventet feil i oppstarten | «Bilpark kunne ikke startes» med teknisk årsak — ikke lenger en stille, hengende skjerm |
-
-Versjon vises nederst («Bilpark v78 (storage v2.15.0)»). Oppstartsskjermen er mørk fra
-første bilde. Kun eksisterende tokens, `.panel` og `.btn` — ingen nye komponenter.
-
-`index.html` / `kontroll.html`, `sw.js` CACHE_VERSION bilpark-v77 → **bilpark-v78**.
-`storage.airtable.js` uendret.
-
-**Verifisering** — ekte Chromium mot simulert storage: normal oppstart, Vehicles-lesefeil
-(admin og sjåfør), Database status fra stopp, Kontroller-feil + «Åpne Bilpark», tomt
-register, treg Airtable (7,5 s og 9 s), refresh, uventet krasj, mobil 390 px uten
-horisontal scroll. Null skriving mot Vehicles ved lesefeil. Ingen JS-feil.
-
----
-
 ## 2026-09-14
 
 ### Prioritet 68.1 — Fjernet boilerplate i utvidet sak
