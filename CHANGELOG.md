@@ -15,6 +15,102 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-14
 
+### Prioritet 66.2 — Siste integritetskontroll før deploy
+
+**1–2. Gulvet dekker hele kontrollhistorikken**
+
+`kontrollKmGulv(v)` returnerer nå det høyeste av `v.km` og **høyeste gyldige km i hele
+kontrollhistorikken for bilen** — ikke bare siste kontroll. En eldre kontroll kan ha høyere
+km enn den siste, og da er det den eldre verdien som er gulvet. Ny hjelper
+`kmVerdiEllerNull()` forkaster tomme, ikke-numeriske og negative verdier. Kontroller for
+andre biler filtreres bort, og et eventuelt fremtidig `k.testdata`/`k.erTestdata`-flagg
+respekteres defensivt. Slettede kontroller finnes ikke i `kontroller` og kan ikke telle med.
+
+Gulvet returnerer `{verdi, kilde, kilde_type, kontroll}`, der `kontroll` er
+`{id, dato, tidspunkt, sjafor, km}` når gulvet kommer fra en kontroll.
+
+**3. Samme gulv overalt** — blokkering, 1 000 km-varsel og km-avviksmerknaden. Merknaden
+navngir nå kilden fullt ut, inkludert kontroll-ID. `kmAvvikForVehicle()` og
+`rapporterKmAvvik()` bruker samme gulv og rapporterer kontroll-ID.
+
+**4. Mislykket kompenserende rollback**
+
+Meldingen er nå delt i to. Ren rollback: «ingenting ble lagret … trykk Send inn på nytt».
+Mislykket kompenserende skriving: **MULIG DELVIS LAGRING**, navngir datasettene, og sier
+eksplisitt «Ikke send inn på nytt» med henvisning til Database status i Innstillinger eller
+kontrollhistorikken på bilen.
+
+**5. Sjåførbrikken**
+
+Bekreftet og strammet inn: aktiv sjåfør kommer utelukkende fra `vehicleAktivSjafor()`, som
+kontrollerer `v.aktivSjaforSiden` mot operativt døgn. `vehicleSisteSjafor()` leses nå bare
+når det ikke finnes en aktiv sjåfør, og vises som egen brikke merket «🕓 Sist kontrollert
+av …» — på både Kjøretøyprofil og Biloversikt. Rå `v.aktivSjafor` leses ingen steder i
+visningen.
+
+**7–8.** Ingen automatisk korrigering av historiske data. `storage.airtable.js` og
+Airtable-skjemaet er urørt — ingen nye felt var nødvendige.
+
+CACHE_VERSION bilpark-v70 → bilpark-v71.
+
+**Verifisering**
+
+Gulv-simulering med kontroller som har tom, tekstlig, negativ, testdatamerket og
+fremmed-bil-km: gulvet lander på 31 345 fra `k-eldre`, ikke 31 200 fra siste kontroll.
+Punkt 6-testene bestått. Transaksjonssimuleringen kjørt på nytt for alle fem
+lagringssteg, pluss den nye grenen der kompenserende lagring også feiler.
+
+---
+
+### Prioritet 66.1 — Lukket integritetshull før deploy av Prioritet 66
+
+**1–2. Kilometergulv**
+
+Validering kun mot `v.km` var utilstrekkelig når dataene ALLEREDE er inkonsistente: med
+`v.km` = 31 076 og siste kontroll = 31 345 ville 31 200 sluppet gjennom og gjort avviket
+permanent. Nytt `kontrollKmGulv(v)` returnerer det HØYESTE av `v.km` og siste gyldige
+kontrollkilometer, med kilde. Både blokkeringen og 1 000 km-advarselen måler mot dette
+gulvet. Gulvet skriver aldri `v.km` — `v.km` oppdateres ikke automatisk til siste kontroll.
+
+**3. submitKontroll() kartlagt som sekvens, ikke transaksjon**
+
+Ordet «atomisk» er fjernet fra kode og dokumentasjon. Airtable gir ingen transaksjoner;
+hver `save*()` er en selvstendig nettverksskriving. Faktisk rekkefølge:
+
+| # | Operasjon | Lagres av |
+|---|---|---|
+| 1 | `vehicles` (v.km) | `saveVehiclesOrThrow()` |
+| 2 | bilder `kontroll:<id>:<n>` | `savePhoto()` |
+| 3 | `damages` (kun ved ny skade) | `saveDamages()` |
+| 4 | bilde `damage:<id>` (fallback) | `savePhoto()` |
+| 5 | `kontroller` | `saveKontroller()` |
+| 6 | `varsellys` | `saveVarsellys()` |
+| 7 | `aktiveSaker` | `saveAktiveSaker()` |
+| 8 | `vehicles` (aktiv sjåfør) | `settAktivSjafor()` → `saveVehicles()` |
+
+**4. Samlet rollback**
+
+Snapshot av `vehicles`, `damages`, `kontroller`, `varsellys` og `aktiveSaker` tas før
+første mutasjon. Feiler et steg: lokal state gjenopprettes, kompenserende lagring kjøres i
+motsatt rekkefølge for alt som faktisk rakk å bli skrevet, lagrede bilder slettes, og
+brukeren får vite NØYAKTIG hvilken del som feilet. Ingen «Kontroll registrert», ingen
+navigasjon, skjemadata og utkast beholdes. Feiler også den kompenserende skrivingen, sies
+det eksplisitt fra i meldingen. Den ytre `catch`-blokken går gjennom samme rollback.
+
+Steg 8 ligger bevisst utenfor rollback-grensen: kontrollen er da gyldig lagret og skal ikke
+rulles tilbake fordi en biløkt ikke lot seg sette.
+
+CACHE_VERSION bilpark-v69 → bilpark-v70.
+
+**Verifisering**
+
+Full transaksjonssimulering med injisert feil i hvert av de fem lagringsstegene: i alle
+tilfeller `v.km` tilbake til 31 076, ingen ny kontroll, ingen skade, ingen varsellampe,
+ingen sak, alle lagrede bilder slettet, ingen navigasjon, ingen «Kontroll registrert».
+Sju gulv-scenarioer med inkonsistent utgangsdata — alle bestått.
+
+---
+
 ### Prioritet 66 — Operativ dagsreset og kilometerbeskyttelse
 
 **Rotårsak — kilometeravviket**

@@ -2789,3 +2789,52 @@ ikke en kjøretøyfeil.
 
 **Historiske km-avvik korrigeres aldri automatisk.** `kmAvvikForVehicle()` og
 `window.rapporterKmAvvik()` rapporterer; korrigering er en bevisst adminhandling.
+
+## Prioritet 66.1 (2026-09-14) — Kilometergulv og ærlig transaksjonsspråk
+
+**Valideringsgulvet er ikke `v.km` alene.** `kontrollKmGulv(v)` returnerer det HØYESTE av
+`v.km` og siste gyldige kontrollkilometer. Grunnen er at eksisterende data allerede kan
+være inkonsistente — validerer man kun mot `v.km`, kan en ny registrering ligge under siste
+kontroll og gjøre avviket permanent. Både blokkeringen (Del 6) og 1 000 km-advarselen
+(Del 7) måler mot dette gulvet.
+
+**Gulvet er beskyttelse, ikke en ny sannhet.** `v.km` er fortsatt eneste autoritative
+nåværende kilometerstand. Gulvet leser siste kontroll, men skriver den ALDRI til `v.km`.
+Ikke innfør automatisk «løft v.km til siste kontroll» — det er en bevisst adminhandling.
+
+**`submitKontroll()` er IKKE atomisk. Ikke bruk ordet.** Airtable har ingen transaksjoner.
+Det som finnes er sekvensiell lagring med snapshot-basert rollback og kompenserende
+skriving. Rekkefølgen står dokumentert i kommentaren øverst i funksjonen — hold den
+oppdatert når nye persistente steg legges til, og legg nye steg inn i `lagret`-listen med
+`try/catch` → `rullTilbake()`.
+
+**Rollback-kontrakten ved feil:** lokal state tilbake fra snapshot · kompenserende lagring i
+motsatt rekkefølge · lagrede bilder slettes · ingen «Kontroll registrert» · ingen navigasjon
+· skjemadata og utkast beholdes · meldingen navngir hvilket steg som feilet, og sier fra
+dersom tilbakestillingen i Airtable heller ikke gikk gjennom.
+
+**Steg 8 (aktiv sjåfør) er utenfor rollback-grensen** — kontrollen er gyldig uten biløkt.
+
+## Prioritet 66.2 (2026-09-14) — Gulvet er hele historikken, og aktiv sjåfør har én kilde
+
+**`kontrollKmGulv(v)` ser på HELE kontrollhistorikken**, ikke bare siste kontroll. Gulvet
+er høyeste gyldige km av `v.km` og alle kontroller for bilen. Grunnen: en eldre kontroll
+kan ha høyere km enn den siste i eksisterende, inkonsistente data — bruker man bare siste,
+slipper en for lav verdi gjennom. Bruk `kmVerdiEllerNull()` for all km-tolkning: den
+forkaster tomt, ikke-numerisk og negativt.
+
+**Gulvet returnerer kilde.** `{verdi, kilde, kilde_type, kontroll}` — `kilde_type` er
+`'vehicle'` eller `'kontroll'`, og `kontroll` bærer `{id, dato, tidspunkt, sjafor, km}`.
+Kilden skal følge med i avvisningsdialog, storthopp-dialog og km-avviksmerknaden, slik at
+driftskoordinator kan finne igjen nøyaktig hvilken kontroll som satte gulvet.
+
+**Aktiv sjåfør har ÉN kilde: `vehicleAktivSjafor()`.** Den sjekker `v.aktivSjaforSiden` mot
+operativt døgn og returnerer null for en foreldet biløkt. `vehicleSisteSjafor()` er bredere
+(aktiv biløkt ELLER siste kontroll i dag) og skal ALDRI presenteres som aktiv sjåfør — den
+leses kun når det ikke finnes en aktiv sjåfør, og merkes «🕓 Sist kontrollert av …».
+Rå `v.aktivSjafor` skal aldri leses direkte i visningen, uten døgnkontroll.
+
+**To ulike feilmeldinger ved rollback.** Ren rollback = trygt å prøve på nytt. Mislykket
+kompenserende skriving = MULIG DELVIS LAGRING, og brukeren skal da IKKE sende inn på nytt
+før Database status eller kontrollhistorikken er undersøkt — et nytt forsøk kan gi
+dobbeltregistrering.

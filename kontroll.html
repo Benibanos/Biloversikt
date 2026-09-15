@@ -5966,26 +5966,73 @@ function fjernKontrollKmFeil(){
   const msgEl = document.getElementById('kt-msg');
   if(msgEl && msgEl.textContent && msgEl.textContent.indexOf('Kilometerstanden') === 0) msgEl.textContent = '';
 }
+// AUTORITATIVT VALIDERINGSGULV (Prioritet 66.1).
+// v.km er fortsatt eneste autoritative NÅVÆRENDE kilometerstand — men eksisterende data
+// kan allerede være inkonsistente (v.km = 31 076 mens siste kontroll viser 31 345, se
+// rotårsaksanalysen i CHANGELOG). Validerer vi kun mot v.km, ville 31 200 sluppet gjennom
+// og gjort avviket permanent. Gulvet er derfor det HØYESTE av v.km og siste gyldige
+// kontrollkilometer. Gulvet BRUKES kun til validering — det skriver aldri v.km, og
+// oppdaterer aldri kjøretøyet automatisk til siste kontroll.
+// Returnerer {verdi, kilde} eller {verdi:null} når bilen ikke har noen km-historikk.
+// Prioritet 66.2: gulvet er HØYESTE gyldige kilometerstand som finnes om bilen — ikke bare
+// siste kontroll. En eldre kontroll kan ha høyere km enn den siste (nettopp slik de
+// meldte, inkonsistente dataene ser ut), og da er DEN eldre verdien det laveste en ny
+// registrering forsvarlig kan ligge på.
+// Forkastes: tomme, ikke-numeriske og negative verdier, samt kontroller for andre biler.
+// Slettede kontroller finnes ikke i `kontroller` (performKontrollDeletion fjerner dem helt),
+// så de kan ikke telle med. Testdatamerking finnes ikke i datamodellen i dag; filteret
+// leser defensivt et eventuelt fremtidig k.testdata/k.erTestdata-flagg slik at en slik
+// merking automatisk blir respektert uten at denne funksjonen må endres på nytt.
+function kmVerdiEllerNull(raw){
+  if(raw === '' || raw === null || raw === undefined) return null;
+  const n = Number(raw);
+  if(!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+function kontrollKmGulv(v){
+  if(!v) return {verdi:null, kilde:'', kilde_type:'', kontroll:null};
+  const kandidater = [];
+  const vKm = kmVerdiEllerNull(v.km);
+  if(vKm !== null){
+    kandidater.push({verdi: vKm, kilde: 'kjøretøyets registrerte kilometerstand', kilde_type: 'vehicle', kontroll: null});
+  }
+  kontroller.forEach(k => {
+    if(k.vehicleId !== v.id) return;
+    if(k.testdata === true || k.erTestdata === true) return;
+    const kKm = kmVerdiEllerNull(k.km);
+    if(kKm === null) return;
+    kandidater.push({
+      verdi: kKm, kilde_type: 'kontroll',
+      kilde: 'kontroll ' + fmt(k.dato) + (k.tidspunkt ? ' kl. ' + k.tidspunkt : '') + (k.sjafor ? ' — ' + k.sjafor : ''),
+      kontroll: {id: k.id, dato: k.dato, tidspunkt: k.tidspunkt || '', sjafor: k.sjafor || '', km: kKm}
+    });
+  });
+  if(kandidater.length === 0) return {verdi:null, kilde:'', kilde_type:'', kontroll:null};
+  // Høyeste verdi vinner. Ved likhet foretrekkes kjøretøyets egen verdi, siden v.km er den
+  // autoritative kilden og kontrollen da ikke tilfører noe.
+  return kandidater.sort((a,b) => (b.verdi - a.verdi) || (a.kilde_type === 'vehicle' ? -1 : 1))[0];
+}
 function validerKontrollKm(v, kmRaw){
   const ny = Number(kmRaw);
   if(kmRaw === '' || kmRaw === null || !Number.isFinite(ny) || ny < 0){
-    return {status:'blokkert', gjeldende:null, ny:null, differanse:null,
+    return {status:'blokkert', gjeldende:null, ny:null, differanse:null, kilde:'', kilde_type:'', kontroll:null,
       melding:'Fyll ut en gyldig kilometerstand.'};
   }
-  const harGjeldende = v && v.km !== '' && v.km !== null && v.km !== undefined && Number.isFinite(Number(v.km));
-  const gjeldende = harGjeldende ? Number(v.km) : null;
-  // Bil uten registrert km fra før: ingenting å sammenligne mot, alt er lov.
-  if(gjeldende === null) return {status:'ok', gjeldende:null, ny, differanse:null, melding:''};
+  const gulv = kontrollKmGulv(v);
+  // Bil uten registrert km OG uten kontrollhistorikk: ingenting å sammenligne mot.
+  if(gulv.verdi === null) return {status:'ok', gjeldende:null, ny, differanse:null, kilde:'', kilde_type:'', kontroll:null, melding:''};
+  const gjeldende = gulv.verdi;
   const differanse = ny - gjeldende;
   if(differanse < 0){
-    return {status:'blokkert', gjeldende, ny, differanse,
+    return {status:'blokkert', gjeldende, ny, differanse, kilde: gulv.kilde, kilde_type: gulv.kilde_type, kontroll: gulv.kontroll,
       melding:'Kilometerstanden kan ikke være lavere enn bilens registrerte kilometerstand på ' + gjeldende.toLocaleString('nb-NO') + ' km. Kontroller tallet og prøv igjen.'};
   }
+  // Punkt 2: storthopp måles fra SAMME gulv, ikke fra v.km alene.
   if(differanse >= KM_HOPP_GRENSE){
-    return {status:'storthopp', gjeldende, ny, differanse,
+    return {status:'storthopp', gjeldende, ny, differanse, kilde: gulv.kilde, kilde_type: gulv.kilde_type, kontroll: gulv.kontroll,
       melding:'Kilometerstanden er ' + differanse.toLocaleString('nb-NO') + ' km høyere enn sist registrert. Kontroller at tallet er riktig.'};
   }
-  return {status:'ok', gjeldende, ny, differanse, melding:''};
+  return {status:'ok', gjeldende, ny, differanse, kilde: gulv.kilde, kilde_type: gulv.kilde_type, kontroll: gulv.kontroll, melding:''};
 }
 // Del 8: merknaden lagres i kontrollens EKSISTERENDE kommentarfelt — ingen ny datamodell,
 // intet nytt Airtable-felt, ingen ny modul. Kjøretøy, sjåfør, dato og tidspunkt er allerede
@@ -5993,8 +6040,12 @@ function validerKontrollKm(v, kmRaw){
 // differanse og at sjåføren bekreftet verdien). Vises automatisk i kontrollhistorikken og
 // i kontrollens detaljvisning, som allerede rendrer kommentaren (Del 9).
 function kmAvvikMerknad(val, sjafor){
+  const kildeTekst = val.kontroll
+    ? 'høyeste tidligere verdi: ' + val.kilde + ', kontroll-ID ' + val.kontroll.id
+    : val.kilde;
   return KM_AVVIK_PREFIX + ' +' + val.differanse.toLocaleString('nb-NO') + ' km siden forrige registrering (fra ' +
-    val.gjeldende.toLocaleString('nb-NO') + ' km til ' + val.ny.toLocaleString('nb-NO') + ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + ')';
+    val.gjeldende.toLocaleString('nb-NO') + ' km' + (kildeTekst ? ' [' + kildeTekst + ']' : '') + ' til ' + val.ny.toLocaleString('nb-NO') +
+    ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + ')';
 }
 function kontrollHarKmAvvik(k){
   return !!(k && typeof k.kommentar === 'string' && k.kommentar.startsWith(KM_AVVIK_PREFIX));
@@ -6003,18 +6054,22 @@ function kontrollHarKmAvvik(k){
 // Returnerer bilene der siste registrerte kontroll har HØYERE km enn kjøretøyets
 // autoritative v.km — altså akkurat det avviket som er meldt fra drift.
 function kmAvvikForVehicle(v){
-  if(!v || v.km === '' || v.km === null || v.km === undefined) return null;
-  const siste = lastKontrollForVehicle(v.id);
-  if(!siste || siste.km === '' || siste.km === null || siste.km === undefined) return null;
-  const vKm = Number(v.km), kKm = Number(siste.km);
-  if(!Number.isFinite(vKm) || !Number.isFinite(kKm) || kKm <= vKm) return null;
-  return {vKm, kontrollKm: kKm, differanse: kKm - vKm, dato: siste.dato, tidspunkt: siste.tidspunkt || '', sjafor: siste.sjafor || ''};
+  const vKm = v ? kmVerdiEllerNull(v.km) : null;
+  if(vKm === null) return null;
+  // Prioritet 66.2: sammenlign mot HØYESTE gyldige kontrollkilometer i hele historikken,
+  // samme gulv som valideringen bruker — ikke bare siste kontroll.
+  const gulv = kontrollKmGulv(v);
+  if(gulv.kilde_type !== 'kontroll' || gulv.verdi === null || gulv.verdi <= vKm) return null;
+  const k = gulv.kontroll;
+  return {vKm, kontrollKm: gulv.verdi, differanse: gulv.verdi - vKm,
+    kontrollId: k ? k.id : '', dato: k ? k.dato : '', tidspunkt: k ? k.tidspunkt : '', sjafor: k ? k.sjafor : ''};
 }
 // Kjøres manuelt fra nettleserkonsollen av administrator: rapporterKmAvvik()
 window.rapporterKmAvvik = function(){
   const rader = vehicles.map(v => ({v, a: kmAvvikForVehicle(v)})).filter(x => x.a).map(({v, a}) => ({
-    Bil: vehicleLabel(v), 'v.km': a.vKm, 'Siste kontroll km': a.kontrollKm,
-    Differanse: a.differanse, Kontrolldato: a.dato + (a.tidspunkt ? ' kl. ' + a.tidspunkt : ''), Sjåfør: a.sjafor
+    Bil: vehicleLabel(v), 'v.km': a.vKm, 'Høyeste kontroll km': a.kontrollKm,
+    Differanse: a.differanse, Kontrolldato: a.dato + (a.tidspunkt ? ' kl. ' + a.tidspunkt : ''),
+    Sjåfør: a.sjafor, 'Kontroll-ID': a.kontrollId
   }));
   if(rader.length === 0){ console.log('Ingen biler har kontroll-km høyere enn v.km.'); return []; }
   console.table(rader);
@@ -6046,6 +6101,7 @@ async function submitKontroll(ev){
   // DEL 7: hopp på 1 000 km eller mer er en ADVARSEL, ikke en blokkering.
   if(kmVal.status === 'storthopp'){
     const fortsett = confirm(kmVal.melding + '\n\nForrige registrering: ' + kmVal.gjeldende.toLocaleString('nb-NO') + ' km' +
+      (kmVal.kilde ? ' (' + kmVal.kilde + ')' : '') +
       '\nNy verdi: ' + kmVal.ny.toLocaleString('nb-NO') + ' km' +
       '\nDifferanse: ' + kmVal.differanse.toLocaleString('nb-NO') + ' km' +
       '\n\nOK = Bekreft og fortsett\nAvbryt = Kontroller tallet');
@@ -6093,29 +6149,85 @@ async function submitKontroll(ev){
   if(submitBtn) submitBtn.disabled = true;
   msgEl.textContent = '';
 
+  // ================= Prioritet 66.1: transaksjonshåndtering =================
+  // submitKontroll() er IKKE atomisk i databasen — Airtable gir oss ingen transaksjoner,
+  // og hver save*() er en selvstendig nettverksskriving. Den ærlige beskrivelsen er:
+  // sekvensiell lagring med snapshot-basert rollback og kompenserende skriving.
+  //
+  // FAKTISK REKKEFØLGE av persistente operasjoner (se koden under):
+  //   1. vehicles      (v.km)                       — saveVehiclesOrThrow()
+  //   2. bilder        (kontroll:<id>:<n>)          — savePhoto()
+  //   3. damages       (kun ved ny skade)           — saveDamages()
+  //   4. bilder        (damage:<id> fallback)       — savePhoto()
+  //   5. kontroller    (selve kontrollen)           — saveKontroller()
+  //   6. varsellys     (nye aktive lamper)          — saveVarsellys()
+  //   7. aktiveSaker   (sammenslåtte kontrollavvik) — saveAktiveSaker()
+  //   8. vehicles      (aktiv sjåfør / biløkt)      — settAktivSjafor() → saveVehicles()
+  //
+  // Feiler steg N, er steg 1..N-1 allerede skrevet til Airtable. Rollback under
+  // gjenoppretter derfor BÅDE lokal state (fra snapshot) OG forsøker kompenserende
+  // lagring av hvert datasett som faktisk rakk å bli skrevet — i motsatt rekkefølge.
+  // Lykkes ikke den kompenserende skrivingen heller (typisk fordi nettet er nede, som
+  // ofte er selve årsaken), sies det tydelig fra i feilmeldingen.
+  const snapshot = {
+    vehicles: JSON.parse(JSON.stringify(vehicles)),
+    damages: JSON.parse(JSON.stringify(damages)),
+    kontroller: JSON.parse(JSON.stringify(kontroller)),
+    varsellys: JSON.parse(JSON.stringify(varsellys)),
+    aktiveSaker: JSON.parse(JSON.stringify(aktiveSaker))
+  };
+  const lagret = [];            // datasett som faktisk er skrevet, i rekkefølge
+  const lagredeBildenokler = []; // bildenøkler som faktisk ble lagret
+  const KOMPENSERENDE_LAGRING = {
+    vehicles: saveVehiclesOrThrow, damages: saveDamages, kontroller: saveKontroller,
+    varsellys: saveVarsellys, aktiveSaker: saveAktiveSaker
+  };
+  async function rullTilbake(feiletSteg, err){
+    console.error('[submitKontroll] ' + feiletSteg + ' FEILET — ruller tilbake', err);
+    // 1. Lokal state tilbake til slik den var før første mutasjon.
+    vehicles = snapshot.vehicles; damages = snapshot.damages; kontroller = snapshot.kontroller;
+    varsellys = snapshot.varsellys; aktiveSaker = snapshot.aktiveSaker;
+    // 2. Kompenserende skriving for alt som faktisk rakk å bli lagret, i motsatt rekkefølge.
+    const ikkeReversert = [];
+    for(const navn of lagret.slice().reverse()){
+      try{ await KOMPENSERENDE_LAGRING[navn](); }
+      catch(e){ ikkeReversert.push(navn); console.error('[submitKontroll] Kompenserende lagring feilet for ' + navn, e); }
+    }
+    for(const nokkel of lagredeBildenokler){
+      try{ await deletePhoto(nokkel); }catch(e){ /* foreldreløst bilde er ufarlig */ }
+    }
+    // 3. Brukeren blir stående i skjemaet med alle sine data i behold. Ingen
+    //    «Kontroll registrert», ingen navigasjon, ingen tømming av utkastet.
+    if(submitBtn) submitBtn.disabled = false;
+    if(ikkeReversert.length === 0){
+      // Ren rollback: ingenting ble liggende igjen, og det er trygt å prøve på nytt.
+      msgEl.innerHTML = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
+        '<br>Kontrollen er IKKE registrert, og ingenting ble lagret. Skjemaet står som det var — sjekk nettforbindelsen og trykk Send inn på nytt.';
+    } else {
+      // Punkt 4 (Prioritet 66.2): den kompenserende skrivingen feilet også. Da KAN deler
+      // av registreringen ligge i Airtable, og et nytt forsøk kan gi dubletter. Brukeren
+      // skal derfor IKKE prøve på nytt før noen har sett på dataene.
+      msgEl.innerHTML = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
+        '<br><b>MULIG DELVIS LAGRING:</b> ' + esc(ikkeReversert.join(', ')) + ' kunne heller ikke tilbakestilles i Airtable. Deler av registreringen kan derfor ligge lagret.' +
+        '<br><b>Ikke send inn på nytt.</b> Et nytt forsøk kan gi dobbeltregistrering. Undersøk først Database status i Innstillinger, eller kontrollhistorikken på bilen, og kontakt administrator. Ta skjermbilde av denne meldingen.';
+    }
+    render();
+  }
+
   try{
-    // Prioritet 66 DEL 5 — ROTÅRSAK TIL AVVIKET «profil 31 076 km / siste kontroll
-    // 31 345 km»: v.km ble tidligere skrevet HELT TIL SLUTT, etter at kontrollen allerede
-    // var lagret med saveKontroller(). Feilet saveVehicles() (nettverk/Airtable) etter
-    // det, ble kontrollen stående i historikken med den NYE kilometerstanden mens
-    // kjøretøyet beholdt den GAMLE — nøyaktig det observerte avviket. I tillegg svelget
-    // saveVehicles() feilen (alert + console), så submitKontroll() gikk videre som om alt
-    // hadde gått bra.
-    // Nå skrives v.km FØRST, med saveVehiclesOrThrow() og rollback: lykkes den ikke,
-    // opprettes ingen kontroll i det hele tatt. Invarianten v.km >= siste kontroll.km kan
-    // dermed ikke lenger brytes av en delvis feilet lagring.
-    const forrigeKm = v.km;
+    // Prioritet 66 — ROTÅRSAK TIL AVVIKET «profil 31 076 km / siste kontroll 31 345 km»:
+    // v.km ble tidligere skrevet HELT TIL SLUTT, etter at kontrollen allerede var lagret
+    // med saveKontroller(). Feilet saveVehicles() etter det, ble kontrollen stående i
+    // historikken med den NYE kilometerstanden mens kjøretøyet beholdt den GAMLE. I tillegg
+    // svelget saveVehicles() feilen, så funksjonen gikk videre som om alt gikk bra.
+    // Prioritet 66.1: km skrives fortsatt først, men nå som steg 1 i en sekvens som rulles
+    // tilbake SAMLET dersom et senere steg feiler — så det motsatte avviket (kjøretøy med
+    // høyere km enn noen kontroll) heller ikke kan oppstå.
     try{
       v.km = km;
       await saveVehiclesOrThrow();
-    }catch(kmErr){
-      v.km = forrigeKm; // rollback i minnet — ingen falsk oppdatering i UI
-      console.error('[submitKontroll] Kunne ikke lagre kilometerstand — kontrollen ble IKKE opprettet', kmErr);
-      if(submitBtn) submitBtn.disabled = false;
-      msgEl.innerHTML = '⚠️ Kunne ikke lagre kilometerstanden (' + esc(kmErr && kmErr.message ? kmErr.message : 'ukjent feil') + '). Kontrollen er IKKE registrert. Sjekk nettforbindelsen og prøv igjen.';
-      render();
-      return;
-    }
+      lagret.push('vehicles');
+    }catch(kmErr){ await rullTilbake('Kilometerstanden', kmErr); return; }
     console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
 
     let linkedDamageId = null;
@@ -6127,8 +6239,9 @@ async function submitKontroll(ev){
     // rekken skulle feile.
     let antallBilderLagret = 0;
     for(let i = 0; i < pendingKontrollPhotos.length; i++){
-      const ok = await savePhoto('kontroll:'+id+':'+antallBilderLagret, pendingKontrollPhotos[i]);
-      if(ok) antallBilderLagret++;
+      const nokkel = 'kontroll:'+id+':'+antallBilderLagret;
+      const ok = await savePhoto(nokkel, pendingKontrollPhotos[i]);
+      if(ok){ antallBilderLagret++; lagredeBildenokler.push(nokkel); }
     }
     if(harNyeSkader){
       linkedDamageId = uid();
@@ -6138,11 +6251,12 @@ async function submitKontroll(ev){
         status: 'registrert', registrertAv: sjafor, hasPhoto: antallBilderLagret > 0,
         createdByControlId: id
       });
-      await saveDamages();
+      try{ await saveDamages(); lagret.push('damages'); }
+      catch(e){ await rullTilbake('Skaden', e); return; }
       console.log('[submitKontroll] Skade lagret', linkedDamageId);
       // Ekstra fallback-kopi til damage:{id} (brukes kun dersom kontrollen selv senere
       // slettes, se damagePhotoKeys()) — kun forsøkt dersom minst ett bilde faktisk lyktes.
-      if(antallBilderLagret > 0) await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0]);
+      if(antallBilderLagret > 0 && await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0])) lagredeBildenokler.push('damage:'+linkedDamageId);
     }
 
     kontroller.push({
@@ -6150,7 +6264,8 @@ async function submitKontroll(ev){
       varsellamper, annetTekst, harNyeSkader, skadeBeskrivelse,
       skadeBilderCount: antallBilderLagret, kommentar, linkedDamageId
     });
-    await saveKontroller();
+    try{ await saveKontroller(); lagret.push('kontroller'); }
+    catch(e){ await rullTilbake('Kontrollen', e); return; }
     console.log('[submitKontroll] Kontroll lagret i kontroller-listen', id);
 
     // Varsellamper er vedvarende: en huket boks oppretter kun en ny aktiv varsellys-
@@ -6171,7 +6286,10 @@ async function submitKontroll(ev){
         nyeVarselsaker = true;
       }
     });
-    if(nyeVarselsaker) await saveVarsellys();
+    if(nyeVarselsaker){
+      try{ await saveVarsellys(); lagret.push('varsellys'); }
+      catch(e){ await rullTilbake('Varsellampene', e); return; }
+    }
 
     // ---- Automatisk opprettelse/oppdatering av Aktive Saker ----
     // Kjøres synkront (ingen egne await/save per kall) — samlet lagring til slutt.
@@ -6207,7 +6325,8 @@ async function submitKontroll(ev){
       sakerEndret = true;
     }
     if(sakerEndret){
-      await saveAktiveSaker();
+      try{ await saveAktiveSaker(); lagret.push('aktiveSaker'); }
+      catch(e){ await rullTilbake('Aktive saker', e); return; }
       console.log('[submitKontroll] Aktive Saker oppdatert (Fase 2)');
     }
 
@@ -6238,6 +6357,10 @@ async function submitKontroll(ev){
       // bekreftelse. En reell FEIL (bilder som ikke ble lagret) varsles fortsatt.
       alert('Kontroll registrert for ' + vehicleLabel(v) + '.');
     }
+    // STEG 8 — aktiv sjåfør/biløkt. Dette ligger BEVISST UTENFOR rollback-grensen:
+    // kontrollen er på dette tidspunktet fullstendig og gyldig lagret, og skal ikke
+    // rulles tilbake fordi en biløkt ikke lot seg sette. Feiler denne, varsler
+    // saveVehicles() brukeren selv, og dagskille-håndhevingen rydder uansett opp.
     if(driverMode){
       // Kontrollen er unnagjort — start biløkten på denne bilen for denne sjåføren, og
       // send videre til Min Bil (sjåførens arbeidsflate resten av den operative dagen).
@@ -6253,12 +6376,10 @@ async function submitKontroll(ev){
       goTo('bilkort', vehicleId);
     }
   }catch(err){
-    // Skjer normalt kun ved svært spesielle forhold (f.eks. lagringsplassen på enheten
-    // er full). Gir en tydelig, synlig feilmelding i skjemaet i stedet for at
-    // innsendingen stille forsvinner uten at sjåføren vet det.
-    console.error('[submitKontroll] LAGRING FEILET', err);
-    if(submitBtn) submitBtn.disabled = false;
-    msgEl.innerHTML = '⚠️ Kunne ikke lagre kontrollen på denne enheten (' + esc(err && err.message ? err.message : 'ukjent feil') + '). Sjekk at enheten har ledig lagringsplass, og prøv igjen. Ta skjermbilde av denne meldingen og kontakt administrator dersom problemet gjentar seg.';
+    // Uventet feil et sted i kjeden (f.eks. full lagringsplass på enheten). Går gjennom
+    // SAMME samlede rollback som de eksplisitte stegene over — ingen delvis registrert
+    // kontroll blir stående, og brukeren beholder skjemadataene sine.
+    await rullTilbake('Kontrollen', err);
   }
 }
 // Forhåndsutfyller «Annet»-feltet dersom bilen allerede har en aktiv «Annet»-varsellys,
@@ -8749,6 +8870,9 @@ function galleryCard(v, erMinAktiveBil){
   // BEGGE lesefunksjonene er UENDRET — kun etiketten er presisert, slik at kortet aldri
   // sier «Aktiv sjåfør» om en bil som ikke dukker opp i filteret «Har aktiv sjåfør».
   const sjaforNa = vehicleAktivSjafor(v.id);
+  // Prioritet 66.2 punkt 5: sjaforNa (vehicleAktivSjafor) er ENESTE kilde til «aktiv
+  // sjåfør». sjaforIdag (vehicleSisteSjafor) vises kun når det IKKE finnes en aktiv
+  // sjåfør, og merkes eksplisitt som «sist kontrollert av» — aldri som aktiv.
   const sjaforIdag = vehicleSisteSjafor(v.id);
   const hs = vehicleHovedstatus(v.id);
   const st = P38_STATUS_STIL[hs] || {tint:'var(--surface-3)', tone:'var(--muted)'};
@@ -8777,7 +8901,7 @@ function galleryCard(v, erMinAktiveBil){
         <span class="p48-dot" style="background:${st.tone};" title="${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}"></span>
       </div>
       <div class="gcard-badges">
-        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 ' + esc(sjaforIdag) + ' (i dag)' : '⚪ Tilgjengelig')}</span>
+        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 Sist kontrollert av ' + esc(sjaforIdag) : '⚪ Tilgjengelig')}</span>
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
         ${aktiveVarsler.length > 0 ? `<span class="p38-pill" style="--tint:var(--red-soft);--tone:var(--red);">🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}</span>` : ''}
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
@@ -9928,7 +10052,7 @@ function renderBilkort(){
         ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
         ${vNesteVT ? `<li style="cursor:pointer;" data-goto-vt="${v.id}"><span class="dmg-simple-main">🏭 Verkstedtime · 📅 ${fmt(vNesteVT.dato)}${vNesteVT.tidspunkt ? ' kl. ' + esc(vNesteVT.tidspunkt) : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>` : ''}
         ${vNesteOppfolging && vNesteOppfolging.followUpDate ? `<li><span class="dmg-simple-main">⏰ Neste oppfølging · ${fmt(vNesteOppfolging.followUpDate)}${vNesteOppfolging.nextAction ? ' — ' + esc(vNesteOppfolging.nextAction) : ''}</span></li>` : ''}
-        ${vKmAvvik ? `<li><span class="dmg-simple-main" style="color:var(--amber);font-weight:600;">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, siste kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Korrigeres kun via Rediger informasjon.</span></li>` : ''}
+        ${vKmAvvik ? `<li><span class="dmg-simple-main" style="color:var(--amber);font-weight:600;">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, høyeste registrerte kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Korrigeres kun via Rediger informasjon.</span></li>` : ''}
       </ul>`,
     historikk: historikkSamletBody,
     skader: skadeBody,
@@ -9937,8 +10061,14 @@ function renderBilkort(){
   }[aktivFane];
 
   const p38HovedStil = P38_STATUS_STIL[hovedstatus] || {tint:'var(--surface-3)', tone:'var(--muted)'};
+  // Prioritet 66.2 punkt 5 — ÉN kilde til «aktiv sjåfør»: vehicleAktivSjafor(), som
+  // sjekker v.aktivSjaforSiden mot operativt døgn (04:00) og returnerer null for en
+  // foreldet biløkt. Rå v.aktivSjafor leses ALDRI direkte i visningen.
   const p38SjaforNa = vehicleAktivSjafor(v.id);
-  const p38SjaforIdag = vehicleSisteSjafor(v.id);
+  // vehicleSisteSjafor() er en BREDERE kilde (aktiv biløkt ELLER siste kontroll i dag) og
+  // skal aldri presenteres som aktiv sjåfør. Her brukes den kun til å vise hvem som sist
+  // kontrollerte bilen, og kun når det ikke finnes en aktiv sjåfør.
+  const p38SisteKontrollor = p38SjaforNa ? null : vehicleSisteSjafor(v.id);
   // Prioritet 65: mobilitetsgaranti som operativ status i toppseksjonen (live-beregnet,
   // se vehicleMobilitetsgaranti()) — ikke lenger et eget stort informasjonskort.
   // Prioritet 66 DEL 10: ren RAPPORTERING av et eksisterende avvik — korrigerer ingenting.
@@ -9957,7 +10087,8 @@ function renderBilkort(){
           <div class="profil-ident-meta"><span>${esc([v.merke, v.modell].filter(Boolean).join(' ')) || 'Modell ikke satt'} • ${esc(v.regnr)}</span></div>
           <div class="profil-ident-meta"><span>${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '⚠️ Løyve mangler'} • ${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}</span></div>
           <div class="profil-ident-meta">
-            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span>
+            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
+            ${p38SisteKontrollor ? `<span class="p38-pill" style="--tint:var(--surface-3);--tone:var(--muted);">🕓 Sist kontrollert av ${esc(p38SisteKontrollor)}</span>` : ''}
             <span class="p38-pill" style="--tint:${mgPille.tint};--tone:${mgPille.tone};" title="${esc(vMobgaranti.kilde || 'Ingen mobilitetsgaranti registrert')}">${mgPille.tekst}</span>
           </div>
         </div>
@@ -10031,7 +10162,8 @@ function renderBilkort(){
           <div class="ov-grid">
             <div class="ov-item"><span class="ov-label">${luc('folder-tree')} Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
             <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
-            <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : (p38SjaforIdag ? '🕓 ' + esc(p38SjaforIdag) + ' (i dag)' : '⚪ Ingen aktiv sjåfør')}</span></div>
+            <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span></div>
+            ${p38SisteKontrollor ? `<div class="ov-item"><span class="ov-label">🕓 Sist kontrollert av</span><span class="ov-value">${esc(p38SisteKontrollor)}</span></div>` : ''}
             <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${esc(v.regnr)}</span></div>
             <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
             <div class="ov-item"><span class="ov-label">Merke/modell</span><span class="ov-value">${esc(v.merke || '–')} ${esc(v.modell || '')}</span></div>

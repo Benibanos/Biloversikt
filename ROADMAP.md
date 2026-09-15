@@ -1,6 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-14 (Prioritet 66 — operativ dagsreset og kilometerbeskyttelse:
+Sist oppdatert: 2026-09-14 (Prioritet 66.2 — km-gulv basert på hele kontrollhistorikken
+med kildeinformasjon, og én kilde til aktiv sjåfør).
+Før det: 2026-09-14 (Prioritet 66.1 — kilometergulv basert på høyeste kjente
+verdi, og samlet rollback i submitKontroll()).
+Før det: 2026-09-14 (Prioritet 66 — operativ dagsreset og kilometerbeskyttelse:
 dagskillet håndheves ved alle inngangspunkter, lavere km blokkeres i Sjåførkontroll,
 hopp ≥ 1 000 km krever bekreftelse og merkes på kontrollen).
 Før det: 2026-09-14 (Prioritet 65.2 — operativ opprydding av Kjøretøyprofil:
@@ -1701,3 +1705,60 @@ filnavnvarianter i de serverte filene.
 5. `performKontrollDeletion()` setter `v.km = remaining[0].km` kun når det finnes
    gjenværende kontroller. Slettes den siste kontrollen på en bil, beholder bilen km fra
    den slettede kontrollen. Uendret oppførsel — ikke rørt i denne prioriteten.
+
+## Prioritet 66.1 (2026-09-14) — Lukket integritetshull før deploy av Prioritet 66
+
+✅ Implementert og verifisert. Leveres sammen med Prioritet 66.
+
+1. `kontrollKmGulv(v)` = høyeste av `v.km` og siste gyldige kontroll-km. Blokkering og
+   1 000 km-advarsel måler begge mot gulvet. `v.km` oppdateres ikke automatisk.
+2. Storthopp-differansen bruker samme gulv.
+3. Alle åtte persistente operasjoner i `submitKontroll()` kartlagt og dokumentert i koden.
+   Ordet «atomisk» fjernet — dette er sekvensiell lagring med rollback.
+4. Snapshot + samlet rollback + kompenserende lagring + eksplisitt feilmelding per steg.
+
+`sw.js` CACHE_VERSION bilpark-v69 → v70. `storage.airtable.js` urørt.
+
+**Kjente begrensninger:**
+
+1. **Kompenserende lagring er best effort.** Er nettet nede — som ofte ER årsaken — kan
+   heller ikke tilbakestillingen skrives til Airtable. Da står lokal state korrekt, men
+   Airtable kan ha en delvis skrevet endring. Meldingen navngir da hvilke datasett det
+   gjelder og ber brukeren kontakte administrator. Ekte atomisitet krever et backend-ledd
+   Bilpark bevisst ikke har.
+2. **Snapshotene er dype kopier av fem lister.** Med ~16 biler er det trivielt, men det er
+   en kopi per innsending.
+3. **Steg 8 (aktiv sjåfør) rulles ikke tilbake** — bevisst, se CLAUDE.md.
+4. **Gulvet ser kun på siste kontroll**, ikke på hele historikken. Finnes en eldre kontroll
+   med enda høyere km enn den siste, brukes ikke den. Den situasjonen kan ikke lenger
+   oppstå etter Prioritet 66, men kan finnes i eksisterende data.
+
+## Prioritet 66.2 (2026-09-14) — Siste integritetskontroll før deploy
+
+✅ Implementert og verifisert. Leveres sammen med Prioritet 66 og 66.1.
+
+1. `kontrollKmGulv()` bruker høyeste gyldige km i HELE kontrollhistorikken + `v.km`.
+   `kmVerdiEllerNull()` forkaster tomme, ikke-numeriske og negative verdier; andre bilers
+   kontroller og et eventuelt testdata-flagg filtreres bort.
+2. Gulvet returnerer kilde: `v.km`, eller kontrollens ID, dato, tidspunkt, sjåfør og km.
+3. Samme gulv brukes av blokkering, 1 000 km-varsel og km-avviksmerknaden.
+4. Egen, tydelig melding ved mislykket kompenserende rollback — «ikke send inn på nytt».
+5. Aktiv sjåfør kommer kun fra `vehicleAktivSjafor()`; `vehicleSisteSjafor()` vises som
+   «🕓 Sist kontrollert av …» på egen brikke.
+7. Ingen automatisk korrigering av historiske data.
+8. `storage.airtable.js` og Airtable-skjemaet urørt — ingen nye felt var nødvendige.
+
+`sw.js` CACHE_VERSION bilpark-v70 → v71.
+
+**Kjente begrensninger:**
+
+1. **Testdatamerking finnes ikke i datamodellen.** Filteret leser defensivt
+   `k.testdata`/`k.erTestdata`, men ingenting setter dem i dag. Skal testkontroller kunne
+   merkes, må det avtales som egen beslutning (nytt Airtable-felt).
+2. **Gulvet leser hele `kontroller`-listen per validering.** Med dagens datamengde er det
+   uten betydning; ved mange tusen kontroller bør det vurderes på nytt.
+3. **Et eksisterende, kunstig høyt km-tall i historikken låser gulvet** til den verdien og
+   kan blokkere legitime registreringer. Korrigeres via administrativ redigering — bevisst,
+   siden automatisk opprydding er utenfor mandatet (punkt 7).
+4. **«Sist kontrollert av» er en ekstra brikke** i toppseksjonen og på bilkortet når bilen
+   ikke har aktiv sjåfør. Det er én linje mer enn før, men fjerner en reell tvetydighet.
