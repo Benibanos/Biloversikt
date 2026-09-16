@@ -2973,17 +2973,16 @@ skal ikke kunne havne i `catch` og gjøre en vellykket lesing om til en tom list
 `oppstartMerk(key, 'laster'|'lastet'|'feil')` rundt den eksisterende lesingen. Ingen
 annen kode skal endres.
 
-**Versjonen leses, den vedlikeholdes ikke.** `hentOppstartVersjon()` bruker høyeste
-`bilpark-vNN` fra `caches.keys()` og `storageAirtableInfo.versjon`. Ikke innfør en egen
-APP_VERSION-konstant (samme felle som den falske versjonsfeilen i Database status).
+**Versjonen leses, den vedlikeholdes ikke i oppstartsskjermen.**
+`hentOppstartVersjon()` bruker høyeste `bilpark-vNN` fra `caches.keys()` og
+`storageAirtableInfo.versjon` kun som visningsinformasjon. Den tvungne
+versjonskontrollen bruker i tillegg den kodebundne `APP_VERSION` i
+`version-check.js` og krever eksakt samsvar med `version.json`.
 
-## Midlertidig sperring av sjåførkontroll (2026-09-15) — AKTIV
+## Prioritet 69.3 — Sjåførkontroll åpen igjen (2026-09-16)
 
-**`SJAFORKONTROLL_SPERRET` er eneste bryter.** Når den er `true` rendres sjåførmodus og
-kontrollskjemaet som sperremelding, og `sjaforkontrollSperret(handling)` blokkerer
-FØRST i hver sjåførrelatert skrivefunksjon (før noen mutasjon av lokal state).
-`startBilokt()`/`overforAktivSjafor()` KASTER i stedet for å returnere, slik at kalleren
-ikke fortsetter. Ny sjåførrelatert skrivefunksjon skal ha samme portvakt. Sperren skal
-ikke utvides til administrators egne registreringer. Fjernes ved å sette flagget til
-`false` — koden kan bli liggende som beredskap.
-
+Den midlertidige vedlikeholdssperren er fjernet. Det finnes ingen
+`SJAFORKONTROLL_SPERRET`-bryter eller `sjaforkontrollSperret()`-portvakt i koden.
+P69.2 sin `version-check.js` er fortsatt eneste globale inngangssperre: ved
+`VERSION_MISMATCH` eller manglende `version.json`-verifisering starter ikke normal
+drift.

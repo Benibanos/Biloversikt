@@ -1953,29 +1953,14 @@ Kun `index.html`/`kontroll.html` + `sw.js`. CACHE_VERSION v77 → v78. Ingen end
 6. **Oppstartsskjermen er alltid mørk** inntil lagret temavalg er hentet fra Airtable;
    brukere med lys drakt ser mørk oppstart og deretter lys app.
 
-## Midlertidig sperring av sjåførkontroll (2026-09-15) — ⚠️ AKTIV
+## Prioritet 69.3 — Midlertidig sjåførkontroll-sperre fjernet (2026-09-16)
 
-✅ Implementert og verifisert. **Må oppheves manuelt** når vedlikehold og
-dataverifisering er ferdig: sett `SJAFORKONTROLL_SPERRET = false` i index.html (og
-kontroll.html) og øk CACHE_VERSION.
-
-Sjåførmodus (kontroll.html / `?sjafor=1`) viser kun sperremeldingen. Kontrollskjemaet
-(`screen 'kontroll'`) viser samme melding også fra administrasjonssiden. Portvakt
-`sjaforkontrollSperret()` ligger først i `submitKontroll`, `submitMinBilSkade`,
-`submitMinBilVarsel`, `submitMinBilAvvik`, `submitDriverNyKommentar`, `startBilokt` og
-`overforAktivSjafor`. CACHE_VERSION v78 → v79.
-
-**Kjente begrensninger:**
-
-1. **Sperren virker først når enheten har lastet ny versjon.** En sjåførtelefon som har
-   kontrollskjemaet åpent fra før, kan sende inn til siden lastes på nytt. Det finnes
-   ingen serverside sperre (bevisst arkitektur: ingen backend). Sikreste tiltak: be
-   sjåførene lukke og åpne appen, eller trekke Airtable-tokenets skriverettighet
-   midlertidig hvis full sikkerhet kreves.
-2. **Av/på krever deploy.** Flagget er en konstant, ikke en innstilling i Airtable.
+Vedlikeholdssperren fra datagjenopprettingen er fjernet. Sjåførkontroll, skader,
+varsellamper, avvik, kommentarer, biløkter og aktiv sjåfør fungerer normalt igjen.
+Tvungen versjonskontroll fra P69.2 står fortsatt foran `loadAll()` og blokkerer all
+normal drift ved `VERSION_MISMATCH` eller manglende verifisering.
 3. **Administrators kontrollskjema er også sperret**, siden det er samme skjema og kravet
    er «ingen kontroller skal kunne registreres». Administrators registreringer ellers
    (skade i Skader, sak, verksted, service, km via Rediger informasjon) er ikke sperret.
 4. **Sjåførkommentarer og biløkt er sperret**, som del av «alle sjåførrelaterte
    registreringer». Aktiv sjåfør vises derfor ikke som ny i Biloversikt i perioden.
-
