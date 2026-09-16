@@ -1,6 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-16 (Prioritet 70 — Samlet Verksted og Verkstedhistorikk).
+Sist oppdatert: 2026-09-16 (Prioritet 70.2 — opprydding etter
+Verksted-migrering: utført arbeid flyttes til samlet historikk, kostnads- og
+«Neste verkstedtime»-støy fjernet, aktive saker grupperes per bil, og eldre
+skader migreres idempotent til dagens saksmodell).
 Før det: 2026-09-16 (Prioritet 69.3 — Sjåførkontroll åpen igjen; midlertidig sperre fjernet).
 Før det: 2026-09-15 (Prioritet 69 — operativ oppstartsskjerm med reell lastestatus
 per datasett; appen åpnes ikke ved lesefeil på kjøretøyregisteret).
