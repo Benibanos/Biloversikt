@@ -1339,13 +1339,12 @@
      eksisterende radius (.panel). Ingen ny komponentfamilie — et .panel med statusrader. */
   .oppstart{min-height:70vh;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:opacity .18s ease;}
   .oppstart.oppstart-ut{opacity:0;}
-  .oppstart-kort{width:100%;max-width:380px;margin:0;}
-  .oppstart-merke{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;}
-  .oppstart-under{color:var(--muted);font-size:14px;margin:2px 0 18px;}
+  .oppstart-kort{width:100%;max-width:380px;margin:0;text-align:center;}
+  .oppstart-logo{width:84px;height:84px;display:block;margin:0 auto 18px;border-radius:18px;}
   .oppstart-hms{display:flex;flex-direction:column;gap:4px;margin:2px 0 18px;color:var(--ink);}
   .oppstart-hms strong{font-size:16px;}
   .oppstart-hms span{color:var(--muted);font-size:14px;}
-  .oppstart-rad{display:flex;align-items:flex-start;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:14.5px;}
+  .oppstart-rad{display:flex;align-items:flex-start;justify-content:center;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:14.5px;}
   .oppstart-rad:first-of-type{border-top:none;}
   .oppstart-rad .ikon{width:22px;flex:0 0 22px;text-align:center;}
   .oppstart-rad.venter{color:var(--muted);opacity:.55;}
@@ -1355,10 +1354,12 @@
   .oppstart-melding{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);line-height:1.55;font-size:14px;}
   .oppstart-melding p{margin:0 0 8px;}
   .oppstart-melding .teknisk{color:var(--muted);font-size:12.5px;white-space:pre-line;word-break:break-word;}
-  .oppstart-knapper{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .oppstart-knapper{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px;}
   .oppstart-klar{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--green-ink);font-weight:600;}
   .oppstart-klar span{display:block;color:var(--muted);font-weight:400;font-size:13px;margin-top:2px;}
   .oppstart-versjon{margin-top:22px;color:var(--muted);font-size:12px;opacity:.7;}
+  .sak-kort-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px);gap:16px;align-items:start;}
+  @media (max-width:640px){.sak-kort-grid{grid-template-columns:1fr;}.sak-kort-grid > div:nth-child(2){border-top:1px solid var(--line-soft);padding-top:12px;}}
   #app.oppstart-inn{animation:oppstartInn .22s ease;}
   @keyframes oppstartInn{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){
@@ -1390,7 +1391,7 @@
      (egen container utenfor #app), fylles av renderKontrollSlettModal(). -->
 <div id="kontroll-slett-modal"></div>
 <div id="bilde-lightbox-modal"></div>
-<div id="app"><div class="oppstart"><div class="panel oppstart-kort"><div class="oppstart-merke">BILPARK</div></div></div></div>
+<div id="app"><div class="oppstart"><div class="panel oppstart-kort"><img class="oppstart-logo" src="icons/bilpark-icon-192-v63.png" alt="Bilpark"><div class="oppstart-hms"><strong>✅ Husk kontrollen</strong><span>Trygge kjøretøy gir tryggere arbeidsdager.</span></div></div></div></div>
 
 <script>
 // ---- Nettverksstatus ----
@@ -1608,17 +1609,12 @@ let sakWizardSaving = false; // dobbeltlagringsvern — låser lagreknapper mens
 let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i steg 3
 let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
 let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
-// Optimalisering 9 (Steg 1-sjekkliste): metadata (saksnummer/registrert av/dato/kilde/
-// sist oppdatert/historikk) er som standard skjult bak "▼ Mer informasjon" i Steg 1 —
-// samme "kun ett åpent om gangen, nullstilt ved sakbytte"-mønster som de tre over.
-let sakWizardSteg1MerOpen = false;
 let sakOversiktOpenVehicles = new Set();
 // «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
 // (standard: 'aktiv'), hvilke kompakte kort som er utvidet (tomt som standard — «Ikke
 // vis hele saken utvidet som standard»), og om den gamle, fulle filter-/gruppevisningen
 // Saker vises alltid i dagens bilgrupperte arbeidsflyt.
 let sakAktivFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted'
-let sakDetaljApneIds = new Set();
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
@@ -3512,8 +3508,8 @@ function renderOppstart(){
   app.innerHTML = `
     <div class="oppstart" aria-live="polite">
       <div class="panel oppstart-kort">
-        <h1 class="oppstart-merke">BILPARK</h1>
-        ${driverMode ? `<div class="oppstart-hms"><strong>${esc(hentSjaforHmsMelding()[0])}</strong><span>${esc(hentSjaforHmsMelding()[1])}</span></div>` : '<div class="oppstart-under">Operativ kontroll</div>'}
+        <img class="oppstart-logo" src="icons/bilpark-icon-192-v63.png" alt="Bilpark">
+        <div class="oppstart-hms"><strong>${esc(hentSjaforHmsMelding()[0])}</strong><span>${esc(hentSjaforHmsMelding()[1])}</span></div>
         ${OPPSTART_STEG.filter(x => !(x.key === 'klargjor' && oppstartFase === 'stoppet')).map(oppstartRadHtml).join('')}
         ${oppstartMeldingHtml()}
       </div>
@@ -4788,7 +4784,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false; nyeKommentarerApen = false; sakDetaljApneIds = new Set(); }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; nyeKommentarerApen = false; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -11364,8 +11360,7 @@ function sakWizardProgressHtml(sakId, step){
 // informasjon, uten scrolling på mobil. Rekkefølge: bil (tydelig, øverst) → komprimert,
 // PROBLEM-spesifikk overskrift (ikke generisk "Varsellampe registrert") → status/
 // prioritet → kort, spesifikk beskrivelse ELLER avvik-sjekkliste for
-// flerpunkts saker → metadata (saksnummer/registrert av/dato/kilde/alder/sist oppdatert/
-// historikk) skjult bak "▼ Mer informasjon" → handling.
+// flerpunkts saker → handling.
 function sakWizardSteg1Html(s){
   const v = sakVehicle(s);
   const avvikListe = sakAvvikListe(s);
@@ -11413,26 +11408,6 @@ function sakWizardSteg1Html(s){
     `}
 
     ${bildeGalleriHtml(sakBilderKeys(s), 'sak-'+s.id)}
-
-    <button type="button" class="btn secondary small" id="swz-mer-toggle-${s.id}" style="justify-content:flex-start;margin-bottom:${sakWizardSteg1MerOpen ? '8px' : '12px'};">${sakWizardSteg1MerOpen ? '▲' : '▼'} Mer informasjon</button>
-    ${sakWizardSteg1MerOpen ? `
-    <div class="panel" style="margin-bottom:12px;">
-      <div class="ov-grid">
-        <div class="ov-item"><span class="ov-label">Saksnummer</span><span class="ov-value">${esc(s.caseId || '–')}</span></div>
-        <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(s.reportedBy || 'Ukjent')}</span></div>
-        <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
-        <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeLabel(s))}</span></div>
-        ${sakErApen(s) ? `<div class="ov-item"><span class="ov-label">Åpen i</span><span class="ov-value">${alder === null ? '–' : alder} dag${alder === 1 ? '' : 'er'}</span></div>` : ''}
-        ${s.updatedAt ? `<div class="ov-item"><span class="ov-label">Sist oppdatert</span><span class="ov-value">${fmt(s.updatedAt.slice(0,10))}</span></div>` : ''}
-      </div>
-      ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
-      <div class="field" style="margin:10px 0 0;">
-        <label>Historikk</label>
-        <ul class="dmg-simple-list">
-          ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
-        </ul>
-      </div>` : ''}
-    </div>` : ''}
 
     <div class="panel-actions">
       <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:2">Vurder sak</button>
@@ -11788,35 +11763,30 @@ function sakKildeTekster(s){
   if(s.sourceType === 'manuell' && s.description) ut.push({label: '✍️ Beskrivelse', tekst: esc(s.description)});
   return ut;
 }
-// DEL 1/2/3 — selve detaljseksjonen. Rendres KUN når kortet er utvidet, så bildene
-// hentes heller ikke før brukeren faktisk åpner detaljene (se attachSakDetaljBilder()).
+// Sakskortets direkte detaljvisning. All beslutningsinformasjon vises i kortet;
+// bilder lastes etter render slik at de kan klikkes opp i lightbox.
 function sakMerInfoHtml(s){
   const tekster = sakKildeTekster(s);
-  const bilder = sakBilderKeys(s);
   return `
     <div class="ov-grid" style="margin-bottom:10px;">
-      <div class="ov-item"><span class="ov-label">Kilde</span><span class="ov-value">${esc(sakKildeMedIkon(s))}</span></div>
       <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(sakRegistrertAv(s))}</span></div>
-      <div class="ov-item"><span class="ov-label">Dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
+      <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
     </div>
     ${tekster.length
-      ? tekster.map(t => `<div class="field" style="margin-bottom:10px;"><label>${t.label}</label><div class="kt-history-meta" style="white-space:pre-line;">${t.tekst}</div></div>`).join('')
-      : `<div class="kt-history-meta" style="margin-bottom:10px;">Ingen kommentar registrert på kilden.</div>`}
-    ${bilder.length ? bildeGalleriHtml(bilder, 'sak-' + s.id) : ''}
+      ? `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><div class="kt-history-meta" style="white-space:pre-line;">${tekster.map(t => t.tekst).join('\n')}</div></div>`
+      : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><div class="kt-history-meta">Ingen kommentar registrert på kilden.</div></div>`}
   `;
 }
-// Bildene lastes først her — altså etter at brukeren har åpnet detaljene.
+// Bildene lastes etter at alle synlige sakskort er rendret.
 function attachSakDetaljBilder(){
-  sakDetaljApneIds.forEach(id => {
-    const s = aktiveSaker.find(x => x.id === id);
-    if(!s) return;
+  aktiveSaker.filter(s => sakFase(s) === sakAktivFane).forEach(s => {
     const keys = sakBilderKeys(s);
     if(keys.length) attachBildeGalleriListeners(keys, 'sak-' + s.id);
   });
 }
 function sakKompaktKortHtml(s, fase){
   const v = sakVehicle(s);
-  const apen = sakDetaljApneIds.has(s.id);
+  const bilder = sakBilderKeys(s);
   const handlingHtml = fase === 'aktiv'
     ? `<button type="button" class="btn small" data-godta-sak="${s.id}">${luc('check')} Godta</button>
        <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">${luc('x')} Avslå</button>`
@@ -11825,27 +11795,22 @@ function sakKompaktKortHtml(s, fase){
     : `<button type="button" class="btn small" data-sak-utfort="${s.id}">${luc('check')} Arbeid utført</button>`;
   return `
     <div class="dmg-item">
-      <div class="dmg-top" data-toggle-sak-kort="${s.id}">
-        <div class="dmg-text">
-          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
-          <div class="desc">${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')} · ${fmt(s.reportedAt)}</div>
+      <div class="sak-kort-grid">
+        <div>
+          <div class="main">${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
+          <div class="desc">Regnr: ${esc(v && v.regnr ? v.regnr : '–')}</div>
+          <div class="desc">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')}</div>
           ${sakAvvikChecklistHtml(s)}
+          <div style="margin-top:10px;">
+            ${sakMerInfoHtml(s)}
+          </div>
+        </div>
+        <div>
+          ${bilder.length ? bildeGalleriHtml(bilder, 'sak-' + s.id) : '<div class="empty-note">Ingen bilde registrert.</div>'}
+          <div class="panel-actions" style="margin-top:10px;gap:8px;flex-direction:column;align-items:stretch;">${handlingHtml}</div>
+          <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}" style="margin-top:10px;">${luc('pencil')} Avansert redigering →</button>
         </div>
       </div>
-      <div class="panel-actions" style="margin-top:8px;gap:8px;">${handlingHtml}</div>
-      <div style="margin-top:6px;"><button type="button" class="p38-lenke" data-toggle-sak-kort="${s.id}">ℹ️ ${apen ? 'Skjul informasjon' : 'Mer informasjon'}</button></div>
-      ${apen ? `
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);">
-        ${/* Prioritet 68.1: den generiske beskrivelseslinjen ("Automatisk generert fra
-             skaderegistrering") er fjernet fra den UTVIDEDE visningen. Den sto rett over
-             den ekte teksten fra kilden og tilførte ingenting. Brukerskrevne beskrivelser
-             går ikke tapt: manuelle saker vises som «✍️ Beskrivelse» via
-             sakKildeTekster(), og saker uten kilde-tekst får en tydelig
-             "Ingen kommentar registrert"-linje i sakMerInfoHtml(). Den kompakte,
-             kollapsede visningen er uendret. */ ''}
-        ${sakMerInfoHtml(s)}
-        <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}">${luc('pencil')} Avansert redigering →</button>
-      </div>` : ''}
     </div>`;
 }
 function sakFaneListeHtml(fase){
@@ -11863,14 +11828,12 @@ function sakFaneListeHtml(fase){
   }).map(([vehicleId, saker]) => {
     const v = vehicles.find(x => x.id === vehicleId);
     const sortert = saker.slice().sort((a,b) => (b.reportedAt || '').localeCompare(a.reportedAt || ''));
-    const nyeste = sortert[0];
     const apen = sakOversiktOpenVehicles.has(vehicleId);
     return `<div class="panel" style="margin-bottom:12px;">
       <div class="dmg-top">
         <div class="dmg-text">
           <div class="main">${SAK_BILSTATUS_IKON[vehicleSakStatus(vehicleId)]} ${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Slettet kjøretøy')}</div>
           <div class="desc">${saker.length} aktiv${saker.length === 1 ? ' sak' : 'e saker'}</div>
-          <div class="dmg-meta">Nyeste: ${esc(nyeste.title || SAK_TYPE_LABEL[nyeste.caseType] || 'Sak')} · ${fmt(nyeste.reportedAt)}</div>
         </div>
         <button type="button" class="btn secondary small" data-toggle-sak-vehicle="${vehicleId}">${apen ? 'Skjul saker' : 'Vis alle saker'}</button>
       </div>
@@ -12429,15 +12392,9 @@ function renderAktiveSaker(){
 // i sidemenyen (attachKommentaroversiktListeners) og sjåførens egen kommentarskjerm.
 function attachAktiveSakerListeners(){
   document.getElementById('sak-back').addEventListener('click', () => goBack());
-  // «Ny saksflyt»: fanevalg og kompakte kort-handlinger.
+  // «Ny saksflyt»: fanevalg og direkte sakskort-handlinger.
   document.querySelectorAll('[data-sak-fane]').forEach(el => el.addEventListener('click', () => {
     sakAktivFane = el.dataset.sakFane;
-    render();
-  }));
-  document.querySelectorAll('[data-toggle-sak-kort]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const id = el.dataset.toggleSakKort;
-    if(sakDetaljApneIds.has(id)) sakDetaljApneIds.delete(id); else sakDetaljApneIds.add(id);
     render();
   }));
   document.querySelectorAll('[data-toggle-sak-vehicle]').forEach(el => el.addEventListener('click', (e) => {
@@ -12446,8 +12403,7 @@ function attachAktiveSakerListeners(){
     if(sakOversiktOpenVehicles.has(id)) sakOversiktOpenVehicles.delete(id); else sakOversiktOpenVehicles.add(id);
     render();
   }));
-  // Prioritet 68: bildene i «ℹ️ Mer informasjon» hentes først når kortet faktisk er
-  // utvidet — getPhoto() kalles ikke for lukkede saker.
+  // Bildene i sakskortene hentes etter at kortene er synlige i DOM-en.
   attachSakDetaljBilder();
   document.querySelectorAll('[data-godta-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); godtaSak(el.dataset.godtaSak); }));
   document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
@@ -12487,17 +12443,8 @@ function attachAktiveSakerListeners(){
     const reapneBtn = document.getElementById('swz-reapne-'+s.id);
     if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
 
-    // Kritisk manglende funksjon — skadebilder: kobles kun opp når saken faktisk er åpen
-    // (unngår unødvendige getPhoto()-kall for hver eneste sak på hvert render()).
+    // Skadebilder lastes kun for saken som er åpen i veiviseren.
     if(editingSakId === s.id) attachBildeGalleriListeners(sakBilderKeys(s), 'sak-'+s.id);
-
-    // Steg 1 — "Mer informasjon" (metadata skjult som standard, se Optimalisering 9)
-    const merToggleBtn = document.getElementById('swz-mer-toggle-'+s.id);
-    if(merToggleBtn) merToggleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sakWizardSteg1MerOpen = !sakWizardSteg1MerOpen;
-      render();
-    });
 
     // Steg 2 — Vurder sak
     const vurderingLagreBtn = document.getElementById('swz-vurdering-lagre-'+s.id);

@@ -1,6 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-16 (Prioritet 70.5 — Bilpark-branding og tilfeldig
+Sist oppdatert: 2026-09-16 (Prioritet 70.7 — kompakte sakskort uten «Mer informasjon»). Før
+det: Prioritet 70.6 — forenklet oppstart og ikonopprydding. Før
+det: Prioritet 70.5 — Bilpark-branding og tilfeldig
 HMS-påminnelse på sjåførsiden). Før det: Prioritet 70.4 — duplikatgjengivelse i Aktive
 saker fjernet; én bil rendres én gang per seksjon med samlet ekspansjon). Før
 det: Prioritet 70.3 — Avansert visning fjernet;

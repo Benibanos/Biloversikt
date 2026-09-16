@@ -1,6 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.5 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.7 —
+kompakte sakskort viser all nødvendig saksinformasjon direkte uten
+«Mer informasjon». Før det: Prioritet 70.6 —
+forenklet oppstartsskjerm med Bilpark-logo som eneste merkevareelement,
+tilfeldig HMS-melding og samlet ikonreferanse. Før det: Prioritet 70.5 —
 Bilpark-branding og tilfeldig HMS-påminnelse på sjåførsiden. Før det:
 Prioritet 70.4 —
 duplikatgjengivelse i Aktive saker fjernet; én bil rendres én gang per seksjon
