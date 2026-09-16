@@ -1,6 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-16 (Prioritet 70.2 — opprydding etter
+Sist oppdatert: 2026-09-16 (Prioritet 70.3 — Avansert visning fjernet;
+Aktive saker bruker kun dagens gruppering per bil). Før det: Prioritet 70.2 —
+opprydding etter
 Verksted-migrering: utført arbeid flyttes til samlet historikk, kostnads- og
 «Neste verkstedtime»-støy fjernet, aktive saker grupperes per bil, og eldre
 skader migreres idempotent til dagens saksmodell).

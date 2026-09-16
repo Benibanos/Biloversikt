@@ -15,6 +15,15 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70.3 — Fjernet Avansert visning
+
+Aktive saker bruker nå utelukkende dagens bilgrupperte visning. Den gamle
+«Avansert visning»-seksjonen, med alternativ gruppering, filtre og ekstra
+telleverk, er fjernet. «Avansert redigering» på et enkelt sakskort er fortsatt
+tilgjengelig for nødvendig redigering av eksisterende saker.
+
+## 2026-09-16
+
 ### Prioritet 70.2 — Opprydding etter Verksted-migrering
 
 - Utført verkstedarbeid fjernes fra aktive bestillinger og vises umiddelbart i

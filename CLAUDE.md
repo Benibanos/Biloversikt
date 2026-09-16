@@ -1,6 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.2 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.3 —
+Avansert visning er fjernet; Aktive saker bruker kun dagens gruppering per bil.
+Før det: Prioritet 70.2 —
 opprydding etter Verksted-migrering: utført arbeid flyttes til samlet
 Verkstedhistorikk, Verksted viser ikke kostnadssummer eller «Neste
 verkstedtime», aktive saker grupperes per bil, og eldre skader migreres
