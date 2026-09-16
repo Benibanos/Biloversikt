@@ -15,6 +15,19 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70.2 — Opprydding etter Verksted-migrering
+
+- Utført verkstedarbeid fjernes fra aktive bestillinger og vises umiddelbart i
+  den samlede Verkstedhistorikken.
+- Verkstedflaten viser ikke lenger kostnadssummer, kostnadskort eller neste
+  verkstedtime; kostnader eies fortsatt av Kostnader.
+- Aktive saker vises som én oppsummeringsrad per bil, med antall, nyeste sak,
+  dato og utvidbar full saksvisning.
+- Eldre skader migreres idempotent til dagens saksmodell uten at originaldata
+  eller bilder slettes. Den gamle skadeoversikten brukes ikke lenger.
+
+## 2026-09-16
+
 ### Prioritet 70 — Samlet Verksted og Verkstedhistorikk
 
 Alt verkstedarbeid er nå samlet under én planleggingsmodul (**🔧 Verksted**) og én historikkmodul (**📋 Verkstedhistorikk**). Separate arbeidsflater for Service og Dekkskift er faset ut og integrert i samlet flyt.

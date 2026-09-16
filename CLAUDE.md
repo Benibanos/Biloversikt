@@ -1,6 +1,14 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-10 (Prioritet 48.1 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.2 —
+opprydding etter Verksted-migrering: utført arbeid flyttes til samlet
+Verkstedhistorikk, Verksted viser ikke kostnadssummer eller «Neste
+verkstedtime», aktive saker grupperes per bil, og eldre skader migreres
+idempotent til dagens saksmodell uten sletting av originaldata). Før det:
+Prioritet 70 — samlet Verksted og Verkstedhistorikk. Før det:
+Prioritet 69.3 — sjåførkontrollen åpnet igjen etter at midlertidig
+vedlikeholdssperre ble fjernet; tvungen versjonskontroll er beholdt. Før det:
+Prioritet 48.1 —
 kontrastfeil på «Registrer varsellampe»/«Registrer avvik» funnet og rettet:
 `.chip`/`.chip-text` manglet eksplisitt tekstfarge og falt tilbake på
 nettleserens standard knappefarge i stedet for appens `--ink`-token). Før det:
@@ -3007,4 +3015,3 @@ Separate arbeidsflater for Service og Dekkskift er faset ut.
 **Kostnadsisolering:**
 - Kostnader registreres og håndteres KUN under `💰 Kostnader` (`screen === 'kostnadsoversikt'`).
 - Verksted-modulen viser kun statusmerke `✅ Kostnad registrert` eller `⚠️ Kostnad mangler` basert på om kostnadspost er opprettet.
-
