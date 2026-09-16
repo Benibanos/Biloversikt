@@ -102,7 +102,9 @@ kategorier — ingen av dem er Airtable-kolonner.
 | caseId | CaseId | tekst |
 | kontaktperson | Kontaktperson | tekst |
 | telefon | Telefon | tekst — **merk:** dette er verkstedtimens EGEN kontakttelefon, en helt annen kolonne (annen tabell) enn det nye `Vehicles.Telefon` fra Prioritet 45 |
-| type | Type | tekst — skiller planlagt service (`'service'`) fra ordinære verkstedtimer |
+| type | Type | tekst — skiller type verkstedbestilling (`'service'`, `'dekkskift'`, `'reparasjon'`, `'eu-kontroll'`, `'annet'`) |
+| utfort | Utfort | boolsk — angir om verkstedbestillingen er fullført og flyttet til Verkstedhistorikk (Prioritet 70) |
+| utfortDato | UtfortDato | tekst — dato (YYYY-MM-DD) for når arbeidet ble markert som utført (Prioritet 70) |
 
 ### DriverChecks (app-nøkkel: `kontroller`)
 

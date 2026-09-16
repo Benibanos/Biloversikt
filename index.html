@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.15.0"></script>
+<script src="storage.airtable.js?v=2.16.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1621,6 +1621,13 @@ let sakVisAvansert = false;
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
+let vtPrefillType = 'reparasjon';
+let vtPrefillKommentar = '';
+let vtHistFilterType = 'alle'; // 'alle' | 'service' | 'dekkskift' | 'reparasjon' | 'eu-kontroll' | 'annet'
+let vtHistFilterBil = '';
+let vtHistFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
+let vtHistFilterFra = null;
+let vtHistFilterTil = null;
 let vtOversiktOpenVehicles = new Set();
 let kostFilterBil = '';
 let kostFilterGruppe = '';
@@ -2664,7 +2671,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill'];
+const ADMIN_SCREENS = ['dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill','kommentaroversikt'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -6141,35 +6148,28 @@ function goToRegisterVT(vehicleId){
 }
 
 // ================= Hurtigbestilling (Dashboard + Kjøretøyprofil) =================
-// Fire snarveier som åpner EKSISTERENDE skjemaer med riktig bil forhåndsvalgt. Ingen av dem
-// inneholder egen forretningslogikk, egen datamodell eller egen lagring — de setter kun den
-// samme UI-staten brukeren ellers ville satt manuelt, og navigerer til den arbeidsflaten som
-// allerede eier flyten. Flyten videre (Planlegging → Utført → Historikk) er derfor uendret:
-//  Service → renderServiceSkjerm() → submitPlanlagtService() → fullforPlanlagtService()
-//  EU-kontroll → renderVerksted() → submitVT() med type inneholder 'eu-kontroll'
-//  Ruteskift → renderVerksted() → submitVT() med type inneholder 'ruteskift'
-//  Dekkskifte → renderDekkSkjerm() → submitPlanlagtDekkskift() → submitFullforPlanlagtDekkskift()
-// (Prioritet 62: "Verkstedtime" er ikke lenger et bestillingsvalg — se bestillVerkstedForSak().)
-// vehicleId = '' betyr "ingen bil valgt ennå" — brukeren velger bil i skjermens egen,
-// eksisterende bilvelger (Trykk → Velg bil → Bestill).
+// Fire snarveier som åpner Verksted med riktig bil og type forhåndsvalgt (Prioritet 70).
+//  Service → renderVerksted() med type 'service'
+//  EU-kontroll → renderVerksted() med type 'eu-kontroll'
+//  Ruteskift → renderVerksted() med type 'reparasjon' (kommentar 'Ruteskift')
+//  Dekkskifte → renderVerksted() med type 'dekkskift'
+// vehicleId = '' betyr "ingen bil valgt ennå" — brukeren velger bil i skjemaets bilvelger.
 function bestillService(vehicleId){
-  serviceValgtVehicleId = vehicleId || '';
-  showAddService = false;
-  showPlanleggService = !!vehicleId; // skjemaet åpnes automatisk først når bilen faktisk er kjent
-  serviceSaveConfirmedId = null;
-  goTo('service');
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'service';
+  vtPrefillSakId = '';
+  vtPrefillKommentar = '';
+  showAddVT = true;
+  goTo('verksted');
 }
 function bestillDekkskift(vehicleId){
-  dekkValgtVehicleId = vehicleId || '';
-  showAddDekkskifte = false;
-  showPlanleggDekkskift = !!vehicleId;
-  dekkSaveConfirmedId = null;
-  goTo('dekk');
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'dekkskift';
+  vtPrefillSakId = '';
+  vtPrefillKommentar = '';
+  showAddVT = true;
+  goTo('verksted');
 }
-// Prioritet 62: forhåndsutfylt beskrivelse for hurtigopprettelse fra Bestill tjenester.
-// Beskrivelse er et OBLIGATORISK felt på en verkstedtime; uten dette måtte brukeren skrive
-// "EU-kontroll" for hånd hver eneste gang. Feltet er et helt vanlig tekstfelt og kan
-// overskrives fritt — ren forhåndsutfylling, ingen låsing.
 function vtBeskrivelseForslag(erEu, erRuteskift){
   if(erEu && erRuteskift) return 'EU-kontroll + ruteskift';
   if(erEu) return 'EU-kontroll';
@@ -6177,19 +6177,42 @@ function vtBeskrivelseForslag(erEu, erRuteskift){
   return '';
 }
 function bestillEuKontroll(vehicleId){
-  // Eneste eksisterende EU-bestillingsvei i koden: en verkstedtime med det strukturerte
-  // feltet type (inneholder 'eu-kontroll', se vehicleHarRegistrertEuTime()). Her forhåndskrysses
-  // kun avkryssingsboksen i det uendrede skjemaet — ingen ny sakstype, ingen ny tabell.
-  vtEuForhandskrysset = true;
-  vtRuteskiftForhandskrysset = false;
-  goToRegisterVT(vehicleId || '');
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'eu-kontroll';
+  vtPrefillSakId = '';
+  vtPrefillKommentar = '';
+  showAddVT = true;
+  goTo('verksted');
 }
-// samme mønster som bestillEuKontroll(), for 💥 Ruteskift-hurtigknappen under
-// 🛠 Bestill tjenester ("Samme logikk som 🚦 EU-kontroll" — ticket-krav).
 function bestillRuteskift(vehicleId){
-  vtRuteskiftForhandskrysset = true;
-  vtEuForhandskrysset = false;
-  goToRegisterVT(vehicleId || '');
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'reparasjon';
+  vtPrefillKommentar = 'Ruteskift';
+  vtPrefillSakId = '';
+  showAddVT = true;
+  goTo('verksted');
+}
+function bestillVerkstedForSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  vtPrefillSakId = sakId || '';
+  vtPrefillVehicleId = s ? s.vehicleId : '';
+  vtPrefillType = 'reparasjon';
+  vtPrefillKommentar = s ? s.title : '';
+  showAddVT = true;
+  goTo('verksted');
+}
+function goToRegisterVT(vehicleId){
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'reparasjon';
+  showAddVT = true;
+  goTo('verksted');
+}
+function goToVerkstedhistorikk(opts){
+  if(opts){
+    if(opts.type) vtHistFilterType = opts.type;
+    if(opts.vehicleId) vtHistFilterBil = opts.vehicleId;
+  }
+  goTo('verkstedhistorikk');
 }
 // Prioritet 62: bestillVerkstedtime() er FJERNET. En verkstedtime skal ikke lenger kunne
 // opprettes fritt fra Bestill tjenester — den er et RESULTAT av en sak
@@ -7157,7 +7180,7 @@ async function deleteAdminUser(id){
 const DESKTOP_NAV_PRIMARY = [
   {scr:'dashboard', ikon:luc('house'), label:'Hjem'},
   {scr:'register', ikon:luc('truck'), label:'Biler'},
-  {scr:'bestill', ikon:luc('wrench'), label:'Bestill tjenester'},
+  {scr:'verksted', ikon:luc('wrench'), label:'Verksted'},
   {scr:'kalender', ikon:luc('calendar-days'), label:'Kalender'},
   {scr:'aktivesaker', ikon:luc('triangle-alert'), label:'Aktive saker'},
   {scr:'varsler', ikon:luc('bell'), label:'Påminnelser'},
@@ -7181,8 +7204,8 @@ function renderDesktopSidebarHtml(){
         }).join('')}
       </div>
       <div class="desktop-sidebar-secondary">
-        <button type="button" class="desktop-sidebar-item small ${screen==='historikk'?'active':''}" data-desktop-nav="historikk">
-          <span class="desktop-sidebar-ikon">${luc('history')}</span><span>Historikk</span>
+        <button type="button" class="desktop-sidebar-item small ${screen==='verkstedhistorikk'||screen==='historikk'?'active':''}" data-desktop-nav="verkstedhistorikk">
+          <span class="desktop-sidebar-ikon">${luc('history')}</span><span>Verkstedhistorikk</span>
         </button>
         <button type="button" class="desktop-sidebar-item small ${screen==='analyse'?'active':''}" data-desktop-nav="analyse">
           <span class="desktop-sidebar-ikon">${luc('line-chart')}</span><span>Analyse</span>
@@ -7267,6 +7290,7 @@ function render(){
   else if(screen === 'bilkort') body = renderBilkort();
   else if(screen === 'skader') body = renderSkader();
   else if(screen === 'verksted') body = renderVerksted();
+  else if(screen === 'verkstedhistorikk' || screen === 'historikk') body = renderVerkstedhistorikk();
   else if(screen === 'innstillinger') body = renderInnstillinger();
   else if(screen === 'kontroll') body = renderKontroll();
   else if(screen === 'varsler') body = renderVarslerOversikt();
@@ -7276,9 +7300,8 @@ function render(){
   else if(screen === 'aktivesaker') body = renderAktiveSaker();
   else if(screen === 'rapporter') body = renderRapporter();
   else if(screen === 'analyse') body = renderAnalyse();
-  else if(screen === 'historikk') body = renderHistorikk();
-  else if(screen === 'service') body = renderServiceSkjerm();
-  else if(screen === 'dekk') body = renderDekkSkjerm();
+  else if(screen === 'service') body = renderVerksted();
+  else if(screen === 'dekk') body = renderVerksted();
   else if(screen === 'kalender') body = renderKalender();
   else if(screen === 'bestill') body = renderBestillTjenester();
   else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
@@ -7348,7 +7371,8 @@ function render(){
   else if(screen === 'register') attachRegisterListeners();
   else if(screen === 'bilkort') attachBilkortListeners();
   else if(screen === 'skader') attachSkaderListeners();
-  else if(screen === 'verksted') attachVerkstedListeners();
+  else if(screen === 'verksted' || screen === 'service' || screen === 'dekk') attachVerkstedListeners();
+  else if(screen === 'verkstedhistorikk' || screen === 'historikk') attachVerkstedhistorikkListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
   else if(screen === 'kontroll') attachKontrollListeners();
   else if(screen === 'varsler') attachVarslerOversiktListeners();
@@ -7358,9 +7382,6 @@ function render(){
   else if(screen === 'aktivesaker') attachAktiveSakerListeners();
   else if(screen === 'rapporter') attachRapporterListeners();
   else if(screen === 'analyse') attachAnalyseListeners();
-  else if(screen === 'historikk') attachHistorikkListeners();
-  else if(screen === 'service') attachServiceSkjermListeners();
-  else if(screen === 'dekk') attachDekkSkjermListeners();
   else if(screen === 'kalender') attachKalenderListeners();
   else if(screen === 'bestill') attachBestillTjenesterListeners();
   else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
@@ -7390,7 +7411,7 @@ function drawerItemHtml(scr, icon, label, sub){
 function drawerOversikterHtml(){
   return `
     ${drawerItemHtml('register', luc('truck'), 'Biler')}
-    ${drawerItemHtml('bestill', luc('wrench'), 'Bestill tjenester')}
+    ${drawerItemHtml('verksted', luc('wrench'), 'Verksted')}
     ${drawerItemHtml('kalender', luc('calendar-days'), 'Kalender')}
   `;
 }
@@ -7425,7 +7446,7 @@ function renderDrawer(){
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">Oppslag</div>
     <div class="drawer-nav">
-      ${drawerItemHtml('historikk', luc('history'), 'Historikk')}
+      ${drawerItemHtml('verkstedhistorikk', luc('history'), 'Verkstedhistorikk')}
       ${drawerItemHtml('analyse', luc('line-chart'), 'Analyse')}
     </div>
     <!-- «⚙️ Innstillinger» flyttet helt nederst (siste navigasjonspunkt i
@@ -8950,10 +8971,10 @@ function attachDashboardListeners(){
   // SAMME data-attributtene og navigasjonsfunksjonene som Planlegging allerede bruker.
   attachBestillListeners('');
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation(); serviceValgtVehicleId = el.dataset.gotoService; goTo('service');
+    e.stopPropagation(); bestillService(el.dataset.gotoService);
   }));
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation(); dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk');
+    e.stopPropagation(); bestillDekkskift(el.dataset.gotoDekk);
   }));
   // de to hurtigknappene i hilsenen (✅ kontroll / 🔧 verkstedtime) er
   // fjernet fra Dashboard etter bestilling — begge funksjonene er fortsatt tilgjengelige
@@ -10610,10 +10631,10 @@ function attachBilkortListeners(){
 
   attachDamageCardListeners(vehicleDamages(currentVehicleId));
 
-  // Funksjonsbasert navigasjon: Service/Dekk-statuslenkene i Operativ status åpner nå de
-  // dedikerte arbeidsflatene direkte, med bilen forhåndsvalgt.
-  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
-  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+  // Funksjonsbasert navigasjon: Service/Dekk-statuslenkene i Operativ status åpner nå
+  // samlet Verksted direkte med type og bil forhåndsvalgt.
+  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { bestillService(el.dataset.gotoService); }));
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { bestillDekkskift(el.dataset.gotoDekk); }));
   // REGRESJONSFIKS (kontrollsletting): denne lyttermet var tidligere kun koblet opp i
   // attachKontrolloversiktListeners() — som ikke lenger nås via noen meny etter at
   // Historikk-huben erstattet de separate oversiktssidene. Slett-knappen i
@@ -12041,8 +12062,8 @@ function attachBestillTjenesterListeners(){
   document.getElementById('bestill-back').addEventListener('click', () => goBack('dashboard'));
   attachBestillListeners('');
   document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
-  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
-  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { bestillService(el.dataset.gotoService); }));
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { bestillDekkskift(el.dataset.gotoDekk); }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
@@ -12238,10 +12259,10 @@ function attachKalenderListeners(){
     kalenderValgtDato = kalenderValgtDato === el.dataset.kalDato ? '' : el.dataset.kalDato;
     render();
   }));
-  // Navigasjon videre til eksisterende arbeidsflater — samme mønster som Planlegging.
+  // Navigasjon videre til samlet Verksted og detaljer.
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
-  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { serviceValgtVehicleId = el.dataset.gotoService; goTo('service'); }));
-  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { dekkValgtVehicleId = el.dataset.gotoDekk; goTo('dekk'); }));
+  document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { bestillService(el.dataset.gotoService); }));
+  document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { bestillDekkskift(el.dataset.gotoDekk); }));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', () => goToSakDetalj(el.dataset.gotoSak)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);

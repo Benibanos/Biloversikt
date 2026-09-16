@@ -192,13 +192,8 @@
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
       beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
       sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon'],
-      // Samme lærdom som ServiceIntervallKm/EuGodkjentTil: et nytt JS-felt som IKKE
-      // registreres her forsvinner stille ved neste henting fra Airtable. RETTELSE: planlagt service lagres
-      // IKKE som en verkstedtime med type='service' — det er en helt separat array/
-      // Settings-nøkkel (planlagteServicer, se index.html). Dette 'type'-feltet er derfor
-      // ikke i aktiv bruk i dagens kode (ingen kallested setter eller leser det), men
-      // beholdes urørt i skjemaet siden felt ikke fjernes uten eksplisitt instruks.
-      type: ['Type']
+      type: ['Type'],
+      utfort: ['Utfort', 'bool'], utfortDato: ['UtfortDato']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -561,7 +556,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.15.0',
+    versjon: 'v2.16.0',
     bygget: '14.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
