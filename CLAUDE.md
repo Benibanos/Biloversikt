@@ -2986,3 +2986,25 @@ Den midlertidige vedlikeholdssperren er fjernet. Det finnes ingen
 P69.2 sin `version-check.js` er fortsatt eneste globale inngangssperre: ved
 `VERSION_MISMATCH` eller manglende `version.json`-verifisering starter ikke normal
 drift.
+
+## Prioritet 70 — Samlet Verksted og Verkstedhistorikk (2026-09-16)
+
+**Varig regel: All planlegging og aktive bestillinger samles under 🔧 Verksted, og all historikk under 📋 Verkstedhistorikk.**
+Separate arbeidsflater for Service og Dekkskift er faset ut.
+
+**Fem standardiserte verkstedtyper håndteres likt:**
+- `service` (Service)
+- `dekkskift` (Dekkskift)
+- `reparasjon` (Reparasjon)
+- `eu-kontroll` (EU-kontroll)
+- `annet` (Annet)
+
+**Arbeidsflyt og ett-klikks fullføring:**
+- Aktiv sak → Godta → Under oppfølging → Verkstedbestilling → «✅ Utført arbeid» (`fullforVerkstedbestilling`).
+- Ingen mellomliggende verkstedstatuser («Må bestilles», «På verksted», etc.).
+- Ved trykk på «✅ Utført arbeid» merkes bestillingen med `utfort = true` og `utfortDato = todayISO()`, og flyttes direkte til `Verkstedhistorikk`. Eventuell koblet sak fullføres automatisk via `markerSakUtfort()`.
+
+**Kostnadsisolering:**
+- Kostnader registreres og håndteres KUN under `💰 Kostnader` (`screen === 'kostnadsoversikt'`).
+- Verksted-modulen viser kun statusmerke `✅ Kostnad registrert` eller `⚠️ Kostnad mangler` basert på om kostnadspost er opprettet.
+

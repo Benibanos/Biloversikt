@@ -1,6 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-15 (Midlertidig sperring av sjåførkontroll — AKTIV).
+Sist oppdatert: 2026-09-16 (Prioritet 70 — Samlet Verksted og Verkstedhistorikk).
+Før det: 2026-09-16 (Prioritet 69.3 — Sjåførkontroll åpen igjen; midlertidig sperre fjernet).
 Før det: 2026-09-15 (Prioritet 69 — operativ oppstartsskjerm med reell lastestatus
 per datasett; appen åpnes ikke ved lesefeil på kjøretøyregisteret).
 Før det: 2026-09-14 (Prioritet 68.1 — boilerplate fjernet fra utvidet sak).

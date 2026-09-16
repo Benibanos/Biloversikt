@@ -15,6 +15,26 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70 — Samlet Verksted og Verkstedhistorikk
+
+Alt verkstedarbeid er nå samlet under én planleggingsmodul (**🔧 Verksted**) og én historikkmodul (**📋 Verkstedhistorikk**). Separate arbeidsflater for Service og Dekkskift er faset ut og integrert i samlet flyt.
+
+**Viktigste endringer:**
+1. **🔧 Verksted (Aktive verkstedbestillinger):**
+   - Viser aktive bestillinger med Bil, Type (Service, Dekkskift, Reparasjon, EU-kontroll, Annet), Verksted, Dato og Kommentar.
+   - Enkelt skjema for ny bestilling med 5 standardiserte typer, standardverksted-utfylling, dato og kommentar.
+   - Ett-klikks handling **«✅ Utført arbeid»** (`fullforVerkstedbestilling`) som flytter besøket direkte til historikken og oppdaterer tilknyttet sak.
+   - Kostnadsisolering: Verksted håndterer ikke kostnadsregistrering direkte, men viser kun `✅ Kostnad registrert` eller `⚠️ Kostnad mangler` basert på om kostnadspost finnes.
+2. **📋 Verkstedhistorikk:**
+   - Samler all historikk for Service, Dekkskift, Reparasjon, EU-kontroll og Annet på én flate.
+   - Fleksibel filtrering på Type (Alle, Service, Dekkskift, Reparasjon, EU-kontroll, Annet), Bil og Periode (Alle, Siste 30 dager, Siste 90 dager, I år, Tilpasset datointervall).
+3. **Navigasjon & Lagring:**
+   - Sidemeny og mobil drawer oppdatert med `🔧 Verksted` i primærmeny og `📋 Verkstedhistorikk` under Oppslag.
+   - `storage.airtable.js` oppdatert til `v2.16.0` med `Utfort` (bool) og `UtfortDato` (text) i `LIST_TABLES.verkstedtimer`.
+   - `index.html` og `kontroll.html` synkronisert.
+
+---
+
 ### Prioritet 69.3 — Sjåførkontroll åpnet igjen
 
 Den midlertidige sperren fra datagjenopprettingen er fjernet. Sjåførkontroll,
