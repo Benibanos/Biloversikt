@@ -13,6 +13,18 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-16
+
+### Prioritet 69.3 — Sjåførkontroll åpnet igjen
+
+Den midlertidige sperren fra datagjenopprettingen er fjernet. Sjåførkontroll,
+skader, varsellamper, avvik, kommentarer, biløkter og aktiv sjåfør er åpne igjen.
+P69.2 sin tvungne versjonskontroll er beholdt og blokkerer fortsatt hele Bilpark
+ved `VERSION_MISMATCH` eller manglende verifisering. Deployversjonen er økt til
+80 i `APP_VERSION`, `version.json` og service worker-cache.
+
+---
+
 ## 2026-09-15
 
 ### Midlertidig sperring av sjåførkontroll

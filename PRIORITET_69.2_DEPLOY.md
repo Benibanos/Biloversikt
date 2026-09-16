@@ -7,18 +7,14 @@ Sikrer at sjåfører **alltid** kjører siste deployede versjon av Bilpark før 
 ## Arkitektur
 
 ```
-version.json (server)
+APP_VERSION (version-check.js)
      ↓
-   [SANNHETSKILDE]
+Sammenlign med version.json
      ↓
-version-check.js (klient)
-     ↓
-Sammenlign versioner
-     ↓
-Hvis serverVersion > clientVersion:
-  → BLOKKÉR sjåførkontroll
-  → VIS tvungen oppdateringspanel
-  → Krev refresh
+Hvis verdiene avviker:
+  → VIS VERSION_MISMATCH
+  → BLOKKÉR hele Bilpark
+  → Ikke start normal drift
 ```
 
 ## Filer
@@ -38,9 +34,9 @@ git add .
 git commit -m "Fix sjåførkontroll bug"
 ```
 
-### 2. Oppdater version.json
+### 2. Oppdater begge versjonsverdiene
 
-**Dette er det ENESTE du trenger å gjøre manuelt:**
+**Begge verdiene må oppdateres samtidig:**
 
 ```json
 {
@@ -49,11 +45,12 @@ git commit -m "Fix sjåførkontroll bug"
 ```
 
 Øk nummeret med 1. Det blir din nye serverversjon.
+Sett samme tall i `const APP_VERSION = 80` i `version-check.js`.
 
 ### 3. Deploy til produksjon
 
 ```bash
-git add version.json
+git add version-check.js version.json
 git commit -m "Bump version to 80"
 git push origin main
 ```
@@ -63,20 +60,17 @@ git push origin main
 1. **Initialisering**: `version-check.js` kjører automatisk
 2. **Hent versjon**: Klienten fetcher `version.json` (no-cache)
 3. **Sammenlign**:
-   - Hvis `serverVersion === clientVersion` → ✅ Normal drift
-   - Hvis `serverVersion > clientVersion` → ❌ Appen blokkeres
-4. **Blokkering**: Hvis appen er gammel:
-   - Sjåførkontrollen er SKJULT
-   - Alle knapper er DEAKTIVERT
-   - Oppdateringspanel vises
-5. **Oppdatering**: Sjåfør klikker "Oppdater", browserens cache tømmes, ny kode lastes
+   - Hvis `APP_VERSION === version.json.version` → ✅ Normal drift
+   - Hvis verdiene avviker → ❌ `VERSION_MISMATCH`
+4. **Blokkering**: Ved avvik skjules appen, alle knapper deaktiveres og `loadAll()` starter ikke
+5. **Oppdatering**: Rett begge verdiene og last inn siden på nytt
 
 ## Sikkerhet
 
-### Fail-secure (defaut: sikker)
+### Fail-secure (default: sikker)
 
 ```javascript
-if (serverVersion > clientVersion) {
+if (APP_VERSION !== serverVersion) {
   // BLOKKÉR ALT
   showUpdatePanel();
   blockAllInteraction(); // Deaktiver alle knapper
@@ -95,7 +89,7 @@ if (serverVersion === null) {
 }
 ```
 
-**Resultat**: Sjåførkontroll FORBLIR SPERRET (ikke åpen tilgang)
+**Resultat**: Hele Bilpark FORBLIR SPERRET (ikke åpen tilgang)
 
 ## Versjonsnumre
 
@@ -119,14 +113,15 @@ Enkle tall er raskere å sammenligne og mindre utsatt for feil.
 ```javascript
 window.VERSION_CHECK.versionCheckComplete  // true/false
 window.VERSION_CHECK.versionCheckOk        // true/false
-window.VERSION_CHECK.APP_VERSION           // nummer
+window.APP_VERSION                         // klientnummer
+window.VERSION_CHECK.APP_VERSION           // samme klientnummer
 ```
 
 Du kan bruke disse for å skjule/vise UI-elementer basert på versjonsstatus.
 
 ## Sjåførkontroll-blokkering
 
-Når versjonsjekk feiler eller finner outdated versjon:
+Når versjonsjekk feiler eller finner `VERSION_MISMATCH`:
 
 1. **HTML-elementer deaktiveres**:
    ```javascript
@@ -151,8 +146,8 @@ Sjåfør åpner appen
     ↓
 version-check.js kjører
     ↓
-Versjonsjekk feiler?
-├─ JA: BLOKKÉR appen, vis oppdateringspanel
+Versjonsverdiene avviker?
+├─ JA: BLOKKÉR appen, vis VERSION_MISMATCH
 └─ NEI: Normal drift
     ↓
 Sjåfør klikker "Oppdater sjåførkontrollen"
@@ -177,7 +172,7 @@ Se `[VERSION_CHECK]` prefiksen for diagnostikk:
 
 ```
 [VERSION_CHECK] Initializing version check...
-[VERSION_CHECK] Server version loaded: 80
+[VERSION_CHECK] Client version: 80 Server version: 80
 [VERSION_CHECK] ✓ Version check OK
 [VERSION_CHECK] Version check OK. Application READY
 ```
@@ -192,7 +187,7 @@ Hvis det feiler:
 ## Checklist før deploy
 
 - [ ] Endringer er committed og testet lokalt
-- [ ] `version.json` er oppdatert (øk nummeret med 1)
+- [ ] `APP_VERSION` og `version.json` har samme verdi
 - [ ] Nye og gamle versjoner av koden fungerer (backward compatible)
 - [ ] Du har pushet til main branch
 - [ ] Du verifiserer at `version.json` er tilgjengelig på serveren
@@ -203,7 +198,7 @@ Hvis det feiler:
 
 1. Åpne browser dev tools (F12)
 2. Se `[VERSION_CHECK]` logger
-3. Kontroller `version.json`:
+3. Kontroller begge versjonsverdiene:
    ```bash
    curl https://ditt-domene.no/version.json
    ```
@@ -219,8 +214,7 @@ Dette sikrer at **alle** ressurser lastes på nytt fra serveren.
 
 ### Hvordan teste versjonskontroll lokalt?
 
-1. Åpne `version.json` i teksteditoren
-2. Endre `"version": "79"` til `"version": "80"`
+1. Endre `const APP_VERSION = 79` og `"version": "79"` til samme nye verdi
 3. Refresh siden (Ctrl+Shift+R for hard refresh)
 4. Sjåførkontrollen skal blokkeres
 5. Klikk "Oppdater"
