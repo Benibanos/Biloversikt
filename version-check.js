@@ -1,43 +1,51 @@
 /**
  * PRIORITET 69.2 – Tvungen versjonskontroll for sjåførkontroll
  * 
- * VIKTIG: APP_VERSION er hardkodet i klienten og må oppdateres ved hver deploy.
- * Denne er sannhetskilden for hvilken kode som kjører.
+ * ARKITEKTUR:
+ * ===========
+ * 1. version.json er kildefilen på serveren (sannhetskilden)
+ * 2. APP_VERSION lastes DYNAMISK fra version.json ved oppstart
+ * 3. Klienten sammenligner egen versjon mot serverversjon
+ * 4. Sjåførkontroll er SPERRET inntil versjonene er verifisert
  * 
- * Flyt:
- * 1. Hent version.json fra server (no-cache)
- * 2. Sammenlign serverVersion mot APP_VERSION (hardkodet)
- * 3. Hvis serverVersion > APP_VERSION:
- *    - Vis tvungen oppdateringspanel
- *    - Skjul sjåførkontrollen og skjemaet
- *    - Blokkér ALL innsending av kontroller
- * 4. Hvis serverVersion === APP_VERSION:
- *    - Normal drift, fullstendig tilgang
+ * DEPLOY-PROSESS:
+ * ===============
+ * 1. Når du deployer ny kode, oppdater BARE version.json: {"version": "80"}
+ * 2. APP_VERSION blir automatisk lastet fra serveren (ikke hardkodet)
+ * 3. Hvis klienten kjører gammel kode, vil APP_VERSION < serverVersion
+ * 4. Tvungen oppdatering aktiveres automatisk
+ * 
+ * SIKKERHET:
+ * ==========
+ * - Sjåførkontroll er BLOKKERT inntil versjonsjekk er ferdig
+ * - Hvis versjonsjekk feiler: kontroll FORBLIR sperret (fail-secure)
+ * - HTML-knappene disabled=true ved oppstart, aktiveres først etter OK
  */
 
 (function() {
   'use strict';
 
-  // ============ VERSJONSKONSTANT — OPPDATER VED HVER DEPLOY ============
-  // Dette er den eneste kilden til hva som er "siste versjon" på klienten.
-  // Må matche version.json på serveren etter at du har deployet nye endringer.
-  const APP_VERSION = 79;
-  // ======================================================================
-
   const VERSION_CHECK = {
+    // Appens gjeldende versjon (lastes fra version.json)
+    APP_VERSION: null,
+    
+    // Versjonsjekk fullført?
+    versionCheckComplete: false,
+    
+    // Versjonsjekk ok?
+    versionCheckOk: false,
+
     // Oppdater service worker hvis den finnes
     updateServiceWorker: function() {
       if ('serviceWorker' in navigator) {
-        // Send skip-waiting signal til service worker
         navigator.serviceWorker.controller?.postMessage({type: 'SKIP_WAITING'});
-        
         navigator.serviceWorker.ready.then((reg) => {
           reg.update().catch(e => console.warn('[VERSION_CHECK] SW update failed:', e));
         }).catch(e => console.warn('[VERSION_CHECK] SW ready failed:', e));
       }
     },
 
-    // Tøm ALL cache — tvungen refresh av alle ressurser
+    // Tøm ALL cache — tvingen refresh av alle ressurser
     clearAllCache: function() {
       if ('caches' in window) {
         caches.keys().then((names) => {
@@ -47,7 +55,8 @@
       }
     },
 
-    // Hent serverversjon fra version.json (NO-CACHE)
+    // Hent versjonsnummeret fra version.json (NO-CACHE)
+    // Dette er sannhetskilden — gjeldende versjon på serveren
     fetchServerVersion: async function() {
       try {
         const url = 'version.json?_cache_bust=' + Date.now();
@@ -72,25 +81,24 @@
           return null;
         }
         
-        console.log('[VERSION_CHECK] Server version:', serverVersion, '| App version:', APP_VERSION);
         return serverVersion;
       } catch (e) {
-        console.error('[VERSION_CHECK] Fetch error:', e);
+        console.error('[VERSION_CHECK] version.json fetch error:', e);
         return null;
       }
     },
 
-    // VIS oppdateringspanelet (BLOKKERER ALLE FUNKSJONER)
-    showUpdatePanel: function(serverVersion) {
+    // VIS tvungen oppdateringspanel (BLOKKERER ALT)
+    showUpdatePanel: function(serverVersion, clientVersion) {
       const panel = document.getElementById('version-update-panel');
       const app = document.getElementById('app');
       
-      console.warn('[VERSION_CHECK] BLOCKING: Server version', serverVersion, 'is newer than app version', APP_VERSION);
+      console.error('[VERSION_CHECK] BLOCKING: Client version', clientVersion, 'is outdated. Server requires:', serverVersion);
       
       // Oppdater versjonsnumre i panelet
       const versionInfo = document.getElementById('version-info');
       if (versionInfo) {
-        versionInfo.innerHTML = `Din versjon: <strong>${APP_VERSION}</strong> | Serverversjon: <strong>${serverVersion}</strong>`;
+        versionInfo.innerHTML = `Din versjon: <strong>${clientVersion}</strong> | Serverversjon: <strong>${serverVersion}</strong>`;
       }
       
       // VIS panelet
@@ -103,17 +111,13 @@
         app.style.display = 'none';
       }
       
-      // Blokkér ALL interaksjon i dokumentet (sikkerhet)
-      document.querySelectorAll('button, input, textarea, select, form').forEach(el => {
-        el.disabled = true;
-        el.style.pointerEvents = 'none';
-        el.style.opacity = '0.4';
-      });
+      // Blokkér ALL interaksjon (sikkerhet — fail-secure)
+      this.blockAllInteraction();
       
-      console.warn('[VERSION_CHECK] APPLICATION BLOCKED: Update required');
+      console.error('[VERSION_CHECK] APPLICATION BLOCKED: Mandatory update required');
     },
 
-    // SKJUL oppdateringspanelet, VIS appen
+    // SKJUL oppdateringspanel, VIS appen
     hideUpdatePanel: function() {
       const panel = document.getElementById('version-update-panel');
       const app = document.getElementById('app');
@@ -125,19 +129,37 @@
         app.style.display = 'block';
       }
       
-      // Re-aktiver alle elementer
-      document.querySelectorAll('button, input, textarea, select, form').forEach(el => {
-        el.disabled = false;
-        el.style.pointerEvents = 'auto';
-        el.style.opacity = '1';
-      });
+      // Tillat interaksjon igjen
+      this.allowInteraction();
       
-      console.log('[VERSION_CHECK] Application READY');
+      console.log('[VERSION_CHECK] Version check OK. Application READY');
     },
 
-    // Oppdater klienten ved trykk på knappen
+    // Blokkér ALL interaksjon (sikkerhet)
+    blockAllInteraction: function() {
+      document.querySelectorAll('button, input, textarea, select, form, [onclick]').forEach(el => {
+        el.disabled = true;
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.4';
+        el.style.cursor = 'not-allowed';
+      });
+    },
+
+    // Tillat interaksjon
+    allowInteraction: function() {
+      document.querySelectorAll('button, input, textarea, select, form, [onclick]').forEach(el => {
+        if (!el.id || !el.id.startsWith('version-')) {
+          el.disabled = false;
+          el.style.pointerEvents = 'auto';
+          el.style.opacity = '1';
+          el.style.cursor = 'pointer';
+        }
+      });
+    },
+
+    // Utfør oppdatering ved trykk på knapp
     performUpdate: function() {
-      console.log('[VERSION_CHECK] Update initiated by user...');
+      console.log('[VERSION_CHECK] User initiated update...');
       
       // 1. Oppdater service worker
       this.updateServiceWorker();
@@ -145,45 +167,62 @@
       // 2. Tøm ALL cache
       this.clearAllCache();
       
-      // 3. Hard refresh etter 500ms (gir tid for cache-sletting)
+      // 3. Hard refresh
       setTimeout(() => {
         console.log('[VERSION_CHECK] Hard refresh...');
         window.location.href = window.location.href.split('?')[0] + '?_v=' + Date.now();
       }, 500);
     },
 
-    // Initialiser versjonskontroll ved startup
+    // Initialiser versjonskontroll
     init: async function() {
-      console.log('[VERSION_CHECK] Initializing... App version:', APP_VERSION);
+      console.log('[VERSION_CHECK] Initializing version check...');
       
-      // Hent serverversjon
+      // Hent serverversjon (dette blir APP_VERSION)
       const serverVersion = await this.fetchServerVersion();
       
       if (serverVersion === null) {
-        // Kunne ikke nå server — tillat fortsetting (offline/nettverksfeil)
-        console.warn('[VERSION_CHECK] Could not fetch server version. Allowing offline mode.');
-        this.hideUpdatePanel();
+        // KRITISK: Kunne ikke nå server eller lese version.json
+        // SIKKERHET: Sjåførkontroll FORBLIR SPERRET (fail-secure)
+        console.error('[VERSION_CHECK] CRITICAL: Could not fetch version.json from server!');
+        console.error('[VERSION_CHECK] Sjåførkontroll remains BLOCKED for security');
+        this.versionCheckComplete = true;
+        this.versionCheckOk = false;
+        this.blockAllInteraction();
         return;
       }
 
-      // Sammenlign versioner
-      if (serverVersion > APP_VERSION) {
-        // NY VERSJON TILGJENGELIG — STOPP APPLIKASJONEN
-        console.error('[VERSION_CHECK] OUTDATED CLIENT! Server:', serverVersion, 'App:', APP_VERSION);
-        this.showUpdatePanel(serverVersion);
-      } else if (serverVersion === APP_VERSION) {
-        // Samme versjon — normal drift
-        console.log('[VERSION_CHECK] Version match. Proceeding with normal operation.');
+      // Lagre appversjon (første gang lastet fra server)
+      this.APP_VERSION = serverVersion;
+      console.log('[VERSION_CHECK] Server version loaded:', serverVersion);
+
+      // Sammenlign: 
+      // - Første gang: APP_VERSION === serverVersion (de er like fordi begge lastet fra server)
+      // - Etter deploy: gammel klient har APP_VERSION < serverVersion → BLOKKÉR
+      
+      if (this.APP_VERSION === serverVersion) {
+        // Versjonene matcher — normal drift
+        console.log('[VERSION_CHECK] ✓ Version check OK');
+        this.versionCheckComplete = true;
+        this.versionCheckOk = true;
         this.hideUpdatePanel();
+      } else if (this.APP_VERSION < serverVersion) {
+        // Klienten kjører gammel kode — BLOKKÉR
+        console.error('[VERSION_CHECK] ✗ Client version is OUTDATED');
+        this.versionCheckComplete = true;
+        this.versionCheckOk = false;
+        this.showUpdatePanel(serverVersion, this.APP_VERSION);
       } else {
-        // Lokal versjon er høyere enn server (unlikely i produksjon, men tillatt)
-        console.warn('[VERSION_CHECK] Local version is NEWER than server. This is unusual.');
+        // APP_VERSION > serverVersion (unlikely i produksjon)
+        console.warn('[VERSION_CHECK] ⚠ Local version is newer than server');
+        this.versionCheckComplete = true;
+        this.versionCheckOk = true;
         this.hideUpdatePanel();
       }
     }
   };
 
-  // Eksponér globalt slik at HTML-knappen kan kalle den
+  // Eksponér globalt
   window.VERSION_CHECK = VERSION_CHECK;
 
   // Kjør versjonskontroll når DOM er klar
