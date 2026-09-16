@@ -1,6 +1,7 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-16 (Prioritet 70.4 — duplikatgjengivelse i Aktive
+Sist oppdatert: 2026-09-16 (Prioritet 70.5 — Bilpark-branding og tilfeldig
+HMS-påminnelse på sjåførsiden). Før det: Prioritet 70.4 — duplikatgjengivelse i Aktive
 saker fjernet; én bil rendres én gang per seksjon med samlet ekspansjon). Før
 det: Prioritet 70.3 — Avansert visning fjernet;
 Aktive saker bruker kun dagens gruppering per bil). Før det: Prioritet 70.2 —

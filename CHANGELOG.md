@@ -15,6 +15,19 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70.5 — Bilpark-branding og HMS-påminnelse
+
+- Oppdateringspanelet viser nå Bilpark-logo og tydelig merkevareidentitet ved
+  både versjonsavvik og manglende versjonsverifisering.
+- Sjåførsidens oppstart viser én tilfeldig, rolig HMS-påminnelse i stedet for
+  teknisk «Operativ kontroll»-tekst.
+- Alle aktive favicon-, manifest-, Apple-touch-, PWA- og service-worker-
+  referanser bruker de versjonerte Bilpark-logoikonene.
+- APP_VERSION og version.json er oppdatert samlet til 81, med cache-busting
+  til bilpark-v81.
+
+## 2026-09-16
+
 ### Prioritet 70.4 — Korrekt gruppering av Aktive saker
 
 Rettet en renderingsfeil som satte inn den samme bilgrupperte sakslisten to
