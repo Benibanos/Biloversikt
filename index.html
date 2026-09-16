@@ -1342,6 +1342,9 @@
   .oppstart-kort{width:100%;max-width:380px;margin:0;}
   .oppstart-merke{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;}
   .oppstart-under{color:var(--muted);font-size:14px;margin:2px 0 18px;}
+  .oppstart-hms{display:flex;flex-direction:column;gap:4px;margin:2px 0 18px;color:var(--ink);}
+  .oppstart-hms strong{font-size:16px;}
+  .oppstart-hms span{color:var(--muted);font-size:14px;}
   .oppstart-rad{display:flex;align-items:flex-start;gap:12px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:14.5px;}
   .oppstart-rad:first-of-type{border-top:none;}
   .oppstart-rad .ikon{width:22px;flex:0 0 22px;text-align:center;}
@@ -1387,7 +1390,7 @@
      (egen container utenfor #app), fylles av renderKontrollSlettModal(). -->
 <div id="kontroll-slett-modal"></div>
 <div id="bilde-lightbox-modal"></div>
-<div id="app"><div class="oppstart"><div class="panel oppstart-kort"><div class="oppstart-merke">BILPARK</div><div class="oppstart-under">Operativ kontroll</div></div></div></div>
+<div id="app"><div class="oppstart"><div class="panel oppstart-kort"><div class="oppstart-merke">BILPARK</div></div></div></div>
 
 <script>
 // ---- Nettverksstatus ----
@@ -3404,6 +3407,18 @@ let oppstartFase = 'laster';
 let oppstartKrasj = null;
 let oppstartApner = false;
 let oppstartVersjon = '';
+const SJAFOR_HMS_MELDINGER = [
+  ['✅ Husk kontrollen', 'Trygge kjøretøy gir tryggere arbeidsdager.'],
+  ['🚛 Sikkerhet først', 'En kontroll i dag kan forhindre stopp i morgen.'],
+  ['🔍 Ta den ekstra sjekken', 'Små feil oppdages før de blir store problemer.'],
+  ['✅ Kontroll før avgang', 'Det tar ett minutt. Det kan spare mange timer.'],
+  ['🚦 Klar for dagen?', 'En god kontroll er starten på en trygg arbeidsdag.']
+];
+let sjaforHmsMelding = null;
+function hentSjaforHmsMelding(){
+  if(!sjaforHmsMelding) sjaforHmsMelding = SJAFOR_HMS_MELDINGER[Math.floor(Math.random() * SJAFOR_HMS_MELDINGER.length)];
+  return sjaforHmsMelding;
+}
 function oppstartKlargjorNavn(){ return driverMode ? 'Sjåførkontroll' : 'Dashboard'; }
 function oppstartMerk(key, status, melding){
   oppstartStatus[key] = {status, start: Date.now(), melding: melding || ''};
@@ -3498,7 +3513,7 @@ function renderOppstart(){
     <div class="oppstart" aria-live="polite">
       <div class="panel oppstart-kort">
         <h1 class="oppstart-merke">BILPARK</h1>
-        <div class="oppstart-under">Operativ kontroll</div>
+        ${driverMode ? `<div class="oppstart-hms"><strong>${esc(hentSjaforHmsMelding()[0])}</strong><span>${esc(hentSjaforHmsMelding()[1])}</span></div>` : '<div class="oppstart-under">Operativ kontroll</div>'}
         ${OPPSTART_STEG.filter(x => !(x.key === 'klargjor' && oppstartFase === 'stoppet')).map(oppstartRadHtml).join('')}
         ${oppstartMeldingHtml()}
       </div>
@@ -12405,7 +12420,6 @@ function renderAktiveSaker(){
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
 
-    <div style="margin-top:16px;">${sakFaneListeHtml(sakAktivFane)}</div>
   `;
 }
 // «Del 3» — «📨 Nye kommentarer» og tilhørende «✅ Marker som lest» er fjernet fra
@@ -12447,11 +12461,6 @@ function attachAktiveSakerListeners(){
   });
   const f = document.getElementById('add-sak-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddSak', submitAddSak));
-  document.querySelectorAll('[data-toggle-sako-vehicle]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.toggleSakoVehicle;
-    if(sakOversiktOpenVehicles.has(id)) sakOversiktOpenVehicles.delete(id); else sakOversiktOpenVehicles.add(id);
-    render();
-  }));
   document.querySelectorAll('[data-toggle-edit-sak]').forEach(el => el.addEventListener('click', () => toggleEditSak(el.dataset.toggleEditSak)));
 
   // ---- Saksbehandling Wizard ----
