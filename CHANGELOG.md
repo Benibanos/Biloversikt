@@ -15,6 +15,14 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70.4 — Korrekt gruppering av Aktive saker
+
+Rettet en renderingsfeil som satte inn den samme bilgrupperte sakslisten to
+ganger i samme seksjon. Aktive saker rendres nå én gang per fane, og hver bil
+har fortsatt ett ekspanderbart kort med alle sine saker.
+
+## 2026-09-16
+
 ### Prioritet 70.3 — Fjernet Avansert visning
 
 Aktive saker bruker nå utelukkende dagens bilgrupperte visning. Den gamle

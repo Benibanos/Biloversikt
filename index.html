@@ -12405,7 +12405,6 @@ function renderAktiveSaker(){
       <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
     </form>` : ''}
 
-    <div style="margin-top:16px;">${sakFaneListeHtml(sakAktivFane)}</div>
   `;
 }
 // «Del 3» — «📨 Nye kommentarer» og tilhørende «✅ Marker som lest» er fjernet fra
@@ -12447,11 +12446,6 @@ function attachAktiveSakerListeners(){
   });
   const f = document.getElementById('add-sak-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddSak', submitAddSak));
-  document.querySelectorAll('[data-toggle-sako-vehicle]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.toggleSakoVehicle;
-    if(sakOversiktOpenVehicles.has(id)) sakOversiktOpenVehicles.delete(id); else sakOversiktOpenVehicles.add(id);
-    render();
-  }));
   document.querySelectorAll('[data-toggle-edit-sak]').forEach(el => el.addEventListener('click', () => toggleEditSak(el.dataset.toggleEditSak)));
 
   // ---- Saksbehandling Wizard ----
