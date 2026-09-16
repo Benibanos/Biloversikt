@@ -15,6 +15,28 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-16
 
+### Prioritet 70.7 — Kompakte sakskort uten «Mer informasjon»
+
+- Aktive saker viser nå bil, reg.nr., sakstype, beskrivelse, registrert av og
+  registrert dato direkte i hvert sakskort.
+- Bilder vises direkte på høyre side når de finnes, sammen med sakens gjeldende
+  handling (`Godta`, `Avslå`, verkstedbestilling eller `Arbeid utført`).
+- «Mer informasjon»-toggle og den separate kompakte detaljvisningen er fjernet
+  fra sakskortene. Gruppens nyeste dato/sakstype er også fjernet for å unngå
+  duplisering.
+
+### Prioritet 70.6 — Forenklet oppstart og ikonopprydding
+
+- Oppstartsskjermen viser nå Bilpark-logoen som eneste merkevareelement,
+  med én tilfeldig HMS-melding rett under logoen og sentrerte statusrader.
+- Versjonskontrollens oppdateringsside bruker samme logo-og-melding-struktur
+  uten en ekstra `BILPARK`-tekst.
+- Alle aktive ikonreferanser bruker den samme versjonerte Bilpark-logoen
+  (`icons/bilpark-icon-*-v63.png`); ingen separate `favicon.ico`- eller
+  `favicon.png`-filer finnes i leveransen.
+- APP_VERSION og version.json er oppdatert samlet til 82, med cache-busting
+  til bilpark-v82.
+
 ### Prioritet 70.5 — Bilpark-branding og HMS-påminnelse
 
 - Oppdateringspanelet viser nå Bilpark-logo og tydelig merkevareidentitet ved
