@@ -1,6 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-16 (Prioritet 70.7 — kompakte sakskort uten «Mer informasjon»). Før
+Sist oppdatert: 2026-09-17 (Prioritet 71 — 🔔 Varslingssenter erstatter Påminnelser,
+samler nye kommentarer/km-avvik/service/EU/verkstedoppfølging/skader/oppfølging med
+marker-som-sett og 48-timers gjenoppdukking; «Kommende frister»-KPI fjernet fra mobil;
+sveip-tilbake-regresjon på Verkstedhistorikk/Kalender/Bestill/Kommentarer rettet).
+Før det: 2026-09-16 (Prioritet 70.7 — kompakte sakskort uten «Mer informasjon»). Før
 det: Prioritet 70.6 — forenklet oppstart og ikonopprydding. Før
 det: Prioritet 70.5 — Bilpark-branding og tilfeldig
 HMS-påminnelse på sjåførsiden). Før det: Prioritet 70.4 — duplikatgjengivelse i Aktive

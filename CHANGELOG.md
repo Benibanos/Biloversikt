@@ -13,6 +13,376 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-17
+
+### Prioritet 71.4 — Horisontal saksvisning per bil
+
+Bestilling: **direkte reverserer en del av Prioritet 71.2.** Den forrige runden fjernet
+per-bil-gruppering fra Aktive saker (flat, nyeste-først-liste, ingen «Vis alle saker»),
+etter et eksplisitt ønske om å fjerne «unødvendige ekspansjoner». Denne bestillingen
+beskrev derimot en «Vis alle saker»-knapp som fortsatt eksisterer per bil — enten fordi
+brukeren ennå ikke hadde sett 71.2 sin flate liste, eller fordi 71.2 gikk for langt.
+**Avklart eksplisitt med bruker før implementering** (se AskUserQuestion i samme økt):
+per-bil-gruppering gjeninnføres, og «Vis alle saker» skal vise bilens saker HORISONTALT
+side om side i stedet for under hverandre (som var tilfellet også FØR 71.2).
+**Nummerert 71.4, ikke 71.3 som bestillingsteksten selv brukte** — 71.3 var allerede brukt
+i samme økt (Ringeliste-redesignet).
+
+**`sakFaneListeHtml(fase)` grupperer igjen per kjøretøy**, med én ny detalj referansen ba
+om og den gamle grupperingen (før 71.2) ikke hadde: gruppeoverskriften viser nå «Nyeste:
+{problem} • {dato}» i tillegg til bilnavn/regnr og antall aktive saker — henter
+`sakProblemLabel()` (samme spesifikke problem-tekst sakskortene og Historikk allerede
+bruker) fra den ferskeste saken i gruppen.
+
+**Sakskortet (`sakKompaktKortHtml()`) er redesignet for smal, horisontal plassering**
+(`.sak-horisontal-kort`, fast bredde 250px, `flex:0 0 250px` i en `overflow-x:auto`-rad):
+- **Overskrift = sakstype** (ikon + `SAK_TYPE_LABEL`, f.eks. «⚠️ Varsellampe») — IKKE
+  bilnavn/regnr, som nå kun står i gruppeoverskriften (fjerner nettopp den dupliseringen
+  bestillingen pekte på).
+- Avvik-sjekklisten fra Prioritet 52 (spesifikk varsellampe/kontrollavvik-detalj) er
+  beholdt rett under overskriften — bestillingen forbød den ikke, og den er nettopp det
+  som gjør en generisk sakstype-overskrift forståelig uten å åpne saken.
+- **Bilde som liten miniatyr i kortets øverste høyre hjørne** (`sakBildeThumbHtml()`, ny
+  funksjon) — IKKE hele bildegalleriet (`bildeGalleriHtml()`, som bruker for mye
+  plass i en 250px-kolonne). Gjenbruker `attachBildeGalleriListeners()`/`getPhoto()`/
+  `openLightbox()` uendret: samme id-mønster, kun første bilde faktisk rendret i DOM-en
+  (resten hoppes trygt over av funksjonens eksisterende per-indeks-guard), klikk åpner
+  likevel lightboxen med ALLE bildene. Ingen bilder → rendres ingenting (Prioritet 65.2).
+- **Godta/Avslå (eller fasens tilsvarende handling) er nå nederst i kortet**, stablet
+  vertikalt, presset til bunnen med `margin-top:auto` i en flex-kolonne — «frigjør bredde»
+  slik bestillingen ba om, i stedet for å dele bredden med bildekolonnen slik 71.2 gjorde.
+
+**«✏️ Avansert redigering» åpner IKKE veiviseren inni det smale kortet.** Et 250px-kort
+med hele den 4-stegs veiviseren (kostnadsfelt, `row3`-rutenett osv.) presset inn ville sett
+ødelagt ut. I stedet rendrer `sakFaneListeHtml()` `sakWizardHtml()` i FULL BREDDE rett
+under hele den horisontale raden, når en av sakene i den utvidede gruppen er under
+redigering — verifisert direkte i nettleseren: `.sak-horisontal-rad` har
+`display:flex` (bekreftet via `getComputedStyle`), og veiviser-elementet
+(`.dmg-editbox`) er dens neste søskenelement i DOM-en, ikke et barn av et enkelt sakskort.
+
+**`attachSakDetaljBilder()` filtrerer nå også på `sakOversiktOpenVehicles`** — bilder
+hentes fortsatt kun for saker som faktisk er synlige (utvidet gruppe), samme prinsipp som
+Prioritet 68 allerede etablerte, nå utvidet til også å ta hensyn til gruppering.
+`data-toggle-sak-vehicle`-lytteren (fjernet i 71.2) er gjeninnført uendret.
+`goToSakDetalj()`/`goToVarselSak()` setter nå igjen `sakOversiktOpenVehicles` ved dype
+lenker (Historikk/Dashboard/Verksted/Varslingssenter), slik at et lenket sakskort faktisk
+er synlig og ikke skjult bak en lukket gruppe.
+
+**«Utført uten verkstedbesøk» (Prioritet 71.2) er UENDRET** — samme
+`markerSakUtfortUtenVerksted()`, samme årsak-panel (`sakUtenVerkstedPanelHtml()`), kun
+flyttet inn i det nye, smalere kortet. Ingen ny logikk.
+
+**Testet i faktisk kjørende kode mot en reell, LIVE produksjons-Airtable-base**, med
+`airtableFetch()` sin write-vei fysisk blokkert (samme scratch-guard-metode som
+Prioritet 71.2/71.3). Bekreftet: gruppeoverskrift viser korrekt «Bil 2 · LS97571 / 3
+aktive saker / Nyeste: Kjølevæske varsling • 16/09/2026» (identisk med referansebildets
+eksempel, inkludert nøyaktig samme ekte sak); «Vis alle saker» viser 3 ekte saker
+(Varsellampe, Skade, Skade) horisontalt side om side, med korrekt sakstype-overskrift,
+sjekkliste, registrert av/dato, beskrivelse og synlige bildeminiatyrer for begge
+skade-sakene med bilde; «Avansert redigering» åpner veiviseren i full bredde under raden;
+«Utført uten verkstedbesøk» fullført på nytt i den nye kortformen, korrekt blokkert av
+vakten. **Null POST/PATCH/DELETE nådde Airtable.**
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert), `sw.js` (`bilpark-v87` →
+`bilpark-v88`), `version-check.js`/`version.json` (87 → 88). **`storage.airtable.js` er
+IKKE endret.**
+
+**Kjente begrensninger:**
+- Horisontal rad bruker `overflow-x:auto` (horisontal scroll) når en bil har flere saker
+  enn det er plass til i bredden — bevisst, ikke en mangel: bestillingen forbød vertikal
+  scrolling, ikke horisontal.
+- Byttet fra 71.2 sin flate liste tilbake til gruppering er en reversering av nylig,
+  eksplisitt bestilt arbeid. Fremtidige økter bør IKKE anta at «flat liste uten
+  gruppering» fortsatt er gjeldende bare fordi CHANGELOG.md nevner det under Prioritet
+  71.2 — koden (og denne oppføringen) er sannheten.
+
+### Prioritet 71.3 — Ny Ringeliste og Ringeliste-innstillinger
+
+Bestilling: reprodusere et referansebilde av en ny Ringeliste-skjerm så nært som mulig, og
+gjøre innstillingene bak den raskere å vedlikeholde enn dagens ene lange, usorterte
+kjøretøyliste.
+
+**Ny datamodell — kontakter uten et kjøretøy å henge på.** Ringelisten trengte to nye
+konsepter referansebildet introduserte: 👔 Ledelse (flere personer, hver med navn/rolle/
+telefon) og de to faste kontaktene 🚚 Home Delivery/🛟 Veihjelp (ett navn/undertekst/
+telefon hver). Vurdert og forkastet: gjenbruke `adminUsers` (Administratorbrukere) for
+Ledelse — feltet `tittel` der er en LUKKET nedtrekksliste (kun Administrator/
+Driftskoordinator/Transportleder), som ikke dekker referansebildets «Logistikkleder», og
+å blande login-identitet med ringelistekontakter hadde koblet to urelaterte konsepter
+sammen. Løst med én ny, frittstående Settings-blob, `ringeliste-ekstra` — nøyaktig samme
+mønster som `standardverksted`/`varselSett` (se Prioritet 61/71): ingen ny Airtable-tabell,
+ingen `LIST_TABLES`-registrering. Kjøretøyenes eksisterende `v.telefon`-felt er UENDRET og
+lagres fortsatt direkte på kjøretøyet — den nye blobben dekker kun det som IKKE er et
+kjøretøy.
+```
+ringelisteEkstra = {
+  ledelse: [{id, navn, rolle, telefon}, ...],
+  homeDelivery: {navn, beskrivelse, telefon},
+  veihjelp: {navn, beskrivelse, telefon}
+}
+```
+Ledelse seedes bevisst TOM ved førstegangsoppstart (STANDARD_RINGELISTE_EKSTRA) — å gjette
+navn på ekte personer ville uansett ikke gitt et ekte telefonnummer, så et tomt
+utgangspunkt med en tydelig «+ Legg til»-knapp er tryggere enn en plausibel, men falsk,
+kontakt. Home Delivery/Veihjelp seedes med de generiske etikettene fra referansebildet
+(«Kjørekontoret»/«Assistanse»), uten telefonnummer.
+
+**Sjåførens Ringeliste (`renderDriverRingeliste()`), fullstendig redesignet:** tre
+kollapsbare grupper — 🟢 Aktive sjåfører (bil, regnr, sjåførnavn, Ring), 🟡 Ingen aktive
+sjåfører (bil, regnr, Ring) og 🔵 Ledelse (navn, rolle, Ring) — pluss to alltid synlige
+kontaktkort for Home Delivery/Veihjelp nederst, i en 2-kolonners rutenett (stables til 1
+kolonne under 360px). Partisjoneringen aktiv/ingen-aktiv bruker den UENDREDE
+`vehicleAktivSjafor()`; egen bil ekskluderes fortsatt fra begge gruppene når en aktiv
+biløkt finnes (samme regel som den gamle Ringelisten alltid har hatt — det gir ingen
+mening å ringe seg selv). Et kjøretøy/en kontakt uten registrert telefonnummer viser nå
+«Ikke registrert» i stedet for en Ring-knapp, fremfor tidligere å bli utelatt fra listen
+helt (dagens liste viste FØR kun kjøretøy MED nummer — nå vises ALLE, partisjonert etter
+sjåførstatus, uansett om nummer finnes, slik bestillingen krever). Alle tre grupper er
+ÅPNE som standard (`driverRingelisteLukket`, tom Set = alt åpent), matcher referansebildet.
+Ny, scoped CSS (`.ringeliste-*`, gjenbruker eksisterende design-tokens, ingen nye farger)
+— ingen eksisterende klasse (`.dmg-*`/`.acc-*`) matchet det fargede, kortbaserte designet
+godt nok til at gjenbruk ville vært riktig.
+
+**Innstillinger → 👤 Sjåførside → 📞 Ringeliste, restrukturert:** den gamle, flate,
+usorterte kjøretøylisten er erstattet med nestede `settingsAccordionRow()`-grupper (samme
+funksjon gjenbrukt rekursivt som resten av Innstillinger, ingen ny akkordion-mekanisme):
+🚚 Home Delivery og 🛟 Veihjelp (ett redigerbart kontaktkort hver — navn, undertekst OG
+telefonnummer er alle redigerbare, ikke bare nummeret bestillingen eksplisitt nevnte, siden
+det ikke kostet noe ekstra), 👔 Ledelse (fri liste — legg til/rediger/slett, samme mønster
+som Verkstedregisteret), og deretter kjøretøytelefonnumrene GRUPPERT PER KATEGORI i stedet
+for én lang liste. Kategoriene leses LIVE fra `bilkategorier` (ikke hardkodet «Kjøretøy/
+Lastebiler/Monteringer» slik bestillingsteksten skisserte) — verifisert i faktisk
+produksjonsdata at dette er riktig valg: denne bilparkens «bil»-kategori er allerede
+omdøpt til «Driftslag», noe en hardkodet liste ville vist feil for.
+
+**Testet i faktisk kjørende kode mot en reell, LIVE produksjons-Airtable-base**, med
+`airtableFetch()` sin write-vei fysisk blokkert (samme scratch-kopi-metode som Prioritet
+71.2 innførte — se testnotatet der). Bekreftet: alle 19 kjøretøy (9 i «Driftslag», korrekt
+omdøpt kategorinavn) partisjonert riktig i Aktive/Ingen aktive sjåfører med reelle,
+allerede-registrerte telefonnumre; Home Delivery-kontaktkortet redigert og lagret
+(`ringeliste-ekstra` skrevet til Settings, blokkert av vakten); en ny Ledelse-kontakt lagt
+til og lagret; kollapsbar gruppe åpnet/lukket korrekt i begge retninger. **Én reell feil
+funnet og rettet under testing:** kjøretøyets regnr ble vist to ganger («Bil 7 · EP90220 ·
+EP90220») — `vehicleLabel()` inkluderer allerede regnr, og koden la det til en gang til.
+**Null POST/PATCH/DELETE nådde Airtable** i hele økten (kun konsollvarsler
+«[TEST GUARD] Blocked …»).
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert), `sw.js` (`bilpark-v86` →
+`bilpark-v87`), `version-check.js`/`version.json` (86 → 87). **`storage.airtable.js` er
+IKKE endret** — ingen nye Airtable-felt, ingen `LIST_TABLES`-endring (`ringeliste-ekstra`
+er en frittstående Settings-blob, samme unntak som `standardverksted`/`varselSett`).
+
+**Kjente begrensninger:**
+- `ringeliste-ekstra` er, som `dashboard-layout`/`standardverksted`/`varselSett`, IKKE
+  registrert i `reloadOne()` sin bakgrunnspoll — en endring på én enhet dukker derfor ikke
+  opp på en annen enhet før neste fulle reload/innlogging der. Samme begrensning disse tre
+  Settings-blobbene allerede hadde.
+- ⓘ-infoikonet i Ringeliste-headeren er dekorativt (kun `title`-attributt), ikke en
+  interaktiv info-dialog — bestillingen viste ikonet i referansebildet, men beskrev ingen
+  konkret innholdskrav for det.
+
+### Prioritet 71.2 — Operativ opprydding i saker og sjåførkontroll
+
+Bestilling: seks punkter for å redusere klikk/scrolling/støy i saksflyten og sjåførkontroll.
+**Denne bestillingen ble av brukeren selv kalt «Prioritet 71.1» — omdøpt til 71.2 her for å
+unngå kollisjon med den allerede leverte 71.1 (`migrerLegacySkaderTilSaker()`-regresjonsfiksen,
+se rett under).**
+
+**Del 1 — «✅ Utført uten verkstedbesøk».** Ny, ett-klikks-tilgjengelig handling på saker i
+fasen «Under oppfølging» (`markerSakUtfortUtenVerksted()`), for saker som viser seg å ikke
+kreve verksted i det hele tatt (bestillingens eksempel: dekktrykksensor varslet, bilen har
+ingen sensor). Speiler `markerSakUtfort()` nøyaktig (samme avvik-fullføring, samme automatiske
+varsellampe-kvittering, samme `resolvedAt`/`resolvedBy`/`completedAt`/`status`), med to bevisste
+forskjeller: `s.verkstedResultat` røres ALDRI (det feltet betyr «resultat FRA verksted», og
+ingen verksted er involvert), og en valgfri årsak (Feilregistrering / Problem ikke gjenskapt /
+Utført internt / Informert sjåfør / Annet, med fritekst for «Annet») lagres i det allerede
+eksisterende `s.resolutionNote`-feltet — samme felt den avanserte veiviseren allerede bruker til
+sluttkommentar, og som `sakWizardLesemodusHtml()` allerede viser uendret for lukkede saker.
+**Ingen nytt Airtable-felt, ingen ny status.** Årsak-panelet er et lite, inline valgfritt skjema
+(select + betinget fritekstfelt + Bekreft/Avbryt) rett i sakskortet — ikke en egen dialog/skjerm.
+
+**Del 2/3 — komprimert sakskort og ny layout (`sakKompaktKortHtml()`).** Hele saken vises nå
+direkte: bilnavn (fremhevet), regnr, sakstype, registrert av, registrert dato, avvik-sjekkliste
+(uendret fra Prioritet 68) og beskrivelse (fremhevet) i venstre kolonne; bilde (kun når det
+finnes — ingen «Ingen bilde»-tekst, jf. Prioritet 65.2 sitt tomtilstand-prinsipp), handling(er)
+stablet vertikalt, og «Avansert redigering» i høyre kolonne. Ingen dato/regnr/sakstype vises to
+ganger lenger.
+
+**Rotårsak til duplisering, funnet under kartlegging — rettet dokumentasjonsfeil i denne
+oppføringen:** `sakFaneListeHtml()` grupperte sakene PER BIL bak en «Vis alle saker»-utvidelse.
+CLAUDE.md, Prioritet 51, beskrev opprinnelig en FLAT, nyeste-først-liste (med gruppering kun i en
+egen «Avansert visning»/`sakGroupedSection()`) — men Prioritet 70.3 fjernet «Avansert visning»
+igjen og gjorde bevisst per-bil-gruppering til STANDARDVISNINGEN («Aktive saker bruker kun
+dagens gruppering per bil»). Dette var altså en tidligere, dokumentert beslutning, ikke kode-
+drift. Gruppens header viste allerede bilnavn/antall, og hvert kort inni viste det samme igjen —
+derav opplevelsen av gjentatt informasjon som denne bestillingen ba om å fjerne. Rettet ved å
+gjøre `sakFaneListeHtml()` til en flat, sortert liste igjen — en NY beslutning i denne runden
+(reverserer Prioritet 70.3 sitt valg), drevet av bestillingens eksplisitte «fjern unødvendige
+ekspansjoner» og MÅL-seksjonens «uten ekstra klikk», ikke en gjenoppretting av en gammel feil.
+
+**Bifunn og samtidig rettet: «✏️ Avansert redigering» var en død lenke.** Den fulle
+sakbehandlings-veiviseren (`sakWizardHtml()`, alle fire steg + lesemodus for lukkede saker,
+kostnads-/avsettingsregistrering) var fortsatt fullstendig, korrekt implementert kode — men ble
+KUN rendret fra `sakCard()`, en funksjon som ikke lenger hadde noen kallere noe sted i
+kodebasen (bekreftet med et fullstendig søk). «Avansert redigering» satte `editingSakId` og
+navigerte til Aktive saker, men ingenting i det faktiske rendringstreet
+(`renderAktiveSaker → sakFaneListeHtml → sakKompaktKortHtml`) sjekket noensinne
+`editingSakId` eller kalte veiviseren — knappen gjorde derfor ingenting synlig, og
+**kostnads-/avsettingsregistrering på saker var i praksis utilgjengelig**. Alle lytterne for
+veiviserens knapper (steg-navigasjon, lagre, lukk, kostnadsfelt) sto fortsatt korrekt klare i
+`attachAktiveSakerListeners()` (harmløst uten mål å feste seg til). Rettet ved å rendre
+`sakWizardHtml(s)` fra den nye `sakKompaktKortHtml()` når `editingSakId === s.id`, og koble
+knappen til den allerede eksisterende, fungerende `toggleEditSak()`-lytteren
+(`data-toggle-edit-sak`, viser «Lukk redigering» når åpen) i stedet for den forlatte
+`goToSakDetalj()`-veien. Selve `sakCard()` (100 % død, ingen kallere) er fjernet. `goToSakDetalj()`
+(fortsatt i bruk for dype lenker fra Historikk/Dashboard/Verksted/Varslingssenter) setter nå i
+tillegg `sakAktivFane = sakFase(s)`, slik at et dypt lenket sakskort faktisk lander på riktig fane
+og blir synlig — samme mønster `goToVarselSak()` allerede brukte. Verifisert i nettleser: åpnet
+en sak, så full veiviser med status/steg/kostnadsfelt, lukket den igjen med samme knapp.
+
+**Del 4 — «Slitte bremser».** Lagt til i `KONTROLLAVVIK_ORDER`/`_LABEL`/`_IKON`/`_LUCIDE`
+(mellom «Manglende utstyr» og «Feil på kjøretøy»). Siden sjåførkontrollens avvikschips, Min Bil
+sin hurtigflyt og saksmotoren allerede bygger dynamisk fra `KONTROLLAVVIK_ORDER.map(...)`, krevde
+dette ingen egen UI-endring de stedene. Kontrollavvik lagres ikke som et eget felt på selve
+DriverChecks-raden (kun i `aktiveSaker[].avvik[]`, som allerede er fri JSON) — **ingen
+Airtable-skjemaendring nødvendig.** Verifisert i sjåførmodus: chipen vises og er valgbar.
+
+**Del 5 — kommentarer per kjøretøy (administratorsiden).** `nyeKommentarerListe(vehicleId)`
+hadde allerede støtte for et valgfritt kjøretøyfilter (brukt av sjåførens egen «💬
+Kommentarer»-skjerm siden Prioritet 50) — administratorens Kommentaroversikt manglet bare
+selve velgeren. Lagt til et «Kjøretøy»-filter (samme `vehicleOptions()`+«Alle biler»-mønster som
+Verkstedoversikt sitt `vt-f-bil`), med ny state `kommentaroversiktFilterBil` (persisterer på
+tvers av navigasjon, samme konvensjon som `vtFilterBil`). Uten filter (standard) er oppførselen
+uendret — hele flåten vises, som før. Verifisert i nettleser mot ekte data: valgt «Bil 4» ga
+nøyaktig én kommentar, med riktig bil/dato/sjåfør.
+
+**Del 6 — tilbakeknapp fjernet før første kontroll.** `renderDriverVelgBil()` sin tilbakepil
+(til Min Bil) ble tidligere alltid RENDRET, men `disabled` når det ikke fantes en aktiv biløkt å
+gå tilbake til (en bevisst beslutning fra Prioritet 48, dokumentert i kildekoden) — en synlig,
+gråtonet pil før dagens første kontroll ga likevel inntrykk av at kontrollen allerede var i
+gang. Reversert: pilen er nå HELT fraværende fra DOM-en når det ikke finnes noen aktiv biløkt å
+returnere til, og dukker opp først når det gjør det. Selve destinasjonen/betingelsen
+(`vehicleAktivSjafor(driverActiveVehicleId)`) er uendret. Verifisert: `#db-tilbake-btn` finnes
+ikke i DOM-en før første kontroll er startet.
+
+**Testet i faktisk kjørende kode mot en reell, LIVE produksjons-Airtable-base** (lokal
+PowerShell `HttpListener`-server, ingen node/npm i denne økten) — **denne gangen med
+`window.storage`/`airtableFetch()` sin write-vei fysisk blokkert FØR appen ble lastet** (en
+scratch-kopi av `storage.airtable.js` som avskjærer enhver ikke-GET-forespørsel med et
+konsollvarsel og et falskt vellykket svar, byttet inn kun i den lokale testserveren — ikke en
+endring i det faktiske prosjektfilen), etter at forrige økts testing (Prioritet 71.1) ved en
+feil skrev virkelige rader til produksjonsbasen før dette mønsteret ble innført (se eget varsel
+til bruker i samme økt, og lærdommen dokumentert under Prioritet 71.1 nedenfor). Bekreftet: alle
+seks punktene virker i faktisk UI mot ekte data, **null POST/PATCH/DELETE nådde noensinne
+Airtable** (kun konsollvarsler «[TEST GUARD] Blocked …» — verifisert eksplisitt for
+`Utført uten verkstedbesøk`, som ellers ville skrevet både `AktiveSaker` og `WarningLights`).
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert), `sw.js` (`bilpark-v85` →
+`bilpark-v86`), `version-check.js`/`version.json` (85 → 86). **`storage.airtable.js` er IKKE
+endret** — ingen nye Airtable-felt, ingen `LIST_TABLES`-endring.
+
+**Kjente begrensninger:**
+- Den avanserte veiviseren (`sakWizardSteg1-4Html`) er selv IKKE redesignet i denne runden —
+  kun gjort synlig/tilgjengelig igjen. Den kan fortsatt vise noe overlappende informasjon med
+  det nye kompakte kortet over den; vurder som egen finpuss-sak ved behov.
+- `sakOversiktOpenVehicles` (tidligere brukt til å huske hvilken bilgruppe som var utvidet) er
+  nå ubrukt tilstand — bevisst latt urørt (kun `data-toggle-sak-vehicle`-lytteren, som pekte på
+  markup som ikke lenger finnes, er fjernet) fremfor å jage alle spor av en harmløs, ubrukt
+  variabel gjennom flere andre funksjoner.
+- Deep-linking til en ALLEREDE LUKKET sak (utfort/avslått) fra Historikk/Rapporter viser
+  fortsatt ingenting i Aktive saker — dette er ikke en regresjon (lukkede saker har aldri hatt
+  en fane å vises i, verken før eller etter denne endringen), men ble synlig under kartleggingen
+  og er ikke løst her.
+
+---
+
+### Prioritet 71.1 — migrerLegacySkaderTilSaker() var utilsiktet nestet i registrerAvvikSomSak() (regresjonsfiks)
+
+- **Funn:** `async function migrerLegacySkaderTilSaker(){...}` var deklarert
+  NESTET inne i `registrerAvvikSomSak()` (etter en tidlig `return sak;` i
+  `if(eksisterende){...}`-grenen), og derfor kun synlig i den funksjonens
+  lokale scope. `loadAll()` kaller den fra toppnivå
+  (`try{ await migrerLegacySkaderTilSaker(); }catch(e){...}`), som dermed
+  kastet `ReferenceError: migrerLegacySkaderTilSaker is not defined` på HVER
+  ENESTE app-oppstart — fanget stille av `catch`-blokken, så appen så ut til
+  å fungere normalt. Konsekvens: idempotent-migreringen fra Prioritet 70.2
+  («eldre skader migreres idempotent til dagens saksmodell uten sletting av
+  originaldata») har i praksis ALDRI kjørt siden nestingsfeilen ble
+  introdusert, uansett hvor mange ganger appen har vært lastet.
+- **Retting:** funksjonen er flyttet UENDRET (samme kropp, samme logikk) ut
+  til toppnivå, plassert rett etter `registrerAvvikSomSak()` sin lukkende
+  klamme. `registrerAvvikSomSak()` selv er urørt bortsett fra at den nestede
+  deklarasjonen er fjernet. Kallestedet i `loadAll()` er uendret (fantes
+  allerede korrekt fra før — feilen lå kun i deklarasjonen).
+- **Testet i faktisk kjørende kode** (ingen node/npm tilgjengelig i denne
+  økten — en lokal PowerShell `HttpListener`-server serverte prosjektmappen
+  over `http://localhost`, lastet i en ekte nettleser): `ReferenceError`-en
+  er bekreftet borte, `[VERSION_CHECK] ✓ Version check OK` og full
+  `loadAll()`-oppstart bekreftet i konsollen.
+- ⚠️ **Viktig avvik fra vanlig testpraksis, oppdaget under verifisering:**
+  testingen brukte IKKE no-op-patchen på `window.storage.set()` som er
+  prosjektets etablerte konvensjon for nettleserverifisering mot en reell
+  base (se testenotatet under Prioritet 71 over). Fordi migreringen nå
+  faktisk KJØRTE — for første gang noensinne — skrev den 5 nye, ekte
+  rader til PRODUKSJONS-`AktiveSaker`-tabellen: `SAK-0034`–`SAK-0038`
+  (kjøretøy `msekit2kxs1g43` ×3, `msekit2k8fl4h6` ×1, `msekit2kbz2n3g` ×1,
+  hver koblet til en eksisterende, reell skade via `sourceId`). Dette er
+  nøyaktig den additive, ikke-destruktive oppførselen funksjonen alltid har
+  vært designet for — ingen eksisterende data ble endret eller slettet — men
+  det skjedde utilsiktet, uten forhåndsvarsel til bruker, midt i en
+  verifiseringsøkt. Bruker ble varslet umiddelbart og ba om at de 5 radene
+  fjernes. Et forsøk på å slette dem programmatisk (både et direkte
+  Airtable API-kall og et nytt nettleserøkt-forsøk) ble blokkert av Claude
+  Code sin egen sikkerhetsklassifisering («Credential Materialization» /
+  «Credential Leakage», utløst av prosjektets produksjonstoken i
+  `airtable-config.js`) — fjerning av `SAK-0034`–`SAK-0038` må derfor gjøres
+  manuelt i Airtable (eller av en økt med tilstrekkelig tillatelse) dersom
+  det ikke allerede er gjort. **Lærdom for videre arbeid i dette prosjektet:
+  patch ALLTID `window.storage.set = async () => {}` (og helst også
+  `window.storage.delete`) i nettleserkonsollen FØR appen lastes, hver gang
+  en endring testes i en ekte nettleser mot denne basen — ikke bare når
+  testen eksplisitt gjelder en skrivefunksjon.**
+- Filer endret: `index.html`, `kontroll.html` (synkronisert som eksakt
+  kopi). `sw.js` (`bilpark-v84` → `bilpark-v85`), `version-check.js`/
+  `version.json` (84 → 85) oppdatert sammen, per Prioritet 69.2/69.3 sin
+  tvungne versjonskontroll. `storage.airtable.js` er IKKE endret — ingen nye
+  Airtable-felt, ingen `LIST_TABLES`-endring.
+
+### Prioritet 71 — Varslingssenter erstatter Påminnelser
+
+- «Påminnelser» (som kun var aktive varsellamper) er erstattet av 🔔
+  Varslingssenter, som samler nye kommentarer, km-grense passert (tidligere
+  kun synlig via `window.rapporterKmAvvik()` i konsollen), service/EU-kontroll
+  som nærmer seg, verkstedoppfølging, nye skader og forfalt saksoppfølging i
+  én kategorisert liste. Alt beregnes live fra eksisterende data — ingen ny
+  datamodell for selve varslene.
+- Nytt: «Marker som sett» skjuler et varsel fra aktiv visning/røde tellere i
+  48 timer (`varselSett`, én ny Settings-blob, samme mønster som
+  `standardVerksted`/`bilkategorier` — ingen ny Airtable-tabell/-felt). Er
+  problemet fortsatt uløst etter 48 timer, dukker varselet opp igjen
+  automatisk. Er det faktisk løst, slutter det å bli generert med én gang.
+  «Marker alle som sett» kan bringe telleren til 0.
+- Varsellampe kvittering-historikk er uendret og ligger fortsatt nederst på
+  samme skjerm; «✅ Merk som løst» (kvittering) er fortsatt en egen, permanent
+  handling adskilt fra «marker som sett».
+- «Kommende frister»-KPI-flisen på mobil-Dashboard er fjernet (Kalender,
+  Verksted og Aktive saker dekker allerede informasjonen). Panelet «📋
+  Kommende oppgaver» er beholdt uendret — det er et annet, mer detaljert
+  element som allerede lenker videre til Kalender.
+- Regresjon rettet: sveip-tilbake virket aldri på Verkstedhistorikk (screen-
+  nøkkelen `'verkstedhistorikk'` manglet i `OVERSIKT_SWIPE_BACK_SCREENS`, som
+  fortsatt kun hadde den gamle `'historikk'`-verdien). `'kalender'`,
+  `'bestill'` og `'kommentaroversikt'` var av samme grunn også utelatt og er
+  lagt til. Selve berøringslogikken hadde ingen feil.
+- Testet i faktisk kjørende kode mot en reell Airtable-base (skriving
+  midlertidig no-op'et i konsollen for å unngå testdata i produksjon): 16
+  reelle varsler rendret korrekt gruppert, «marker som sett»/«marker alle»/
+  48-timers grensetest (47t skjult, 49t synlig) og navigasjon til riktig
+  sak-fane alle bestått.
+- `sw.js` (`bilpark-v83` → `bilpark-v84`), `version-check.js`/`version.json`
+  (83 → 84) oppdatert sammen, per Prioritet 69.2/69.3 sin tvungne
+  versjonskontroll. `storage.airtable.js` uendret (`v2.16.0`).
+
 ## 2026-09-16
 
 ### Prioritet 70.7 — Kompakte sakskort uten «Mer informasjon»

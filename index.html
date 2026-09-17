@@ -1358,14 +1358,55 @@
   .oppstart-klar{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--green-ink);font-weight:600;}
   .oppstart-klar span{display:block;color:var(--muted);font-weight:400;font-size:13px;margin-top:2px;}
   .oppstart-versjon{margin-top:22px;color:var(--muted);font-size:12px;opacity:.7;}
-  .sak-kort-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px);gap:16px;align-items:start;}
-  @media (max-width:640px){.sak-kort-grid{grid-template-columns:1fr;}.sak-kort-grid > div:nth-child(2){border-top:1px solid var(--line-soft);padding-top:12px;}}
+  /* Prioritet 71.4: horisontal saksvisning per bil — sakskortene i en "Vis alle
+     saker"-utvidelse ligger side om side (scrollbar horisontalt ved plassmangel,
+     aldri vertikal stabling) i stedet for under hverandre. */
+  .sak-horisontal-rad{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;}
+  .sak-horisontal-kort{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:14px;width:250px;flex:0 0 250px;display:flex;flex-direction:column;gap:8px;}
+  .sak-horisontal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .sak-horisontal-title{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:6px;}
+  .sak-bilde-thumb{position:relative;width:52px;height:52px;border-radius:8px;overflow:hidden;background:var(--surface-2);flex-shrink:0;cursor:pointer;}
+  .sak-bilde-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .sak-bilde-count{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:100px;}
+  .sak-horisontal-body{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+  .sak-horisontal-desc{font-size:13.5px;line-height:1.5;white-space:pre-line;}
+  .sak-horisontal-actions{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:8px;border-top:1px solid var(--line-soft);}
   #app.oppstart-inn{animation:oppstartInn .22s ease;}
   @keyframes oppstartInn{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){
     .oppstart{transition:none;}
     #app.oppstart-inn{animation:none;}
   }
+  /* Prioritet 71.3: ny sjåfør-Ringeliste. Egen, scoped stil (ringeliste-*) fremfor å
+     gjenbruke .dmg-*/.acc-* klasser — designet (fargede grupper, kort-rader med ikonflate)
+     matcher ikke noe eksisterende mønster godt nok til at gjenbruk ville vært riktig. Bruker
+     kun eksisterende design-tokens (farger/radius/skygger), ingen nye farger. Mobil først —
+     dette er en ren sjåførskjerm, aldri desktop. */
+  .ringeliste-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;}
+  .ringeliste-header-icon{width:44px;height:44px;border-radius:14px;background:var(--red-soft);color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .ringeliste-header-text{flex:1;min-width:0;}
+  .ringeliste-header-text h2{font-size:19px;margin-bottom:2px;}
+  .ringeliste-info-btn{width:30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:default;}
+  .ringeliste-group{background:var(--surface);border:1.5px solid var(--line);border-left:4px solid var(--accent,var(--line));border-radius:var(--radius);overflow:hidden;margin-bottom:14px;}
+  .ringeliste-group-head{padding:13px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .ringeliste-group-title{flex:1;font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--accent,var(--ink));}
+  .ringeliste-group-body{border-top:1px solid var(--line-soft);}
+  .ringeliste-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line-soft);}
+  .ringeliste-row:first-child{border-top:none;}
+  .ringeliste-row-icon{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);}
+  .ringeliste-row-text{flex:1;min-width:0;}
+  .ringeliste-row-main{font-weight:600;font-size:14.5px;}
+  .ringeliste-row-sub{font-size:12.5px;color:var(--muted);margin-top:1px;display:flex;align-items:center;gap:4px;}
+  .ringeliste-ring-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:100px;background:var(--red-soft);color:var(--red);font-weight:600;font-size:13px;text-decoration:none;flex-shrink:0;border:1.5px solid transparent;}
+  .ringeliste-ring-muted{font-size:12px;color:var(--muted);flex-shrink:0;}
+  .ringeliste-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+  .ringeliste-quick-card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .ringeliste-quick-top{display:flex;align-items:center;gap:8px;}
+  .ringeliste-quick-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .ringeliste-quick-title{font-weight:700;font-size:13.5px;line-height:1.2;}
+  .ringeliste-quick-sub{font-size:11.5px;color:var(--muted);}
+  .ringeliste-quick-card .ringeliste-ring-btn{justify-content:center;width:100%;}
+  @media (max-width:360px){.ringeliste-quick-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -1432,6 +1473,29 @@ let verksteder = [];
 // Verdiene er verkstedNAVN (ikke id), samme som `verkstedtime.verksted` og
 // `verkstedSelectOptions()` bruker - altsaa ingen ny sannhet om hva et verksted er.
 let standardVerksted = {};
+// Prioritet 71 (Varslingssenter): {varselId: sistSettISO} — én JSON-blob i Settings,
+// nøyaktig samme mønster som standardVerksted over. Ingen ny Airtable-tabell/-felt.
+// varselId er en deterministisk, syntetisk nøkkel per varseltype+bil/sak/kommentar (se
+// beregnVarslingssenterListe()) — selve varslene har INGEN egen datamodell, kun dette
+// "sett"-tidsstempelet persisteres. Se varselErSkjult()/markerVarselSett().
+let varselSett = {};
+// Prioritet 71.3: kontakter UTEN et kjøretøy å henge på — ledelse, Home Delivery, Veihjelp.
+// Samme mønster som standardVerksted/varselSett over: ÉN frittstående JSON-blob i den
+// eksisterende Settings-tabellen, ingen ny Airtable-tabell, ingen LIST_TABLES-registrering.
+// Kjøretøytelefonnummer (v.telefon) er UENDRET og lagres fortsatt på selve kjøretøyet —
+// dette er en egen, parallell liste for kontakter som ikke er et kjøretøy.
+let ringelisteEkstra = {ledelse: [], homeDelivery: {navn:'', beskrivelse:'', telefon:''}, veihjelp: {navn:'', beskrivelse:'', telefon:''}};
+// Seedes KUN ved førstegangsoppstart (ingen lagret verdi ennå), samme prinsipp som
+// STANDARD_BILKATEGORIER/DEFAULT_FLEET. Ledelse seedes bevisst TOM — å gjette navn på ekte
+// personer ville uansett ikke gitt et ekte telefonnummer, og et tomt utgangspunkt med en
+// tydelig "+ Legg til"-knapp er tryggere enn en plausibel-seende, men falsk, kontakt.
+// Home Delivery/Veihjelp seedes med de generiske etikettene fra referansebildet (ingen
+// telefonnummer) siden disse er faste, upersonlige kontaktpunkter uansett hvem som svarer.
+const STANDARD_RINGELISTE_EKSTRA = {
+  ledelse: [],
+  homeDelivery: {navn:'Home Delivery', beskrivelse:'Kjørekontoret', telefon:''},
+  veihjelp: {navn:'Veihjelp', beskrivelse:'Assistanse', telefon:''}
+};
 // redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
 // Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
 // tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
@@ -1600,6 +1664,11 @@ let editingSakId = null;
 // tilstand. Panelet leser direkte fra eksisterende kontroller[] — ingen ny sak, ingen nytt
 // Airtable-felt, ingen "lest/kvittert"-mekanikk (bevisst — dette er en logg, ikke en oppgave).
 let nyeKommentarerApen = false;
+// Prioritet 71.2: valgfritt kjøretøyfilter for administratorens Kommentaroversikt (tom
+// streng = alle biler, uendret oppførsel). nyeKommentarerListe(vehicleId) hadde allerede
+// støtte for dette filteret (brukt av sjåførens egen «💬 Kommentarer»-skjerm siden
+// Prioritet 50) — Kommentaroversikt manglet bare selve velgeren.
+let kommentaroversiktFilterBil = '';
 // ---- Saksbehandling Wizard ----
 // Erstatter det tidligere flate ett-skjema-redigeringsvinduet i sakCard() med en
 // 4-stegs arbeidsflyt i samme boks. editingSakId angir fortsatt HVILKEN sak som er
@@ -1610,6 +1679,10 @@ let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i s
 let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
 let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
 let sakOversiktOpenVehicles = new Set();
+// Prioritet 71.2: «✅ Utført uten verkstedbesøk» — inline valgfri årsak-panel på ett
+// sakskort om gangen (samme ett-om-gangen-mønster som sakWizardVtOpen osv.). Årsaken
+// lagres i det eksisterende s.resolutionNote-feltet (ingen nytt Airtable-felt).
+let sakUtenVerkstedPanelId = null;
 // «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
 // (standard: 'aktiv'), hvilke kompakte kort som er utvidet (tomt som standard — «Ikke
 // vis hele saken utvidet som standard»), og om den gamle, fulle filter-/gruppevisningen
@@ -1670,6 +1743,7 @@ function formInProgress(){
   if(showAddVT || editingVTId) return true;
   if(editingVerkstedId) return true;
   if(editingTelefonVehicleId) return true;
+  if(editingLedelseId || showAddLedelse || editingKontaktType) return true;
   if(bilkortOpenSections && bilkortOpenSections.has('info')) return true;
   const active = document.activeElement;
   if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return true;
@@ -1689,6 +1763,13 @@ let settingsOpenSections = new Set();
 // om gangen, samme mønster som editingVerkstedId.
 let editingTelefonVehicleId = null;
 let ringelisteAdminMsg = '';
+// Prioritet 71.3: samme inline rediger-ett-om-gangen-mønster for de nye kontakttypene.
+let editingLedelseId = null;
+let showAddLedelse = false;
+let editingKontaktType = null; // null | 'homeDelivery' | 'veihjelp'
+// Driver-siden: hvilke av de tre kollapsbare gruppene som er LUKKET (fraværende fra
+// settet = åpen — alle tre er åpne som standard, samme visning som referansebildet).
+let driverRingelisteLukket = new Set();
 
 // Bilkort: tre hovedseksjoner (Bilinformasjon/Kontrollhistorikk/Skadehistorikk), alle
 // lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
@@ -1716,12 +1797,6 @@ let historikkHubFilterDatoTil = '';
 // uten 5-post-taket. Periodevalg styrer kun visningsvinduet for
 // verkstedtimer/oppfølging (service/dekk-status er alltid live og tidløs i seg selv).
 let planleggingPeriodeDager = 30; // 7 | 30 | 90
-let varslerOpenVehicles = new Set(); // hvilke biler som er utvidet på "Aktive varsellamper"-oversikten
-function toggleVarslerVehicle(vehicleId){
-  if(varslerOpenVehicles.has(vehicleId)) varslerOpenVehicles.delete(vehicleId);
-  else varslerOpenVehicles.add(vehicleId);
-  render();
-}
 function toggleBilkortSection(key){
   if(bilkortOpenSections.has(key)) bilkortOpenSections.delete(key);
   else bilkortOpenSections.add(key);
@@ -1895,6 +1970,13 @@ const SAK_STATUS_ORDER = ['ny', 'under-oppfolging', 'vurderes', 'tiltak-planlagt
 const SAK_STATUS_LABEL = {'ny':'Ny', 'under-oppfolging':'Under oppfølging', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'avslatt':'Avslått', 'lukket':'Lukket'};
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
 const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
+// Prioritet 71.2: valgfri årsak ved «✅ Utført uten verkstedbesøk» (saker under oppfølging
+// som viser seg å ikke kreve verksted i det hele tatt). Lagres i s.resolutionNote — samme
+// felt den avanserte veiviseren allerede bruker til sluttkommentar — IKKE i
+// s.verkstedResultat, siden det feltet betyr «resultat FRA verksted» og ingen verksted er
+// involvert her (se markerSakUtfortUtenVerksted()). Ingen nytt Airtable-felt.
+const SAK_UTEN_VERKSTED_ARSAK_ORDER = ['feilregistrering', 'problem-ikke-gjenskapt', 'utfort-internt', 'informert-sjafor', 'annet'];
+const SAK_UTEN_VERKSTED_ARSAK_LABEL = {'feilregistrering':'Feilregistrering', 'problem-ikke-gjenskapt':'Problem ikke gjenskapt', 'utfort-internt':'Utført internt', 'informert-sjafor':'Informert sjåfør', 'annet':'Annet'};
 // Prioritet 59: SAK_PRIORITET_ORDER / _LABEL / _IKON / _RANK er FJERNET.
 // Prioritetssystemet (Lav/Normal/Høy/Kritisk) er avviklet som egen, parallell
 // prioriteringsmodell. Arbeid styres av status, oppfølgingsdato, verkstedstatus og
@@ -2148,29 +2230,6 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
     sak.historikk.push(historikkOppforsel);
     return sak;
   }
-  async function migrerLegacySkaderTilSaker(){
-    let endret = false;
-    damages.forEach(d => {
-      const finnes = aktiveSaker.some(s => s.caseType === 'skade' && s.sourceId === d.id);
-      if(finnes) return;
-      const sak = registrerAvvikSomSak({
-        vehicleId: d.vehicleId,
-        caseType: 'skade',
-        sourceId: d.id,
-        tittel: 'Skade registrert',
-        beskrivelse: d.beskrivelse || 'Legacy skade',
-        reportedBy: d.registrertAv || 'Ukjent',
-        reportedAt: d.dato || todayISO(),
-        kommentar: d.kommentar || ''
-      });
-      sak.sourceType = 'legacy-skade';
-      sak.createdAt = sak.createdAt || new Date().toISOString();
-      sak.updatedAt = new Date().toISOString();
-      endret = true;
-    });
-    if(endret) await saveAktiveSaker();
-    return endret;
-  }
   const v = vehicles.find(x => x.id === vehicleId);
   const sak = {
     id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v ? v.regnr : '',
@@ -2189,6 +2248,37 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
   };
   aktiveSaker.push(sak);
   return sak;
+}
+// Prioritet 70.2: migrerer eldre skader (fra før Sammenslåtte Kontrollavvik/saksmotoren
+// dekket skader) til dagens saksmodell — idempotent (finnes-sjekk på caseType+sourceId),
+// sletter aldri originaldata. Kalt fra loadAll() ved oppstart.
+// Var tidligere ved en feil deklarert NESTET inne i registrerAvvikSomSak() (kun synlig i
+// dens lokale scope), noe som fikk loadAll() sitt toppnivå-kall til å kaste
+// "ReferenceError: migrerLegacySkaderTilSaker is not defined" på hver eneste oppstart
+// (fanget stille av try/catch der — se den kallende koden). Flyttet hit, til toppnivå,
+// slik at migreringen faktisk kjører.
+async function migrerLegacySkaderTilSaker(){
+  let endret = false;
+  damages.forEach(d => {
+    const finnes = aktiveSaker.some(s => s.caseType === 'skade' && s.sourceId === d.id);
+    if(finnes) return;
+    const sak = registrerAvvikSomSak({
+      vehicleId: d.vehicleId,
+      caseType: 'skade',
+      sourceId: d.id,
+      tittel: 'Skade registrert',
+      beskrivelse: d.beskrivelse || 'Legacy skade',
+      reportedBy: d.registrertAv || 'Ukjent',
+      reportedAt: d.dato || todayISO(),
+      kommentar: d.kommentar || ''
+    });
+    sak.sourceType = 'legacy-skade';
+    sak.createdAt = sak.createdAt || new Date().toISOString();
+    sak.updatedAt = new Date().toISOString();
+    endret = true;
+  });
+  if(endret) await saveAktiveSaker();
+  return endret;
 }
 // ==================== Sammenslåtte Kontrollavvik ====================
 // Én sjåførkontroll som rapporterer flere varsellamper/kontrollavvik samtidig skal gi ÉN
@@ -2366,12 +2456,16 @@ function sakHarBlittViderebehandlet(sak){
 // saker/kontroller med sourceId 'annet-avvik' fortsatt skal vise riktig tittel/ikon i Aktive
 // saker, Historikk og Rapporter — samme mønster som UTE_AV_DRIFT_KATEGORI_ID:
 // fjernet fra det valgbare settet, beholdt for lesing av eksisterende, historiske data.
-const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'feil-pa-kjoretoy'];
-const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
-const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
+// Prioritet 71.2: «Slitte bremser» lagt til som eget kontrollavvik, på samme måte som de
+// fire eksisterende (kun ny nøkkel i disse fire oppslagene — ingen egen logikk, siden
+// sjåførkontrollens avvikschips, Min Bil sin hurtigflyt og saksmotoren allerede bygger
+// dynamisk fra KONTROLLAVVIK_ORDER.map(...)).
+const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'slitte-bremser', 'feil-pa-kjoretoy'];
+const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'slitte-bremser':'Slitte bremser', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
+const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'slitte-bremser':'⚠️', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
 // Samme begrunnelse som GRUPPE_LUCIDE/SAK_TYPE_LUCIDE over — egen Lucide-variant for de
 // rene HTML-stedene (avvik-chips), se CLAUDE.md, Prioritet 56.
-const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'feil-pa-kjoretoy':'triangle-alert', 'annet-avvik':'clipboard-list'};
+const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'slitte-bremser':'triangle-alert', 'feil-pa-kjoretoy':'triangle-alert', 'annet-avvik':'clipboard-list'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 // ---- Optimalisering 3 (Kontrollsletting med full cleanup) ----
@@ -3677,6 +3771,31 @@ async function loadAll(){
     standardVerksted = sv && sv.value ? JSON.parse(sv.value) : {};
   }catch(e){ standardVerksted = {}; }
   if(!standardVerksted || typeof standardVerksted !== 'object' || Array.isArray(standardVerksted)) standardVerksted = {};
+  // Prioritet 71: varselSett, samme enkle Settings-lesing som standardVerksted over.
+  // Gamle "sett"-tidsstempler (>30 dager) ryddes bort ved oppstart, slik at blobben ikke
+  // vokser ubegrenset — et varsel som fortsatt er aktivt etter 30 dager har uansett for
+  // lengst kommet tilbake via 48-timersregelen, så pruningen endrer aldri synlig atferd.
+  try{
+    const vst = await window.storage.get('varselSett', true);
+    varselSett = vst && vst.value ? JSON.parse(vst.value) : {};
+  }catch(e){ varselSett = {}; }
+  if(!varselSett || typeof varselSett !== 'object' || Array.isArray(varselSett)) varselSett = {};
+  const varselSettGrense = Date.now() - 30*24*60*60*1000;
+  Object.keys(varselSett).forEach(id => { if(!varselSett[id] || new Date(varselSett[id]).getTime() < varselSettGrense) delete varselSett[id]; });
+  // Prioritet 71.3: ringelisteEkstra, samme lesing/fremtidssikring som standardVerksted/
+  // varselSett over. Manglende undernøkler (f.eks. et eldre lagret objekt fra før
+  // "veihjelp" fantes) fylles individuelt med standardverdien i stedet for å forkaste
+  // hele objektet — samme prinsipp som getLayoutFlate() bruker for Layout Editor.
+  try{
+    const rl = await window.storage.get('ringeliste-ekstra', true);
+    ringelisteEkstra = rl && rl.value ? JSON.parse(rl.value) : null;
+  }catch(e){ ringelisteEkstra = null; }
+  if(!ringelisteEkstra || typeof ringelisteEkstra !== 'object' || Array.isArray(ringelisteEkstra)){
+    ringelisteEkstra = JSON.parse(JSON.stringify(STANDARD_RINGELISTE_EKSTRA));
+  }
+  if(!Array.isArray(ringelisteEkstra.ledelse)) ringelisteEkstra.ledelse = [];
+  if(!ringelisteEkstra.homeDelivery || typeof ringelisteEkstra.homeDelivery !== 'object') ringelisteEkstra.homeDelivery = {navn:'Home Delivery', beskrivelse:'Kjørekontoret', telefon:''};
+  if(!ringelisteEkstra.veihjelp || typeof ringelisteEkstra.veihjelp !== 'object') ringelisteEkstra.veihjelp = {navn:'Veihjelp', beskrivelse:'Assistanse', telefon:''};
   try{
     const au = await window.storage.get('admin-users', true);
     adminUsers = au && au.value ? JSON.parse(au.value) : [];
@@ -3908,6 +4027,13 @@ async function saveBilkategorier(){
   catch(e){ alert('Kunne ikke lagre bilkategoriene. Prøv igjen.'); console.error(e); }
   rebyggKategoriOppslag();
 }
+// Prioritet 71: lagrer varselSett (se deklarasjonen over). Ingen alert() ved feil —
+// verste konsekvens er at et "sett"-merke ikke lagres og varselet vises igjen ved neste
+// render, ikke tap av driftsdata — samme lave alvorlighetsgrad som f.eks. UI-tilstand.
+async function saveVarselSett(){
+  try{ await window.storage.set('varselSett', JSON.stringify(varselSett), true); }
+  catch(e){ console.error(e); }
+}
 async function saveVerksteder(){
   try{ await window.storage.set('verksteder', JSON.stringify(verksteder), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
@@ -3916,6 +4042,11 @@ async function saveVerksteder(){
 async function saveStandardVerksted(){
   try{ await window.storage.set('standardverksted', JSON.stringify(standardVerksted), true); }
   catch(e){ alert('Kunne ikke lagre standardverkstedet. Prøv igjen.'); console.error(e); }
+}
+// Prioritet 71.3 - samme mønster som saveStandardVerksted(): én JSON-blob i Settings-tabellen.
+async function saveRingelisteEkstra(){
+  try{ await window.storage.set('ringeliste-ekstra', JSON.stringify(ringelisteEkstra), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function saveKontroller(){
   try{ await window.storage.set('kontroller', JSON.stringify(kontroller), true); }
@@ -4777,14 +4908,13 @@ function goTo(scr, vehicleId, _isBack){
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
   if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); bilkortHistorikkSubOpen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; serviceSaveConfirmedId = null; showAddService = false; showUteAvDriftForm = false; bilkortHistorikkFilter = ''; }
-  if(scr === 'varsler'){ varslerOpenVehicles = new Set(); }
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; nyeKommentarerApen = false; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -5623,6 +5753,50 @@ async function markerSakUtfort(sakId){
   await saveAktiveSaker();
   render();
 }
+// Prioritet 71.2 — «✅ Utført uten verkstedbesøk»: saker under oppfølging som viser seg å
+// IKKE trenge verksted i det hele tatt (eksempel fra bestillingen: dekktrykksensor varslet,
+// viser seg at bilen ikke har sensor). Speiler markerSakUtfort() (samme avvik-fullføring,
+// samme automatiske varsellampe-kvittering, samme resolvedAt/resolvedBy/status/completedAt)
+// med to bevisste forskjeller: s.verkstedResultat røres ALDRI (det feltet betyr «resultat
+// FRA verksted», og ingen verksted er bestilt eller besøkt her), og en valgfri årsak lagres
+// i s.resolutionNote — samme, allerede eksisterende felt den avanserte veiviseren bruker
+// til sluttkommentar (se sakWizardLesemodusHtml() — viser resolutionNote uendret for
+// LUKKEDE saker, uansett hvilken av de to funksjonene som lukket dem). Ingen nytt
+// Airtable-felt, ingen ny status — saken ender som vanlig 'utfort', i Historikk.
+async function markerSakUtfortUtenVerksted(sakId, arsakTekst){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  if(!s) return;
+  const now = new Date().toISOString();
+  const idag = todayISO();
+
+  if(Array.isArray(s.avvik) && s.avvik.length > 0){
+    s.avvik.forEach(a => {
+      if(a.status === 'aktiv'){ a.status = 'utfort'; a.resolvedAt = idag; }
+    });
+  }
+
+  let varsellysEndret = false;
+  sakAvvikListe(s).filter(a => a.caseType === 'varsellampe').forEach(a => {
+    const w = varsellys.find(x => x.vehicleId === s.vehicleId && x.type === a.sourceId && x.status === 'aktiv');
+    if(w){
+      w.status = 'kvittert';
+      w.kvittertDato = idag;
+      w.kvittertAv = loggedInRole || 'Ukjent';
+      varsellysEndret = true;
+    }
+  });
+  if(varsellysEndret) await saveVarsellys();
+
+  if(!s.completedAt) s.completedAt = idag;
+  if(arsakTekst) s.resolutionNote = arsakTekst;
+  s.status = 'utfort';
+  s.resolvedAt = idag;
+  s.resolvedBy = loggedInRole || 'Ukjent';
+  s.updatedAt = now;
+  sakUtenVerkstedPanelId = null;
+  await saveAktiveSaker();
+  render();
+}
 // «📅 Registrer verkstedtime» fra Under oppfølging-fanen — åpner det EKSISTERENDE
 // verkstedtime-skjemaet (samme mønster som bestillEuKontroll()/bestillRuteskift(),
 // forhåndsutfylt med bil OG denne saken. submitVT() (uendret) setter
@@ -5638,6 +5812,13 @@ function goToSakDetalj(sakId){
   if(!s) return;
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = '';
   sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
+  // sakskortet (og dermed «Avansert redigering»-veiviseren) vises kun når sakAktivFane
+  // faktisk matcher saken sin fase, akkurat som goToVarselSak() allerede gjør for
+  // Varslingssenter sine "Åpne sak"-lenker. Uten dette kunne et dypt lenket sakskort fra
+  // Historikk/Dashboard/Verksted lande på feil fane og ikke vises i det hele tatt.
+  sakAktivFane = sakFase(s) || sakAktivFane;
+  // Prioritet 71.4: per-bil-gruppering er tilbake — uten dette ville sakskortet vært
+  // skjult bak en lukket "Vis alle saker"-gruppe selv om fanen stemte.
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
   editingSakId = s.id;
   sakWizardStep = sakWizardStartSteg(s);
@@ -7087,6 +7268,81 @@ async function fjernVehicleTelefon(vehicleId){
   render();
 }
 
+// ================= Prioritet 71.3: Ledelse/Home Delivery/Veihjelp =================
+// Kontakter uten et kjøretøy å henge på — lagret i ringelisteEkstra (se deklarasjonen).
+// Samme inline rediger-ett-om-gangen-mønster som telefon-redigeringen over.
+function toggleEditLedelse(id){
+  editingLedelseId = editingLedelseId === id ? null : id;
+  ringelisteAdminMsg = '';
+  render();
+}
+async function saveLedelseEdit(id){
+  const k = ringelisteEkstra.ledelse.find(x => x.id === id);
+  if(!k) return;
+  const navnInput = document.getElementById('ledelse-navn-' + id);
+  const rolleInput = document.getElementById('ledelse-rolle-' + id);
+  const telefonInput = document.getElementById('ledelse-telefon-' + id);
+  const navn = ((navnInput ? navnInput.value : '') || '').trim();
+  if(!navn) return;
+  k.navn = navn;
+  k.rolle = ((rolleInput ? rolleInput.value : '') || '').trim();
+  k.telefon = ((telefonInput ? telefonInput.value : '') || '').trim();
+  await saveRingelisteEkstra();
+  editingLedelseId = null;
+  ringelisteAdminMsg = '✅ Kontakt lagret.';
+  render();
+}
+async function deleteLedelseKontakt(id){
+  const k = ringelisteEkstra.ledelse.find(x => x.id === id);
+  if(!k) return;
+  if(!confirm('Fjerne ' + k.navn + ' fra Ledelse?')) return;
+  ringelisteEkstra.ledelse = ringelisteEkstra.ledelse.filter(x => x.id !== id);
+  await saveRingelisteEkstra();
+  editingLedelseId = null;
+  render();
+}
+async function addLedelseKontakt(){
+  const navnInput = document.getElementById('new-ledelse-navn');
+  const rolleInput = document.getElementById('new-ledelse-rolle');
+  const telefonInput = document.getElementById('new-ledelse-telefon');
+  const navn = ((navnInput ? navnInput.value : '') || '').trim();
+  if(!navn) return;
+  ringelisteEkstra.ledelse.push({
+    id: uid(), navn,
+    rolle: ((rolleInput ? rolleInput.value : '') || '').trim(),
+    telefon: ((telefonInput ? telefonInput.value : '') || '').trim()
+  });
+  await saveRingelisteEkstra();
+  showAddLedelse = false;
+  render();
+}
+// Home Delivery/Veihjelp — samme faste-kontakt-redigering, men KUN ett objekt (ikke en
+// liste) per type. Navn/undertekst er også redigerbare (ikke bare telefonnummeret som
+// bestillingen eksplisitt krever) — de er ferske Settings-verdier uten noen annen
+// avhengighet, så det koster ingenting å la hele kortet være redigerbart.
+function toggleEditKontakt(type){
+  editingKontaktType = editingKontaktType === type ? null : type;
+  ringelisteAdminMsg = '';
+  render();
+}
+async function saveKontaktEdit(type){
+  if(!ringelisteEkstra[type]) return;
+  const navnInput = document.getElementById('kontakt-navn-' + type);
+  const beskrivelseInput = document.getElementById('kontakt-beskrivelse-' + type);
+  const telefonInput = document.getElementById('kontakt-telefon-' + type);
+  const navn = ((navnInput ? navnInput.value : '') || '').trim();
+  if(!navn) return;
+  ringelisteEkstra[type] = {
+    navn,
+    beskrivelse: ((beskrivelseInput ? beskrivelseInput.value : '') || '').trim(),
+    telefon: ((telefonInput ? telefonInput.value : '') || '').trim()
+  };
+  await saveRingelisteEkstra();
+  editingKontaktType = null;
+  ringelisteAdminMsg = '✅ Kontakt lagret.';
+  render();
+}
+
 // ================= Verkstedregister (Innstillinger) =================
 async function addVerksted(){
   const input = document.getElementById('new-verksted-navn');
@@ -7191,7 +7447,8 @@ async function deleteAdminUser(id){
 //  hurtigbestillingene samlet på én flate — ingen ny logikk)
 //  Kalender → renderKalender() (inkl. Planlegging)
 //  Aktive saker → renderAktiveSaker()
-//  Påminnelser → renderVarslerOversikt() (aktive varsellamper, uendret skjerm)
+//  Varslingssenter → renderVarslerOversikt() (Prioritet 71 — funksjons-/screen-navnet
+//  'varsler' er bevisst uendret, kun innhold/etiketter er oppdatert, se egen seksjon)
 //  Kostnader → renderKostnadsoversikt() (fantes, men var uten menypunkt)
 //  Rapporter → renderRapporter()
 //  Innstillinger → renderInnstillinger()
@@ -7207,7 +7464,7 @@ const DESKTOP_NAV_PRIMARY = [
   {scr:'verksted', ikon:luc('wrench'), label:'Verksted'},
   {scr:'kalender', ikon:luc('calendar-days'), label:'Kalender'},
   {scr:'aktivesaker', ikon:luc('triangle-alert'), label:'Aktive saker'},
-  {scr:'varsler', ikon:luc('bell'), label:'Påminnelser'},
+  {scr:'varsler', ikon:luc('bell'), label:'Varslingssenter'},
   {scr:'kostnadsoversikt', ikon:luc('bar-chart-3'), label:'Kostnader'},
   {scr:'rapporter', ikon:luc('file-bar-chart'), label:'Rapporter'}
 ];
@@ -7219,7 +7476,7 @@ function renderDesktopSidebarHtml(){
         ${DESKTOP_NAV_PRIMARY.map(item => {
           // Tellere på to menypunkter — begge fra eksisterende funksjoner, ingen ny beregning.
           const teller = item.scr === 'aktivesaker' ? totaltKreverHandlingCount()
-            : (item.scr === 'varsler' ? allActiveVarsellys().length : 0);
+            : (item.scr === 'varsler' ? varslingssenterAntall() : 0);
           return `
           <button type="button" class="desktop-sidebar-item ${screen===item.scr?'active':''}" data-desktop-nav="${item.scr}">
             <span class="desktop-sidebar-ikon">${item.ikon}</span><span>${item.label}</span>
@@ -7457,7 +7714,7 @@ function renderDrawer(){
       ${drawerOversikterHtml()}
       ${drawerItemHtml('aktivesaker', luc('triangle-alert'), 'Aktive saker')}
       ${drawerItemHtml('kommentaroversikt', luc('message-square'), ulesteKommentarer > 0 ? `Kommentarer (${ulesteKommentarer})` : 'Kommentarer')}
-      ${drawerItemHtml('varsler', luc('bell'), 'Påminnelser')}
+      ${drawerItemHtml('varsler', luc('bell'), varslingssenterAntall() > 0 ? `Varslingssenter (${varslingssenterAntall()})` : 'Varslingssenter')}
       ${drawerItemHtml('kostnadsoversikt', luc('bar-chart-3'), 'Kostnader')}
       ${drawerItemHtml('rapporter', luc('file-bar-chart'), 'Rapporter')}
     </div>
@@ -7702,18 +7959,17 @@ function attachDriverBunnmenyListeners(){
 // stegene etter navnet (allerede kontrollert / kontrollskjema) er UENDRET.
 function renderDriverVelgBil(){
   const dialogBil = driverNavnDialogBilId ? vehicles.find(x => x.id === driverNavnDialogBilId) : null;
-  // tilbakepil (kun visuell finpuss, "ikke endre navigasjon"): denne skjermen
-  // har ingen egen "forrige skjerm" å gå tilbake til i seg selv (den er selve startpunktet i
-  // sjåførflyten, eller nås via "🔁 Bytt bil" i ☰ Mer). Pilen er derfor bevisst koblet til en
-  // destinasjon som ALLEREDE finnes (Min Bil, nøyaktig samme sted som bunnmenyens 🚐 Min Bil-
-  // knapp peker på) — ikke en ny skjerm/rute — og kun aktiv når det faktisk finnes en aktiv
-  // biløkt å gå tilbake til (samme betingelse loadAll() selv bruker til å avgjøre startskjerm).
-  // Uten en aktiv biløkt er det ingenting reelt å gå "tilbake" til, så pilen vises deaktivert
-  // i stedet for å late som en funksjon som ikke finnes.
+  // tilbakepil: går til Min Bil (samme destinasjon som bunnmenyens 🚐 Min Bil-knapp), kun
+  // aktuelt når det faktisk finnes en aktiv biløkt å gå tilbake til (samme betingelse
+  // loadAll() selv bruker til å avgjøre startskjerm). Prioritet 71.2 (tidligere viste denne
+  // en DEAKTIVERT, men fortsatt synlig pil før dagens første kontroll er startet — det så
+  // ut som kontrollen allerede var i gang, selv om ingenting var registrert ennå): pilen
+  // fjernes nå HELT fra DOM-en når kanGaTilbake er false, i stedet for å vises deaktivert.
+  // Den dukker opp igjen først når sjåføren faktisk har en aktiv biløkt å returnere til.
   const kanGaTilbake = !!(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId));
   return `
     <div class="p48-velgbil-heading">
-      <button type="button" class="p48-back" id="db-tilbake-btn" ${kanGaTilbake ? '' : 'disabled'} aria-label="Tilbake til Min Bil">${sjaforIkonSvg('chevronLeft', 22)}</button>
+      ${kanGaTilbake ? `<button type="button" class="p48-back" id="db-tilbake-btn" aria-label="Tilbake til Min Bil">${sjaforIkonSvg('chevronLeft', 22)}</button>` : ''}
       <h2 style="font-size:19px;">Velg bil</h2>
     </div>
     <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag. Du skriver navnet ditt i neste steg.</div>
@@ -8069,31 +8325,98 @@ function attachDriverMinBilListeners(){
 }
 
 // 📞 Ringeliste som egen sjåførskjerm (flyttet ut av Min Bil, se
-// DASHBOARD_LAYOUT_FLATER.minbil over). Samme innhold/markup som det tidligere Min Bil-kortet
-// hadde — kun flyttet til en alltid-synlig destinasjon i bunnmenyen, ingen ny logikk. Egen bil
-// ekskluderes fra listen når en aktiv biløkt finnes; uten aktiv bil (f.eks. før dagens
-// kontroll er utført) vises hele listen, siden det ikke finnes noen "egen bil" å ekskludere.
-function renderDriverRingeliste(){
-  const v = vehicles.find(x => x.id === driverActiveVehicleId);
-  const andreMedTelefon = sortedVehicles(vehicles).filter(x => (!v || x.id !== v.id) && x.telefon);
+// DASHBOARD_LAYOUT_FLATER.minbil over). Prioritet 71.3: fullstendig redesignet etter et
+// referansebilde — grupperer nå ALLE kjøretøy etter om de har en aktiv sjåfør (uendret
+// definisjon, vehicleAktivSjafor()), i tillegg til 👔 Ledelse og de to faste kontaktene
+// 🚚 Home Delivery/🛟 Veihjelp (ringelisteEkstra, se deklarasjonen — egen, frittstående
+// Settings-blob, ingen kobling til kjøretøyregisteret). Egen bil ekskluderes fortsatt fra
+// begge kjøretøygruppene når en aktiv biløkt finnes (samme regel som før — det gir ingen
+// mening å ringe seg selv); uten aktiv bil vises alle kjøretøy, som før.
+function ringelisteRingHtml(telefon){
+  return telefon
+    ? `<a href="tel:${esc(telefon.replace(/[^+0-9]/g,''))}" class="ringeliste-ring-btn">${luc('phone')} Ring</a>`
+    : `<span class="ringeliste-ring-muted">Ikke registrert</span>`;
+}
+function ringelisteRowHtml(icon, main, sub, telefon){
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">${luc('phone')} Ringeliste</h2>
-    <div class="panel">
-      ${andreMedTelefon.length === 0 ? `<div class="empty-note">Ingen kjøretøy har registrert telefonnummer ennå.</div>` : `
-      <ul class="dmg-simple-list">
-        ${andreMedTelefon.map(x => `
-          <li>
-            <a href="tel:${esc(x.telefon.replace(/[^+0-9]/g,''))}" class="dmg-simple-main" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;">
-              <span>${luc('truck')} ${esc(vehicleLabel(x))}</span>
-              <span class="btn secondary small" style="pointer-events:none;">${luc('phone')} Ring</span>
-            </a>
-          </li>`).join('')}
-      </ul>`}
+    <div class="ringeliste-row">
+      <div class="ringeliste-row-icon">${luc(icon)}</div>
+      <div class="ringeliste-row-text">
+        <div class="ringeliste-row-main">${main}</div>
+        ${sub ? `<div class="ringeliste-row-sub">${sub}</div>` : ''}
+      </div>
+      ${ringelisteRingHtml(telefon)}
+    </div>`;
+}
+// Kollapsbar gruppe (jf. bestillingens "Kollapsbare seksjoner"). Alle tre er ÅPNE som
+// standard (driverRingelisteLukket starter tom) — matcher referansebildet, der ingen
+// gruppe er skjult ved første visning.
+function ringelisteGroupHtml(key, tittel, accentVar, rader){
+  const lukket = driverRingelisteLukket.has(key);
+  return `
+    <div class="ringeliste-group" style="--accent:var(${accentVar});">
+      <div class="ringeliste-group-head" data-ringeliste-toggle="${key}">
+        <span class="p48-dot" style="background:var(${accentVar});"></span>
+        <span class="ringeliste-group-title">${esc(tittel)} (${rader.length})</span>
+        <span class="chevron">${luc(lukket ? 'chevron-down' : 'chevron-up')}</span>
+      </div>
+      ${!lukket ? `<div class="ringeliste-group-body">${rader.length ? rader.join('') : '<div class="ringeliste-row"><div class="ringeliste-row-text"><div class="ringeliste-row-sub">Ingen her nå.</div></div></div>'}</div>` : ''}
+    </div>`;
+}
+// Home Delivery/Veihjelp: to faste, alltid synlige kontaktkort (ikke kollapsbare — kun to
+// stykker, ingen grunn til å skjule dem). type = 'homeDelivery' | 'veihjelp'.
+function ringelisteQuickCardHtml(type, icon, iconBg){
+  const k = ringelisteEkstra[type] || {navn:'', beskrivelse:'', telefon:''};
+  return `
+    <div class="ringeliste-quick-card">
+      <div class="ringeliste-quick-top">
+        <div class="ringeliste-quick-icon" style="background:${iconBg};color:var(--surface);">${luc(icon)}</div>
+        <div>
+          <div class="ringeliste-quick-title">${esc(k.navn || '–')}</div>
+          ${k.beskrivelse ? `<div class="ringeliste-quick-sub">${esc(k.beskrivelse)}</div>` : ''}
+        </div>
+      </div>
+      ${ringelisteRingHtml(k.telefon)}
+    </div>`;
+}
+function renderDriverRingeliste(){
+  const egenBil = vehicles.find(x => x.id === driverActiveVehicleId);
+  const andre = sortedVehicles(vehicles).filter(x => !egenBil || x.id !== egenBil.id);
+  const aktive = andre.filter(x => vehicleAktivSjafor(x.id));
+  const ingenAktive = andre.filter(x => !vehicleAktivSjafor(x.id));
+  const aktiveRader = aktive.map(x => ringelisteRowHtml('truck',
+    esc(vehicleLabel(x)),
+    `${luc('user-round')} ${esc(vehicleAktivSjafor(x.id))}`, x.telefon));
+  const ingenAktiveRader = ingenAktive.map(x => ringelisteRowHtml('truck',
+    esc(vehicleLabel(x)),
+    '', x.telefon));
+  const ledelseRader = ringelisteEkstra.ledelse.map(k => ringelisteRowHtml('user-round',
+    esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon));
+  return `
+    <div class="ringeliste-header">
+      <div class="ringeliste-header-icon">${luc('phone')}</div>
+      <div class="ringeliste-header-text">
+        <h2>Ringeliste</h2>
+        <div class="required-hint">Ring direkte til bil eller kontakt.</div>
+      </div>
+      <span class="ringeliste-info-btn" title="Aktive sjåfører, ledige biler, ledelse og faste kontakter samlet på ett sted.">${luc('info')}</span>
+    </div>
+    ${ringelisteGroupHtml('aktive', 'Aktive sjåfører', '--green-ink', aktiveRader)}
+    ${ringelisteGroupHtml('ingen-aktive', 'Ingen aktive sjåfører', '--amber', ingenAktiveRader)}
+    ${ringelisteGroupHtml('ledelse', 'Ledelse', '--blue', ledelseRader)}
+    <div class="ringeliste-quick-grid">
+      ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--green-ink)')}
+      ${ringelisteQuickCardHtml('veihjelp', 'headphones', 'var(--blue)')}
     </div>
   `;
 }
 function attachDriverRingelisteListeners(){
-  // Ren visning — tel:-lenker trenger ingen JS-håndtering.
+  // tel:-lenker trenger ingen JS. Kun gruppenes åpen/lukket-tilstand.
+  document.querySelectorAll('[data-ringeliste-toggle]').forEach(el => el.addEventListener('click', () => {
+    const key = el.dataset.ringelisteToggle;
+    if(driverRingelisteLukket.has(key)) driverRingelisteLukket.delete(key); else driverRingelisteLukket.add(key);
+    render();
+  }));
 }
 
 // 💬 Kommentarer som egen sjåførskjerm. Erstatter det opprinnelige
@@ -8255,7 +8578,7 @@ function renderLoginShell(){
 // Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
 function renderMobilHjem(){
   const d = dashboardBeregning();
-  const aktiveVarslerAntall = allActiveVarsellys().length;
+  const aktiveVarslerAntall = varslingssenterAntall();
   const kommendeTop = d.kommendeOppgaver.slice(0, 4);
   const kreverTop = d.dashKreverListe.slice(0, 4);
   // 🎨 Layout Editor. Samme prinsipp som renderDashboard(): UENDRET markup
@@ -8265,7 +8588,7 @@ function renderMobilHjem(){
   // rekkefølgen fra Layout Editor brukes direkte.
   const komponentHtml = {
     kpi: `
-    <div class="dash40-grid4">
+    <div class="dash40-grid3">
       <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
         <span class="flis">${luc('siren')}</span>
         <span class="dash40-kpi-num" style="${d.harHastesaker ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
@@ -8274,12 +8597,6 @@ function renderMobilHjem(){
       </button>
       ${kontrollstatusKpiHtml(d)}
       ${aktiveBilerKpiHtml(d)}
-      <button type="button" class="dash40-kpi" data-quick-page="kalender" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">${luc('calendar-days')}</span>
-        <span class="dash40-kpi-num">${d.kommendeFristerAntall}</span>
-        <span class="dash40-kpi-label">Kommende frister</span>
-        <span class="dash40-kpi-link">Neste 7 dager · Se kalender →</span>
-      </button>
     </div>`,
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
@@ -8351,7 +8668,7 @@ function renderMobilHjem(){
         <div class="p41-brand-sub">Operativ kontroll</div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
+        <button type="button" class="p41-iconbtn" id="dash-varsler-btn" title="Varslingssenter">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
         <button type="button" class="p41-iconbtn" id="mobil-konto-btn" title="Konto og meny">${luc('user-round')}</button>
       </div>
     </div>
@@ -8692,8 +9009,6 @@ function dashboardBeregning(){
   // kortet hadde (verkstedtimer innen 7 dager + saker med oppfølging "snart") er begge
   // fortsatt med, som plan7.verksted og plan7.oppfolging — ingenting er mistet.
   const plan7 = flatePlanleggingData(7);
-  const kommendeFristerAntall = plan7.service.length + plan7.planlagtService.length + plan7.dekk.length
-    + plan7.planlagtDekkskift.length + plan7.verksted.length + plan7.oppfolging.length + plan7.euKontroll.length;
   // "Haster først": hast 0 = forfalt/i dag, 1 = alt annet. Sekundærsortering på dato
   // (poster uten dato, dvs. km-baserte servicevarsler, legges bakerst innenfor sin gruppe).
   const kommendeOppgaver = [];
@@ -8753,7 +9068,7 @@ function dashboardBeregning(){
   };
   return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
     manglerKontrollCount, reserveUnntattCount, forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
-    harHastesaker, dashKreverListe, dashKreverTop5, plan7, kommendeFristerAntall, kommendeOppgaver,
+    harHastesaker, dashKreverListe, dashKreverTop5, plan7, kommendeOppgaver,
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
     sakFaseAntall};
 }
@@ -8796,7 +9111,7 @@ function renderDashboard(){
   const d = dashboardBeregning();
   const {totalVehicles, upcomingVT, nearestVT, kontrollertIdagCount, manglerKontrollCount,
     forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, harHastesaker,
-    dashKreverListe, dashKreverTop5, kommendeFristerAntall, kommendeOppgaver, kommendeOppgaverTop,
+    dashKreverListe, dashKreverTop5, kommendeOppgaver, kommendeOppgaverTop,
     hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe, sakFaseAntall} = d;
 
   const g = greetingInfo();
@@ -8810,7 +9125,7 @@ function renderDashboard(){
 
   // fargepar per tjeneste/alvorlighet — kun presentasjon (ikonflis-tint
   // og aksentfarge), ingen kobling til status- eller saksberegning.
-  const aktiveVarslerAntall = allActiveVarsellys().length;
+  const aktiveVarslerAntall = varslingssenterAntall();
 
   // ================= 🎨 Layout Editor =================
   // Hver seksjon under er UENDRET markup fra før denne prioriteten — kun flyttet inn i et
@@ -8963,7 +9278,7 @@ function renderDashboard(){
         <div class="p38-hi-sub">${displayTittel ? esc(displayTittel) + ' · ' : ''}${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
-        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Aktive varsellamper">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
+        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Varslingssenter">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
       </div>
     </div>
 
@@ -9794,61 +10109,173 @@ function attachKontrolloversiktListeners(){
   if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
 }
 
-function renderVarslerOversikt(){
-  const alle = allActiveVarsellys();
-  const byVehicle = new Map();
-  alle.forEach(w => {
-    if(!byVehicle.has(w.vehicleId)) byVehicle.set(w.vehicleId, []);
-    byVehicle.get(w.vehicleId).push(w);
+// ================= Prioritet 71: Varslingssenter =================
+// Erstatter "Påminnelser" (som tidligere KUN var aktive varsellamper) med ett samlet
+// varslingssenter: nye kommentarer, km-grense passert, service/EU-kontroll som nærmer
+// seg, verkstedoppfølging, nye skader, varsellamper og forfalt saksoppfølging. INGEN ny
+// datamodell for selve varselinnholdet — hvert varsel beregnes LIVE, hver render, fra
+// eksisterende kilder (varsellys/aktiveSaker/kontroller/kommentarer/v.km/
+// vehicleServiceStatus()/vehicleEuKontrollStatus()), akkurat som Dashboard sine øvrige
+// tellere. Det gjør at et varsel forsvinner AUTOMATISK i det den underliggende årsaken er
+// løst (kvittert varsellampe, sak lukket, kommentar lest, km rettet) — ingen egen
+// "avslutt varsel"-handling å holde synkronisert.
+// Den eneste nye persisterte tilstanden er varselSett — et {varselId: sistSettISO}-kart
+// (se deklarasjon/lagring lenger opp i filen). "Marker som sett" skjuler varselet fra
+// aktiv visning og fra alle røde tellere i 48 timer; er den underliggende årsaken fortsatt
+// til stede når de 48 timene er gått, dukker varselet opp igjen av seg selv (samme
+// live-beregning, ingen egen "utløpt"-jobb). Er årsaken løst i mellomtiden, kommer
+// varselet aldri tilbake — det slutter rett og slett å bli generert.
+const VARSEL_SKJUL_TIMER = 48;
+function varselErSkjult(id){
+  const sistSett = varselSett[id];
+  if(!sistSett) return false;
+  const timer = (Date.now() - new Date(sistSett).getTime()) / 36e5;
+  return timer >= 0 && timer < VARSEL_SKJUL_TIMER;
+}
+async function markerVarselSett(id){
+  varselSett[id] = new Date().toISOString();
+  await saveVarselSett();
+  render();
+}
+async function markerAlleVarslerSett(idListe){
+  const naa = new Date().toISOString();
+  idListe.forEach(id => { varselSett[id] = naa; });
+  await saveVarselSett();
+  render();
+}
+const VARSLINGSSENTER_KATEGORI_LABEL = {
+  kommentar:'Nye kommentarer', skade:'Nye skader', verksted:'Verkstedoppfølging',
+  oppfolging:'Påminnelser', varsellampe:'Varsellamper', service:'Service nærmer seg',
+  eu:'EU-kontroll', km:'Km-grense passert'
+};
+const VARSLINGSSENTER_KATEGORI_IKON = {
+  kommentar:'message-square', skade:'triangle-alert', verksted:'factory', oppfolging:'clock-3',
+  varsellampe:'bell', service:'wrench', eu:'shield-check', km:'gauge'
+};
+const VARSLINGSSENTER_KATEGORI_ORDER = ['kommentar','skade','verksted','oppfolging','varsellampe','service','eu','km'];
+// Bygger ALLE aktive varsler (før 48-timers skjul-filtrering) — brukt av selve skjermen
+// OG av badge-tallene i sidemeny/drawer/dashboard-klokken, slik at tallet aldri kan
+// divergere fra listen det peker på.
+function beregnVarslingssenterListe(){
+  const liste = [];
+  nyeKommentarerListe().filter(k => !k.lest).forEach(k => {
+    liste.push({id:'kommentar:'+k.kilde+':'+k.id, kategori:'kommentar', vehicleId:k.vehicleId,
+      tittel:'Ny kommentar', tekst: k.bilTekst + ' · ' + k.sjafor + ': «' + k.kommentar + '»',
+      dato:k.dato, mal:'kommentaroversikt'});
   });
-  const beroerteKjoretoy = sortedVehicles(vehicles.filter(v => byVehicle.has(v.id)));
-  // Varsellamper kan i sjeldne tilfeller peke på en bil som senere er slettet fra
-  // registeret (bilsletting rydder ikke varsellys) — disse vises samlet til slutt
-  // i stedet for å forsvinne stille fra oversikten.
-  const kjentIder = new Set(vehicles.map(v => v.id));
-  const foreldreloseVarsler = alle.filter(w => !kjentIder.has(w.vehicleId));
+  vehicles.forEach(v => {
+    const kmA = kmAvvikForVehicle(v);
+    if(kmA){
+      liste.push({id:'km:'+v.id, kategori:'km', vehicleId:v.id, tittel:'Km-grense passert',
+        tekst: vehicleLabel(v) + ' — kontrollert ' + kmA.differanse.toLocaleString('nb-NO') + ' km høyere enn registrert kilometerstand. Godkjennes via Rediger informasjon.',
+        dato:kmA.dato || todayISO(), mal:'bilkort'});
+    }
+  });
+  vehicles.filter(v => !v.uteAvDrift).forEach(v => {
+    const ss = vehicleServiceStatus(v);
+    if((ss.status === 'forfalt' || ss.status === 'snart-rod' || ss.status === 'snart-gul') && !vehicleHarAktivPlanlagtService(v.id)){
+      liste.push({id:'service:'+v.id, kategori:'service', vehicleId:v.id, tittel:'Service nærmer seg',
+        tekst: vehicleLabel(v) + ' — ' + ss.tekst, dato:todayISO(), mal:'bilkort'});
+    }
+    const eu = vehicleEuKontrollStatus(v);
+    if((eu.status === 'forfalt' || eu.status === 'snart-rod') && !vehicleHarRegistrertEuTime(v.id)){
+      liste.push({id:'eu:'+v.id, kategori:'eu', vehicleId:v.id, tittel:'EU-kontroll',
+        tekst: vehicleLabel(v) + ' — ' + eu.tekst, dato:todayISO(), mal:'bilkort'});
+    }
+  });
+  aktiveSaker.filter(s => sakErApen(s)).forEach(s => {
+    const fase = sakFase(s);
+    const v = sakVehicle(s);
+    const bilTekst = v ? vehicleLabel(v) : 'Ukjent bil';
+    if(fase === 'verksted'){
+      liste.push({id:'sak:'+s.id, kategori:'verksted', vehicleId:s.vehicleId, tittel:'Verkstedoppfølging',
+        tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — ' + (s.status === 'utfort-venter-bekreftelse' ? 'venter bekreftelse på utført arbeid' : 'verksted bestilt'),
+        dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id});
+    } else if(fase === 'aktiv' && s.caseType === 'skade'){
+      liste.push({id:'sak:'+s.id, kategori:'skade', vehicleId:s.vehicleId, tittel:'Ny skade',
+        tekst: bilTekst + ' — ' + sakKortOverskrift(s), dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id});
+    } else if(sakOppfolgingStatus(s) === 'forfalt'){
+      liste.push({id:'sak:'+s.id, kategori:'oppfolging', vehicleId:s.vehicleId, tittel:'Oppfølging forfalt',
+        tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — frist ' + fmt(s.followUpDate),
+        dato: s.followUpDate || todayISO(), mal:'sak', sakId:s.id});
+    }
+  });
+  allActiveVarsellys().forEach(w => {
+    const v = vehicles.find(x => x.id === w.vehicleId);
+    liste.push({id:'vl:'+w.id, kategori:'varsellampe', vehicleId:w.vehicleId, tittel:'Varsellampe',
+      tekst: (v ? vehicleLabel(v) : 'Ukjent bil') + ' — ' + varsellysLabel(w),
+      dato: w.registrertDato, mal:'varsellys', varsellysId:w.id});
+  });
+  return liste.sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+}
+// AKTIV visning = alt som ikke er skjult av "marker som sett" akkurat nå. Dette er
+// tallet/listen som faktisk vises og telles i røde badges — ferdigkravet "brukeren skal
+// kunne komme til 0 varsler" betyr nettopp at denne listen kan bli tom uten at
+// beregnVarslingssenterListe() nødvendigvis er det.
+function varslingssenterAktiveListe(){
+  return beregnVarslingssenterListe().filter(x => !varselErSkjult(x.id));
+}
+function varslingssenterAntall(){
+  return varslingssenterAktiveListe().length;
+}
+function goToVarselSak(sakId){
+  const s = aktiveSaker.find(x => x.id === sakId);
+  sakAktivFane = s ? (sakFase(s) || 'aktiv') : 'aktiv';
+  // Prioritet 71.4: per-bil-gruppering er tilbake — uten dette ville sakskortet vært
+  // skjult bak en lukket "Vis alle saker"-gruppe selv om fanen stemte.
+  if(s) sakOversiktOpenVehicles = new Set([s.vehicleId]);
+  goTo('aktivesaker');
+}
+function varslingssenterGaTilKnapp(x){
+  if((x.mal === 'bilkort' || x.mal === 'varsellys') && x.vehicleId) return `<button type="button" class="btn small" data-goto-varsel-bilkort="${x.vehicleId}">Åpne bilkort</button>`;
+  if(x.mal === 'sak' && x.sakId) return `<button type="button" class="btn small" data-goto-varsel-sak="${x.sakId}">Åpne sak</button>`;
+  if(x.mal === 'kommentaroversikt') return `<button type="button" class="btn small" data-goto-varsel-kommentarer="1">Åpne kommentarer</button>`;
+  return '';
+}
+function varslingssenterRadHtml(x){
+  const kvitterKnapp = x.kategori === 'varsellampe' && isAdmin
+    ? `<button type="button" class="btn small" data-kvitter="${x.varsellysId}">✅ Merk som løst</button>` : '';
+  return `
+    <div class="vl-card">
+      <div class="vl-card-main">
+        <div class="title">${esc(x.tittel)}</div>
+        <div class="vl-card-meta">${esc(x.tekst)}${x.dato ? ' · ' + fmt(x.dato) : ''}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${varslingssenterGaTilKnapp(x)}
+        ${kvitterKnapp}
+        <button type="button" class="btn small secondary" data-marker-varsel-sett="${x.id}">👁️ Marker som sett</button>
+      </div>
+    </div>`;
+}
+function renderVarslerOversikt(){
+  const aktiveVarsler = varslingssenterAktiveListe();
+  const byKategori = new Map();
+  aktiveVarsler.forEach(x => {
+    if(!byKategori.has(x.kategori)) byKategori.set(x.kategori, []);
+    byKategori.get(x.kategori).push(x);
+  });
   const kvittertVarsellys = varsellys.filter(w => w.status === 'kvittert')
     .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
+  const kjentIder = new Set(vehicles.map(v => v.id));
 
   return `
-    <div class="backrow"><button class="backbtn" id="varsler-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">🔔 Påminnelser</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${alle.length} aktiv${alle.length===1?'':'e'} varsellampe${alle.length===1?'':'r'} totalt, fordelt på ${beroerteKjoretoy.length} kjøretøy.</div>
-    ${alle.length === 0 ? `<div class="empty-note">🟢 Ingen aktive varsellamper.</div>` : KATEGORI_ORDER.filter(k => beroerteKjoretoy.some(v => v.kategori === k)).map(k => {
-      const gruppeKjoretoy = beroerteKjoretoy.filter(v => v.kategori === k);
+    <div class="backrow">
+      <button class="backbtn" id="varsler-back">← Tilbake</button>
+      ${aktiveVarsler.length > 0 ? `<button type="button" class="btn secondary small" id="varsler-marker-alle-btn" style="margin-left:auto;">✅ Marker alle som sett</button>` : ''}
+    </div>
+    <h2 style="font-size:19px;margin-bottom:6px;">${luc('bell')} Varslingssenter</h2>
+    <div class="required-hint" style="margin-bottom:16px;">${aktiveVarsler.length} varsel${aktiveVarsler.length===1?'':'er'} krever oppmerksomhet nå. «Marker som sett» rydder varselet i 48 timer — det kommer automatisk tilbake dersom problemet fortsatt ikke er løst.</div>
+    ${aktiveVarsler.length === 0 ? `<div class="empty-note">🟢 Ingen varsler — alt er fulgt opp.</div>` : VARSLINGSSENTER_KATEGORI_ORDER.filter(k => byKategori.has(k)).map(k => {
+      const items = byKategori.get(k);
       return `
       <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
-        <div class="acc-list">
-          ${gruppeKjoretoy.map(v => {
-            const wList = byVehicle.get(v.id) || [];
-            const open = varslerOpenVehicles.has(v.id);
-            return `
-            <div class="acc-row varsel ${open ? 'expanded' : ''}">
-              <div class="acc-head" data-toggle-varsler-vehicle="${v.id}">
-                <div class="acc-head-left">
-                  <div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div>
-                </div>
-                <div class="acc-head-right">
-                  <span class="group-count">${wList.length} varsel${wList.length===1?'':'er'}</span>
-                  <span class="chevron">${luc('chevron-down')}</span>
-                </div>
-              </div>
-              ${open ? `<div class="acc-body">
-                <div class="dmg-list">
-                  ${wList.map(w => varsellysCard(w)).join('')}
-                </div>
-              </div>` : ''}
-            </div>`;
-          }).join('')}
+        <div class="group-card-title" style="margin-bottom:10px;">${luc(VARSLINGSSENTER_KATEGORI_IKON[k])} ${VARSLINGSSENTER_KATEGORI_LABEL[k]} (${items.length})</div>
+        <div class="dmg-list">
+          ${items.map(x => varslingssenterRadHtml(x)).join('')}
         </div>
       </div>`;
     }).join('')}
-    ${foreldreloseVarsler.length > 0 ? `
-    <div style="margin-bottom:22px;">
-      <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
-      <div class="dmg-list">${foreldreloseVarsler.map(w => varsellysCard(w)).join('')}</div>
-    </div>` : ''}
 
     <h2 style="font-size:19px;margin:32px 0 6px;">🚨 Varsellampe kvittering historikk</h2>
     <div class="required-hint" style="margin-bottom:16px;">
@@ -9898,7 +10325,15 @@ function renderVarslerOversikt(){
 }
 function attachVarslerOversiktListeners(){
   document.getElementById('varsler-back').addEventListener('click', () => goBack());
-  document.querySelectorAll('[data-toggle-varsler-vehicle]').forEach(el => el.addEventListener('click', () => toggleVarslerVehicle(el.dataset.toggleVarslerVehicle)));
+  const markerAlleBtn = document.getElementById('varsler-marker-alle-btn');
+  if(markerAlleBtn) markerAlleBtn.addEventListener('click', () => {
+    const idListe = varslingssenterAktiveListe().map(x => x.id);
+    if(idListe.length > 0 && confirm('Marker alle ' + idListe.length + ' varsel' + (idListe.length===1?'':'er') + ' som sett? De kommer automatisk tilbake etter 48 timer dersom problemet fortsatt ikke er løst.')) markerAlleVarslerSett(idListe);
+  });
+  document.querySelectorAll('[data-marker-varsel-sett]').forEach(el => el.addEventListener('click', () => markerVarselSett(el.dataset.markerVarselSett)));
+  document.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoVarselBilkort)));
+  document.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
+  document.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggleVlhVehicle;
@@ -11645,52 +12080,6 @@ function sakWizardHtml(s){
     </div>
   `;
 }
-function sakCard(s, showVehicle){
-  const isEditing = editingSakId === s.id;
-  const v = sakVehicle(s);
-  const apen = sakErApen(s);
-  const statusBadgeKlasse = {'ny':'registrert','vurderes':'oppfolging','tiltak-planlagt':'oppfolging','verksted-bestilt':'verksted','delvis-utfort':'oppfolging','utfort':'ok','lukket':'unset'}[s.status] || 'unset';
-  const opStatus = sakOppfolgingStatus(s); // Fase 5 — null hvis saken er lukket
-  // Wizard UX Cleanup: når saken er åpen (wizard vises under), er dmg-top redusert til
-  // en slank, klikkbar "brødsmule"-linje (ikon + evt. bil + eksakt problem via
-  // sakProblemLabel — IKKE sakens generiske s.title) — ingen metadata, ingen badges.
-  // Steg 1 viser allerede status/prioritet/problem rett under på en ryddigere måte, så
-  // full dmg-top (som fortsatt brukes uendret i den KOLLAPSEDE listevisningen for rask
-  // skumlesing) ville bare gjentatt informasjon her.
-  //
-  // Aktive Saker UX Cleanup: den KOLLAPSEDE dmg-top er nå selv gjort mer skannbar og
-  // mindre administrativ — se sakKortOverskrift() (eksakt varsellampe/problem i stedet
-  // for generisk s.title). Saksnummer/registrert av/rapportantall/"Åpen i X dager"/
-  // "Sist oppdatert" er fjernet herfra (fortsatt tilgjengelig i Steg 1 sin "▼ Mer
-  // informasjon" ved behov) — erstattet av kun "Registrert {dato}" som liten tekst
-  // øverst til høyre, ved siden av prioritet/status/oppfølging-chipsene.
-  return `
-    <div class="dmg-item ${!apen ? 'utbedret' : ''}">
-      <div class="dmg-top" data-toggle-edit-sak="${s.id}">
-        ${isEditing ? `
-        <div class="dmg-text">
-          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${showVehicle ? esc(vehicleLabel(v)) + ' — ' : ''}${esc(sakProblemLabel(s))}</div>
-        </div>
-        ` : `
-        <div class="dmg-text">
-          <div class="main">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(sakKortOverskrift(s))}</div>
-          ${showVehicle ? `<div class="desc">${esc(vehicleLabel(v))}</div>` : ''}
-          ${s.nextAction ? `<div class="desc">${luc('arrow-right')} ${esc(s.nextAction)}</div>` : ''}
-          ${s.followUpDate ? `<div class="desc">${luc('calendar-days')} Oppfølging ${fmt(s.followUpDate)}</div>` : ''}
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-          <div class="required-hint" style="margin:0;white-space:nowrap;">Registrert ${fmt(s.reportedAt)}</div>
-          <div class="dmg-badges">
-            <span class="badge ${statusBadgeKlasse}">${SAK_STATUS_LABEL[s.status] || s.status}</span>
-            ${opStatus ? `<span class="badge ${SAK_OPPFOLGING_BADGE[opStatus]}">${SAK_OPPFOLGING_IKON[opStatus]} ${SAK_OPPFOLGING_LABEL[opStatus]}</span>` : ''}
-          </div>
-        </div>
-        `}
-      </div>
-      ${isEditing ? sakWizardHtml(s) : ''}
-    </div>
-  `;
-}
 // «Ny saksflyt»: kompakt kort for ÉN sak i den nye, fasedelte Aktive
 // saker-skjermen. Kollapset (standard): kun bil, sakstype og dato — pluss NØYAKTIG den
 // ene handlingen som gjelder for fasen saken står i. Ingenting annet vises før kortet
@@ -11763,56 +12152,99 @@ function sakKildeTekster(s){
   if(s.sourceType === 'manuell' && s.description) ut.push({label: '✍️ Beskrivelse', tekst: esc(s.description)});
   return ut;
 }
-// Sakskortets direkte detaljvisning. All beslutningsinformasjon vises i kortet;
-// bilder lastes etter render slik at de kan klikkes opp i lightbox.
-function sakMerInfoHtml(s){
-  const tekster = sakKildeTekster(s);
-  return `
-    <div class="ov-grid" style="margin-bottom:10px;">
-      <div class="ov-item"><span class="ov-label">Registrert av</span><span class="ov-value">${esc(sakRegistrertAv(s))}</span></div>
-      <div class="ov-item"><span class="ov-label">Registrert dato</span><span class="ov-value">${fmt(s.reportedAt)}</span></div>
-    </div>
-    ${tekster.length
-      ? `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><div class="kt-history-meta" style="white-space:pre-line;">${tekster.map(t => t.tekst).join('\n')}</div></div>`
-      : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><div class="kt-history-meta">Ingen kommentar registrert på kilden.</div></div>`}
-  `;
-}
-// Bildene lastes etter at alle synlige sakskort er rendret.
+// Bildene lastes etter at alle synlige sakskort er rendret. Prioritet 71.4: med
+// per-bil-gruppering tilbake er et sakskort kun faktisk i DOM-en når bilens gruppe er
+// utvidet (sakOversiktOpenVehicles) — filtrert her også, slik at bilder ikke hentes for
+// skjulte grupper (samme "hent kun ved faktisk utvidelse"-prinsipp som Prioritet 68).
 function attachSakDetaljBilder(){
-  aktiveSaker.filter(s => sakFase(s) === sakAktivFane).forEach(s => {
+  aktiveSaker.filter(s => sakFase(s) === sakAktivFane && sakOversiktOpenVehicles.has(s.vehicleId)).forEach(s => {
     const keys = sakBilderKeys(s);
     if(keys.length) attachBildeGalleriListeners(keys, 'sak-' + s.id);
   });
 }
+// Prioritet 71.2: inline, valgfritt årsak-panel for «✅ Utført uten verkstedbesøk» (kun
+// saker i fasen "Under oppfølging" — se sakKompaktKortHtml). Ett sakskort om gangen
+// (sakUtenVerkstedPanelId), samme mønster som sakWizardVtOpen o.l. Bekreft-knappen kaller
+// markerSakUtfortUtenVerksted() — se attachAktiveSakerListeners().
+function sakUtenVerkstedPanelHtml(s){
+  return `
+    <div class="panel" style="margin-top:8px;padding:12px;">
+      <div class="field" style="margin-bottom:8px;">
+        <label>Årsak (valgfritt)</label>
+        <select id="sak-uv-arsak-${s.id}">
+          <option value="">Ikke oppgitt</option>
+          ${SAK_UTEN_VERKSTED_ARSAK_ORDER.map(k => `<option value="${k}">${esc(SAK_UTEN_VERKSTED_ARSAK_LABEL[k])}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" id="sak-uv-annet-wrap-${s.id}" style="display:none;margin-bottom:8px;">
+        <label>Beskriv</label>
+        <input type="text" id="sak-uv-annet-${s.id}" placeholder="Valgfritt">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn small" data-uv-bekreft-sak="${s.id}">${luc('check')} Bekreft</button>
+        <button type="button" class="btn secondary small" data-uv-avbryt-sak="${s.id}">Avbryt</button>
+      </div>
+    </div>`;
+}
+// Prioritet 71.4: liten enkelt-thumbnail (ikke hele bildegalleriet) i sakskortets
+// hjørne — "synlig uten ekstra klikk", men uten å bruke opp kortets smale bredde på et
+// helt rutenett. Gjenbruker EKSISTERENDE getPhoto()/openLightbox() via
+// attachBildeGalleriListeners(keys, contextId) uendret: den looper over ALLE keys og
+// setter kun opp lytteren for de elementene som faktisk finnes i DOM-en (id-mønsteret
+// er identisk, bilde-thumb-{contextId}-{i}) — her rendres kun i=0, resten hoppes
+// automatisk og harmløst over. Klikk åpner lightboxen med samtlige bilder, ikke bare det
+// første.
+function sakBildeThumbHtml(keys, contextId){
+  if(!keys || keys.length === 0) return '';
+  return `<div class="sak-bilde-thumb" id="bilde-thumb-${contextId}-0">
+    <img id="bilde-thumb-img-${contextId}-0" style="display:none;">
+    ${keys.length > 1 ? `<span class="sak-bilde-count">+${keys.length - 1}</span>` : ''}
+  </div>`;
+}
+// Prioritet 71.4 — horisontal sakskort: bilnavn/regnr vises IKKE her lenger (det står i
+// gruppeoverskriften over — se sakFaneListeHtml), overskriften er nå sakstypen selv
+// (ikon + SAK_TYPE_LABEL). Sjekkliste (Prioritet 52), registrert av/dato og beskrivelse
+// under. Bilde (kun når det finnes, se sakBildeThumbHtml) ligger i selve
+// header-raden, til høyre for sakstype-tittelen. Godta/Avslå (eller fasens tilsvarende
+// handling) er nederst i kortet, stablet vertikalt — «frigjør bredde» i en smal kolonne.
+// «Avansert redigering» åpner IKKE veiviseren inni dette smale kortet (ville sett
+// forferdelig ut i 250px bredde) — se sakFaneListeHtml, som rendrer sakWizardHtml() i full
+// bredde RETT UNDER hele den horisontale raden i stedet.
 function sakKompaktKortHtml(s, fase){
-  const v = sakVehicle(s);
   const bilder = sakBilderKeys(s);
+  const isEditing = editingSakId === s.id;
+  const uvPanelApen = sakUtenVerkstedPanelId === s.id;
+  const tekster = sakKildeTekster(s);
+  const beskrivelse = tekster.length ? tekster.map(t => t.tekst).join('\n') : 'Ingen kommentar registrert på kilden.';
   const handlingHtml = fase === 'aktiv'
     ? `<button type="button" class="btn small" data-godta-sak="${s.id}">${luc('check')} Godta</button>
        <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">${luc('x')} Avslå</button>`
     : fase === 'oppfolging'
-    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">${luc('calendar-days')} Registrer verkstedtime</button>`
+    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">${luc('calendar-days')} Registrer verkstedtime</button>
+       <button type="button" class="btn secondary small" data-uv-toggle-sak="${s.id}">${luc('check')} Utført uten verkstedbesøk</button>
+       ${uvPanelApen ? sakUtenVerkstedPanelHtml(s) : ''}`
     : `<button type="button" class="btn small" data-sak-utfort="${s.id}">${luc('check')} Arbeid utført</button>`;
   return `
-    <div class="dmg-item">
-      <div class="sak-kort-grid">
-        <div>
-          <div class="main">${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</div>
-          <div class="desc">Regnr: ${esc(v && v.regnr ? v.regnr : '–')}</div>
-          <div class="desc">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')}</div>
-          ${sakAvvikChecklistHtml(s)}
-          <div style="margin-top:10px;">
-            ${sakMerInfoHtml(s)}
-          </div>
-        </div>
-        <div>
-          ${bilder.length ? bildeGalleriHtml(bilder, 'sak-' + s.id) : '<div class="empty-note">Ingen bilde registrert.</div>'}
-          <div class="panel-actions" style="margin-top:10px;gap:8px;flex-direction:column;align-items:stretch;">${handlingHtml}</div>
-          <button type="button" class="p38-lenke" data-goto-sak-avansert="${s.id}" style="margin-top:10px;">${luc('pencil')} Avansert redigering →</button>
-        </div>
+    <div class="sak-horisontal-kort">
+      <div class="sak-horisontal-head">
+        <div class="sak-horisontal-title">${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${esc(SAK_TYPE_LABEL[s.caseType] || 'Annet')}</div>
+        ${sakBildeThumbHtml(bilder, 'sak-' + s.id)}
       </div>
+      ${sakAvvikChecklistHtml(s)}
+      <div class="sak-horisontal-body">${luc('user-round')} ${esc(sakRegistrertAv(s))}</div>
+      <div class="sak-horisontal-body">${luc('calendar-days')} ${fmt(s.reportedAt)}</div>
+      <div class="sak-horisontal-desc">${beskrivelse}</div>
+      <div class="sak-horisontal-actions">${handlingHtml}</div>
+      <button type="button" class="p38-lenke" data-toggle-edit-sak="${s.id}">${isEditing ? luc('x') + ' Lukk redigering' : luc('pencil') + ' Avansert redigering'}</button>
     </div>`;
 }
+// Prioritet 71.4: per-bil-gruppering er tilbake (Prioritet 71.2 fjernet den — reversert
+// her etter eksplisitt bekreftelse fra bruker). Gruppeoverskriften viser bilnavn/regnr,
+// antall aktive saker OG «Nyeste: {problem} • {dato}» (ny, var ikke med i den gamle
+// grupperingen). «Vis alle saker» viser nå IKKE et vertikalt sakskort-stabel som før
+// Prioritet 71.2 — den viser sakene HORISONTALT side om side (sak-horisontal-rad), og en
+// eventuelt åpen «Avansert redigering»-veiviser rendres i full bredde RETT UNDER raden
+// (se sakKompaktKortHtml), ikke inni ett av de smale kortene.
 function sakFaneListeHtml(fase){
   const liste = aktiveSaker.filter(s => sakFase(s) === fase);
   const grupper = new Map();
@@ -11822,22 +12254,28 @@ function sakFaneListeHtml(fase){
   });
   if(grupper.size === 0) return `<div class="empty-note">Ingen saker her nå.</div>`;
   return Array.from(grupper.entries()).sort((a,b) => {
-    const ac = a[1].length, bc = b[1].length;
-    if(ac !== bc) return bc - ac;
-    return (b[1].map(s => s.reportedAt || '').sort().pop() || '').localeCompare(a[1].map(s => s.reportedAt || '').sort().pop() || '');
+    const aNyeste = a[1].map(s => s.reportedAt || '').sort().pop() || '';
+    const bNyeste = b[1].map(s => s.reportedAt || '').sort().pop() || '';
+    return bNyeste.localeCompare(aNyeste);
   }).map(([vehicleId, saker]) => {
     const v = vehicles.find(x => x.id === vehicleId);
     const sortert = saker.slice().sort((a,b) => (b.reportedAt || '').localeCompare(a.reportedAt || ''));
+    const nyeste = sortert[0];
     const apen = sakOversiktOpenVehicles.has(vehicleId);
+    const redigeresSak = apen ? sortert.find(s => editingSakId === s.id) : null;
     return `<div class="panel" style="margin-bottom:12px;">
       <div class="dmg-top">
         <div class="dmg-text">
           <div class="main">${SAK_BILSTATUS_IKON[vehicleSakStatus(vehicleId)]} ${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Slettet kjøretøy')}</div>
           <div class="desc">${saker.length} aktiv${saker.length === 1 ? ' sak' : 'e saker'}</div>
+          <div class="desc">Nyeste: ${esc(sakProblemLabel(nyeste))} • ${fmt(nyeste.reportedAt)}</div>
         </div>
         <button type="button" class="btn secondary small" data-toggle-sak-vehicle="${vehicleId}">${apen ? 'Skjul saker' : 'Vis alle saker'}</button>
       </div>
-      ${apen ? `<div class="dmg-list" style="margin-top:10px;">${sortert.map(s => sakKompaktKortHtml(s, fase)).join('')}</div>` : ''}
+      ${apen ? `
+        <div class="sak-horisontal-rad" style="margin-top:10px;">${sortert.map(s => sakKompaktKortHtml(s, fase)).join('')}</div>
+        ${redigeresSak ? sakWizardHtml(redigeresSak) : ''}
+      ` : ''}
     </div>`;
   }).join('');
 }
@@ -12314,22 +12752,36 @@ async function markerKommentarSomLest(kilde, id){
 // tvers av bilparken (dato, bil, sjåfør, kommentar — nyeste først), med «✅ Marker som
 // lest» per rad. Gjenbruker nyeKommentarerListe()/nyeKommentarRadHtml() uendret (samme
 // data som Dashboard-sidemenyens teller og Aktive saker-panelet — ingen egen datakilde).
+// Prioritet 71.2: kommentarer skal kunne ses PER KJØRETØY, ikke bare som én flat, blandet
+// liste for hele flåten. nyeKommentarerListe(vehicleId) hadde allerede støtte for dette
+// filteret (brukt av sjåførens egen «💬 Kommentarer»-skjerm siden Prioritet 50) —
+// Kommentaroversikt manglet bare selve velgeren. Samme mønster som vt-f-bil i
+// Verkstedoversikt (vehicleOptions() + «Alle biler»-standardvalg). Uten filter (standard)
+// er oppførselen helt uendret — hele flåten vises, som før.
 function renderKommentaroversikt(){
-  const liste = nyeKommentarerListe();
+  const liste = nyeKommentarerListe(kommentaroversiktFilterBil || undefined);
   const uleste = liste.filter(k => !k.lest).length;
   return `
     <div class="backrow"><button class="backbtn" id="kommentaroversikt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">💬 Kommentarer</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${liste.length} kommentar${liste.length === 1 ? '' : 'er'} totalt${uleste > 0 ? ` · ${uleste} ulest${uleste === 1 ? '' : 'e'}` : ''}.</div>
+    <div class="field" style="margin-bottom:14px;max-width:320px;"><label>Kjøretøy</label>
+      <select id="kommentaroversikt-f-bil">
+        <option value="">Alle biler</option>
+        ${vehicleOptions(kommentaroversiktFilterBil)}
+      </select>
+    </div>
+    <div class="required-hint" style="margin-bottom:16px;">${liste.length} kommentar${liste.length === 1 ? '' : 'er'}${kommentaroversiktFilterBil ? '' : ' totalt'}${uleste > 0 ? ` · ${uleste} ulest${uleste === 1 ? '' : 'e'}` : ''}.</div>
     <div class="panel">
       ${liste.length === 0
-        ? `<div class="empty-note">Ingen kommentarer fra sjåfører ennå.</div>`
+        ? `<div class="empty-note">${kommentaroversiktFilterBil ? 'Ingen kommentarer for dette kjøretøyet.' : 'Ingen kommentarer fra sjåfører ennå.'}</div>`
         : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`}
     </div>
   `;
 }
 function attachKommentaroversiktListeners(){
   document.getElementById('kommentaroversikt-back').addEventListener('click', () => goBack());
+  const fBil = document.getElementById('kommentaroversikt-f-bil');
+  if(fBil) fBil.addEventListener('change', e => { kommentaroversiktFilterBil = e.target.value; render(); });
   document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
     const [kilde, id] = el.dataset.markerLest.split(':');
     markerKommentarSomLest(kilde, id);
@@ -12397,6 +12849,7 @@ function attachAktiveSakerListeners(){
     sakAktivFane = el.dataset.sakFane;
     render();
   }));
+  // Prioritet 71.4: per-bil-gruppering tilbake — "Vis alle saker"/"Skjul saker".
   document.querySelectorAll('[data-toggle-sak-vehicle]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const id = el.dataset.toggleSakVehicle;
@@ -12409,7 +12862,35 @@ function attachAktiveSakerListeners(){
   document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
   document.querySelectorAll('[data-bestill-vt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); bestillVerkstedForSak(el.dataset.bestillVtSak); }));
   document.querySelectorAll('[data-sak-utfort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerSakUtfort(el.dataset.sakUtfort); }));
-  document.querySelectorAll('[data-goto-sak-avansert]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSakAvansert); }));
+  // Prioritet 71.2 — «✅ Utført uten verkstedbesøk»: åpne/lukk årsak-panelet, vis/skjul
+  // "Beskriv"-feltet når "Annet" velges, og selve bekreftelsen (leser valgt årsak +
+  // ev. fritekst, kaller markerSakUtfortUtenVerksted()).
+  document.querySelectorAll('[data-uv-toggle-sak]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.uvToggleSak;
+    sakUtenVerkstedPanelId = (sakUtenVerkstedPanelId === id) ? null : id;
+    render();
+  }));
+  document.querySelectorAll('[data-uv-avbryt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); sakUtenVerkstedPanelId = null; render(); }));
+  document.querySelectorAll('[data-uv-bekreft-sak]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.uvBekreftSak;
+    const arsakSel = document.getElementById('sak-uv-arsak-' + id);
+    const arsakVal = arsakSel ? arsakSel.value : '';
+    let tekst = '';
+    if(arsakVal === 'annet'){
+      const fritekst = document.getElementById('sak-uv-annet-' + id);
+      tekst = ((fritekst ? fritekst.value : '').trim()) || SAK_UTEN_VERKSTED_ARSAK_LABEL.annet;
+    } else if(arsakVal){
+      tekst = SAK_UTEN_VERKSTED_ARSAK_LABEL[arsakVal] || '';
+    }
+    markerSakUtfortUtenVerksted(id, tekst);
+  }));
+  document.querySelectorAll('[id^="sak-uv-arsak-"]').forEach(el => el.addEventListener('change', () => {
+    const id = el.id.slice('sak-uv-arsak-'.length);
+    const wrap = document.getElementById('sak-uv-annet-wrap-' + id);
+    if(wrap) wrap.style.display = (el.value === 'annet') ? '' : 'none';
+  }));
   document.getElementById('add-sak-btn').addEventListener('click', () => {
     showAddSak = !showAddSak;
     if(!showAddSak) sakPrefillVehicleId = '';
@@ -14511,6 +14992,94 @@ function settingsAccordionRow(key, title, count, bodyHtml){
     </div>
   `;
 }
+// ================= Prioritet 71.3: Ringeliste-innstillinger =================
+// Home Delivery/Veihjelp — ett fast kontaktkort hver (navn/undertekst/telefon), samme
+// inline rediger/lagre/avbryt-mønster som Verkstedregisteret.
+function ringelisteKontaktEditHtml(type){
+  const k = ringelisteEkstra[type] || {navn:'', beskrivelse:'', telefon:''};
+  if(editingKontaktType === type){
+    return `
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+        <div class="row2" style="margin-bottom:0;">
+          <div class="field"><label>Navn</label><input type="text" id="kontakt-navn-${type}" value="${esc(k.navn)}"></div>
+          <div class="field"><label>Undertekst</label><input type="text" id="kontakt-beskrivelse-${type}" value="${esc(k.beskrivelse || '')}"></div>
+        </div>
+        <div class="field"><label>Telefon</label><input type="tel" id="kontakt-telefon-${type}" value="${esc(k.telefon || '')}" placeholder="F.eks. 400 00 000"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn small" data-save-kontakt="${type}">Lagre</button>
+          <button class="btn secondary small" data-cancel-kontakt="${type}">Avbryt</button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="settings-row">
+      <span>${esc(k.navn)} <span class="required-hint" style="margin-left:6px;">${k.beskrivelse ? esc(k.beskrivelse) + ' · ' : ''}${k.telefon ? esc(k.telefon) : 'Ikke registrert'}</span></span>
+      <button class="btn secondary small" data-edit-kontakt="${type}">✏️ Rediger</button>
+    </div>`;
+}
+// Ledelse — fri liste (navn/rolle/telefon), samme legg til/rediger/slett-mønster som
+// bilkategorier/Verkstedregisteret.
+function ringelisteLedelseEditHtml(){
+  return `
+    <div class="settings-list">
+      ${ringelisteEkstra.ledelse.length === 0 ? `<div class="empty-note">Ingen registrert ennå.</div>` : ringelisteEkstra.ledelse.map(k => `
+        <div class="settings-row" style="${editingLedelseId === k.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
+          ${editingLedelseId === k.id ? `
+            <div class="row3" style="margin-bottom:0;">
+              <div class="field"><label>Navn</label><input type="text" id="ledelse-navn-${k.id}" value="${esc(k.navn)}"></div>
+              <div class="field"><label>Rolle</label><input type="text" id="ledelse-rolle-${k.id}" value="${esc(k.rolle || '')}"></div>
+              <div class="field"><label>Telefon</label><input type="tel" id="ledelse-telefon-${k.id}" value="${esc(k.telefon || '')}"></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn small" data-save-ledelse="${k.id}">Lagre</button>
+              <button class="btn secondary small" data-cancel-ledelse="${k.id}">Avbryt</button>
+              <button class="btn danger-outline small" data-del-ledelse="${k.id}">${luc('trash-2')} Fjern</button>
+            </div>
+          ` : `
+            <span>${esc(k.navn)}${k.rolle ? ' · ' + esc(k.rolle) : ''} <span class="required-hint" style="margin-left:6px;">${k.telefon ? esc(k.telefon) : 'Ikke registrert'}</span></span>
+            <button class="btn secondary small" data-edit-ledelse="${k.id}">✏️ Rediger</button>
+          `}
+        </div>
+      `).join('')}
+    </div>
+    ${showAddLedelse ? `
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">
+      <div class="row3" style="margin-bottom:0;">
+        <div class="field"><label>Navn</label><input type="text" id="new-ledelse-navn" placeholder="F.eks. Kari Nordmann"></div>
+        <div class="field"><label>Rolle</label><input type="text" id="new-ledelse-rolle" placeholder="F.eks. Driftskoordinator"></div>
+        <div class="field"><label>Telefon</label><input type="tel" id="new-ledelse-telefon" placeholder="F.eks. 400 00 000"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn small" id="add-ledelse-btn">Legg til</button>
+        <button class="btn secondary small" id="cancel-add-ledelse-btn">Avbryt</button>
+      </div>
+    </div>` : `<button type="button" class="btn secondary small" id="show-add-ledelse-btn" style="margin-top:8px;">+ Legg til</button>`}
+  `;
+}
+// Kjøretøytelefon, gruppert per kategori (i stedet for én lang, usortert liste — jf.
+// bestillingen). Samme inline rediger-mønster som før (editingTelefonVehicleId) — kun
+// selve grupperingen er ny, ingen endring i lagringsveien (v.telefon → saveVehicles()).
+function ringelisteVehicleGroupEditHtml(list){
+  return `
+    <div class="settings-list">
+      ${list.map(v => `
+        <div class="settings-row" style="${editingTelefonVehicleId === v.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
+          ${editingTelefonVehicleId === v.id ? `
+            <span>${esc(vehicleLabel(v))}</span>
+            <input type="tel" id="ringeliste-telefon-${v.id}" value="${esc(v.telefon || '')}" placeholder="F.eks. 400 00 000" style="min-height:44px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn small" data-save-telefon="${v.id}">Lagre</button>
+              <button class="btn secondary small" data-cancel-telefon="${v.id}">Avbryt</button>
+              ${v.telefon ? `<button class="btn danger-outline small" data-fjern-telefon="${v.id}">${luc('trash-2')} Fjern</button>` : ''}
+            </div>
+          ` : `
+            <span>${esc(vehicleLabel(v))} <span class="required-hint" style="margin-left:6px;">${v.telefon ? esc(v.telefon) : 'Ikke registrert'}</span></span>
+            <button class="btn secondary small" data-edit-telefon="${v.id}">✏️ ${v.telefon ? 'Rediger' : 'Legg til'}</button>
+          `}
+        </div>
+      `).join('')}
+    </div>`;
+}
 // ================= Database status (skjemavalidering mot Airtable) =================
 async function runDatabaseCheck(){
   dbStatusReport = await window.checkAirtableSchema();
@@ -15034,30 +15603,20 @@ function renderInnstillinger(){
     </div>
     <div style="border-top:1.5px solid var(--line);padding-top:18px;margin-top:18px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📞 Ringeliste</h4>
-      <div class="required-hint" style="margin-bottom:10px;">
-        Telefonnummer registrert her lagres direkte på kjøretøyet, og vises som «📞 Ringeliste»
-        i Min Bil hos sjåførene — trykk på en bil der for å ringe direkte. Kun kjøretøy med
-        registrert nummer vises i sjåførenes liste.
+      <div class="required-hint" style="margin-bottom:14px;">
+        Samme gruppering som sjåførenes Ringeliste-skjerm — kjøretøy (etter kategori), ledelse
+        og de faste kontaktene Home Delivery/Veihjelp. Telefonnummer på kjøretøy lagres
+        fortsatt direkte på kjøretøyet; ledelse/Home Delivery/Veihjelp lagres separat og
+        påvirker ikke kjøretøyregisteret.
       </div>
       ${ringelisteAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(ringelisteAdminMsg)}</div>` : ''}
-      <div class="settings-list">
-        ${sortedVehicles(vehicles).map(v => `
-          <div class="settings-row" style="${editingTelefonVehicleId===v.id ? 'flex-direction:column;align-items:stretch;gap:8px;' : ''}">
-            ${editingTelefonVehicleId === v.id ? `
-              <span>${esc(vehicleLabel(v))}</span>
-              <input type="tel" id="ringeliste-telefon-${v.id}" value="${esc(v.telefon || '')}" placeholder="F.eks. 400 00 000" style="min-height:44px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;">
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn small" data-save-telefon="${v.id}">Lagre</button>
-                <button class="btn secondary small" data-cancel-telefon="${v.id}">Avbryt</button>
-                ${v.telefon ? `<button class="btn danger-outline small" data-fjern-telefon="${v.id}">${luc('trash-2')} Fjern</button>` : ''}
-              </div>
-            ` : `
-              <span>${esc(vehicleLabel(v))} <span class="required-hint" style="margin-left:6px;">${v.telefon ? esc(v.telefon) : 'Ikke registrert'}</span></span>
-              <button class="btn secondary small" data-edit-telefon="${v.id}">✏️ ${v.telefon ? 'Rediger' : 'Legg til'}</button>
-            `}
-          </div>
-        `).join('')}
-      </div>
+      ${settingsAccordionRow('ringeliste-hd', '🚚 Home Delivery', null, ringelisteKontaktEditHtml('homeDelivery'))}
+      ${settingsAccordionRow('ringeliste-vh', '🛟 Veihjelp', null, ringelisteKontaktEditHtml('veihjelp'))}
+      ${settingsAccordionRow('ringeliste-ledelse', '👔 Ledelse', ringelisteEkstra.ledelse.length, ringelisteLedelseEditHtml())}
+      ${bilkategorier.filter(k => vehicles.some(v => v.kategori === k.id)).map(k =>
+        settingsAccordionRow('ringeliste-kat-' + k.id, (k.ikon || '🚐') + ' ' + k.navn, vehicles.filter(v => v.kategori === k.id).length,
+          ringelisteVehicleGroupEditHtml(sortedVehicles(vehicles.filter(v => v.kategori === k.id))))
+      ).join('')}
     </div>
   `;
 
@@ -15283,6 +15842,22 @@ function attachInnstillingerListeners(){
   document.querySelectorAll('[data-save-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveVehicleTelefon(el.dataset.saveTelefon); }));
   document.querySelectorAll('[data-cancel-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingTelefonVehicleId = null; ringelisteAdminMsg = ''; render(); }));
   document.querySelectorAll('[data-fjern-telefon]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); fjernVehicleTelefon(el.dataset.fjernTelefon); }));
+
+  // Prioritet 71.3: Home Delivery/Veihjelp (ett fast kontaktkort hver).
+  document.querySelectorAll('[data-edit-kontakt]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditKontakt(el.dataset.editKontakt); }));
+  document.querySelectorAll('[data-save-kontakt]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveKontaktEdit(el.dataset.saveKontakt); }));
+  document.querySelectorAll('[data-cancel-kontakt]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingKontaktType = null; ringelisteAdminMsg = ''; render(); }));
+  // Prioritet 71.3: Ledelse (fri liste — legg til/rediger/slett).
+  document.querySelectorAll('[data-edit-ledelse]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleEditLedelse(el.dataset.editLedelse); }));
+  document.querySelectorAll('[data-save-ledelse]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); saveLedelseEdit(el.dataset.saveLedelse); }));
+  document.querySelectorAll('[data-cancel-ledelse]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); editingLedelseId = null; ringelisteAdminMsg = ''; render(); }));
+  document.querySelectorAll('[data-del-ledelse]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteLedelseKontakt(el.dataset.delLedelse); }));
+  const showAddLedelseBtn = document.getElementById('show-add-ledelse-btn');
+  if(showAddLedelseBtn) showAddLedelseBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddLedelse = true; render(); });
+  const cancelAddLedelseBtn = document.getElementById('cancel-add-ledelse-btn');
+  if(cancelAddLedelseBtn) cancelAddLedelseBtn.addEventListener('click', (e) => { e.stopPropagation(); showAddLedelse = false; render(); });
+  const addLedelseBtn = document.getElementById('add-ledelse-btn');
+  if(addLedelseBtn) addLedelseBtn.addEventListener('click', (e) => { e.stopPropagation(); addLedelseKontakt(); });
 
   // 📱🖥️ Enhetsvisning (samlet fra to tidligere separate menypunkter).
   attachDeviceOverrideToggleListener();
@@ -15574,7 +16149,14 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // åpnes fortsatt uendret via selve knappen. Sveip som ikke starter i kantsonen gjør nå
 // ingenting (fjerner en tidligere kilde til utilsiktet tilbake-navigering midt i vanlig
 // innholds-sveiping/scrolling).
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger'];
+// Prioritet 71: 'verkstedhistorikk' manglet her — Verkstedhistorikk navigeres til med
+// NØYAKTIG den screen-verdien (se data-desktop-nav="verkstedhistorikk"/
+// drawerItemHtml('verkstedhistorikk', ...)), ikke den gamle 'historikk'-verdien alene som
+// fortsatt sto i denne listen. Konsekvens: kant-sveip-tilbake virket ALDRI på
+// Verkstedhistorikk, selv om skjermen har en egen ← Tilbake-knapp og ellers oppfører seg
+// som enhver annen underside. 'kalender', 'bestill' og 'kommentaroversikt' var av samme
+// grunn (nye skjermer lagt til etter denne listen sist ble oppdatert) også utelatt.
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'verkstedhistorikk', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger', 'kalender', 'bestill', 'kommentaroversikt'];
 const SWIPE_EDGE_SONE = 28; // px fra venstre kant — bredt nok til å treffe pålitelig (iOS bruker typisk 20-25px), fortsatt smalt nok til å ikke stjele vanlig sveiping i innhold
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;

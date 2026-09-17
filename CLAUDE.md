@@ -1,6 +1,49 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-16 (Prioritet 70.7 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-17 (Prioritet 71.4 —
+**delvis reversering av Prioritet 71.2:** Aktive saker er igjen gruppert per
+kjøretøy (flat, ugruppert liste er IKKE lenger gjeldende — se advarsel i
+CHANGELOG.md, Prioritet 71.4), med en ny «Nyeste: {problem} • {dato}»-linje i
+gruppeoverskriften. «Vis alle saker» viser nå bilens saker HORISONTALT side om
+side (`.sak-horisontal-rad`, `overflow-x:auto`) i smale kort uten
+bilnavn/regnr (kun sakstype som overskrift, bilde som liten miniatyr øverst
+til høyre, Godta/Avslå stablet nederst). «Avansert redigering» åpner
+veiviseren i full bredde RETT UNDER hele raden, ikke inni et enkelt smalt
+kort. Se egen seksjon lenger ned og CHANGELOG.md for full detalj. Før det:
+Prioritet 71.3 —
+sjåførens 📞 Ringeliste er redesignet etter et referansebilde: tre kollapsbare
+grupper (🟢 Aktive sjåfører / 🟡 Ingen aktive sjåfører / 👔 Ledelse) pluss faste
+🚚 Home Delivery/🛟 Veihjelp-kontaktkort. Ny, frittstående Settings-blob
+`ringeliste-ekstra` dekker Ledelse/Home Delivery/Veihjelp (kontakter uten et
+kjøretøy) — `v.telefon` er uendret. Innstillinger sin Ringeliste-seksjon er
+omgjort fra én lang, usortert kjøretøyliste til nestede grupper (Home
+Delivery/Veihjelp/Ledelse + kjøretøytelefon gruppert LIVE etter
+`bilkategorier`, ikke hardkodede kategorinavn). Se egen seksjon lenger ned og
+CHANGELOG.md for full detalj. Før det: Prioritet 71.2 —
+Aktive saker er nå en FLAT, nyeste-først liste igjen (ingen bilgruppering/
+«Vis alle saker»-utvidelse), sakskortet viser hele saken i én ny venstre/
+høyre-layout uten duplisert bilnavn/regnr/dato/sakstype, ny «✅ Utført uten
+verkstedbesøk» på saker under oppfølging, «✏️ Avansert redigering» virker
+igjen (var utilsiktet død kode), «Slitte bremser» lagt til som
+kontrollavvik, Kommentaroversikt har fått et kjøretøyfilter, og
+tilbakepilen på sjåførens «Velg bil»-skjerm er fjernet helt (ikke bare
+deaktivert) før dagens første kontroll. Se egen seksjon lenger ned og
+CHANGELOG.md for full detalj. Før det: Prioritet 71.1 —
+`migrerLegacySkaderTilSaker()` var ved en feil deklarert NESTET inne i
+`registrerAvvikSomSak()` og dermed usynlig for `loadAll()` sitt toppnivå-kall,
+som kastet en stille, fanget `ReferenceError` på hver eneste app-oppstart
+siden feilen ble introdusert — konsekvens: Prioritet 70.2 sin idempotente
+skade→sak-migrering har i praksis aldri kjørt før nå. Flyttet til toppnivå,
+uendret logikk. Se CHANGELOG.md, Prioritet 71.1, for full detalj — inkludert
+et viktig testnotat: verifisering i en ekte nettleser mot produksjonsbasen
+(uten den vanlige `window.storage.set()`-no-op-patchen) fikk migreringen til
+faktisk å opprette 5 nye rader (`SAK-0034`–`SAK-0038`) i produksjons-
+`AktiveSaker`, som bruker ba fjernet igjen.). Før det: Prioritet 71 —
+«Påminnelser» erstattet med samlet 🔔 Varslingssenter, «Kommende frister»
+fjernet fra mobil-Dashboard, varsler kan markes som sett med automatisk
+gjenoppdukking etter 48 timer, og en reell regresjon i sveip-tilbake
+(Verkstedhistorikk/Kalender/Bestill/Kommentarer manglet i hviteliste) rettet.
+Se egen seksjon lenger ned. Før det: Prioritet 70.7 —
 kompakte sakskort viser all nødvendig saksinformasjon direkte uten
 «Mer informasjon». Før det: Prioritet 70.6 —
 forenklet oppstartsskjerm med Bilpark-logo som eneste merkevareelement,
@@ -1494,7 +1537,9 @@ Adaptivt layout med sidebar-navigasjon (`renderDesktopSidebarHtml()`):
   Skadeoversikt m.fl.)
 - Biler (Biloversikt)
 - Bestill tjenester
-- Påminnelser (varsellamper)
+- Varslingssenter (Prioritet 71 — erstatter «Påminnelser»; samler nye kommentarer,
+  km-grense passert, service/EU-kontroll som nærmer seg, verkstedoppfølging, nye
+  skader, varsellamper og forfalt saksoppfølging ett sted, se egen seksjon under)
 - Kostnader
 - Rapporter (📊, eget menypunkt atskilt fra Analyse)
 - Analyse (📈, eget menypunkt)
@@ -2132,7 +2177,11 @@ tatt — upåvirket.
 - Kompakte kort er en flat, nyeste-først-liste uten bil-gruppering (bevisst
   — fanene gjør listene korte nok til at akkordion-gruppering ikke lenger
   trengs som standard). Full gruppering fortsatt tilgjengelig i «Avansert
-  visning».
+  visning». **Historisk — ikke lenger gjeldende.** Prioritet 70.3 gjorde
+  per-bil-gruppering til standardvisningen igjen; Prioritet 71.2 fjernet den
+  nok en gang; Prioritet 71.4 gjeninnførte den permanent (nå med horisontal
+  visning ved «Vis alle saker»). Se CHANGELOG.md, Prioritet 71.4, for
+  gjeldende oppførsel.
 - «✏️ Avansert redigering» åpner fortsatt hele den gamle 4-stegs veiviseren
   (uendret) — dette er bevisst (kostnadsregistrering), men betyr at en bruker
   som går denne veien igjen kan sette en sak i en gammel delstatus
@@ -2965,8 +3014,10 @@ generert fra …»), og for manuelle saker vises den allerede som «✍️ Beskr
 `sakKildeTekster()`. Ikke legg den tilbake — legg i stedet til kilden i
 `sakKildeTekster()` hvis en ny sakstype mangler tekst.
 
-**Fallbacken er eksplisitt.** Finnes ingen tekst på noen kilde, skriver `sakMerInfoHtml()`
-«Ingen kommentar registrert på kilden.» Det er et svar, ikke en tom seksjon.
+**Fallbacken er eksplisitt.** Finnes ingen tekst på noen kilde, skriver
+`sakKompaktKortHtml()` (tidligere `sakMerInfoHtml()`, inlinet i Prioritet 71.2 sin
+sakslayout — samme `sakKildeTekster()`-kilde, uendret regel) «Ingen kommentar registrert
+på kilden.» Det er et svar, ikke en tom seksjon.
 
 ## Prioritet 69 (2026-09-15) — Oppstart er en statusflate
 
@@ -3025,3 +3076,146 @@ Separate arbeidsflater for Service og Dekkskift er faset ut.
 **Kostnadsisolering:**
 - Kostnader registreres og håndteres KUN under `💰 Kostnader` (`screen === 'kostnadsoversikt'`).
 - Verksted-modulen viser kun statusmerke `✅ Kostnad registrert` eller `⚠️ Kostnad mangler` basert på om kostnadspost er opprettet.
+
+---
+
+## Prioritet 71 (2026-09-17) — 🔔 Varslingssenter erstatter Påminnelser, «Kommende frister» fjernet, marker-som-sett/48-timersregel, sveip-tilbake-regresjon rettet
+
+Bestilling: «Påminnelser» var i praksis KUN aktive varsellamper (screen `'varsler'` →
+`renderVarslerOversikt()`), mens flere andre varseltyper (nye kommentarer, km-avvik,
+service/EU-kontroll som nærmer seg, verkstedoppfølging, forfalt saksoppfølging) enten var
+usynlige, eller vist spredt/duplisert flere steder (Dashboard, Aktive saker, Verksted). Mål:
+ETT sted for alt som krever oppmerksomhet, med en reell «marker som sett»-mekanikk slik at
+0 varsler faktisk er oppnåelig — men uten at et glemt problem kan forsvinne permanent.
+
+**Varig regel: et varsel har ALDRI en egen datamodell.** `beregnVarslingssenterListe()`
+bygger hele listen LIVE, hver render, utelukkende fra eksisterende kilder:
+`nyeKommentarerListe()` (ulest), `kmAvvikForVehicle(v)` (Prioritet 66.2, tidligere KUN
+tilgjengelig via `window.rapporterKmAvvik()` i konsollen), `vehicleServiceStatus(v)`/
+`vehicleEuKontrollStatus(v)` (kun når IKKE allerede en aktiv planlagt time/verkstedtime —
+samme «regel 2/3»-dempingsprinsipp Dashboard sitt «Krever handling nå» allerede brukte),
+`sakFase(s)`/`sakOppfolgingStatus(s)` (verkstedoppfølging, nye skader, forfalt oppfølging)
+og `allActiveVarsellys()`. Konsekvens: et varsel forsvinner AUTOMATISK i det den
+underliggende årsaken er løst (varsellampe kvittert, sak lukket, kommentar lest, km
+rettet) — det finnes ingen «avslutt varsel»-handling å holde synkronisert med resten av
+appen, og ingen risiko for at varslingssenteret kommer ut av synk med den faktiske saken.
+
+**Marker som sett — ny, egen tilstand, adskilt fra hver kildes eget «løst»-begrep.**
+`varselSett` er et nytt, minimalt `{varselId: sistSettISO}`-kart, lagret som ÉN JSON-blob i
+den eksisterende Settings-tabellen (nøyaktig samme mønster som `standardVerksted`/
+`bilkategorier` — INGEN ny Airtable-tabell, INGEN `LIST_TABLES`-endring, INGEN endring i
+`storage.airtable.js` i det hele tatt, derfor uendret `versjon`/`?v=`). `varselId` er en
+deterministisk, syntetisk nøkkel per varseltype+kilde (`'km:'+vehicleId`,
+`'sak:'+sakId`, `'vl:'+varsellysId`, `'kommentar:'+kilde+':'+id`, osv.) — IKKE en egen
+rad i noen tabell. `varselErSkjult(id)`/`markerVarselSett(id)`/`markerAlleVarslerSett(...)`
+er de tre eneste funksjonene som leser/skriver dette kartet.
+
+**48-timersregelen (ferdigkrav 4):** et varsel merket «sett» er skjult fra aktiv visning og
+fra alle røde tellere i 48 timer (`VARSEL_SKJUL_TIMER`), deretter beregnes det på nytt som
+om det aldri var sett. Siden varselet uansett slutter å bli generert i det øyeblikket den
+faktiske årsaken er løst, er det ALDRI nødvendig å sammenligne mot en «fingeravtrykk» av
+forrige tilstand for å avgjøre om det er «samme» eller et «nytt» problem — bare tiden siden
+`sistSett` avgjør. Verifisert med direkte tidsforskyvning i `varselSett` (47 t → fortsatt
+skjult, 49 t → synlig igjen).
+
+**Åtte kategorier, én rekkefølge (`VARSLINGSSENTER_KATEGORI_ORDER`):** Nye kommentarer →
+Nye skader → Verkstedoppfølging → Påminnelser (forfalt saksoppfølging) → Varsellamper →
+Service nærmer seg → EU-kontroll → Km-grense passert. Et bevisst valg: «Nye skader» dekker
+KUN saker i fase «Aktiv sak» med `caseType === 'skade'` — andre nyregistrerte sakstyper
+(kontrollavvik, «annet») får IKKE en tilsvarende «ny»-varsling her, siden Aktive saker sin
+egen «Aktiv sak»-fane allerede er stedet for triage av alt nytt, og målet var å FJERNE
+duplisert varsling, ikke innføre en ny.
+
+**Varsellampe kvittering historikk er UENDRET og BEVART**, som egen seksjon nederst på
+samme skjerm (samme funksjoner: `varsellysHistorikkRow()`, `deleteVarsellysHistorikk()`,
+`deleteSelectedVarsellysHistorikk()`, `vlhOpenVehicles`/`vlhSelectedIds`) — dette er
+fortsatt eneste sted en administrator kan revidere/slette kvitterte varsellamper, og var
+aldri en del av «for mye støy»-problemet (kvitterte varsler var allerede skjult fra aktiv
+visning). Varsellampe-rader i selve varslingssenteret har fortsatt en direkte
+«✅ Merk som løst»-knapp (`kvitterVarsellys()`, uendret) ved siden av «Marker som sett» —
+de to handlingene er bevisst forskjellige: kvittering løser varselet permanent, «marker som
+sett» skjuler det midlertidig i 48 timer uten å røre `varsellys[]`.
+
+**Fjernet, dødt kodesporhold rundt det gamle skjermnavnet:** `toggleVarslerVehicle()` og
+`varslerOpenVehicles` (per-bil-accordion for aktive varsellamper) er fjernet — den flate,
+kategoriserte listen trenger ingen per-bil-utvidelse. `renderVarslerOversikt()`/
+`attachVarslerOversiktListeners()` (funksjonsnavn og screen-nøkkelen `'varsler'`) er BEVISST
+IKKE omdøpt, for å unngå å måtte røre `goTo()`, `OVERSIKT_SWIPE_BACK_SCREENS`,
+sidebar-/drawer-navigasjonen og de to dashboard-klokkeknappene bare for et internt navn —
+alt brukervendt (meny-etiketter, skjermtittel, `title`-attributter) er endret, ingenting
+internt som ikke påvirker brukeren er rørt unødvendig.
+
+**Badge-tall — én kilde, fire visningssteder.** `varslingssenterAntall()` (antall AKTIVE,
+altså ikke-skjulte varsler) erstattet `allActiveVarsellys().length` i alle fire steder som
+tidligere viste et «Påminnelser»-tall: desktop-sidebarens badge, den nye badge-en på
+drawer-menyens punkt (fantes ikke tidligere — «Påminnelser» hadde ingen teller i ☰ Meny),
+og begge dashboard-klokkeknappene (mobil og desktop). Alle fire kan derfor aldri vise
+forskjellige tall for samme tilstand.
+
+**Ferdigkrav 1 — «Kommende frister» fjernet.** Kun det bokstavelig navngitte elementet: en
+egen fjerde KPI-flis på mobil-Dashboard (`d.kommendeFristerAntall`, lenket til Kalender).
+Grid-klassen på den raden er endret fra `.dash40-grid4` (fire kolonner) til den allerede
+eksisterende `.dash40-grid3` (samme klasse desktop sin KPI-rad bruker siden Prioritet
+62.1) — ingen ny CSS. `kommendeFristerAntall` er fjernet fra `dashboardBeregning()` sitt
+returobjekt og fra destruktureringen i `renderDashboard()` (død kode, ingen gjenværende
+kallesteder). **Panelet «📋 Kommende oppgaver»** (desktop og mobil, samme
+`kommendeOppgaveRadHtml()`) er BEVISST IKKE fjernet — det er et annet, mer detaljert
+element med et annet navn, allerede lenket videre til Kalender, og var ikke selve
+gjenstanden for ferdigkravet. Vurder som egen sak dersom brukeren mener også dette panelet
+bør bort.
+
+**Ferdigkrav 5 — sveip-tilbake, reell regresjon funnet og rettet.** Selve
+berøringslogikken (`touchstart`/`touchmove`/`touchend` på `document`,
+`OVERSIKT_SWIPE_BACK_SCREENS`-hvitelisten) var internt konsistent og korrekt koblet — INGEN
+feil i selve algoritmen. Den faktiske regresjonen: `OVERSIKT_SWIPE_BACK_SCREENS` inneholdt
+fortsatt kun den gamle screen-verdien `'historikk'`, mens Verkstedhistorikk i praksis
+navigeres til med screen-verdien `'verkstedhistorikk'` (se `data-desktop-nav`/
+`drawerItemHtml`-kallene) — sveip-tilbake har dermed ALDRI virket på Verkstedhistorikk,
+selv om skjermen ellers oppfører seg som enhver annen underside. `'kalender'`, `'bestill'`
+og `'kommentaroversikt'` var av samme grunn (skjermer lagt til etter at hvitelisten sist ble
+oppdatert) også utelatt. Alle fire er lagt til. Verifisert direkte i nettleseren
+(`OVERSIKT_SWIPE_BACK_SCREENS.includes('verkstedhistorikk')` osv.), ikke bare ved
+kodelesing. Ingen endring i selve berøringshåndteringen (kant-sone, terskel, animasjon).
+
+**Testet, i faktisk kjørende kode mot en reell (produksjons-)Airtable-base, ikke bare
+kodelesing** (`window.storage.set` midlertidig patchet til en no-op i nettleserkonsollen
+under testing, slik at ingen skriving nådde Airtable): innlasting uten konsollfeil,
+Dashboard/Mobil Hjem rendrer korrekt med `.dash40-grid3`, Varslingssenter viser 16 reelle
+varsler korrekt gruppert i kategorier (inkl. 6 ekte km-avvik som tidligere kun var synlige
+via `window.rapporterKmAvvik()`), `markerVarselSett()` fjerner ett varsel og reduserer
+tallet med nøyaktig én, 47/49-timers grensetest for gjenoppdukking bestått,
+`markerAlleVarslerSett()` bringer tallet til nøyaktig 0 og full tilbakestilling gjenoppretter
+det opprinnelige tallet, «Åpne sak» navigerer korrekt til riktig fane i Aktive saker,
+`OVERSIKT_SWIPE_BACK_SCREENS` bekreftet oppdatert. `node --check` var ikke tilgjengelig i
+denne økten (ikke installert) — syntaksgyldighet er i stedet bekreftet ved at hele appen
+faktisk lastet og kjørte i en ekte nettleser via en lokal statisk server.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi),
+`sw.js` (`CACHE_VERSION` bilpark-v83 → bilpark-v84), `version-check.js`
+(`APP_VERSION` 83 → 84) og `version.json` (`"version"` 83 → 84) — app-shell-innhold endret
+betydelig, og Prioritet 69.2/69.3 sin tvungne versjonskontroll krever at disse to siste
+alltid oppdateres sammen. **`storage.airtable.js` er IKKE endret** — ingen nye
+Airtable-felt, ingen `LIST_TABLES`-endring (`varselSett` er en frittstående Settings-blob,
+samme unntak som `standardverksted`/`dashboard-layout`, se Prioritet 61) — derfor uendret
+`versjon`/`?v=2.16.0`.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-
+skriveregler, saksmotoren (`sakErApen()`/`sakFase()`/`sakKreverHandlingSamletMaster()` er
+KUN lest, aldri endret), Verksted/Verkstedhistorikk (Prioritet 70), Kommentarer 2.0
+(Prioritet 50/52 — `nyeKommentarerListe()`/`markerKommentarSomLest()`/`kommentarer[]` er
+uendret; Varslingssenter LESER denne listen, men innfører ingen egen kommentarlogikk),
+Layout Editor-mekanikken for øvrig, Bilkategorier, PWA/manifest-ikonfilene.
+
+**Kjente, dokumenterte begrensninger:**
+- `varselSett` er, som `dashboard-layout`/`standardverksted`, IKKE registrert i
+  `reloadOne()` sin bakgrunnspoll — et «sett»-merke satt på én enhet dukker derfor ikke opp
+  som skjult på en annen enhet før neste fulle reload/innlogging der. Samme begrensning
+  disse to Settings-blobbene allerede hadde; ikke en ny svakhet introdusert her.
+- «Nye skader» og «Verkstedoppfølging» leser kun `aktiveSaker` — en skade registrert
+  UTENFOR saksmotoren (finnes ikke i dagens datamodell) ville ikke fanges opp. Ikke en
+  reell begrensning i dag, men verdt å huske dersom skaderegistrering noen gang skulle få
+  en egen, sakløs vei.
+- Km-grense-varselet (`kmAvvikForVehicle()`) forblir en REN RAPPORTERINGSFUNKSJON — å vise
+  det i Varslingssenter endrer ingenting ved at retting fortsatt utelukkende skjer manuelt
+  via Rediger informasjon (Prioritet 66/66.2). Dette var en bevisst videreføring, ikke en
+  forglemmelse.
