@@ -1,6 +1,60 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-17 (Prioritet 71.5 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-17 (Prioritet 71.8 —
+**fra sak til verkstedbestilling.** Sakskortets knapp i fasen «Under
+oppfølging» er omdøpt fra «Registrer verkstedtime» til «📅 Bestill
+verkstedtime» (samme `luc('calendar-days')`-ikon som før — kun teksten er
+endret). Viktigere: `bestillVerkstedForSak()` setter nå `vtPrefillType` fra
+en ny `sakTilVtType(sak)` (Service-sak → `'service'`, Dekk-sak →
+`'dekkskift'`, alle andre → `'reparasjon'`) i stedet for et hardkodet
+`'reparasjon'` uansett saktype — og `submitAddVT()` sin fallback for
+sak-koblede skjema (som ikke viser noen type-velger) leser nå
+`vtPrefillType` i stedet for en hardkodet streng. Dette retter en reell,
+tidligere feil: en verkstedtime bestilt fra en Service-sak ble ALDRI
+registrert med `type='service'`, og `fullforVerkstedbestilling()` sin
+automatiske servicehistorikk-oppretting (Prioritet 71.5) kunne derfor aldri
+utløses for sak-originerte service-besøk. Bil/Regnr/Sakstype/Beskrivelse var
+allerede forhåndsutfylt fra før (uendret) — kun automatisk verkstedtype var
+den reelle mangelen. EU-kontroll har bevisst ingen regel i `sakTilVtType()`:
+EU-kontroll blir aldri en sak i dagens datamodell. Ingen Airtable-endring.
+Se egen seksjon lenger ned. Før det: Prioritet 71.7 —
+**ringeliste-opprydding.** Sjåførens 📞 Ringeliste (`renderDriverRingeliste()`)
+har fått tre endringer: (i)-info-ikonet i toppen er fjernet (ingen
+informasjon var lenger skjult bak det); standardvisningen ved åpning viser
+nå KUN 🟢 Aktive sjåfører utvidet — 🟡 Ingen aktive sjåfører og 👔 Ledelse
+starter lukket, og tilbakestilles til nettopp denne standarden hver gang
+skjermen faktisk åpnes fra bunnmenyen (ikke husket fra forrige besøk); og
+🚚 Home Delivery/🛟 Veihjelp-kontaktkortene ligger nå i en egen, fast
+bunnseksjon (`.ringeliste-fixed-quick`, `position:fixed` rett over
+sjåførens bunnmeny) som alltid er synlig, uavhengig av hvor langt brukeren
+har scrollet i gruppelisten over. Ingen ny funksjonalitet, ingen endring i
+selve dataene (`ringeliste-ekstra`, `v.telefon`) eller Airtable-skjemaet —
+ren presentasjons-/tilstandsendring. Testet direkte i nettleser (sjåførmodus
+er innloggingsfri) — se egen seksjon lenger ned. Før det: Prioritet 71.6 —
+**verkstedopprydding og smartere filtrering.** Verkstedbesøk (både aktive
+bestillinger og historikk-poster fra alle tre kilder — verkstedtimer,
+servicehistorikk, dekkhistorikk) kan nå slettes med bekreftelsesdialog, ny
+delt `deleteDekkhistorikk()` og dispatcher-funksjonen
+`deleteVerkstedHistorikkPost()` i den frittstående Verkstedhistorikk-
+skjermen. Verkstedtype velges nå med én, horisontal, gjensidig utelukkende
+velger (`VT_TYPE_VELGER`: EU-kontroll/Service/Dekkskift/Ruteskift/
+Reparasjon) i «Ny verkstedtime»-skjemaet — erstatter de to uavhengige
+avkrysningsboksene fra Prioritet 46/61/62, og retter i samme slengen et
+eksisterende avvik der Ruteskift-/EU-kontroll-bestillinger ofte endte
+udifferensiert som «Reparasjon» i historikken siden forhåndskryssingen av
+boksene aldri faktisk virket (`vtEuForhandskrysset`/
+`vtRuteskiftForhandskrysset` ble aldri satt `true` noe sted i koden).
+Varslingssenteret viser nå kategoriene horisontalt som faner
+(gjenbruker `.profil-tabs`/`.profil-tab`) med loggen for valgt kategori
+vist vertikalt under, i stedet for alle åtte kategorier stablet samtidig.
+Biloversikt åpnes nå alltid ufiltrert fra generell navigasjon (sidebar/
+drawer/mobil bunnmeny — ny delt `resetRegisterFiltre()`), med to nye
+hurtigfilterknapper «✅ Kontrollert»/«⚠️ Ikke kontrollert» som leser/skriver
+samme `filterKontrollStatus` som det eksisterende nedtrekksfilteret — ingen
+av de fire eksisterende filtrene (kategori/bil/status/løyvenummer) er
+fjernet eller endret. Ingen nye Airtable-felt, ingen `LIST_TABLES`-endring —
+`storage.airtable.js` er uendret. Se egen seksjon lenger ned for full
+detalj, designvalg og kjente begrensninger. Før det: Prioritet 71.5 —
 **opprydding saksmotor og ny operativ bilprofil.** Den gamle 4-stegs
 saksveiviseren («Avansert redigering» / «Vurder sak» / «Fortsett saken» /
 «Slett saken») er fjernet i sin helhet — saksbehandling skjer nå
@@ -3436,3 +3490,363 @@ til en ny, gjenbrukt funksjon, ingen atferdsendring der), PWA/manifest-ikonfilen
   appens km-regler (ingen ny svakhet).
 - Ikke testet i en faktisk kjørende nettleser i denne økten (se «Testet» over) — kun statisk
   lese-/strukturverifisering.
+
+---
+
+## Prioritet 71.6 (2026-09-17) — Verkstedopprydding og smartere filtrering
+
+Bestilling: fem delmål — slette feilregistrerte verkstedbesøk, en ny fast verkstedtype
+«Reparasjon», en horisontal enkeltvalgt verkstedtype-velger, horisontale
+varselkategori-faner i Varslingssenter, og hurtigfiltrering (alltid ufiltrert ved åpning,
+pluss «Kontrollert»/«Ikke kontrollert»-snarveier) på Biloversikt.
+
+**Kartlegging (før implementering, kun kodelesing) — funnet, IKKE antatt:**
+1. `deleteVT()` fantes allerede og virket for BÅDE aktive og fullførte verkstedtimer (ingen
+   `t.utfort`-sperre i funksjonen) — den manglet kun en synlig inngang i den frittstående
+   Verkstedhistorikk-skjermen (`renderVerkstedhistorikk()`), som viste poster uten noen
+   handlingsknapper i det hele tatt. `deleteService()` fantes tilsvarende. **`dekkhistorikk`
+   (dekkskifter) hadde derimot INGEN slettefunksjon noe sted i koden** — måtte bygges fra
+   bunnen, samme mønster som de to andre.
+2. Verkstedtype-registrering var allerede delvis strukturert (`WorkshopAppointments.Type`,
+   lest av `vtHarType()`), men bygget rundt to UAVHENGIGE avkrysningsbokser
+   («🚦 EU-kontroll»/«💥 Ruteskift», Prioritet 46) pluss en stille fallback til
+   `vtPrefillType` for service/dekkskift/reparasjon/annet. **Reell, eksisterende bug
+   funnet:** `vtEuForhandskrysset`/`vtRuteskiftForhandskrysset` (variablene som skulle
+   forhåndskrysse boksene fra en Bestill-snarvei) ble ALDRI satt til `true` noe sted i
+   koden — kun deklarert og nullstilt. Konsekvens: `bestillEuKontroll()`/
+   `bestillRuteskift()` satte riktig `vtPrefillType`, men siden `'eu-kontroll'` ikke stod i
+   fallback-allowlisten (`['service','dekkskift','reparasjon','annet']`) og
+   `vtRuteskiftForhandskrysset` aldri var sann, endte disse to bestillingstypene i praksis
+   nesten alltid opp som en udifferensiert, tom eller «reparasjon»-type i historikken med
+   mindre brukeren manuelt tikket av boksen selv. `standardVerkstedForVtType()` hadde en
+   tilsvarende svakhet: den leste kun de to boolean-forhåndskryssene, aldri
+   `vtPrefillType` — så «Bestill Service»/«Bestill Dekkskift» sitt forslag til
+   standardverksted traff aldri riktig verksted, kun det generelle «Reparasjon»-standardet.
+3. `verkstedHistorikkType()` (som avgjør hvilken kategori en fullført verkstedtime havner i
+   under Verkstedhistorikk) gjettet type fra fritekst i beskrivelse/notater for
+   service/dekkskift/reparasjon, selv om det strukturerte feltet ofte allerede hadde riktig
+   svar — kun EU-kontroll/Ruteskift ble lest strukturert.
+4. Varslingssenteret (Prioritet 71) viste allerede sine åtte kategorier
+   (`VARSLINGSSENTER_KATEGORI_ORDER`), men ALLE samtidig, stablet vertikalt — ingen
+   fane-/filtermekanisme fantes.
+5. Biloversikt (`renderRegister()`) hadde allerede et fullverdig filtersett
+   (`filterSearch`/`filterKategori`/`filterKontrollStatus`/`filterLoyve`/
+   `filterHovedstatus`), inkludert et eksisterende nedtrekksfilter for nøyaktig
+   «Kontrollert i dag»/«Ikke kontrollert i dag» (`filterKontrollStatus`). Ingen av filtrene
+   ble nullstilt ved generell navigasjon til siden (kun de tre deep-link-funksjonene
+   `goToRegisterFiltered()`/`goToRegisterKategori()`/`goToRegisterHovedstatus()` nullstilte
+   ALLE andre filtre før de satte sitt eget, bevisste — et etablert, korrekt mønster i seg
+   selv). Et filter satt manuelt av brukeren og deretter forlatt (uten en av disse tre
+   funksjonene) ble derfor stående til neste besøk.
+
+**Løsning — Del 1 (slett verkstedbesøk):**
+- Ny `deleteDekkhistorikk(id)` (index.html, samme `mutasjonMedRollback()`-mønster som
+  `deleteService()`) — ingen andre entiteter refererer en dekkhistorikk-id, så mutasjonen er
+  en ren splice+lagring uten den ekstra sak-/verkstedtime-referanseoppryddingen `deleteVT()`
+  trenger.
+- Ny dispatcher `deleteVerkstedHistorikkPost(compositeId)` i `renderVerkstedhistorikk()` sin
+  poststrøm — leser prefikset på den sammensatte post-id-en fra `samletVerkstedHistorikkAlle()`
+  (`'vt:'`/`'service:'`/`'dekk:'`) og delegerer til riktig, EKSISTERENDE slettefunksjon. Ingen
+  parallell slettelogikk — samme tre funksjoner som allerede eide dataene.
+- Bekreftelsesteksten er samordnet til «Er du sikker på at du vil slette dette
+  verkstedbesøket?» på tvers av `deleteVT()`/`deleteService()`/`deleteDekkhistorikk()`
+  (native `confirm()`/OK-Avbryt — ingen egen modal-komponent bygget for dette).
+- 🗑️ Slett-knapp lagt til på hver post i `renderVerkstedhistorikk()`. Verksted (aktive
+  bestillinger) hadde allerede en Slett-knapp i sin rediger-utvidelse (`vtCard()`), uendret.
+
+**Løsning — Del 2/3 (Reparasjon + horisontal enkeltvalgt type-velger):**
+- Ny `VT_TYPE_VELGER` (5 kanoniske type-id-er: `eu-kontroll`/`service`/`dekkskift`/
+  `ruteskift`/`reparasjon`, med samme Lucide-ikoner som resten av appens ikontabell,
+  Prioritet 58) erstatter de to uavhengige avkrysningsboksene i «Ny verkstedtime»-skjemaet.
+  Radioknapper (`name="vt-type"`) med native enkeltvalg-oppførsel — «Kun én verkstedtype
+  skal kunne velges» er dermed garantert av selve HTML-semantikken, ikke egen JS-logikk.
+  Visuelt: `.vt-type-row`/`.vt-type-opt`, samme `:has(input:checked)`-mønster som den
+  eksisterende `.chip-yn` (Ja/Nei-velgeren i sjåførkontroll).
+- `standardVerkstedForVtType(valgtType)` og `vtBeskrivelseForslag(valgtType)` er begge
+  skrevet om fra to boolean-parametre til ett enkelt type-id — `VT_TYPE_TIL_STD_TYPE` bygger
+  broen til `STD_VERKSTED_TYPER` sine litt andre id-er (`'eu-kontroll'→'eu'`,
+  `'dekkskift'→'dekk'`). Retter samtidig avviket fra kartleggingens punkt 2: Service og
+  Dekkskift får nå et korrekt standardverksted-forslag, og EU-kontroll/Ruteskift-
+  bestillinger fra Dashboard/Kjøretøyprofil/Bestill tjenester treffer nå pålitelig riktig
+  type hver gang (`bestillRuteskift()` setter nå `vtPrefillType = 'ruteskift'` direkte i
+  stedet for `'reparasjon'` + en kommentar-hint).
+- Mobilitetsgaranti-avkrysningsboksen (kun relevant for type `service`, Prioritet 71.5)
+  ligger nå ALLTID i DOM-en (skjult med CSS når valgt type ≠ `service`), slik at
+  type-velgerens forslags-oppdatering kan bytte type uten en full `render()` — samme
+  «ikke rør resten av skjemaet»-prinsipp som den eksisterende verksted-/beskrivelse-
+  forslagslogikken allerede fulgte. `submitAddVT()` sperrer i tillegg boksen mot å smitte
+  over på en annen type dersom brukeren krysser den av og deretter bytter type uten å
+  fjerne krysset.
+- `verkstedHistorikkType()` leser nå det strukturerte typefeltet for ALLE fem typer (ikke
+  kun EU-kontroll/Ruteskift) — tekstgjetting fra beskrivelse/notater er beholdt som
+  fallback UTELUKKENDE for eldre poster registrert før denne endringen. Verkstedhistorikk-
+  skjermens type-filter har fått et nytt `Ruteskift`-alternativ.
+
+**Løsning — Del 4 (Varslingssenter, horisontale kategori-faner):**
+- Ny, ren visningstilstand `varslingssenterAktivKategori` (som `bilkortAktivFane` —
+  ALDRI lagret, faller tilbake til første kategori med innhold når tom/ugyldig).
+  `renderVarslerOversikt()` viser nå `.profil-tabs`/`.profil-tab` (samme understrekfane-
+  komponent som Kjøretøyprofilen) med én kategori valgt om gangen, loggen for den valgte
+  kategorien vist vertikalt under — i stedet for alle åtte kategorier stablet samtidig.
+  `beregnVarslingssenterListe()`/`varslingssenterAktiveListe()`/`varslingssenterAntall()`
+  (Prioritet 71) er UENDRET — kun presentasjonen av den samme listen er endret.
+  Varsellampe-kvitteringshistorikken nederst på samme skjerm er urørt.
+
+**Løsning — Del 5 (Biloversikt, ufiltrert åpning + hurtigfilter):**
+- Ny, delt `resetRegisterFiltre()` nullstiller alle fem Biloversikt-filtre
+  (`filterSearch`/`filterKategori`/`filterKontrollStatus`/`filterLoyve`/`filterHovedstatus`)
+  pluss `showAddVehicleForm`. De tre eksisterende deep-link-funksjonene
+  (`goToRegisterFiltered()`/`goToRegisterKategori()`/`goToRegisterHovedstatus()`) er
+  refaktorert til å kalle denne i stedet for å duplisere nullstillingen tre steder — ingen
+  atferdsendring der, kun DRY.
+- De TRE generelle navigasjonsinngangene til Biloversikt (desktop-sidebarens
+  `[data-desktop-nav]`, drawerens `[data-drawer-nav]`, mobilens `[data-mobilbunn]`) kaller nå
+  `resetRegisterFiltre()` når målet er `'register'`, FØR `goTo()`. Dette er bevisst
+  spesialtilfelle-håndtering i de tre generiske dispatcherne, ikke en endring i selve
+  `goTo()` — en generell reset inne i `goTo()` ville kollidert med de tre
+  deep-link-funksjonene, som setter sitt filter RETT FØR de selv kaller `goTo('register')`.
+  Sveip-tilbake (`goBack()`) er bevisst UENDRET — å gå «tilbake» til Biloversikt fra en
+  underside skal fortsatt gjenopprette filteret brukeren hadde, siden dette er en
+  fortsettelse av samme arbeidsøkt, ikke et nytt besøk.
+- To nye hurtigfilterknapper («✅ Kontrollert»/«⚠️ Ikke kontrollert») over filterraden på
+  Biloversikt. Leser og skriver NØYAKTIG samme `filterKontrollStatus` som det eksisterende
+  nedtrekksfilteret («Alle biler»/«Kontrollert i dag»/«Ikke kontrollert i dag») — ingen ny
+  filtervariabel, ingen ny filtreringslogikk i `renderRegister()`. Togglebar (klikk på en
+  aktiv knapp igjen nullstiller til «Alle biler»). De fire eksisterende filtrene
+  (kategori/bil/status/løyvenummer) er uendret og fullt fungerende ved siden av.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v89 → bilpark-v90), `version-check.js` (`APP_VERSION` 89 → 90),
+`version.json` (`"version"` 89 → 90). **`storage.airtable.js` er IKKE endret** — ingen nye
+Airtable-felt, ingen `LIST_TABLES`-endring (verkstedtype lagres fortsatt i det allerede
+registrerte `WorkshopAppointments.Type`-feltet, kun med én verdi i stedet for en
+kommaseparert kombinasjon) — derfor uendret `versjon`/`?v=2.17.0`.
+
+**Testet:** grep-basert verifisering av at ingen kode fortsatt refererer de fjernede
+variablene `vtEuForhandskrysset`/`vtRuteskiftForhandskrysset` eller de gamle DOM-id-ene
+`vt-eu-kontroll`/`vt-ruteskift`; en global brace-/backtick-balansesjekk på hele `index.html`
+(5213 åpne = 5213 lukkede krøllparenteser, partall antall backticks); manuell gjennomlesning
+av hver endret funksjon/mal før og etter redigering (`submitAddVT()`, `renderVerksted()`,
+`attachVerkstedListeners()`, `renderVerkstedhistorikk()`, `attachVerkstedhistorikkListeners()`,
+`renderVarslerOversikt()`, `attachVarslerOversiktListeners()`, `renderRegister()`,
+`attachRegisterListeners()`, de tre navigasjons-dispatcherne). **I tillegg, i motsetning til
+Prioritet 71.5: appen ble faktisk lastet i en ekte nettleser i denne økten**, via en
+midlertidig lokal PowerShell-basert statisk fil-server (siden verken `node` eller `python`
+var tilgjengelig i denne økten) — siden lastet uten konsoll-feil helt frem til innloggings-
+skjermen (bekrefter at hele det utvidede JS-scriptet parses og kjører uten unntak, inkludert
+alle nye topplevel-konstanter som `VT_TYPE_VELGER`), men videre UI-verifisering av de faktiske
+skjermene (Verksted, Verkstedhistorikk, Varslingssenter, Biloversikt) var IKKE mulig uten
+gyldige administrator-innloggingsopplysninger, som ikke var tilgjengelig i denne økten.
+
+**Anbefalt før idriftsettelse:** logg inn som administrator og bekreft i en ekte nettleser:
+(1) sletting av et verkstedbesøk fra både Verksted og Verkstedhistorikk fjerner riktig post
+uten å påvirke andre; (2) den horisontale type-velgeren viser korrekt forhåndsvalgt type fra
+alle fire Bestill-snarveiene (Service/EU-kontroll/Dekkskift/Ruteskift) og fra sakskortets
+«Registrer verkstedtime»; (3) mobilitetsgaranti-boksen vises/skjules korrekt ved typebytte;
+(4) Varslingssenterets kategori-faner viser riktig antall og riktig innhold per kategori;
+(5) Biloversikt åpnes tomt/ufiltrert fra sidebar/drawer/mobil bunnmeny etter at et filter er
+satt og siden forlatt, mens et dypt lenket filter (f.eks. fra Dashboard) fortsatt treffer
+riktig; (6) de to hurtigfilterknappene toggler korrekt og holder seg synkronisert med
+nedtrekksfilteret.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-skriveregler,
+saksmotoren (`sakErApen()`/`sakFase()`/`sakOppfolgingStatus()` kun lest, aldri endret),
+`beregnVarslingssenterListe()`/`varselErSkjult()`/`markerVarselSett()` (Prioritet 71 — kun
+PRESENTASJONEN i `renderVarslerOversikt()` er endret), Layout Editor, Bilkategorier,
+Kjøretøyprofil (Prioritet 71.5, urørt utover at den gjenbruker de samme, uendrede
+delete-/type-funksjonene indirekte via `vtHarType()`), PWA/manifest-ikonfilene.
+
+**Kjente, dokumenterte begrensninger:**
+- `deleteVerkstedHistorikkPost()` er kun koblet til den frittstående Verkstedhistorikk-
+  skjermen (`renderVerkstedhistorikk()`) — Kjøretøyprofilens egen «📋 Verkstedhistorikk»-fane
+  (Prioritet 71.5, `samletVerkstedHistorikkAlle()` filtrert på ett kjøretøy) forblir en REN
+  VISNING uten slette-knapper, samme prinsipp som Dekk-/Kostnader-fanene der (Prioritet 65.2).
+  Vurder som egen, separat sak dersom sletting også ønskes derfra.
+- Verkstedtype-velgeren tillater fortsatt kun de fem kanoniske typene å velges for NYE
+  verkstedtimer. Eldre poster med en kommaseparert kombinasjon (f.eks.
+  `'eu-kontroll,ruteskift'`, mulig før denne endringen dersom brukeren manuelt tikket av
+  begge de gamle boksene) leses fortsatt korrekt av `vtHarType()`, men kan ikke gjenskapes
+  eller redigeres til en ny kombinasjon via skjemaet lenger — kun én type kan velges ved
+  redigering av en NY registrering.
+- Ikke UI-verifisert i en faktisk innlogget nettleserøkt i denne omgangen (se «Testet» over)
+  — kun frem til innloggingsskjermen, pluss grundig statisk lese-/strukturverifisering.
+
+---
+
+## Prioritet 71.7 (2026-09-17) — Ringeliste-opprydding
+
+Bestilling: tre delmål — fjern (i)-info-ikonet fra sjåførens Ringeliste, åpne skjermen med
+kun 🟢 Aktive sjåfører synlig (de to andre gruppene lukket), og fest 🚚 Home Delivery/
+🛟 Veihjelp i en fast bunnseksjon som alltid er tilgjengelig, uansett hvor langt brukeren har
+scrollet. Mål: se aktive sjåfører, Home Delivery og Veihjelp umiddelbart, uten scrolling og
+uten ekstra klikk.
+
+**Kartlegging (før implementering, kun kodelesing):** `renderDriverRingeliste()` (Prioritet
+71.3) hadde allerede nøyaktig den datastrukturen ticket-en beskriver — tre kollapsbare
+grupper (`ringelisteGroupHtml()`, styrt av `driverRingelisteLukket`-settet) pluss to faste,
+ikke-kollapsbare kontaktkort (`ringelisteQuickCardHtml()` i en `.ringeliste-quick-grid`) helt
+nederst i normal dokumentflyt. To reelle avvik fra ticket-kravet ble funnet: (1)
+`driverRingelisteLukket` startet som et TOMT sett — kommentaren i koden sa eksplisitt «alle
+tre er åpne som standard, samme visning som referansebildet» — altså en bevisst, men nå
+utdatert designbeslutning fra 71.3; (2) Home Delivery/Veihjelp lå i vanlig dokumentflyt helt
+nederst, under de tre gruppene — på en lang gruppeliste (opptil ~20 biler + kontakter) krevde
+det scrolling forbi alt annet for å nå dem, stikk i strid med «alltid tilgjengelig uten
+scrolling».
+
+**Løsning:**
+1. **Info-ikon fjernet.** `<span class="ringeliste-info-btn">`-elementet i
+   `renderDriverRingeliste()` sin header er fjernet, sammen med den nå ubrukte
+   `.ringeliste-info-btn`-CSS-regelen. Ingen informasjon gikk tapt — teksten bak `title`-
+   attributtet var en generisk beskrivelse av skjermen som allerede fremgår av innholdet selv.
+2. **Standardvisning.** `driverRingelisteLukket` sin startverdi er endret fra `new Set()` til
+   `new Set(['ingen-aktive', 'ledelse'])` — kun `'aktive'` er dermed IKKE i settet og vises
+   derfor åpen. I tillegg nullstilles settet til nøyaktig denne standarden hver gang
+   `driverScreen` faktisk settes til `'ringeliste'` via bunnmenyen
+   (`attachDriverBunnmenyListeners()`, eneste stedet `driverScreen` noensinne settes til
+   `'ringeliste'`) — en sjåfør som selv har åpnet «Ingen aktive sjåfører», navigert bort og
+   kommer tilbake, får dermed alltid samme, forutsigbare startvisning, ikke en huket
+   tilstand fra forrige besøk. Selve toggle-mekanikken (`attachDriverRingelisteListeners()`,
+   `data-ringeliste-toggle`) er UENDRET — brukeren kan fortsatt åpne/lukke alle tre grupper
+   fritt underveis.
+3. **Fast bunnseksjon.** Kontaktkortene er flyttet inn i en ny, egen wrapper
+   `.ringeliste-fixed-quick` (`position:fixed`, plassert `bottom:calc(71px +
+   env(safe-area-inset-bottom, 0px))` — rett over sjåførens bunnmeny `.p41-bunn`, hvis
+   deklarerte høyde 71px+safe-area speiles her eksplisitt i en kommentar, med beskjed om å
+   oppdatere begge sammen ved en fremtidig endring). De tre gruppene er samtidig pakket inn i
+   en ny `.ringeliste-scroll`-wrapper med en rikelig (ikke pikselnøyaktig utmålt)
+   `padding-bottom:210px`, slik at siste gruppe aldri havner skjult bak de to faste
+   bunnbarene (`.ringeliste-fixed-quick` + `.p41-bunn`) når man scroller helt ned. Selve
+   kontaktkort-komponenten (`ringelisteQuickCardHtml()`) og dens data (`ringeliste-ekstra`,
+   redigert under Innstillinger → 👤 Sjåførside) er UENDRET — kun plasseringen/positioneringen
+   er endret.
+
+**Testet i faktisk kjørende nettleser (sjåførmodus krever ingen innlogging, så dette var
+mulig i denne økten — i motsetning til Prioritet 71.6):** kjørt mot ekte, live Airtable-data
+via en midlertidig lokal statisk fil-server. Bekreftet visuelt: (i)-ikonet er borte;
+Ringeliste åpnes med «Aktive sjåfører (5)» utvidet og «Ingen aktive sjåfører (14)»/«Ledelse
+(0)» lukket; å utvide «Ingen aktive sjåfører» til 14 rader og scrolle helt til bunns viser at
+Home Delivery/Veihjelp forblir synlig, fast plassert rett over bunnmenyen, uten å bli dekket
+av eller dekke over det siste gruppeinnholdet; å navigere til Min Bil og tilbake til
+Ringeliste nullstiller korrekt til standardvisningen igjen; verifisert både på mobilbredde
+(375px) og bredere visning. Ingen konsollfeil. Kun lesing/navigering utført — ingen faktiske
+skrivinger (samtaler/kontroller/kommentarer) ble sendt til den ekte Airtable-basen i denne
+økten.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v90 → bilpark-v91), `version-check.js` (`APP_VERSION` 90 → 91),
+`version.json` (`"version"` 90 → 91). **`storage.airtable.js` er IKKE endret** — ren
+presentasjons-/tilstandsendring, ingen nye felt, ingen `LIST_TABLES`-endring — derfor
+uendret `versjon`/`?v=2.17.0`.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll, `v.km`-skriveregler,
+`ringeliste-ekstra`-datamodellen og dens administrasjon i Innstillinger, `v.telefon`,
+Kommentarer/Mer/Min Bil (de tre andre sjåførskjermene i `DRIVER_BUNNMENY`), administrasjonens
+egen mobil-bunnmeny (`.p41-bunn` brukes også der, men kun sjåførmodusens bruk av komponenten
+er berørt av den nye faste bunnseksjonen — administrasjonens skjermer har ingen
+`.ringeliste-fixed-quick`).
+
+**Kjente, dokumenterte begrensninger:**
+- Offset-en til `.ringeliste-fixed-quick` (`71px + safe-area`) er et deklarert, ikke
+  JS-målt, tall avledet av `.p41-bunn` sin egen CSS. Endres `.p41-bunn` sin høyde i en
+  fremtidig sak (nytt ikonsett, flere linjer tekst i knappene, endret padding), må denne
+  verdien oppdateres i samme slengen — se kommentaren i CSS-en.
+- `.ringeliste-scroll` sin `padding-bottom:210px` er bevisst rikelig tilmålt fremfor
+  pikselnøyaktig — gir litt ekstra tomrom nederst på korte lister (f.eks. når «Ingen aktive
+  sjåfører»/«Ledelse» begge er lukket) i bytte mot garantert synlig innhold på lange lister.
+
+---
+
+## Prioritet 71.8 (2026-09-17) — Fra sak til verkstedbestilling
+
+Bestilling: knappen «Registrer verkstedtime» på en sak i fasen «Under oppfølging» skal hete
+«📅 Bestill verkstedtime» (beskriver handlingen bedre), og selve verkstedbestillingen skal
+forhåndsutfylles med det saken allerede vet (bil/regnr/sakstype/beskrivelse), inkludert en
+automatisk utledet verkstedtype — brukeren skal kun trenge å velge verksted, dato og
+tidspunkt.
+
+**Kartlegging (før implementering, kun kodelesing):** `bestillVerkstedForSak(sakId)` (den
+LIVE, vinnende av to funksjonsdeklarasjoner med samme navn — se «Kjent, ikke rørt» under)
+satte allerede `vtPrefillVehicleId`/`vtPrefillSakId`, og `renderVerksted()` sin
+`linkedSak`-gren i «Ny verkstedtime»-skjemaet forhåndsutfylte allerede Bil (skjult felt) og
+Beskrivelse (skjult felt = `sak.title`), og viste Bil/Regnr (via `vehicleLabel()`) og
+Sakstype (`SAK_TYPE_LABEL`) i en infoboks — alt dette var altså ALLEREDE på plass og krevde
+ingen endring. **Den reelle, eneste manglende biten var automatisk verkstedtype:**
+`bestillVerkstedForSak()` hardkodet `vtPrefillType = 'reparasjon'` UANSETT sakens
+`caseType`, og `submitAddVT()` sin fallback for sak-koblede skjema (der ingen type-velger
+vises, se Prioritet 71.6) hardkodet `type = 'reparasjon'` direkte i stedet for å lese
+`vtPrefillType` i det hele tatt. Konsekvens: en verkstedtime bestilt fra en Service-sak ble
+ALDRI lagret med `type='service'` — og dermed kunne `fullforVerkstedbestilling()` sin
+automatiske servicehistorikk-opprettelse (Prioritet 71.5, betinget på
+`vtHarType(t,'service')`) aldri utløses for et sak-originert service-besøk, uansett hva
+saken faktisk gjaldt.
+
+**Løsning:**
+1. **Tekstendring:** sakskortets handlingsknapp i fase `'oppfolging'`
+   (`sakKompaktKortHtml()`, `data-bestill-vt-sak`) endret fra «Registrer verkstedtime» til
+   «Bestill verkstedtime». Ikonet er UENDRET (`luc('calendar-days')` — allerede riktig
+   kalenderikon per Prioritet 58 sin ikontabell, byttet derfor ikke til en emoji). Skjemaets
+   `<h3>`-overskrift for sak-koblede bestillinger er tilsvarende endret fra «Registrer
+   verkstedtime for sak» til «Bestill verkstedtime for sak».
+2. **Automatisk verkstedtype:** ny funksjon `sakTilVtType(sak)` —
+   `caseType==='service'` → `'service'`, `caseType==='dekk'` → `'dekkskift'`, alt annet
+   (`varsellampe`/`skade`/`kontrollavvik`/`annet`) → `'reparasjon'` (samme standardtype disse
+   alltid har hatt — INGEN atferdsendring for disse fire). `bestillVerkstedForSak()` bruker
+   nå denne i stedet for det hardkodede `'reparasjon'`. `submitAddVT()` sin fallback (når
+   ingen `input[name="vt-type"]:checked` finnes i DOM-en, dvs. kun for sak-koblede skjema)
+   leser nå `vtPrefillType` direkte — som Prioritet 71.6 sine ANDRE bestill-funksjoner
+   (`bestillService()`/`bestillEuKontroll()`/`bestillRuteskift()`/`bestillDekkskift()`)
+   allerede gjorde konsistent, kun `bestillVerkstedForSak()` var unntaket.
+3. **Standardverksted følger nå riktig type:** `renderVerksted()` sin `linkedSak`-gren brukte
+   `standardVerkstedFor('reparasjon')` ubetinget for Verksted-nedtrekket — byttet til
+   `standardVerkstedForVtType(initialType)` (samme bro-funksjon fra Prioritet 71.6), slik at
+   en Service-sak nå foreslår Service-standardverkstedet, ikke alltid
+   Reparasjon-standardverkstedet.
+4. **Mobilitetsgaranti-boksen** (Prioritet 71.5/71.6, kun relevant for `type==='service'`) var
+   tidligere ALDRI vist for sak-koblede skjema (`${!linkedSak ? ... : ''}`), fordi
+   `type='service'` aldri var mulig derfra før denne endringen. Betingelsen er nå fjernet —
+   boksen vises/skjules utelukkende basert på `initialType==='service'`, uavhengig av
+   `linkedSak`, slik at en Service-sak sin verkstedbestilling også kan markere
+   mobilitetsgaranti-forlengelse ved bestilling, akkurat som en direkte «Bestill
+   Service»-bestilling allerede kunne.
+
+**EU-kontroll — bevisst utelatt fra `sakTilVtType()`:** ticket-en nevner «EU-varsel → EU-
+kontroll» som en av seks type-regler, men EU-kontroll har ALDRI vært en sak i denne
+datamodellen — et nærstående EU-kontroll-forfall er utelukkende et Varslingssenter-varsel
+lest direkte fra `vehicleEuKontrollStatus()` (Prioritet 71), uten noen tilhørende
+`aktiveSaker`-rad. Det finnes derfor ingen `sak.caseType` som kunne utløst en
+"EU-kontroll"-gren i `sakTilVtType()` — regelen er dokumentert her som bevisst urealiserbar
+i dagens arkitektur, ikke glemt.
+
+**Testet:** manuell, fullstendig sporing av hele kjeden fra kodelesing (klikk på
+`data-bestill-vt-sak` → `bestillVerkstedForSak()` → `goTo('verksted')` → `renderVerksted()`
+sin `linkedSak`-gren → `attachVerkstedListeners()` → `submitAddVT()` → `verkstedtimer.push()`
+→ ved senere fullføring, `fullforVerkstedbestilling()`), samt en global
+brace-/backtick-balansesjekk på `index.html` (5213 åpne = 5213 lukkede krøllparenteser,
+partall antall backticks). **Ikke UI-verifisert i en faktisk innlogget nettleserøkt** —
+Aktive saker/Verksted er administrasjonsskjermer som krever admin-innlogging, og gyldige
+opplysninger var ikke tilgjengelig i denne økten (i motsetning til Prioritet 71.7, som er en
+innloggingsfri sjåførskjerm og kunne testes direkte).
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v91 → bilpark-v92), `version-check.js` (`APP_VERSION` 91 → 92),
+`version.json` (`"version"` 91 → 92). **`storage.airtable.js` er IKKE endret** — `type`-feltet
+på `WorkshopAppointments` var allerede registrert (Prioritet 46), kun hvilken verdi som
+skrives dit er endret — derfor uendret `versjon`/`?v=2.17.0`.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll, `v.km`-skriveregler, saksmotoren
+(`sakErApen()`/`sakFase()`/`godtaSak()`/`avslaSak()`/`markerSakUtfort()` — kun LEST via
+`sakTilVtType(s.caseType)`, aldri endret), `bestillService()`/`bestillEuKontroll()`/
+`bestillRuteskift()`/`bestillDekkskift()` (allerede korrekte fra Prioritet 71.6, urørt),
+`VT_TYPE_VELGER`/`standardVerkstedForVtType()`/`vtBeskrivelseForslag()` (gjenbrukt uendret),
+Ringeliste (Prioritet 71.7), den generelle, IKKE sak-koblede «🔧 Registrer verkstedtime»-
+knappen i Verksted-skjermens verktøylinje (bevisst uendret — se «Kjent, ikke rørt» under).
+
+**Kjent, ikke rørt (oppdaget, men utenfor denne saken):** `bestillVerkstedForSak(sakId)` og
+`goToRegisterVT(vehicleId)` finnes hver som TO separate `function`-deklarasjoner i
+`index.html` (linje ~5599/~6222 og ~6106/~6231 før denne endringen) — kun den SISTE
+deklarasjonen av hver er faktisk aktiv (JavaScript overskriver stille tidligere
+funksjonsdeklarasjoner med samme navn på toppnivå), og den første av hver er derfor død,
+uåkallbar kode som refererer en `submitVT()`-funksjon som ikke lenger finnes i koden. Dette
+er forvirrende å lese, men ufarlig (aldri kjørt) — rørt bevisst ikke her, siden opprydding av
+dette er en egen, uavhengig sak (dupliserte funksjonsnavn generelt), ikke en del av «fra sak
+til verkstedbestilling».

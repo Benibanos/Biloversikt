@@ -15,6 +15,103 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-17
 
+### Prioritet 71.8 — Fra sak til verkstedbestilling
+
+Bestilling: sakskortets «Registrer verkstedtime»-knapp (fase «Under oppfølging») skal hete
+«📅 Bestill verkstedtime» og selve verkstedbestillingen forhåndsutfylles med bil/regnr/
+sakstype/beskrivelse pluss en automatisk utledet verkstedtype, slik at brukeren kun velger
+verksted/dato/tidspunkt. Full detalj i CLAUDE.md, Prioritet 71.8 — kort oppsummert her:
+
+- Bil/Regnr/Sakstype/Beskrivelse var allerede forhåndsutfylt fra tidligere prioriteter —
+  ingen endring der. Den reelle mangelen var verkstedtype: `bestillVerkstedForSak()`
+  hardkodet `'reparasjon'` uansett sakens type, og `submitAddVT()` sin fallback for
+  sak-koblede skjema leste ikke `vtPrefillType` i det hele tatt.
+- Ny `sakTilVtType(sak)`: Service-sak → `'service'`, Dekk-sak → `'dekkskift'`, alle andre
+  (varsellampe/skade/kontrollavvik/annet) → `'reparasjon'` (uendret standard). Retter en
+  reell feil: en verkstedtime bestilt fra en Service-sak ble aldri lagret med
+  `type='service'`, og kunne derfor aldri utløse Prioritet 71.5 sin automatiske
+  servicehistorikk-opprettelse ved fullføring.
+- Standardverksted-forslaget i Verksted-nedtrekket følger nå samme utledede type
+  (`standardVerkstedForVtType(initialType)`) i stedet for alltid «Reparasjon».
+- Mobilitetsgaranti-avkrysningsboksen (kun for type `service`) vises nå også for
+  sak-koblede skjema, siden `type='service'` nå faktisk er mulig derfra.
+- EU-kontroll er bevisst utelatt fra `sakTilVtType()` — EU-kontroll blir aldri en sak i
+  dagens datamodell (kun et Varslingssenter-varsel), så regelen er urealiserbar i praksis.
+
+**Testet:** full kjedesporing gjennom kodelesing (klikk → bestillVerkstedForSak() →
+renderVerksted() → submitAddVT() → fullforVerkstedbestilling()) og global
+brace-/backtick-balansesjekk. Ikke UI-verifisert i innlogget økt — Aktive saker/Verksted
+krever admin-innlogging, ikke tilgjengelig i denne økten.
+
+Oppdaget, men bevisst ikke rørt: `bestillVerkstedForSak()` og `goToRegisterVT()` finnes hver
+som to duplikate funksjonsdeklarasjoner i `index.html` (kun siste vinner) — én egen,
+uavhengig opprydding, ikke del av denne saken.
+
+`sw.js`/`version-check.js`/`version.json` bumpet v91 → v92. `storage.airtable.js` uendret.
+
+### Prioritet 71.7 — Ringeliste-opprydding
+
+Bestilling: fjern (i)-info-ikonet fra sjåførens Ringeliste, åpne skjermen med kun
+🟢 Aktive sjåfører synlig (Ingen aktive sjåfører/Ledelse lukket), og fest Home
+Delivery/Veihjelp i en fast bunnseksjon som alltid er tilgjengelig. Full detalj i
+CLAUDE.md, Prioritet 71.7 — kort oppsummert her:
+
+- Info-ikonet og den nå ubrukte `.ringeliste-info-btn`-CSS-regelen er fjernet.
+- `driverRingelisteLukket` sin standard er endret fra «alle tre grupper åpne» til «kun
+  Aktive sjåfører åpen» (`new Set(['ingen-aktive', 'ledelse'])`), og nullstilles til denne
+  standarden hver gang skjermen åpnes fra bunnmenyen — ikke husket fra forrige besøk.
+- Home Delivery/Veihjelp-kortene er flyttet inn i en ny `.ringeliste-fixed-quick`
+  (`position:fixed`, rett over sjåførens bunnmeny) — alltid synlig uansett scrollposisjon.
+  Gruppelisten fikk en tilsvarende `padding-bottom` slik at siste gruppe ikke havner skjult
+  bak de to faste bunnbarene.
+- Ingen datamodell-/Airtable-endring — ren presentasjons-/tilstandsendring.
+
+**Testet:** kjørt i faktisk nettleser mot ekte, live Airtable-data (sjåførmodus krever ingen
+innlogging) — bekreftet visuelt at standardvisningen, tilbakestillingen ved re-navigering og
+den faste bunnseksjonen (inkl. ved en utvidet 14-rads liste scrollet helt til bunns) fungerer
+som spesifisert, på både mobilbredde og bredere visning, uten konsollfeil. Kun lesing/
+navigering — ingen skrivinger sendt til den ekte basen.
+
+`sw.js`/`version-check.js`/`version.json` bumpet v90 → v91. `storage.airtable.js` uendret.
+
+### Prioritet 71.6 — Verkstedopprydding og smartere filtrering
+
+Bestilling: slett feilregistrerte verkstedbesøk, ny fast verkstedtype «Reparasjon», en
+horisontal enkeltvalgt verkstedtype-velger, horisontale varselkategori-faner i
+Varslingssenter, og hurtigfiltrering på Biloversikt (alltid ufiltrert ved åpning, pluss
+«Kontrollert»/«Ikke kontrollert»-snarveier). Full detalj, designvalg og kjente
+begrensninger i CLAUDE.md, Prioritet 71.6 — kort oppsummert her:
+
+- **Sletting:** ny `deleteDekkhistorikk()` (fantes ikke fra før) og dispatcher
+  `deleteVerkstedHistorikkPost()` gir 🗑️ Slett på alle poster i Verkstedhistorikk (verksted/
+  service/dekk), i tillegg til den allerede eksisterende Slett-knappen for aktive
+  verkstedbestillinger. Samordnet bekreftelsestekst: «Er du sikker på at du vil slette dette
+  verkstedbesøket?».
+- **Verkstedtype:** `VT_TYPE_VELGER` (EU-kontroll/Service/Dekkskift/Ruteskift/Reparasjon,
+  radioknapper) erstatter de to uavhengige avkrysningsboksene fra Prioritet 46/61/62. Retter
+  i samme slengen et eksisterende avvik der `vtEuForhandskrysset`/
+  `vtRuteskiftForhandskrysset` aldri faktisk ble satt `true` noe sted i koden — Ruteskift-/
+  EU-kontroll-bestillinger fra Dashboard/Kjøretøyprofil traff derfor ofte feil type og feil
+  standardverksted-forslag. `verkstedHistorikkType()` leser nå det strukturerte feltet for
+  alle fem typer i stedet for kun to.
+- **Varslingssenter:** kategoriene vises nå som horisontale faner (`.profil-tabs`, samme
+  komponent som Kjøretøyprofilens faner), med loggen for valgt kategori under — i stedet for
+  alle åtte kategorier stablet samtidig. Selve varsel-beregningen (Prioritet 71) er uendret.
+- **Biloversikt:** ny `resetRegisterFiltre()` nullstiller alle filtre ved generell
+  navigasjon (sidebar/drawer/mobil bunnmeny) — siden åpnes derfor alltid ufiltrert, mens
+  dype lenker (Dashboard-chips m.fl.) fortsatt treffer sitt bevisste filter uendret. To nye
+  hurtigfilterknapper leser/skriver samme `filterKontrollStatus` som det eksisterende
+  nedtrekksfilteret.
+- **Ingen Airtable-endring:** `storage.airtable.js` uendret, kun `sw.js`/`version-check.js`/
+  `version.json` bumpet (v89 → v90).
+
+**Testet:** grep-verifisering av fjernet dødkode, global brace-/backtick-balansesjekk,
+manuell gjennomlesning av alle endrede funksjoner, og — i motsetning til Prioritet 71.5 —
+appen faktisk lastet i en nettleser via en midlertidig lokal PowerShell-statisk-server (ingen
+konsollfeil helt frem til innloggingsskjermen). Videre UI-verifisering av selve skjermene
+krevde admin-innlogging, ikke tilgjengelig i denne økten — se CLAUDE.md, Prioritet 71.6, for
+anbefalt sjekkliste før idriftsettelse.
+
 ### Prioritet 71.5 — Opprydding saksmotor og ny operativ bilprofil
 
 Bestilling: fjern den gamle 4-stegs saksbehandlingsveiviseren («Avansert redigering» /
