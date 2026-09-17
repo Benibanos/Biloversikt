@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.16.0"></script>
+<script src="storage.airtable.js?v=2.17.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1164,6 +1164,28 @@
   .profil-stat4 .l{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;}
   .profil-stat4 .v{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;margin-top:3px;letter-spacing:-.01em;}
   .profil-stat4 .s{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  /* Prioritet 71.5 — operativ toppseksjon: samme kortstil som .profil-stat4, kun fem
+     kolonner i stedet for fire (KM-stand/Sist service/EU-kontroll/Mobilitetsgaranti/
+     Aktiv sjåfør). */
+  .profil-stat5{
+    display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface);
+    border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-card);overflow:hidden;margin-bottom:14px;
+  }
+  .profil-stat5 > div{padding:17px 16px;border-right:1px solid var(--line-soft);display:flex;gap:12px;align-items:flex-start;}
+  .profil-stat5 > div:last-child{border-right:none;}
+  .profil-stat5 > div > span:last-child{display:flex;flex-direction:column;min-width:0;}
+  .profil-stat5 .l{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;display:block;}
+  .profil-stat5 .v{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-top:3px;letter-spacing:-.01em;line-height:1.25;display:block;overflow-wrap:anywhere;}
+  .profil-stat5 .s{font-size:11.5px;color:var(--muted);margin-top:2px;display:block;overflow-wrap:anywhere;}
+  /* Kjøretøydetaljer, komprimert horisontalt (Prioritet 71.5): to kolonner av
+     label:verdi-rader i stedet for den brede .ov-grid-kortstilen — mindre scrolling. */
+  .detalj-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;}
+  .detalj-rad{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);}
+  .detalj-rad:last-child, .detalj-grid > .detalj-rad:nth-last-child(2):nth-child(odd){border-bottom:none;}
+  .detalj-rad .dl{color:var(--muted);font-size:12px;flex-shrink:0;}
+  .detalj-rad .dv{font-weight:600;font-size:13px;text-align:right;overflow-wrap:anywhere;}
+  @media (max-width:640px){ .detalj-grid{grid-template-columns:1fr;} .profil-stat5{grid-template-columns:1fr 1fr;} }
+  @media (max-width:1199px){ .profil-stat5{grid-template-columns:repeat(3,1fr);} }
   .profil-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
   .profil-tab{
     padding:11px 12px;font-size:13px;font-weight:600;color:var(--muted);background:none;
@@ -1659,7 +1681,6 @@ let analyseFilterType = ''; // sakstype
 let analyseFilterStatus = ''; // '' | 'apen' | 'lukket'
 let showAddSak = false;
 let sakPrefillVehicleId = '';
-let editingSakId = null;
 // «📨 Nye kommentarer»: ren visnings-toggle (åpen/lukket), ingen lagret
 // tilstand. Panelet leser direkte fra eksisterende kontroller[] — ingen ny sak, ingen nytt
 // Airtable-felt, ingen "lest/kvittert"-mekanikk (bevisst — dette er en logg, ikke en oppgave).
@@ -1669,19 +1690,10 @@ let nyeKommentarerApen = false;
 // støtte for dette filteret (brukt av sjåførens egen «💬 Kommentarer»-skjerm siden
 // Prioritet 50) — Kommentaroversikt manglet bare selve velgeren.
 let kommentaroversiktFilterBil = '';
-// ---- Saksbehandling Wizard ----
-// Erstatter det tidligere flate ett-skjema-redigeringsvinduet i sakCard() med en
-// 4-stegs arbeidsflyt i samme boks. editingSakId angir fortsatt HVILKEN sak som er
-// åpen (uendret bruk fra før); sakWizardStep angir HVILKET steg som vises nå.
-let sakWizardStep = null; // 1 | 2 | 3 | 4 | 'lese' | null
-let sakWizardSaving = false; // dobbeltlagringsvern — låser lagreknapper mens en lagring pågår
-let sakWizardVtOpen = false; // viser inline "Registrer verkstedtime"-skjema i steg 3
-let sakWizardOppfolgingOpen = false; // viser inline "Legg til oppfølging"-skjema i steg 3
-let sakWizardKommentarOpen = false; // viser inline "Legg til kommentar"-skjema i steg 3
 let sakOversiktOpenVehicles = new Set();
 // Prioritet 71.2: «✅ Utført uten verkstedbesøk» — inline valgfri årsak-panel på ett
-// sakskort om gangen (samme ett-om-gangen-mønster som sakWizardVtOpen osv.). Årsaken
-// lagres i det eksisterende s.resolutionNote-feltet (ingen nytt Airtable-felt).
+// sakskort om gangen. Årsaken lagres i det eksisterende s.resolutionNote-feltet (ingen
+// nytt Airtable-felt).
 let sakUtenVerkstedPanelId = null;
 // «Ny saksflyt»: hvilken av de tre fanene som vises i Aktive saker
 // (standard: 'aktiv'), hvilke kompakte kort som er utvidet (tomt som standard — «Ikke
@@ -1782,7 +1794,7 @@ let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøst
 // "🕐 Historikk"-rad med fire nøstede underseksjoner (samme mønster som
 // bilkortSkadeSubOpen over) — ingen av de fire underliggende visningene er endret eller
 // fjernet, kun samlet ett nivå dypere.
-let bilkortHistorikkSubOpen = new Set(); // delmengde av: 'tidslinje' | 'nokkeltall' | 'kontroll' | 'skade'
+let bilkortHistorikkSubOpen = new Set(); // delmengde av: 'kontroll' | 'skader' | 'kommentarer' | 'varsellamper'
 let showUteAvDriftForm = false; // Fase 7: viser "Marker ute av drift"/"Sett tilbake i drift"-skjema
 let bilkortHistorikkFilter = ''; // Fase 7: '' | 'kontroll' | 'skade' | 'varsellampe' | 'sak' | 'verksted' | 'dekk' | 'kostnad' | 'statusendring'
 // Historikk-hub: flåtebred variant av samme filter-konsept
@@ -2383,46 +2395,6 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
     }
   });
   return nySak;
-}
-// Merker ett enkelt avvik i en sak som utført UTEN verksted (f.eks. "ikke reelt"/løst på
-// annen måte) — dekker sjekklistens "eksplisitt lukket eller avvist". Flerpunkts saker:
-// oppdaterer avvik-elementet og rekalkulerer sakens status (se sakOppdaterStatusEtterAvvik).
-// Eldre enkeltavvik-saker: ingen avvik[] å endre på — bruk den vanlige wizard-lukkingen
-// (Steg 4) for disse i stedet, som før.
-function markerAvvikUtfort(sakId, avvikId){
-  const sak = aktiveSaker.find(s => s.id === sakId);
-  if(!sak || !Array.isArray(sak.avvik)) return;
-  const item = sak.avvik.find(a => a.id === avvikId);
-  if(!item || item.status !== 'aktiv') return;
-  item.status = 'utfort';
-  item.resolvedAt = todayISO();
-  sak.updatedAt = new Date().toISOString();
-  sakOppdaterStatusEtterAvvik(sak);
-}
-// Rekalkulerer en flerpunkts sak sin overordnede status etter at ett eller flere avvik er
-// merket utført (fra verksted-fullføring ELLER markerAvvikUtfort direkte). Kjerneregelen
-// saken skal ALDRI hoppe tilbake til "Vurderes" bare fordi noen avvik
-// er ferdige — den er jo allerede vurdert og under behandling. I stedet: står ett eller
-// flere avvik fortsatt aktive → status blir "Delvis utført" (med mindre saken er tidligere
-// i sin egen livssyklus enn det — se under). Står ALLE avvik som utført → status kan gå
-// videre til "Utført" (samme sti som den vanlige wizard-lukkingen alltid har brukt).
-// Berører kun saker med sak.avvik (flerpunkts) — enkeltavvik-saker er uendret, styres
-// fortsatt utelukkende av submitSakWizardFullfor som før.
-function sakOppdaterStatusEtterAvvik(sak){
-  if(!Array.isArray(sak.avvik) || sak.avvik.length === 0) return;
-  const aktive = sak.avvik.filter(a => a.status === 'aktiv');
-  if(aktive.length === 0){
-    if(sak.status !== 'lukket') sak.status = 'utfort';
-  } else if(sak.status === 'verksted-bestilt' || sak.status === 'utfort-venter-bekreftelse' || sak.status === 'utfort' || sak.status === 'delvis-utfort'){
-    sak.status = 'delvis-utfort';
-  }
-  // 'ny'/'vurderes'/'tiltak-planlagt' med gjenværende aktive avvik: ingen endring — saken
-  // er ikke kommet så langt i behandlingen ennå at "delvis utført" gir mening der.
-}
-// Kan saken lukkes? Kun når ALLE avvik er utført (eller den er en eldre enkeltavvik-sak,
-// hvor "alle avvik utført" alltid betyr ja siden det bare er ett).
-function sakAlleAvvikFerdig(sak){
-  return sakAvvikAktive(sak).length === 0;
 }
 // En sak regnes som "viderebehandlet" når den har beveget seg forbi utgangspunktet
 // den ble opprettet i — status endret, rapportert på nytt, fått oppfølging satt av
@@ -4914,7 +4886,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; vtEuForhandskrysset = false; vtRuteskiftForhandskrysset = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
-  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; editingSakId = null; sakWizardStep = null; sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
+  if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -5405,31 +5377,11 @@ async function settTilbakeIDrift(vehicleId){
   render();
 }
 
-// ================= Aktive Saker-mutasjoner (Fase 1 — kun manuell registrering) =================
-// Saksbehandling Wizard — hvilket steg en sak skal åpnes på. Optimalisering (Wizard UX
-// Cleanup): åpner ALLTID på Steg 1 (Saksinformasjon) nå, uansett status — brukeren velger
-// selv "Vurder sak" eller "Fortsett saken" derfra. Tidligere hoppet den rett til Steg 2/3/4
-// basert på status, noe som skjulte problembeskrivelsen ved gjenåpning. Lukkede saker
-// åpnes fortsatt alltid i lesemodus (uendret, egen lesevisning, ikke del av denne saken).
-// bruker nå sakErApen() (samme, ENESTE definisjon av "lukket" som resten
-// av appen) i stedet for å sjekke status === 'lukket' direkte — sikrer at saker med de
-// nye terminal-statusene 'utfort'/'avslatt' også åpnes i lesemodus her, ikke bare 'lukket'.
-function sakWizardStartSteg(s){
-  if(!s) return 1;
-  if(!sakErApen(s)) return 'lese';
-  return 1;
-}
-function toggleEditSak(id){
-  if(editingSakId === id){
-    editingSakId = null;
-    sakWizardStep = null;
-  } else {
-    editingSakId = id;
-    sakWizardStep = sakWizardStartSteg(aktiveSaker.find(x => x.id === id));
-  }
-  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false;
-  render();
-}
+// ================= Aktive Saker-mutasjoner =================
+// Prioritet 71.5: den gamle 4-stegs saksbehandlingsveiviseren ("Avansert redigering" /
+// "Vurder sak" / "Fortsett saken" / "Slett saken") er fjernet i sin helhet — saksbehandling
+// skjer nå UTELUKKENDE gjennom godtaSak()/avslaSak()/bestillVerkstedForSak()/
+// markerSakUtfort()/markerSakUtfortUtenVerksted() under. Ingen alternativ arbeidsflyt.
 async function submitAddSak(ev){
   ev.preventDefault();
   const vehicleId = document.getElementById('sak-vehicle').value;
@@ -5461,204 +5413,6 @@ async function submitAddSak(ev){
   sakPrefillVehicleId = '';
   render();
 }
-// ---- Saksbehandling Wizard — lagring per steg ----
-// Hvert steg lagrer kun sine egne felt, umiddelbart ved "Neste"/"Lagre" (i stedet for
-// ett stort skjema lagret samlet til slutt) — reduserer tidsvinduet for at en samtidig
-// endring fra en annen enhet skal bli overskrevet av "helt array"-lagringen i
-// saveAktiveSaker(), og gjør at ingenting går tapt ved intern navigering mellom steg.
-// Feltene og valideringsreglene er identiske med det tidligere ett-skjema-vinduet.
-async function submitSakWizardVurdering(id){
-  if(sakWizardSaving) return;
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  const nyStatus = document.getElementById('swz-status-'+id).value;
-  sakWizardSaving = true; render();
-  if(nyStatus === 'lukket'){
-    // "Lukket" velges her kun som en snarvei til Steg 4 — selve lukkingen (med krav om
-    // resultat/sluttkommentar/utført dato) skjer ALLTID i submitSakWizardFullfor(), slik
-    // at den eksisterende lukkevalideringen aldri kan omgås fra prioritets-/statusvalget.
-    s.updatedAt = new Date().toISOString();
-    await saveAktiveSaker();
-    sakWizardSaving = false;
-    sakWizardStep = 4;
-    render();
-    return;
-  }
-  s.status = nyStatus;
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
-  sakWizardSaving = false;
-  sakWizardStep = 3;
-  render();
-}
-async function submitSakWizardOppfolging(id){
-  if(sakWizardSaving) return;
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  const nextAction = document.getElementById('swz-oppf-handling-'+id).value.trim();
-  const datoRaw = document.getElementById('swz-oppf-dato-'+id).value.trim();
-  const msgEl = document.getElementById('swz-oppf-msg-'+id);
-  const followUpDate = datoRaw ? readDateInput('swz-oppf-dato-'+id) : null;
-  if(datoRaw && !followUpDate){ if(msgEl) msgEl.textContent = 'Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'; return; }
-  const kommentar = document.getElementById('swz-oppf-kommentar-'+id).value.trim();
-  sakWizardSaving = true; render();
-  s.nextAction = nextAction;
-  s.followUpDate = followUpDate;
-  if(kommentar){
-    if(!Array.isArray(s.historikk)) s.historikk = [];
-    s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar});
-  }
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
-  sakWizardSaving = false;
-  sakWizardOppfolgingOpen = false;
-  render();
-}
-async function submitSakWizardKommentar(id){
-  if(sakWizardSaving) return;
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  const el = document.getElementById('swz-kommentar-tekst-'+id);
-  const kommentar = el ? el.value.trim() : '';
-  const msgEl = document.getElementById('swz-kommentar-msg-'+id);
-  if(!kommentar){ if(msgEl) msgEl.textContent = 'Skriv en kommentar først.'; return; }
-  sakWizardSaving = true; render();
-  if(!Array.isArray(s.historikk)) s.historikk = [];
-  s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar});
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
-  sakWizardSaving = false;
-  sakWizardKommentarOpen = false;
-  render();
-}
-// lukkSaken=false: lagrer resultat/utført dato/kommentar/kostnad uten å lukke saken
-// (status flyttes til "utfort" dersom noe av dette er fylt ut). lukkSaken=true: krever
-// resultat+sluttkommentar+utført dato (uendret regel fra tidligere), setter status
-// "lukket" og resolvedAt/resolvedBy — saken slettes ALDRI, kun status endres.
-async function submitSakWizardFullfor(id, lukkSaken){
-  if(sakWizardSaving) return;
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  const verkstedResultat = document.getElementById('swz-resultat-'+id).value;
-  const utfortDatoRaw = document.getElementById('swz-utfort-dato-'+id).value.trim();
-  const resolutionNote = document.getElementById('swz-sluttkommentar-'+id).value.trim();
-  const msgEl = document.getElementById('swz-fullfor-msg-'+id);
-  if(lukkSaken && (!verkstedResultat || !resolutionNote || !utfortDatoRaw)){
-    if(msgEl) msgEl.textContent = 'For å lukke saken må resultat, sluttkommentar og faktisk utført dato fylles ut.';
-    return;
-  }
-  const completedAt = utfortDatoRaw ? readDateInput('swz-utfort-dato-'+id) : null;
-  if(utfortDatoRaw && !completedAt){
-    if(msgEl) msgEl.textContent = 'Ugyldig utført dato. Bruk format DD/MM/ÅÅÅÅ.';
-    return;
-  }
-  let kreverAvsetting = false, avsettingsManed = '', avsettingsBelopRaw = '', estimertRaw = '', faktiskRaw = '';
-  if(s.linkedVtId){
-    const kreverAvsettingEl = document.getElementById('swz-krever-avsetting-'+id);
-    kreverAvsetting = kreverAvsettingEl ? kreverAvsettingEl.value === 'ja' : false;
-    const avsettingsManedEl = document.getElementById('swz-avsettingsmaned-'+id);
-    const avsettingsBelopEl = document.getElementById('swz-avsettingsbelop-'+id);
-    avsettingsManed = avsettingsManedEl ? avsettingsManedEl.value : '';
-    avsettingsBelopRaw = avsettingsBelopEl ? avsettingsBelopEl.value.trim() : '';
-    if(kreverAvsetting && (!avsettingsManed || !avsettingsBelopRaw)){
-      if(msgEl) msgEl.textContent = 'Fyll ut avsettingsmåned og avsettingsbeløp når "Krever avsetting" er satt til Ja.';
-      return;
-    }
-    estimertRaw = (document.getElementById('swz-estimert-'+id)||{}).value?.trim() || '';
-    faktiskRaw = (document.getElementById('swz-faktisk-'+id)||{}).value?.trim() || '';
-  }
-
-  // er dette en flerpunkts sak, fullfør (kun) de avvikene som faktisk hører
-  // til DENNE verkstedrunden (samme linkedVtId som sakens gjeldende s.linkedVtId) — resten
-  // av avvikene i saken forblir aktive, upåvirket av denne innsendingen.
-  const erFlerpunkts = Array.isArray(s.avvik) && s.avvik.length > 0;
-  if(erFlerpunkts && s.linkedVtId){
-    s.avvik.forEach(a => {
-      if(a.status === 'aktiv' && a.linkedVtId === s.linkedVtId){
-        a.status = 'utfort';
-        a.resolvedAt = completedAt || todayISO();
-      }
-    });
-  }
-  if(erFlerpunkts && lukkSaken && !sakAlleAvvikFerdig(s)){
-    const gjenstaende = sakAvvikAktive(s);
-    if(msgEl) msgEl.textContent = `${gjenstaende.length} avvik står fortsatt som aktive (${gjenstaende.map(a=>a.label).join(', ')}) — saken kan ikke lukkes før alle avvik er utført eller markert utført. Bruk "Lagre uten å lukke" i stedet.`;
-    return;
-  }
-
-  sakWizardSaving = true; render();
-  s.resolutionNote = resolutionNote;
-  s.verkstedResultat = verkstedResultat || null;
-  s.completedAt = completedAt;
-  if(s.linkedVtId){
-    s.estimatedCost = estimertRaw ? Number(estimertRaw.replace(/\s/g,'').replace(',','.')) : null;
-    s.actualCost = faktiskRaw ? Number(faktiskRaw.replace(/\s/g,'').replace(',','.')) : null;
-    s.requiresProvision = kreverAvsetting;
-    s.provisionMonth = kreverAvsetting ? avsettingsManed : null;
-    s.provisionAmount = kreverAvsetting && avsettingsBelopRaw ? Number(avsettingsBelopRaw.replace(/\s/g,'').replace(',','.')) : null;
-  }
-  const varGammelStatusLukket = s.status === 'lukket';
-  if(lukkSaken){
-    // Nådd hit betyr alle avvik er ferdige (validert over for flerpunkts saker; ett
-    // enkeltavvik som når hit er per definisjon ferdig siden det er saken selv som lukkes).
-    s.status = 'lukket';
-    if(!varGammelStatusLukket){ s.resolvedAt = todayISO(); s.resolvedBy = loggedInRole || 'Ukjent'; }
-  } else if(erFlerpunkts){
-    // kjerneregelen: hopper ALDRI tilbake til "Vurderes" bare fordi noen
-    // avvik er ferdige. Gjenstår aktive avvik → "Delvis utført". Er alt ferdig → "Utført",
-    // akkurat som en enkeltavvik-sak alltid har gjort.
-    sakOppdaterStatusEtterAvvik(s);
-  } else if(verkstedResultat || resolutionNote || completedAt){
-    s.status = 'utfort';
-  }
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
-  sakWizardSaving = false;
-  if(lukkSaken){ editingSakId = null; sakWizardStep = null; }
-  render();
-}
-// Lesemodus-unntak: en lukket sak kan gjenåpnes ved behov (f.eks. lukket ved en feil).
-// Setter den tilbake til "vurderes" (nøytralt utgangspunkt) og åpner Steg 2.
-async function reapneSak(id){
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  if(!confirm('Gjenåpne denne saken? Den vises som aktiv igjen til den lukkes på nytt.')) return;
-  s.status = 'vurderes';
-  s.resolvedAt = null; s.resolvedBy = null;
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
-  sakWizardStep = 2;
-  render();
-}
-async function deleteSak(id){
-  if(!confirm('Slette denne saken?')) return;
-  const s = aktiveSaker.find(x => x.id === id);
-  if(!s) return;
-  const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
-  const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
-  // DEL 5: rydd opp verkstedtimer som peker til denne saken FØR selve saken
-  // slettes, slik at ingen verkstedtime blir stående med en referanse til en sak som ikke
-  // lenger finnes. Verkstedtimen selv slettes ALDRI automatisk — kun sak-referansen på den.
-  const beroerteVt = verkstedtimer.filter(t => t.sakId === s.id || (s.caseId && t.caseId === s.caseId));
-  beroerteVt.forEach(t => { t.sakId = ''; t.caseId = ''; });
-  const idx = aktiveSaker.findIndex(x => x.id === id);
-  if(idx !== -1) aktiveSaker.splice(idx, 1);
-  try{
-    if(beroerteVt.length > 0) await saveVerkstedtimerEllerKast();
-    await saveAktiveSakerEllerKast();
-  } catch(e){
-    // Begge datasett rulles tilbake ved feil, siden dette er én logisk handling (Del 3).
-    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
-    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnapshot);
-    console.error('[deleteSak] Feilet', e);
-    render();
-    alert('Kunne ikke slette saken i Airtable. Endringen ble IKKE lagret og er tilbakestilt lokalt. Prøv igjen.');
-    return;
-  }
-  editingSakId = null;
-  sakWizardStep = null;
-  render();
-}
 // 🚚 Min bil som eget hovedikon er fjernet — samme oppgave som
 // 🚐 Biloversikt løste allerede, og skapte unødvendig navigasjon. I stedet: finn
 // driftskoordinatorens egen aktive bil (samme case-insensitive sammenligning mot
@@ -5677,13 +5431,17 @@ function goToRegisterSak(vehicleId){
   sakFilterBil = '';
   goTo('aktivesaker');
 }
-// «Ny saksflyt»: de FIRE nye, ett-klikks handlingene som driver hele
-// arbeidsflyten. Ingen av dem åpner et skjema eller krever utfylte felt — nøyaktig som
-// bestilt ("Ingen prosesssteg. Ingen veiviser."). Alle fire lagrer umiddelbart og
-// rendrer på nytt. Den gamle, detaljerte veiviseren (sakWizardHtml/goToSakDetalj) er
-// IKKE fjernet — fortsatt nåbar via «✏️ Avansert redigering» i kortets utvidede visning,
-// for saker som trenger kostnad/prioritet/notater registrert (Kostnadsoversikt m.fl.
-// er uendret og leser fortsatt disse feltene).
+// «Ny saksflyt»: de FIRE ett-klikks handlingene som driver hele arbeidsflyten
+// (godtaSak/avslaSak/bestillVerkstedForSak/markerSakUtfort, pluss
+// markerSakUtfortUtenVerksted). Ingen av dem åpner et skjema eller krever utfylte felt —
+// nøyaktig som bestilt ("Ingen prosesssteg. Ingen veiviser."). Alle lagrer umiddelbart og
+// rendrer på nytt. Prioritet 71.5: den gamle, detaljerte 4-stegs veiviseren
+// («Avansert redigering»/«Vurder sak»/«Fortsett saken»/«Slett saken») er FJERNET — disse
+// fire (fem) handlingene er nå den ENESTE måten en sak kan behandles på. Kostnadsfeltene
+// (estimatedCost/actualCost/requiresProvision osv.) som tidligere kun ble satt i
+// veiviserens Steg 4 settes ikke lenger noe sted — Kostnadsoversikt viser fortsatt disse
+// feltene der de historisk finnes, men de forblir tomme for saker behandlet etter denne
+// endringen.
 async function godtaSak(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
   if(!s || s.status !== 'ny') return;
@@ -5739,11 +5497,10 @@ async function markerSakUtfort(sakId){
   });
   if(varsellysEndret) await saveVarsellys();
 
-  // Samme felter som den avanserte veiviseren setter ved lukking (se
-  // submitSakWizardFullfor) — sikrer at saken faktisk dukker opp i Historikk
-  // (vehicleHistorikkTidslinje) og telles korrekt i Rapporter/Analyse (som leser
-  // s.resolvedAt). 'feil-utbedret' er standardresultatet for ett-klikks fullføring;
-  // kan justeres i etterkant via «✏️ Avansert redigering» ved behov.
+  // Sikrer at saken faktisk dukker opp i Historikk (vehicleHistorikkTidslinje) og telles
+  // korrekt i Rapporter/Analyse (som leser s.resolvedAt). 'feil-utbedret' er
+  // standardresultatet for ett-klikks fullføring — eneste måte å lukke en sak på siden
+  // Prioritet 71.5 (den gamle veiviseren med et eget resultatvalg er fjernet).
   if(!s.completedAt) s.completedAt = idag;
   if(!s.verkstedResultat) s.verkstedResultat = 'feil-utbedret';
   s.status = 'utfort';
@@ -5759,9 +5516,8 @@ async function markerSakUtfort(sakId){
 // samme automatiske varsellampe-kvittering, samme resolvedAt/resolvedBy/status/completedAt)
 // med to bevisste forskjeller: s.verkstedResultat røres ALDRI (det feltet betyr «resultat
 // FRA verksted», og ingen verksted er bestilt eller besøkt her), og en valgfri årsak lagres
-// i s.resolutionNote — samme, allerede eksisterende felt den avanserte veiviseren bruker
-// til sluttkommentar (se sakWizardLesemodusHtml() — viser resolutionNote uendret for
-// LUKKEDE saker, uansett hvilken av de to funksjonene som lukket dem). Ingen nytt
+// i s.resolutionNote — samme, allerede eksisterende felt som viser sluttkommentaren for
+// enhver lukket sak, uansett hvilken av de to funksjonene som lukket den. Ingen nytt
 // Airtable-felt, ingen ny status — saken ender som vanlig 'utfort', i Historikk.
 async function markerSakUtfortUtenVerksted(sakId, arsakTekst){
   const s = aktiveSaker.find(x => x.id === sakId);
@@ -5812,17 +5568,14 @@ function goToSakDetalj(sakId){
   if(!s) return;
   sakFilterBil = ''; sakFilterType = ''; sakFilterStatus = '';
   sakFilterKunApne = false; sakFilterKreverHandling = false; sakFilterKreverHandlingSamlet = false; sakFilterOppfolging = '';
-  // sakskortet (og dermed «Avansert redigering»-veiviseren) vises kun når sakAktivFane
-  // faktisk matcher saken sin fase, akkurat som goToVarselSak() allerede gjør for
-  // Varslingssenter sine "Åpne sak"-lenker. Uten dette kunne et dypt lenket sakskort fra
-  // Historikk/Dashboard/Verksted lande på feil fane og ikke vises i det hele tatt.
+  // sakskortet vises kun når sakAktivFane faktisk matcher saken sin fase, akkurat som
+  // goToVarselSak() allerede gjør for Varslingssenter sine "Åpne sak"-lenker. Uten dette
+  // kunne et dypt lenket sakskort fra Historikk/Dashboard/Verksted lande på feil fane og
+  // ikke vises i det hele tatt.
   sakAktivFane = sakFase(s) || sakAktivFane;
   // Prioritet 71.4: per-bil-gruppering er tilbake — uten dette ville sakskortet vært
   // skjult bak en lukket "Vis alle saker"-gruppe selv om fanen stemte.
   sakOversiktOpenVehicles = new Set([s.vehicleId]);
-  editingSakId = s.id;
-  sakWizardStep = sakWizardStartSteg(s);
-  sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false; sakWizardSteg1MerOpen = false;
   goTo('aktivesaker');
 }
 
@@ -6190,6 +5943,11 @@ async function submitAddVT(ev){
     typeDeler.push(vtPrefillType);
   }
   const type = typeDeler.join(',');
+  // Prioritet 71.5: kun relevant/vist når timen faktisk er av typen 'service' (se
+  // add-vt-form) — leses uansett trygt her (undefined-sjekk), siden avkrysningsboksen
+  // rett og slett ikke finnes i DOM-en for andre typer.
+  const mobilitetsgarantiEl = document.getElementById('vt-mobilitetsgaranti');
+  const mobilitetsgarantiAktivert = !!(mobilitetsgarantiEl && mobilitetsgarantiEl.checked);
   const msgEl = document.getElementById('vt-msg');
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
@@ -6212,7 +5970,8 @@ async function submitAddVT(ev){
   }
   verkstedtimer.push({
     id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
-    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type
+    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type,
+    mobilitetsgarantiAktivert
   });
   await saveVerkstedtimer();
   if(sak){
@@ -10386,6 +10145,21 @@ function vehicleMobilitetsgaranti(v){
     tilDato = d.toISOString().slice(0,10);
     kilde = 'Automatisk — service hos ' + (mekonomenService.verksted || 'Mekonomen') + ' ' + fmt(mekonomenService.dato);
   }
+  // 1b. Prioritet 71.5 — eksplisitt avkrysset «Mobilitetsgaranti inkludert» ved fullføring
+  // av en verkstedtime av typen 'service' (se fullforVerkstedbestilling()). Uavhengig
+  // signal fra Mekonomen-navnesjekken over — nyeste dato (av alle kilder) vinner alltid.
+  const aktivertService = servicehistorikk
+    .filter(s => s.vehicleId === v.id && s.mobilitetsgarantiAktivert)
+    .sort((a,b) => (b.dato || '').localeCompare(a.dato || ''))[0] || null;
+  if(aktivertService && /^\d{4}-\d{2}-\d{2}$/.test(aktivertService.dato || '')){
+    const d = new Date(aktivertService.dato + 'T00:00:00');
+    d.setMonth(d.getMonth() + MOBGARANTI_MANEDER);
+    const kandidatDato = d.toISOString().slice(0,10);
+    if(kandidatDato > tilDato){
+      tilDato = kandidatDato;
+      kilde = 'Automatisk — mobilitetsgaranti aktivert ved service ' + fmt(aktivertService.dato) + (aktivertService.verksted ? ' hos ' + aktivertService.verksted : '');
+    }
+  }
   // 2. Manuell dato i fritekstfeltet — brukes hvis den er senere (eller eneste kilde)
   const manuellDato = mobgarantiDatoFraTekst(v.mobilitetsgaranti);
   if(manuellDato && manuellDato > tilDato){
@@ -10533,20 +10307,11 @@ function renderBilkort(){
   const vKontrollertIdag = isKontrollertIdag(v.id);
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
   const vVarselHistorikk = historikkVarsellysForVehicle(v.id);
-  const vHistorikkTidslinje = vehicleHistorikkTidslinje(v.id, bilkortHistorikkFilter);
-  const sisteHendelse = vehicleHistorikkTidslinje(v.id)[0] || null; // nyeste uansett filter, til "Sist oppdatert"
-  const historikkTidslinjeBody = `
-    <div class="field" style="margin-bottom:12px;"><label>Filtrer hendelser</label>
-      <select id="bilkort-historikk-filter">
-        <option value="">Alle hendelser</option>
-        ${HISTORIKK_TYPE_ORDER.map(t => `<option value="${t}" ${bilkortHistorikkFilter===t?'selected':''}>${HISTORIKK_TYPE_IKON[t]} ${HISTORIKK_TYPE_LABEL[t]}</option>`).join('')}
-      </select>
-    </div>
-    ${vHistorikkTidslinje.length === 0 ? `<div class="empty-note">Ingen hendelser${bilkortHistorikkFilter ? ' med gjeldende filter' : ' registrert ennå'}.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vHistorikkTidslinje.map(h => bilkortHistorikkItem(h)).join('')}
-    </ul>`}
-  `;
+  // Prioritet 71.5: Tidslinje/Nøkkeltall-underseksjonene (og filterdropdownen som hørte
+  // til Tidslinje) er fjernet fra Historikk-fanen — se HISTORIKK_SUB_ORDER under. De
+  // delte funksjonene/konstantene (vehicleHistorikkTidslinje/HISTORIKK_TYPE_*/
+  // bilkortHistorikkItem) er UENDRET og fortsatt i bruk av den flåtebrede Historikk-huben
+  // (renderHistorikk()) — kun bruken HER, inne i profilen, er fjernet.
   // ---- Fase 7 (Bilstatus 2.0 og Kjøretøyprofil) ----
   const hovedstatus = vehicleHovedstatus(v.id);
   const vAktiveSakerListe = vehicleAktiveSaker(v.id);
@@ -10560,12 +10325,6 @@ function renderBilkort(){
   // full historikk vises på den dedikerte Service-arbeidsflaten (se renderServiceSkjerm()).
   const vSisteService = vehicleSisteService(v.id);
   const vServiceStatus = vehicleServiceStatus(v);
-  // «Biltype» leste tidligere fra en EGEN, hardkodet etikettliste som lå
-  // her inne i renderBilkort() — en fjerde parallell sannhet om kategorinavn. Den er
-  // fjernet; feltet leser nå det samme redigerbare kategoriregisteret som resten av appen,
-  // via kategoriNavn(). Bilens EGEN kategori vises her (ikke visningskategorien), slik at
-  // man ser hva bilen faller tilbake til når den settes i drift igjen.
-  const KATEGORI_BILTYPE_LABEL = new Proxy({}, {get: (_t, k) => (typeof k === 'string' ? kategoriNavn(k) : undefined)});
 
   // Kjøretøyprofil-toppanelet forenklet til KUN de fire
   // feltene som identifiserer bilen og dens to viktigste frister — Bilgruppe/Biltype/
@@ -10637,27 +10396,6 @@ function renderBilkort(){
         </div>`;
       }).join('')}
     </div>
-  `;
-
-  // ---- Fase 9 (Analyse): Historiske nøkkeltall + gjentakende registreringer for bilen ----
-  const vAlleSakerHistorisk = vehicleAlleSaker(v.id);
-  const vLukkedeMedTid = vAlleSakerHistorisk.filter(s => s.resolvedAt).map(s => isoDateDiff(s.reportedAt, s.resolvedAt.slice(0,10))).filter(d => d !== null && d >= 0);
-  const vSnittBehandling = analyseSnitt(vLukkedeMedTid);
-  const vTotaleVarsellamper = varsellys.filter(w => w.vehicleId === v.id).length;
-  const vGjentakendeSisteAr = vehicleGjentakendeSisteAr(v.id);
-  const historiskeNokkeltallBody = `
-    <div class="ov-grid">
-      ${analyseTabellRad('Totale saker', vAlleSakerHistorisk.length)}
-      ${analyseTabellRad('Totale verkstedbesøk', vVT.length)}
-      ${analyseTabellRad('Totale varsellamper', vTotaleVarsellamper)}
-      ${analyseTabellRad('Totale skader', vDamages.length)}
-      ${analyseTabellRad('Gjennomsnittlig behandlingstid', vSnittBehandling === null ? '–' : vSnittBehandling + ' dager')}
-    </div>
-    <div class="required-hint" style="margin-top:10px;">Gjentakende registreringer siste 12 måneder</div>
-    ${vGjentakendeSisteAr.length === 0 ? `<div class="empty-note" style="padding:4px 0;">Ingen gjentakende registreringer siste 12 måneder.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vGjentakendeSisteAr.map(s => `<li><span class="dmg-simple-main">${esc(s.title)} registrert ${s.reportCount||1} ganger.</span></li>`).join('')}
-    </ul>`}
   `;
 
   const infoBody = `
@@ -10775,18 +10513,28 @@ function renderBilkort(){
     </div>
   `;
 
-  // fire tidligere separate accordion-rader (Kjøretøyhistorikk,
-  // Historiske nøkkeltall, Kontrollhistorikk, Skadehistorikk) slått sammen til én
-  // "🕐 Historikk"-rad med fire nøstede underseksjoner — samme sub-accordion-mønster som
-  // skadeBody sin aktive/fikset over. Alle fire underliggende bodyene (historikkTidslinjeBody/
-  // historiskeNokkeltallBody/kontrollBody/skadeBody) er UENDRET — ingen detalj eller
-  // funksjonalitet er fjernet, kun samlet ett nivå dypere for å redusere antall seksjoner.
-  // 'skade' er FLYTTET ut herfra til sin egen fane (⚠️ Skader) — samme
-  // skadeBody, uendret innhold, kun ett nivå mindre å klikke seg gjennom.
-  const HISTORIKK_SUB_ORDER = ['tidslinje', 'nokkeltall', 'kontroll'];
-  const HISTORIKK_SUB_LABEL = {tidslinje:'🕐 Tidslinje', nokkeltall:'📈 Nøkkeltall', kontroll:'Kontroller'};
-  const HISTORIKK_SUB_COUNT = {tidslinje: vehicleHistorikkTidslinje(v.id).length, nokkeltall: null, kontroll: vKontroller.length};
-  const HISTORIKK_SUB_BODY = {tidslinje: historikkTidslinjeBody, nokkeltall: historiskeNokkeltallBody, kontroll: kontrollBody};
+  // Prioritet 71.5: Historikk-fanen er omorganisert fra dropdown-strukturen Tidslinje/
+  // Nøkkeltall/Kontroller til fire OPERATIVE kategorier — Kontroller, Skader, Kommentarer,
+  // Varsellamper — slik at brukeren finner informasjonen uten å måtte tenke på hvilken
+  // "type" (tidslinje vs. nøkkeltall) den ligger under. skadeBody gjenbrukes UENDRET (samme
+  // aktive/fikset-sub-accordion som tidligere kun var nåbar via en død «Skader»-stat-flis
+  // (data-profil-fane="skader" pekte til en fane som ikke fantes i PROFIL_FANER). Flisen
+  // bruker nå data-goto-skader-fane, som åpner nettopp denne underseksjonen i stedet —
+  // se attachBilkortListeners()).
+  const kommentarerBody = (() => {
+    const liste = nyeKommentarerListe(v.id);
+    if(liste.length === 0) return `<div class="empty-note">Ingen kommentarer registrert på dette kjøretøyet.</div>`;
+    return `<div class="panel" style="padding:0 14px;">${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`;
+  })();
+  const varsellamperBody = (() => {
+    const alle = vAktiveVarsler.concat(vVarselHistorikk);
+    if(alle.length === 0) return `<div class="empty-note">Ingen varsellamper registrert på dette kjøretøyet.</div>`;
+    return `<div class="dmg-list">${alle.map(w => varsellysCard(w)).join('')}</div>`;
+  })();
+  const HISTORIKK_SUB_ORDER = ['kontroll', 'skader', 'kommentarer', 'varsellamper'];
+  const HISTORIKK_SUB_LABEL = {kontroll:'✅ Kontroller', skader:'⚠️ Skader', kommentarer:'💬 Kommentarer', varsellamper:'🚨 Varsellamper'};
+  const HISTORIKK_SUB_COUNT = {kontroll: vKontroller.length, skader: vDamages.length, kommentarer: nyeKommentarerListe(v.id).length, varsellamper: vAktiveVarsler.length + vVarselHistorikk.length};
+  const HISTORIKK_SUB_BODY = {kontroll: kontrollBody, skader: skadeBody, kommentarer: kommentarerBody, varsellamper: varsellamperBody};
   const historikkSamletBody = `
     <div class="acc-list">
       ${HISTORIKK_SUB_ORDER.map(key => {
@@ -10872,10 +10620,22 @@ function renderBilkort(){
     <div class="required-hint" style="margin-top:10px;">Samme kostnadsdata som Kostnadsoversikt og Kostnadsrapport — kun filtrert på dette kjøretøyet.</div>
   `;
 
+  // ---- Fane "📋 Verkstedhistorikk" (Prioritet 71.5): egen fane for denne bilens
+  // fullførte verkstedbesøk, servicer og dekkskift — samme tre kilder som den frittstående
+  // Verkstedhistorikk-skjermen (samletVerkstedHistorikkAlle()), kun forhåndsfiltrert på
+  // vehicleId. Ingen parallell historikkmotor, ingen ny datamodell. ----
+  const vVerkstedHistorikkPoster = samletVerkstedHistorikkAlle().filter(p => p.vehicleId === v.id);
+  const verkstedhistorikkFaneBody = vVerkstedHistorikkPoster.length === 0 ? `<div class="empty-note">Ingen verkstedhistorikk registrert på dette kjøretøyet ennå.</div>` : `
+    <ul class="dmg-simple-list">
+      ${vVerkstedHistorikkPoster.map(p => `<li><span class="dmg-simple-main">${fmt(p.dato)} · ${esc(HISTORIKK_TYPE_LABEL[p.type] || p.type)}${p.verksted ? ' · ' + esc(p.verksted) : ''}${p.tekst ? '<br>' + esc(p.tekst) : ''}</span></li>`).join('')}
+    </ul>
+  `;
+
   // ---- Faner ----
   const PROFIL_FANER = [
     {key:'oversikt',  label:'📋 Oversikt',  antall:null},
-    {key:'historikk', label:'' + luc("clock") + 'Historikk', antall: vehicleHistorikkTidslinje(v.id).length},
+    {key:'historikk', label:'' + luc("clock") + 'Historikk', antall: null},
+    {key:'verkstedhistorikk', label:'' + luc("factory") + 'Verkstedhistorikk', antall: vVerkstedHistorikkPoster.length},
     {key:'dekk',      label:'🛞 Dekk',      antall: vDekkHistorikkProfil.length},
     {key:'kostnader', label:'📊 Kostnader', antall: vKostnadsposter.length}
   ];
@@ -10891,6 +10651,7 @@ function renderBilkort(){
         ${vKmAvvik ? `<li><span class="dmg-simple-main" style="color:var(--amber);font-weight:600;">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, høyeste registrerte kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Korrigeres kun via Rediger informasjon.</span></li>` : ''}
       </ul>`,
     historikk: historikkSamletBody,
+    verkstedhistorikk: verkstedhistorikkFaneBody,
     dekk: dekkFaneBody,
     kostnader: kostnadFaneBody
   }[aktivFane];
@@ -10908,6 +10669,16 @@ function renderBilkort(){
   // se vehicleMobilitetsgaranti()) — ikke lenger et eget stort informasjonskort.
   const vMobgaranti = vehicleMobilitetsgaranti(v);
   const mgPille = mobilitetsgarantiPille(v);
+
+  // Prioritet 71.5 — ny operativ toppseksjon (fem kort, «uten scrolling og uten ekstra
+  // klikk»): KM-stand, Sist service, EU-kontroll, Mobilitetsgaranti, Aktiv sjåfør. Ingen av
+  // de fem beregner noe nytt — alle leser eksisterende, allerede beregnede variabler over
+  // (vSisteService/vServiceStatus/euKontrollStatus/vMobgaranti/p38SjaforNa).
+  const vSisteServiceDagerSiden = vSisteService ? isoDateDiff(vSisteService.dato, todayISO()) : null;
+  const euDagerTekst = euKontrollStatus.gjenstaende === null || euKontrollStatus.gjenstaende === undefined ? '–'
+    : euKontrollStatus.gjenstaende >= 0 ? `${euKontrollStatus.gjenstaende} dag${euKontrollStatus.gjenstaende===1?'':'er'} igjen`
+    : `Forfalt for ${Math.abs(euKontrollStatus.gjenstaende)} dag${Math.abs(euKontrollStatus.gjenstaende)===1?'':'er'} siden`;
+  const MOBGARANTI_STATUS_LABEL = {gyldig:'Aktiv', utlopt:'Utløpt', ukjent:'Registrert', ingen:'Ingen'};
 
   return `
     <div class="backrow"><button class="backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>
@@ -10933,6 +10704,29 @@ function renderBilkort(){
 
     ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--red-soft);color:var(--red);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--red);">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
 
+    <div class="profil-stat5">
+      <div>
+        <span class="flis" style="--tint:var(--blue-soft);">${luc('gauge')}</span>
+        <span><span class="l">Km-stand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
+      </div>
+      <div style="cursor:pointer;" data-goto-service="${v.id}">
+        <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};">${luc('wrench')}</span>
+        <span><span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span><span class="s">${vSisteServiceDagerSiden === null ? '–' : vSisteServiceDagerSiden + ' dag' + (vSisteServiceDagerSiden===1?'':'er') + ' siden'}</span></span>
+      </div>
+      <div>
+        <span class="flis" style="--tint:${euKontrollFarge==='var(--green)'?'var(--green-soft)':'var(--red-soft)'};">${luc('shield-check')}</span>
+        <span><span class="l">EU-kontroll</span><span class="v">${v.euGodkjentTil ? 'Godkjent til ' + fmt(v.euGodkjentTil) : 'Mangler registrering'}</span><span class="s">${euDagerTekst}</span></span>
+      </div>
+      <div>
+        <span class="flis" style="--tint:${mgPille.tint};">🛟</span>
+        <span><span class="l">Mobilitetsgaranti</span><span class="v">${MOBGARANTI_STATUS_LABEL[vMobgaranti.status]}</span><span class="s">${vMobgaranti.tilDato ? 'Gyldig til ' + fmt(vMobgaranti.tilDato) : '–'}</span></span>
+      </div>
+      <div>
+        <span class="flis" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};">${luc('user-round')}</span>
+        <span><span class="l">Aktiv sjåfør</span><span class="v">${p38SjaforNa ? esc(p38SjaforNa) : 'Ingen aktiv sjåfør'}</span><span class="s">${p38SisteKontrollor ? 'Sist kontrollert av ' + esc(p38SisteKontrollor) : (p38SjaforNa ? 'Kjører nå' : '–')}</span></span>
+      </div>
+    </div>
+
     <div class="profil-stat4">
       <div>
         <span class="flis" style="--tint:${vKontrollertIdag || vehicleErReserveUnntatt(v.id) ? 'var(--green-soft)' : 'var(--amber-soft)'};">${vKontrollertIdag ? '✅' : (vehicleErReserveUnntatt(v.id) ? '🚐' : '⚠️')}</span>
@@ -10942,7 +10736,7 @@ function renderBilkort(){
         <span class="flis" style="--tint:${vAktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};">${vAktiveVarsler.length > 0 ? '🔴' : '🟢'}</span>
         <span><span class="l">Varsellamper</span><span class="v" style="${vAktiveVarsler.length > 0 ? 'color:var(--red);' : ''}">${vAktiveVarsler.length}</span><span class="s">${vAktiveVarsler.length > 0 ? 'Aktive nå' : 'Ingen aktive'}</span></span>
       </div>
-      <div data-profil-fane="skader" style="cursor:pointer;">
+      <div data-goto-skader-fane style="cursor:pointer;">
         <span class="flis" style="--tint:${vDamagesAktive.length > 0 ? 'var(--orange-soft)' : 'var(--green-soft)'};">${vDamagesAktive.length > 0 ? '⚠️' : '🟢'}</span>
         <span><span class="l">Skader</span><span class="v" style="${vDamagesAktive.length > 0 ? 'color:var(--orange);' : ''}">${vDamagesAktive.length}</span><span class="s">${vDamages.length} registrert totalt →</span></span>
       </div>
@@ -10992,22 +10786,13 @@ function renderBilkort(){
         </div>`}
 
         ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
-          <div class="ov-grid">
-            <div class="ov-item"><span class="ov-label">${luc('folder-tree')} Kategori</span><span class="ov-value"${v.uteAvDrift ? ' style="color:var(--red);"' : ''}>${kategoriIkonLucide(vehicleVisningsKategori(v))} ${esc(kategoriNavn(vehicleVisningsKategori(v)))}${v.uteAvDrift ? ' <span style="color:var(--muted);font-weight:500;">(tilbake til ' + esc(kategoriNavn(v.kategori)) + ')</span>' : ''}</span></div>
-            <div class="ov-item ov-loyve"><span class="ov-label">🪪 Løyvenummer</span><span class="ov-value" style="${v.loyvenummer ? '' : 'color:var(--amber);font-size:14px;'}">${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
-            <div class="ov-item"><span class="ov-label">👤 Aktiv sjåfør</span><span class="ov-value">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span></div>
-            ${p38SisteKontrollor ? `<div class="ov-item"><span class="ov-label">🕓 Sist kontrollert av</span><span class="ov-value">${esc(p38SisteKontrollor)}</span></div>` : ''}
-            <div class="ov-item"><span class="ov-label">Reg.nr</span><span class="ov-value">${esc(v.regnr)}</span></div>
-            <div class="ov-item"><span class="ov-label">Bilgruppe</span><span class="ov-value">${esc(v.bilnummer || '–')}</span></div>
-            <div class="ov-item"><span class="ov-label">Merke/modell</span><span class="ov-value">${esc(v.merke || '–')} ${esc(v.modell || '')}</span></div>
-            <div class="ov-item"><span class="ov-label">Årsmodell</span><span class="ov-value">${esc(v.arsmodell || '–')}</span></div>
-            <div class="ov-item"><span class="ov-label">⛽ Drivstoff</span><span class="ov-value">${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</span></div>
-            <div class="ov-item"><span class="ov-label">Biltype</span><span class="ov-value">${KATEGORI_BILTYPE_LABEL[v.kategori] || v.kategori || '–'}</span></div>
-            <div class="ov-item"><span class="ov-label">Driftslag</span><span class="ov-value">${esc(v.driftslag || '–')}</span></div>
-            <div class="ov-item"><span class="ov-label">📍 Kilometerstand</span><span class="ov-value">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
-            <div class="ov-item"><span class="ov-label">🛟 Mobilitetsgaranti</span><span class="ov-value">${vMobgaranti.tilDato ? 'Gyldig til ' + fmt(vMobgaranti.tilDato) : (v.mobilitetsgaranti ? esc(v.mobilitetsgaranti) : '–')}${vMobgaranti.kilde ? '<span style="display:block;font-size:11.5px;color:var(--muted);font-weight:500;">' + esc(vMobgaranti.kilde) + '</span>' : ''}</span></div>
-            ${v.mobilitetsgaranti ? `<div class="ov-item"><span class="ov-label">🛟 Registrert tekst</span><span class="ov-value" style="font-size:13px;">${esc(v.mobilitetsgaranti)}</span></div>` : ''}
-            <div class="ov-item"><span class="ov-label">📞 Telefon</span><span class="ov-value">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;text-decoration:none;">📞 Ring ${esc(v.telefon)}</a>` : '–'}</span></div>
+          <div class="detalj-grid">
+            <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
+            <div class="detalj-rad"><span class="dl">Løyvenummer</span><span class="dv"${v.loyvenummer ? '' : ' style="color:var(--amber);"'}>${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
+            <div class="detalj-rad"><span class="dl">Driftslag</span><span class="dv">${esc(v.driftslag || '–')}</span></div>
+            <div class="detalj-rad"><span class="dl">Drivstoff</span><span class="dv">${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</span></div>
+            <div class="detalj-rad"><span class="dl">Årsmodell</span><span class="dv">${esc(v.arsmodell || '–')}</span></div>
+            <div class="detalj-rad"><span class="dl">Telefon</span><span class="dv">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;">${esc(v.telefon)}</a>` : '–'}</span></div>
           </div>
           <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
         `)}
@@ -11031,6 +10816,21 @@ function attachBilkortListeners(){
   // faner, redigeringspanel og hurtigbestilling på Kjøretøyprofil.
   document.querySelectorAll('[data-profil-fane]').forEach(el => el.addEventListener('click', () => {
     bilkortAktivFane = el.dataset.profilFane; render();
+  }));
+  // Prioritet 71.5: «Skader»-flisen i den operative statusraden åpner nå Historikk-fanens
+  // «⚠️ Skader»-underseksjon direkte (skader har ikke lenger en egen toppnivå-fane — se
+  // HISTORIKK_SUB_ORDER i renderBilkort()).
+  const gotoSkaderFane = document.querySelector('[data-goto-skader-fane]');
+  if(gotoSkaderFane) gotoSkaderFane.addEventListener('click', () => {
+    bilkortAktivFane = 'historikk';
+    bilkortHistorikkSubOpen.add('skader');
+    render();
+  });
+  // Kommentarer-underseksjonen i Historikk (samme «✅ Marker som lest»-knapp/mønster som
+  // Kommentaroversikt — se nyeKommentarRadHtml()/markerKommentarSomLest()).
+  document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
+    const [kilde, id] = el.dataset.markerLest.split(':');
+    markerKommentarSomLest(kilde, id);
   }));
   ['profil-rediger-btn','profil-rediger-btn-2'].forEach(id => {
     const btn = document.getElementById(id);
@@ -11778,315 +11578,15 @@ function sakKortOverskrift(s){
   const alle = sakAvvikListe(s);
   return alle.length > 0 ? alle[0].label : sakProblemLabel(s);
 }
-const SAK_WIZARD_STEG_TITTEL = {1:'Saksinformasjon', 2:'Vurder sak', 3:'Fortsett saken', 4:'Fullfør saken'};
-// Wizard UX Cleanup (punkt 5-7): fremdriftsindikatoren er nå en ren, ikke-klikkbar
-// prikkerad (✅ for fullførte steg, • for resten) — ingen sidetall, ingen tekst, ingen
-// store "1 2 3 4"-stegknapper. ✅-emojien er allerede grønn i seg selv (punkt 6), ingen
-// egen fargelogikk nødvendig. Flyttet fra toppen til bunnen av wizard-boksen (se
-// sakWizardHtml) — hvert steg har uansett egne, formålsrettede "← Tilbake"/"Neste →"-
-// knapper i sin egen handlingsrad, så step-hopping via prikkene er bevisst fjernet.
-function sakWizardProgressHtml(sakId, step){
-  const dots = [1,2,3,4].map(n => n <= step ? '✅' : '•').join(' ');
-  return `<div style="text-align:center;font-size:15px;letter-spacing:3px;color:var(--muted);margin-top:12px;" aria-label="Steg ${step} av 4 — ${SAK_WIZARD_STEG_TITTEL[step]}">${dots}</div>`;
-}
-// Steg 1 — Saksinformasjon: ren visning, ingen felt lagres her (unntak: "Marker utført"
-// på et enkeltavvik, se avvikRadHtml under — det er en direkte handling, ikke et skjema).
-// Wizard UX Cleanup: mest mulig beslutningsinformasjon, minst mulig administrativ
-// informasjon, uten scrolling på mobil. Rekkefølge: bil (tydelig, øverst) → komprimert,
-// PROBLEM-spesifikk overskrift (ikke generisk "Varsellampe registrert") → status/
-// prioritet → kort, spesifikk beskrivelse ELLER avvik-sjekkliste for
-// flerpunkts saker → handling.
-function sakWizardSteg1Html(s){
-  const v = sakVehicle(s);
-  const avvikListe = sakAvvikListe(s);
-  const erFlerpunkts = avvikListe.length > 1; // Prioritet 12 — sammenslått kontroll-sak
-  const kortform = sakProblemLabelErKortform(s);
-  const kortBeskrivelse = sakKortBeskrivelse(s);
-  const andreVarsler = sakAndreAktiveVarsler(s);
-  const alder = sakAlderDager(s);
-  // "Ikke vurdert" for status 'ny': ingen administrator har faktisk tatt stilling til
-  // prioriteten ennå (det skjer først i Steg 2 — "Vurder sak") — selv om systemet har satt
-  // en foreløpig startprioritet (f.eks. "Høy" på varsellamper), er den ikke bekreftet.
-  const aktiveAvvik = avvikListe.filter(a => a.status === 'aktiv');
-  const utforteAvvik = avvikListe.filter(a => a.status !== 'aktiv');
-  return `
-    <div style="font-weight:700;font-size:14px;letter-spacing:.01em;margin-bottom:4px;color:var(--muted);text-transform:uppercase;">
-      ${v ? esc(v.bilnummer) + ' – ' + esc(v.regnr) : 'Ukjent kjøretøy'}
-    </div>
-    <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;line-height:1.25;margin-bottom:10px;">
-      ${luc(SAK_TYPE_LUCIDE[s.caseType] || 'folder')} ${erFlerpunkts ? esc(sakKortOverskrift(s)) : (kortform ? esc(sakProblemLabel(s)).toUpperCase() : esc(sakProblemLabel(s)))}
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:10px;">
-      <div class="ov-item"><span class="ov-label">Status</span><span class="ov-value">${SAK_STATUS_LABEL[s.status] || s.status}</span></div>
-    </div>
-    ${erFlerpunkts ? `
-    <div style="margin-bottom:12px;">
-      ${utforteAvvik.length === 0 ? `
-      <div class="required-hint" style="margin-bottom:6px;">Avvik registrert:</div>
-      ${aktiveAvvik.map(a => avvikRadHtml(s, a)).join('')}
-      ` : `
-      <div class="required-hint" style="margin-bottom:6px;">Aktive avvik</div>
-      ${aktiveAvvik.length > 0 ? aktiveAvvik.map(a => avvikRadHtml(s, a)).join('') : '<div class="required-hint" style="margin-bottom:8px;">Ingen — alle avvik er utført.</div>'}
-      <div class="required-hint" style="margin:10px 0 6px;">Utførte avvik</div>
-      ${utforteAvvik.map(a => avvikRadHtml(s, a)).join('')}
-      `}
-    </div>
-    ` : `
-    ${kortBeskrivelse ? `<div class="required-hint" style="margin-bottom:10px;">${esc(kortBeskrivelse)}</div>` : ''}
-    ${andreVarsler.length > 1 ? `
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
-        ${andreVarsler.map(w => `<span class="badge unset">${esc(varsellysKortLabel(w))}</span>`).join('')}
-      </div>
-      <div class="required-hint">${andreVarsler.length} varsler registrert</div>
-    </div>` : ''}
-    `}
-
-    ${bildeGalleriHtml(sakBilderKeys(s), 'sak-'+s.id)}
-
-    <div class="panel-actions">
-      <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:2">Vurder sak</button>
-      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">Fortsett saken</button>
-    </div>
-  `;
-}
-// én rad i avvik-sjekklisten på Steg 1. Aktive avvik får en direkte "Marker
-// utført"-handling (dekker sjekklistens "eksplisitt lukket eller avvist" uten å kreve en
-// verkstedtime for hvert lille avvik) — utførte avvik vises grønne og overstrøket, uten
-// handling. Gjenbruker .chip-komponentens visuelle stiler (checked=gul ramme,
-// chip-active-lamp=grønn ramme), kun uten det opprinnelige avkrysningsfeltet.
-function avvikRadHtml(s, a){
-  const erAktiv = a.status === 'aktiv';
-  return `
-    <div class="chip ${erAktiv ? 'checked' : 'chip-active-lamp'}" style="cursor:default;">
-      <span class="chip-icon">${erAktiv ? '🟠' : '✅'}</span>
-      <span class="chip-text"${erAktiv ? '' : ' style="text-decoration:line-through;"'}>${esc(a.label)}</span>
-      ${erAktiv ? `<button type="button" class="btn secondary small" data-marker-avvik-utfort="${s.id}:${a.id}" style="margin-left:auto;flex-shrink:0;min-height:36px;">Marker utført</button>` : ''}
-    </div>
-  `;
-}
-// Steg 2 — Vurder sak: kun STATUS. Prioritet 60: prioritetsvalget som tidligere lå her
-// er fjernet sammen med resten av prioritetssystemet. "Lukket" er fortsatt kun en snarvei
-// til Steg 4 — selve lukkingen (med krav om resultat og sluttkommentar) skjer alltid der.
-function sakWizardSteg2Html(s){
-  return `
-    <h4 style="margin-bottom:10px;">Vurder sak</h4>
-    <div class="field" style="margin-bottom:12px;"><label>Status</label>
-      <select id="swz-status-${s.id}">
-        ${SAK_STATUS_ORDER.map(st => `<option value="${st}" ${s.status===st?'selected':''}>${SAK_STATUS_LABEL[st]}</option>`).join('')}
-      </select>
-    </div>
-    <div class="required-hint" style="margin-bottom:12px;">Velger du status "Lukket" tar vi deg til Steg 4 for å fullføre lukkingen — resultat, sluttkommentar og faktisk utført dato må fylles ut der.</div>
-    <div class="form-msg" id="swz-vurdering-msg-${s.id}"></div>
-    <div class="panel-actions">
-      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:1">← Tilbake</button>
-      <button type="button" class="btn small" id="swz-vurdering-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Neste →</button>
-    </div>
-  `;
-}
-// Inline "Registrer verkstedtime"-skjema — bruker BEVISST samme element-id-er som det
-// frittstående verkstedskjemaet på Verkstedoversikt, slik at den eksisterende
-// submitAddVT() kan gjenbrukes helt uendret (se strategisk foranalyse punkt 6.3).
-function sakWizardVtFormHtml(s){
-  const aktiveAvvik = sakAvvikAktive(s);
-  const erFlerpunkts = aktiveAvvik.length > 1;
-  return `
-    <form class="panel" id="add-vt-form">
-      <div class="required-hint" style="margin-bottom:12px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">🗂️ ${esc(s.caseId||'')} — ${esc(sakKortOverskrift(s))}</div>
-      <input type="hidden" id="vt-vehicle" value="${s.vehicleId}">
-      <input type="hidden" id="vt-beskrivelse" value="${esc(sakKortOverskrift(s))}">
-      ${erFlerpunkts ? `
-      <div class="field" style="margin-bottom:12px;">
-        <label>Avvik som tas med til verksted</label>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${aktiveAvvik.map(a => `
-          <label class="chip checked" style="cursor:pointer;">
-            <input type="checkbox" class="vt-avvik-checkbox" value="${a.id}" checked>
-            <span class="chip-text">${esc(a.label)}</span>
-          </label>`).join('')}
-        </div>
-        <div class="required-hint" style="margin-top:6px;">Fjern haken på avvik som ikke tas med nå — de blir stående som aktive i saken.</div>
-      </div>
-      ` : ''}
-      <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
-        <select id="vt-verksted" required>
-          <option value="">Velg verksted...</option>
-          ${verkstedSelectOptions(standardVerkstedFor('reparasjon'))}
-        </select>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-        <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
-        <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
-      </div>
-      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
-      <div class="form-msg" id="vt-msg"></div>
-      <div class="panel-actions"><button class="btn small" type="submit">Lagre verkstedtime</button></div>
-    </form>
-  `;
-}
-// Steg 3 — Fortsett saken: tre hurtighandlinger, alle inline i samme boks.
-function sakWizardSteg3Html(s){
-  const linkedVt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
-  return `
-    <h4 style="margin-bottom:10px;">Fortsett saken</h4>
-    <div class="required-hint" style="margin-bottom:12px;">Flytt saken videre mot løsning.</div>
-
-    ${linkedVt ? `
-    <div class="panel" style="margin-bottom:12px;">
-      <div class="ov-label" style="margin-bottom:8px;">🔧 Verksted bestilt</div>
-      <div class="ov-grid">
-        <div class="ov-item"><span class="ov-label">Verksted</span><span class="ov-value">${esc(linkedVt.verksted)}</span></div>
-        <div class="ov-item"><span class="ov-label">Dato</span><span class="ov-value">${fmt(linkedVt.dato)}${linkedVt.tidspunkt ? ' kl. ' + esc(linkedVt.tidspunkt) : ''}</span></div>
-        ${linkedVt.kontaktperson ? `<div class="ov-item"><span class="ov-label">Kontaktperson</span><span class="ov-value">${esc(linkedVt.kontaktperson)}</span></div>` : ''}
-      </div>
-      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn secondary small" data-goto-vt="${linkedVt.id}">Åpne i Verkstedoversikt</button></div>
-    </div>` : ''}
-
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
-      <button type="button" class="btn secondary" id="swz-vt-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">🔧 ${linkedVt ? 'Ny verkstedtime' : 'Registrer verkstedtime'}</button>
-      ${sakWizardVtOpen ? sakWizardVtFormHtml(s) : ''}
-
-      <button type="button" class="btn secondary" id="swz-oppf-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">📅 Legg til oppfølging</button>
-      ${sakWizardOppfolgingOpen ? `
-      <div class="panel">
-        <div class="field" style="margin-bottom:10px;"><label>Neste handling</label><input id="swz-oppf-handling-${s.id}" type="text" placeholder="F.eks. Kontakt verksted" value="${esc(s.nextAction||'')}"></div>
-        <div class="field" style="margin-bottom:10px;"><label>Oppfølgingsdato</label><input id="swz-oppf-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.followUpDate ? fmt(s.followUpDate) : ''}"></div>
-        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="swz-oppf-kommentar-${s.id}" placeholder="Valgfritt"></textarea></div>
-        <div class="form-msg" id="swz-oppf-msg-${s.id}"></div>
-        <div class="panel-actions"><button type="button" class="btn small" id="swz-oppf-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre</button></div>
-      </div>` : ''}
-
-      <button type="button" class="btn secondary" id="swz-kommentar-btn-${s.id}" style="justify-content:flex-start;min-height:48px;">💬 Legg til kommentar</button>
-      ${sakWizardKommentarOpen ? `
-      <div class="panel">
-        <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="swz-kommentar-tekst-${s.id}" placeholder="Skriv en kommentar..."></textarea></div>
-        <div class="form-msg" id="swz-kommentar-msg-${s.id}"></div>
-        <div class="panel-actions"><button type="button" class="btn small" id="swz-kommentar-lagre-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre</button></div>
-      </div>` : ''}
-    </div>
-
-    ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
-    <div class="field" style="margin-bottom:10px;">
-      <label>Historikk</label>
-      <ul class="dmg-simple-list">
-        ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
-      </ul>
-    </div>` : ''}
-
-    <div class="panel-actions">
-      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:2">← Tilbake</button>
-      <button type="button" class="btn small" data-goto-wizard-steg="${s.id}:4">Neste →</button>
-    </div>
-  `;
-}
-// Steg 4 — Fullfør saken: resultat/utført dato/sluttkommentar, kostnad+avsetting kun
-// synlig når verksted faktisk er registrert (s.linkedVtId). To handlinger: lagre uten å
-// lukke (status "Utført"), eller lukk saken (krever alle tre feltene, uendret regel).
-function sakWizardSteg4Html(s){
-  const harVerksted = !!s.linkedVtId;
-  return `
-    <h4 style="margin-bottom:10px;">Fullfør saken</h4>
-    <div class="row2">
-      <div class="field"><label>Resultat fra verksted</label>
-        <select id="swz-resultat-${s.id}">
-          <option value="" ${!s.verkstedResultat?'selected':''}>Ikke satt</option>
-          ${SAK_RESULTAT_ORDER.map(r => `<option value="${r}" ${s.verkstedResultat===r?'selected':''}>${SAK_RESULTAT_LABEL[r]}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field"><label>Faktisk utført dato</label><input id="swz-utfort-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${s.completedAt ? fmt(s.completedAt) : ''}"></div>
-    </div>
-    <div class="field" style="margin-bottom:12px;"><label>Sluttkommentar</label><textarea id="swz-sluttkommentar-${s.id}" placeholder="Beskriv utfallet">${esc(s.resolutionNote||'')}</textarea></div>
-
-    ${harVerksted ? `
-    <div class="field" style="margin:16px 0 10px;">
-      <label>💰 Kostnader og avsetting</label>
-      <div class="row2" style="margin-top:4px;">
-        <div class="field"><label>Estimert kostnad</label><input id="swz-estimert-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 12000" value="${s.estimatedCost !== undefined && s.estimatedCost !== null ? s.estimatedCost : ''}"></div>
-        <div class="field"><label>Faktisk kostnad</label><input id="swz-faktisk-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 13700" value="${s.actualCost !== undefined && s.actualCost !== null ? s.actualCost : ''}"></div>
-      </div>
-      ${s.estimatedCost !== undefined && s.estimatedCost !== null && s.actualCost !== undefined && s.actualCost !== null ? (() => {
-        const avvik = Number(s.actualCost) - Number(s.estimatedCost);
-        return `<div class="ov-grid" style="margin-bottom:10px;">
-          <div class="ov-item"><span class="ov-label">Estimert</span><span class="ov-value">${fmtKr(s.estimatedCost)}</span></div>
-          <div class="ov-item"><span class="ov-label">Faktisk</span><span class="ov-value">${fmtKr(s.actualCost)}</span></div>
-          <div class="ov-item"><span class="ov-label">Avvik</span><span class="ov-value" style="color:${avvik>0?'var(--red)':(avvik<0?'var(--green)':'var(--ink)')};">${avvik>0?'+':''}${fmtKr(avvik)}</span></div>
-        </div>`;
-      })() : ''}
-      <div class="field"><label>Krever avsetting</label>
-        <select id="swz-krever-avsetting-${s.id}">
-          <option value="nei" ${!s.requiresProvision?'selected':''}>Nei</option>
-          <option value="ja" ${s.requiresProvision?'selected':''}>Ja</option>
-        </select>
-      </div>
-      ${s.requiresProvision ? `
-      <div class="row2">
-        <div class="field"><label>Avsettingsmåned</label><input id="swz-avsettingsmaned-${s.id}" type="month" value="${s.provisionMonth||''}"></div>
-        <div class="field"><label>Avsettingsbeløp</label><input id="swz-avsettingsbelop-${s.id}" type="text" inputmode="numeric" placeholder="F.eks. 4500" value="${s.provisionAmount !== undefined && s.provisionAmount !== null ? s.provisionAmount : ''}"></div>
-      </div>` : ''}
-    </div>` : ''}
-
-    <div class="form-msg" id="swz-fullfor-msg-${s.id}"></div>
-    <div class="panel-actions" style="flex-wrap:wrap;">
-      <button type="button" class="btn secondary small" data-goto-wizard-steg="${s.id}:3">← Tilbake</button>
-      <button type="button" class="btn secondary small" id="swz-lagre-uten-lukk-${s.id}" ${sakWizardSaving?'disabled':''}>Lagre uten å lukke</button>
-      <button type="button" class="btn small" id="swz-lukk-${s.id}" ${sakWizardSaving?'disabled':''}>🔒 Lukk saken</button>
-    </div>
-  `;
-}
-// Lukket sak: lesemodus, ikke steg 1-4. Kan gjenåpnes ved behov (se reapneSak()).
-function sakWizardLesemodusHtml(s){
-  const v = sakVehicle(s);
-  return `
-    <div class="dmg-editbox">
-      <div class="required-hint" style="margin-bottom:12px;background:var(--green-soft);color:var(--green);padding:10px 12px;border-radius:8px;font-weight:600;">✅ Lukket — lesemodus</div>
-      <div class="ov-grid">
-        <div class="ov-item"><span class="ov-label">Bil</span><span class="ov-value">${v ? esc(v.bilnummer) : 'Ukjent'}</span></div>
-        <div class="ov-item"><span class="ov-label">Resultat</span><span class="ov-value">${s.verkstedResultat ? (SAK_RESULTAT_LABEL[s.verkstedResultat]||s.verkstedResultat) : '–'}</span></div>
-        <div class="ov-item"><span class="ov-label">Utført dato</span><span class="ov-value">${s.completedAt ? fmt(s.completedAt) : '–'}</span></div>
-        <div class="ov-item"><span class="ov-label">Lukket dato</span><span class="ov-value">${s.resolvedAt ? fmt(s.resolvedAt.slice(0,10)) : '–'}</span></div>
-        <div class="ov-item"><span class="ov-label">Lukket av</span><span class="ov-value">${esc(s.resolvedBy||'–')}</span></div>
-      </div>
-      ${s.resolutionNote ? `<div class="field" style="margin:12px 0 8px;"><label>Sluttkommentar</label><div class="required-hint">${esc(s.resolutionNote)}</div></div>` : ''}
-      ${Array.isArray(s.historikk) && s.historikk.length > 0 ? `
-      <div class="field" style="margin-bottom:10px;">
-        <label>Historikk</label>
-        <ul class="dmg-simple-list">
-          ${s.historikk.slice().reverse().map(h => `<li><span class="dmg-simple-main">${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''} — ${esc(h.av || 'Ukjent')}${h.kommentar ? ' · ' + esc(h.kommentar) : ''}</span></li>`).join('')}
-        </ul>
-      </div>` : ''}
-      <div class="panel-actions">
-        <button type="button" class="btn secondary small" id="swz-reapne-${s.id}">🔓 Gjenåpne saken</button>
-        <button type="button" class="btn danger-outline small" id="swz-delete-${s.id}">Slett</button>
-      </div>
-    </div>
-  `;
-}
-// Container — velger lesemodus eller ett av de fire stegene.
-function sakWizardHtml(s){
-  if(sakWizardStep === 'lese') return sakWizardLesemodusHtml(s);
-  const step = sakWizardStep || sakWizardStartSteg(s);
-  const stegHtml = step === 1 ? sakWizardSteg1Html(s) : step === 2 ? sakWizardSteg2Html(s) : step === 3 ? sakWizardSteg3Html(s) : sakWizardSteg4Html(s);
-  return `
-    <div class="dmg-editbox">
-      ${stegHtml}
-      ${sakWizardProgressHtml(s.id, step)}
-      <div class="panel-actions" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
-        <button type="button" class="btn danger-outline small" id="swz-delete-${s.id}">Slett saken</button>
-      </div>
-    </div>
-  `;
-}
+// Prioritet 71.5: den gamle 4-stegs saksveiviseren (sakWizardHtml/sakWizardSteg1-4Html/
+// sakWizardLesemodusHtml/sakWizardProgressHtml/avvikRadHtml) er fjernet i sin helhet —
+// se sakKompaktKortHtml under for de fire eneste gjenværende handlingene.
 // «Ny saksflyt»: kompakt kort for ÉN sak i den nye, fasedelte Aktive
-// saker-skjermen. Kollapset (standard): kun bil, sakstype og dato — pluss NØYAKTIG den
-// ene handlingen som gjelder for fasen saken står i. Ingenting annet vises før kortet
-// trykkes ("Ikke vis hele saken utvidet som standard"). Utvidet: kort beskrivelse,
-// prioritet, og en lenke til den fulle, gamle veiviseren for saker som trenger
-// kostnad/prioritet/notater registrert (kostnadsregistrering, Kostnadsoversikt m.fl. er
-// UENDRET og fortsatt avhengig av disse feltene — se markerSakUtfort()/CLAUDE.md).
+// saker-skjermen. Viser bil, sakstype, dato, sjekkliste og beskrivelse direkte — pluss
+// NØYAKTIG den ene handlingen som gjelder for fasen saken står i (se handlingHtml under).
+// Kostnadsoversikt m.fl. leser fortsatt estimatedCost/actualCost/requiresProvision der de
+// historisk finnes, men ingen gjenværende UI setter disse feltene lenger — se
+// markerSakUtfort()/CLAUDE.md, Prioritet 71.5.
 // «Del 1» — direkte sjekkliste på sakskortet: varsellamper og kontrollavvik skal kunne
 // forstås UTEN å åpne saken. Leser via sakAvvikListe(s) — samme universelle kilde som
 // resten av saksmotoren (fungerer identisk for nye flerpunkts-saker OG eldre enkeltavvik-
@@ -12207,12 +11707,10 @@ function sakBildeThumbHtml(keys, contextId){
 // under. Bilde (kun når det finnes, se sakBildeThumbHtml) ligger i selve
 // header-raden, til høyre for sakstype-tittelen. Godta/Avslå (eller fasens tilsvarende
 // handling) er nederst i kortet, stablet vertikalt — «frigjør bredde» i en smal kolonne.
-// «Avansert redigering» åpner IKKE veiviseren inni dette smale kortet (ville sett
-// forferdelig ut i 250px bredde) — se sakFaneListeHtml, som rendrer sakWizardHtml() i full
-// bredde RETT UNDER hele den horisontale raden i stedet.
+// Prioritet 71.5: «Avansert redigering» (og hele den gamle saksveiviseren) er fjernet —
+// dette er nå det ENESTE stedet en sak kan behandles, kun via handlingHtml under.
 function sakKompaktKortHtml(s, fase){
   const bilder = sakBilderKeys(s);
-  const isEditing = editingSakId === s.id;
   const uvPanelApen = sakUtenVerkstedPanelId === s.id;
   const tekster = sakKildeTekster(s);
   const beskrivelse = tekster.length ? tekster.map(t => t.tekst).join('\n') : 'Ingen kommentar registrert på kilden.';
@@ -12235,16 +11733,13 @@ function sakKompaktKortHtml(s, fase){
       <div class="sak-horisontal-body">${luc('calendar-days')} ${fmt(s.reportedAt)}</div>
       <div class="sak-horisontal-desc">${beskrivelse}</div>
       <div class="sak-horisontal-actions">${handlingHtml}</div>
-      <button type="button" class="p38-lenke" data-toggle-edit-sak="${s.id}">${isEditing ? luc('x') + ' Lukk redigering' : luc('pencil') + ' Avansert redigering'}</button>
     </div>`;
 }
 // Prioritet 71.4: per-bil-gruppering er tilbake (Prioritet 71.2 fjernet den — reversert
 // her etter eksplisitt bekreftelse fra bruker). Gruppeoverskriften viser bilnavn/regnr,
 // antall aktive saker OG «Nyeste: {problem} • {dato}» (ny, var ikke med i den gamle
-// grupperingen). «Vis alle saker» viser nå IKKE et vertikalt sakskort-stabel som før
-// Prioritet 71.2 — den viser sakene HORISONTALT side om side (sak-horisontal-rad), og en
-// eventuelt åpen «Avansert redigering»-veiviser rendres i full bredde RETT UNDER raden
-// (se sakKompaktKortHtml), ikke inni ett av de smale kortene.
+// grupperingen). «Vis alle saker» viser sakene HORISONTALT side om side
+// (sak-horisontal-rad, se sakKompaktKortHtml).
 function sakFaneListeHtml(fase){
   const liste = aktiveSaker.filter(s => sakFase(s) === fase);
   const grupper = new Map();
@@ -12262,7 +11757,6 @@ function sakFaneListeHtml(fase){
     const sortert = saker.slice().sort((a,b) => (b.reportedAt || '').localeCompare(a.reportedAt || ''));
     const nyeste = sortert[0];
     const apen = sakOversiktOpenVehicles.has(vehicleId);
-    const redigeresSak = apen ? sortert.find(s => editingSakId === s.id) : null;
     return `<div class="panel" style="margin-bottom:12px;">
       <div class="dmg-top">
         <div class="dmg-text">
@@ -12274,7 +11768,6 @@ function sakFaneListeHtml(fase){
       </div>
       ${apen ? `
         <div class="sak-horisontal-rad" style="margin-top:10px;">${sortert.map(s => sakKompaktKortHtml(s, fase)).join('')}</div>
-        ${redigeresSak ? sakWizardHtml(redigeresSak) : ''}
       ` : ''}
     </div>`;
   }).join('');
@@ -12898,83 +12391,10 @@ function attachAktiveSakerListeners(){
   });
   const f = document.getElementById('add-sak-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddSak', submitAddSak));
-  document.querySelectorAll('[data-toggle-edit-sak]').forEach(el => el.addEventListener('click', () => toggleEditSak(el.dataset.toggleEditSak)));
-
-  // ---- Saksbehandling Wizard ----
-  document.querySelectorAll('[data-goto-wizard-steg]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const [sakId, steg] = el.dataset.gotoWizardSteg.split(':');
-    sakWizardStep = Number(steg);
-    sakWizardVtOpen = false; sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
-    render();
-  }));
-  // Steg 1: "Marker utført" på ett enkelt avvik i en flerpunkts sak, uten
-  // å måtte gå via verksted. Generisk querySelectorAll (ikke per-sak-loopen under) siden
-  // det kan finnes flere slike knapper — én per aktivt avvik — i samme sak samtidig.
-  document.querySelectorAll('[data-marker-avvik-utfort]').forEach(el => el.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const [sakId, avvikId] = el.dataset.markerAvvikUtfort.split(':');
-    markerAvvikUtfort(sakId, avvikId);
-    await saveAktiveSaker();
-    render();
-  }));
-  aktiveSaker.forEach(s => {
-    const delBtn = document.getElementById('swz-delete-'+s.id);
-    if(delBtn) delBtn.addEventListener('click', beskyttKlikk('deleteSak:'+s.id, delBtn, (e) => { e.stopPropagation(); return deleteSak(s.id); }));
-    const reapneBtn = document.getElementById('swz-reapne-'+s.id);
-    if(reapneBtn) reapneBtn.addEventListener('click', (e) => { e.stopPropagation(); reapneSak(s.id); });
-
-    // Skadebilder lastes kun for saken som er åpen i veiviseren.
-    if(editingSakId === s.id) attachBildeGalleriListeners(sakBilderKeys(s), 'sak-'+s.id);
-
-    // Steg 2 — Vurder sak
-    const vurderingLagreBtn = document.getElementById('swz-vurdering-lagre-'+s.id);
-    if(vurderingLagreBtn) vurderingLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardVurdering(s.id); });
-
-    // Steg 3 — Fortsett saken (tre hurtighandlinger)
-    const vtBtn = document.getElementById('swz-vt-btn-'+s.id);
-    if(vtBtn) vtBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sakWizardVtOpen = !sakWizardVtOpen;
-      sakWizardOppfolgingOpen = false; sakWizardKommentarOpen = false;
-      vtPrefillSakId = s.id;
-      render();
-    });
-    const oppfBtn = document.getElementById('swz-oppf-btn-'+s.id);
-    if(oppfBtn) oppfBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sakWizardOppfolgingOpen = !sakWizardOppfolgingOpen;
-      sakWizardVtOpen = false; sakWizardKommentarOpen = false;
-      render();
-    });
-    const oppfLagreBtn = document.getElementById('swz-oppf-lagre-'+s.id);
-    if(oppfLagreBtn) oppfLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardOppfolging(s.id); });
-    const kommentarBtn = document.getElementById('swz-kommentar-btn-'+s.id);
-    if(kommentarBtn) kommentarBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sakWizardKommentarOpen = !sakWizardKommentarOpen;
-      sakWizardVtOpen = false; sakWizardOppfolgingOpen = false;
-      render();
-    });
-    const kommentarLagreBtn = document.getElementById('swz-kommentar-lagre-'+s.id);
-    if(kommentarLagreBtn) kommentarLagreBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardKommentar(s.id); });
-
-    // Steg 4 — Fullfør saken
-    const kreverAvsettingSelect = document.getElementById('swz-krever-avsetting-'+s.id);
-    if(kreverAvsettingSelect) kreverAvsettingSelect.addEventListener('change', (e) => {
-      e.stopPropagation();
-      s.requiresProvision = kreverAvsettingSelect.value === 'ja';
-      render();
-    });
-    const lagreUtenLukkBtn = document.getElementById('swz-lagre-uten-lukk-'+s.id);
-    if(lagreUtenLukkBtn) lagreUtenLukkBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardFullfor(s.id, false); });
-    const lukkBtn = document.getElementById('swz-lukk-'+s.id);
-    if(lukkBtn) lukkBtn.addEventListener('click', (e) => { e.stopPropagation(); submitSakWizardFullfor(s.id, true); });
-  });
-  // Inline verkstedtime-skjemaet i Steg 3 gjenbruker det eksisterende add-vt-form/
-  // submitAddVT() helt uendret (se sakWizardVtFormHtml).
-  const inlineVtForm = document.getElementById('add-vt-form');
-  if(inlineVtForm) inlineVtForm.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
+  // Prioritet 71.5: den gamle saksveiviseren og dens lyttere (Avansert redigering/Vurder
+  // sak/Fortsett saken/Slett saken) er fjernet i sin helhet — godtaSak/avslaSak/
+  // bestillVerkstedForSak/markerSakUtfort/markerSakUtfortUtenVerksted (kablet opp over) er
+  // nå de eneste sakshandlingene.
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     const vt = verkstedtimer.find(t => t.id === el.dataset.gotoVt);
@@ -13106,14 +12526,22 @@ function verkstedHistorikkType(t){
   if(tekst.includes('service')) return 'service';
   return 'reparasjon';
 }
-function samletVerkstedHistorikk(){
+// Prioritet 71.5: selve postbyggingen skilt ut UFILTRERT, slik at Kjøretøyprofilens egen
+// «📋 Verkstedhistorikk»-fane (renderBilkort()) kan filtrere kun på vehicleId, uten å måtte
+// røre (eller bli påvirket av) de globale filtrene til den frittstående
+// Verkstedhistorikk-skjermen (vtHistFilterType/Bil/Fra/Til) under. Samme tre kilder,
+// ingen parallell historikkmotor.
+function samletVerkstedHistorikkAlle(){
   const poster = [];
   verkstedtimer.filter(t => t.utfort).forEach(t => poster.push({
     id:'vt:'+t.id, vehicleId:t.vehicleId, dato:t.utfortDato || t.dato,
     type:verkstedHistorikkType(t), verksted:t.verksted, tekst:t.beskrivelse || t.notater || '',
     kilde:'Verksted'
   }));
-  servicehistorikk.forEach(s => poster.push({
+  // fraVerkstedtimeId-oppføringer hoppes over her — de er allerede representert via
+  // verkstedtimer-kilden over (samme fullførte service, se fullforVerkstedbestilling()).
+  // Uten dette ville en service fullført gjennom Verksted-modulen vist seg TO ganger.
+  servicehistorikk.filter(s => !s.fraVerkstedtimeId).forEach(s => poster.push({
     id:'service:'+s.id, vehicleId:s.vehicleId, dato:s.dato,
     type:'service', verksted:s.verksted || '', tekst:s.kommentar || '', kilde:'Service'
   }));
@@ -13121,13 +12549,16 @@ function samletVerkstedHistorikk(){
     id:'dekk:'+d.id, vehicleId:d.vehicleId, dato:d.dato,
     type:'dekkskift', verksted:'', tekst:d.kommentar || '', kilde:'Dekkskift'
   }));
-  return poster.filter(p => {
+  return poster.sort((a,b) => (b.dato || '').localeCompare(a.dato || ''));
+}
+function samletVerkstedHistorikk(){
+  return samletVerkstedHistorikkAlle().filter(p => {
     if(vtHistFilterType !== 'alle' && p.type !== vtHistFilterType) return false;
     if(vtHistFilterBil && p.vehicleId !== vtHistFilterBil) return false;
     if(vtHistFilterFra && p.dato < vtHistFilterFra) return false;
     if(vtHistFilterTil && p.dato > vtHistFilterTil) return false;
     return true;
-  }).sort((a,b) => (b.dato || '').localeCompare(a.dato || ''));
+  });
 }
 function renderVerkstedhistorikk(){
   const poster = samletVerkstedHistorikk();
@@ -13155,13 +12586,44 @@ function attachVerkstedhistorikkListeners(){
   document.getElementById('vth-fra').addEventListener('change', e => { vtHistFilterFra = readDateInput('vth-fra'); render(); });
   document.getElementById('vth-til').addEventListener('change', e => { vtHistFilterTil = readDateInput('vth-til'); render(); });
 }
+// Prioritet 71.5: fullføres en verkstedtime av typen 'service', oppdateres bilen
+// AUTOMATISK — ingen manuell registrering på Kjøretøyprofilen er lenger nødvendig. Dette
+// oppretter én servicehistorikk-oppføring (samme datamodell/felter som submitService()
+// alltid har brukt), som igjen er selve kilden vehicleSisteService()/vehicleServiceStatus()
+// og «Sist service»-kortet på Kjøretøyprofilen leser. `fraVerkstedtimeId` kobler
+// oppføringen tilbake til verkstedtimen (samme sporbarhetsmønster som
+// fraPlanlagtServiceId i fullforPlanlagtService()) og brukes av samletVerkstedHistorikk()
+// til å UNNGÅ at samme fullførte service vises to ganger i Verkstedhistorikk (én gang fra
+// verkstedtimer, én gang fra servicehistorikk).
+//
+// Kilometerstand hentes fra v.km — ALDRI tastet inn på nytt her — fordi v.km allerede er
+// bilens autoritative, live-oppdaterte kilometerstand fra siste sjåførkontroll (se
+// Prioritet 43/66). Krysser brukeren av «🛟 Mobilitetsgaranti inkludert i denne servicen»
+// i Ny verkstedtime-skjemaet, videreføres det som mobilitetsgarantiAktivert på
+// servicehistorikk-oppføringen — vehicleMobilitetsgaranti() forlenger da garantien
+// automatisk 12 måneder fra denne datoen, som et tredje, uavhengig signal ved siden av det
+// eldre, navnebaserte Mekonomen-signalet og den manuelle fritekstdatoen.
 async function fullforVerkstedbestilling(id){
   const t = verkstedtimer.find(x => x.id === id);
   if(!t || t.utfort) return;
+  const v = vehicles.find(x => x.id === t.vehicleId);
+  const erService = vtHarType(t, 'service');
+  const servicehistorikkSnapshot = JSON.parse(JSON.stringify(servicehistorikk));
   t.utfort = true;
   t.utfortDato = todayISO();
+  let nyServiceOppforing = null;
+  if(erService){
+    nyServiceOppforing = {
+      id: uid(), vehicleId: t.vehicleId, dato: t.utfortDato, km: v && v.km ? Number(v.km) : 0,
+      type: t.beskrivelse || 'Service', verksted: t.verksted || '', kommentar: t.notater || '',
+      createdAt: new Date().toISOString(), createdBy: loggedInRole || 'Ukjent',
+      fraVerkstedtimeId: t.id, mobilitetsgarantiAktivert: !!t.mobilitetsgarantiAktivert
+    };
+    servicehistorikk.push(nyServiceOppforing);
+  }
   try{
     await saveVerkstedtimerEllerKast();
+    if(nyServiceOppforing) await saveServicehistorikk();
     const sak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
     if(sak){
       sak.status = 'utfort';
@@ -13176,6 +12638,8 @@ async function fullforVerkstedbestilling(id){
   }catch(e){
     t.utfort = false;
     t.utfortDato = '';
+    servicehistorikk.length = 0;
+    Array.prototype.push.apply(servicehistorikk, servicehistorikkSnapshot);
     console.error('[fullforVerkstedbestilling] Feilet', e);
     alert('Kunne ikke flytte verkstedbesøket til historikk. Endringen er tilbakestilt lokalt.');
     render();
@@ -13213,6 +12677,11 @@ function renderVerksted(){
         <label style="display:flex;align-items:center;gap:8px;font-weight:400;"><input type="checkbox" id="vt-ruteskift" style="width:auto;" ${vtRuteskiftForhandskrysset ? 'checked' : ''}> 💥 Ruteskift</label>
       </div>
       `}
+      ${!linkedSak && vtPrefillType === 'service' ? `
+      <div class="required-hint" style="margin-bottom:10px;background:var(--green-soft);padding:10px 12px;border-radius:8px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:inherit;"><input type="checkbox" id="vt-mobilitetsgaranti" style="width:auto;"> 🛟 Mobilitetsgaranti inkludert i denne servicen</label>
+      </div>
+      ` : ''}
       ${linkedSak ? `
       <div class="required-hint" style="margin-bottom:14px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">
         🗂️ ${esc(linkedSak.caseId)} — ${esc(linkedSak.title)}<br>

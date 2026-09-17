@@ -1,15 +1,21 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist konsolidert: 2026-09-10 (Prioritet 46 — ingen nye felt; gjenbruker
-`WorkshopAppointments.Type` og `Vehicles.Telefon`, se seksjon 16). Forrige
-feltendring: Prioritet 45 — nytt felt `Telefon` på `Vehicles` for 📞
-Ringeliste. Kilde: faktisk `LIST_TABLES`-konfigurasjon i
-`storage.airtable.js` (v2.11.0), kryssjekket mot faktiske feltreferanser i
-`index.html`. Den tidligere, separate oppsettsguiden for
-Firebase→Airtable-migreringen er ikke lenger bevart som egen fil i
-produksjonsprosjektet — den ligger i git-commit `cae279d`. Denne filen
-beskriver DAGENS FAKTISKE skjema, og seksjon 10 under gjengir den fortsatt
-gyldige oppsettsprosedyren direkte.
+Sist oppdatert (feltendring): 2026-09-17 (Prioritet 71.5 — nytt felt
+`MobilitetsgarantiAktivert` på `WorkshopAppointments`, se seksjonen for den
+tabellen under). **Merk:** resten av denne filens brødtekst (versjonsnummer,
+"sist konsolidert"-dato under) stammer fra en tidligere, ikke fullstendig
+oppdatert gjennomgang (Prioritet 46, `storage.airtable.js` v2.11.0) — selve
+`storage.airtable.js` har siden gått videre til v2.17.0 gjennom flere
+mellomliggende prioriteter uten at hele denne filen er re-konsolidert mot
+gjeldende `LIST_TABLES` i sin helhet. Stol på `LIST_TABLES` i
+`storage.airtable.js` som eneste 100 % oppdaterte kilde ved tvil; denne filen
+er oppdatert punktvis for hver feltendring, ikke fullstendig re-verifisert.
+Kilde: faktisk `LIST_TABLES`-konfigurasjon i `storage.airtable.js`,
+kryssjekket mot faktiske feltreferanser i `index.html`. Den tidligere,
+separate oppsettsguiden for Firebase→Airtable-migreringen er ikke lenger
+bevart som egen fil i produksjonsprosjektet — den ligger i git-commit
+`cae279d`. Seksjon 10 under gjengir den fortsatt gyldige
+oppsettsprosedyren direkte.
 
 **Prinsipp fulgt i denne filen:** kun felt som faktisk finnes i
 `LIST_TABLES` (og dermed faktisk sendes til/leses fra Airtable) er
@@ -105,6 +111,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 | type | Type | tekst — skiller type verkstedbestilling (`'service'`, `'dekkskift'`, `'reparasjon'`, `'eu-kontroll'`, `'annet'`) |
 | utfort | Utfort | boolsk — angir om verkstedbestillingen er fullført og flyttet til Verkstedhistorikk (Prioritet 70) |
 | utfortDato | UtfortDato | tekst — dato (YYYY-MM-DD) for når arbeidet ble markert som utført (Prioritet 70) |
+| mobilitetsgarantiAktivert | MobilitetsgarantiAktivert | boolsk — **NYTT i Prioritet 71.5.** Krysses av på en verkstedtime av typen `'service'`; ved fullføring (`fullforVerkstedbestilling()`) videreføres flagget til den auto-opprettede `servicehistorikk`-oppføringen (samme navn), som `vehicleMobilitetsgaranti()` leser som et tredje, uavhengig signal for å forlenge garantien 12 måneder — se seksjon "servicehistorikk" under. **Krever en ny kolonne "MobilitetsgarantiAktivert" (checkbox) i WorkshopAppointments-tabellen i Airtable før denne versjonen tas i bruk** — uten den vil skrivinger til feltet feile/ignoreres av Airtable, samme regel som ved enhver ny `LIST_TABLES`-registrering. |
 
 ### DriverChecks (app-nøkkel: `kontroller`)
 
@@ -436,6 +443,8 @@ kjøretøy og hendelse):
 | createdAt | CreatedAt | tekst |
 | createdBy | CreatedBy | tekst |
 | fraPlanlagtServiceId | FraPlanlagtServiceId | tekst (valgfri — sporbarhet til opprinnelig planlagt avtale, se Del 8) |
+| fraVerkstedtimeId | FraVerkstedtimeId | tekst (valgfri — **nytt i Prioritet 71.5**, sporbarhet til den fullførte verkstedtimen som automatisk opprettet denne oppføringen, se `fullforVerkstedbestilling()`) |
+| mobilitetsgarantiAktivert | MobilitetsgarantiAktivert | boolsk (valgfri — **nytt i Prioritet 71.5**, videreført fra `WorkshopAppointments.MobilitetsgarantiAktivert` ved fullføring) |
 
 **Ny tabell `PlannedServices`** (én rad per planlagt serviceavtale):
 

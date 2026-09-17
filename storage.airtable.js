@@ -193,7 +193,12 @@
       beskrivelse: ['Beskrivelse'], notater: ['Notater'], pris: ['Pris', 'num'],
       sakId: ['SakId'], caseId: ['CaseId'], kontaktperson: ['Kontaktperson'], telefon: ['Telefon'],
       type: ['Type'],
-      utfort: ['Utfort', 'bool'], utfortDato: ['UtfortDato']
+      utfort: ['Utfort', 'bool'], utfortDato: ['UtfortDato'],
+      // Prioritet 71.5: krysses av på en verkstedtime av typen 'service' — sier at DENNE
+      // servicen skal forlenge kjøretøyets mobilitetsgaranti automatisk ved fullføring (se
+      // fullforVerkstedbestilling()/vehicleMobilitetsgaranti() i index.html). Uavhengig av
+      // det eldre, navnebaserte Mekonomen-signalet, som fortsatt gjelder som før.
+      mobilitetsgarantiAktivert: ['MobilitetsgarantiAktivert', 'bool']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -556,8 +561,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.16.0',
-    bygget: '14.09.2026 00:00',
+    versjon: 'v2.17.0',
+    bygget: '17.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
     masseslettVakt: MASSESLETT_VAKT,

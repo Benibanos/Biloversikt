@@ -15,6 +15,57 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-17
 
+### Prioritet 71.5 — Opprydding saksmotor og ny operativ bilprofil
+
+Bestilling: fjern den gamle 4-stegs saksbehandlingsveiviseren («Avansert redigering» /
+«Vurder sak» / «Fortsett saken» / «Slett saken») helt — saksbehandling skal kun skje
+gjennom Godta / Avslå / Registrer verksted / Utført uten verkstedbesøk — og bygg
+Kjøretøyprofilen rundt fem operative tall (km-stand, sist service, EU-status,
+mobilitetsgaranti, aktiv sjåfør) synlig uten scrolling, med Service → Utført arbeid
+automatisert, Kjøretøydetaljer komprimert horisontalt, en egen Verkstedhistorikk-fane og en
+enklere Historikk-fane. Full detalj, kartlegging og kjente begrensninger i CLAUDE.md,
+Prioritet 71.5 — kort oppsummert her:
+
+- **Saksmotor:** `sakWizardHtml`/`sakWizardSteg1-4Html`/`sakWizardLesemodusHtml`/
+  `avvikRadHtml` og mutasjonene bak dem (`toggleEditSak`/`submitSakWizardVurdering`/
+  `submitSakWizardOppfolging`/`submitSakWizardKommentar`/`submitSakWizardFullfor`/
+  `reapneSak`/`deleteSak`/`markerAvvikUtfort`/`sakOppdaterStatusEtterAvvik`/
+  `sakAlleAvvikFerdig`) er fjernet i sin helhet, sammen med tilhørende DOM-lyttere og
+  state-variabler. Kostnadsregistrering på en sak (estimert/faktisk/avsetting) har ingen
+  gjenværende inngang — dette var eksplisitt akseptert, ikke en forglemmelse.
+- **Service oppdaterer bilen automatisk:** nytt felt `WorkshopAppointments.
+  mobilitetsgarantiAktivert` (krever ny Airtable-kolonne, se AIRTABLE_MIGRATION.md).
+  Fullføres en verkstedtime av typen `'service'`, oppretter `fullforVerkstedbestilling()`
+  nå automatisk en `servicehistorikk`-rad (km fra `v.km`), og videre­fører
+  mobilitetsgaranti-flagget til `vehicleMobilitetsgaranti()` som en tredje, uavhengig
+  dato-kilde. `samletVerkstedHistorikkAlle()` skiller ut postbyggingen og hopper over
+  `servicehistorikk`-rader med `fraVerkstedtimeId` for å unngå duplikatvisning.
+- **Ny toppseksjon** (`.profil-stat5`, fem kort) rett under identitetslinjen i
+  `renderBilkort()` — Km-stand/Sist service/EU-kontroll/Mobilitetsgaranti/Aktiv sjåfør.
+  Eksisterende `.profil-stat4` (Kontrollstatus/Varsellamper/Skader/Aktive saker) er beholdt
+  uendret under den nye raden.
+- **Kjøretøydetaljer komprimert** til `.detalj-grid`/`.detalj-rad` (Reg.nr, Løyvenummer,
+  Driftslag, Drivstoff, Årsmodell, Telefon) — Kategori/Bilgruppe/Merke-modell/Biltype er
+  fjernet fra denne seksjonen (feltlisten var eksplisitt), Aktiv sjåfør/Kilometerstand/
+  Mobilitetsgaranti flyttet til den nye toppseksjonen.
+- **Ny «📋 Verkstedhistorikk»-fane** på Kjøretøyprofilen, mellom Historikk og Dekk — samme
+  tre kilder som den frittstående Verkstedhistorikk-skjermen, forhåndsfiltrert på bilen.
+- **Historikk-fanen forenklet:** Tidslinje/Nøkkeltall/Kontroller → Kontroller/Skader/
+  Kommentarer/Varsellamper. Fant og rettet en reell, eksisterende bug i samme slengen:
+  «Skader»-stat-flisen pekte til en fane (`'skader'`) som ALDRI fantes i `PROFIL_FANER` —
+  klikk gjorde derfor ingenting. Flisen peker nå til den nye Skader-underseksjonen.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert), `storage.airtable.js`
+(v2.16.0 → v2.17.0), `sw.js` (bilpark-v88 → v89), `version-check.js`/`version.json`
+(88 → 89), `AIRTABLE_MIGRATION.md`.
+
+**Testet:** grep-verifisert at ingen kode fortsatt refererer de fjernede identifikatorene
+(kun historiske kommentarer gjenstår), global brace-/backtick-balansesjekk på hele
+`index.html`. **Ikke testet i en kjørende nettleser** i denne økten (verken `node` eller en
+nettleser var tilgjengelig) — se CLAUDE.md, Prioritet 71.5 for anbefalt verifisering før
+idriftsettelse (inkl. at `MobilitetsgarantiAktivert`-kolonnen må opprettes i Airtable
+først).
+
 ### Prioritet 71.4 — Horisontal saksvisning per bil
 
 Bestilling: **direkte reverserer en del av Prioritet 71.2.** Den forrige runden fjernet

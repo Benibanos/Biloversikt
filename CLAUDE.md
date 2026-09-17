@@ -1,6 +1,36 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-17 (Prioritet 71.4 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-17 (Prioritet 71.5 —
+**opprydding saksmotor og ny operativ bilprofil.** Den gamle 4-stegs
+saksveiviseren («Avansert redigering» / «Vurder sak» / «Fortsett saken» /
+«Slett saken») er fjernet i sin helhet — saksbehandling skjer nå
+UTELUKKENDE gjennom Godta/Avslå/Registrer verksted/Utført uten
+verkstedbesøk, ingen alternativ arbeidsflyt. Fullføres en verkstedtime av
+typen 'service' (Verksted → «✅ Utført arbeid»), oppdateres bilen nå
+AUTOMATISK: en servicehistorikk-oppføring opprettes (kilometerstand fra
+`v.km`, som allerede er live-oppdatert fra siste sjåførkontroll — ingen
+manuell registrering), og krysses «🛟 Mobilitetsgaranti inkludert i denne
+servicen» av i skjemaet, forlenges mobilitetsgarantien automatisk 12
+måneder fra denne datoen (nytt felt `WorkshopAppointments.
+MobilitetsgarantiAktivert`, videreført til `servicehistorikk` sitt
+`mobilitetsgarantiAktivert` — se AIRTABLE_MIGRATION.md, krever en ny
+Airtable-kolonne før bruk). Kjøretøyprofilen har fått en ny operativ
+toppseksjon (`.profil-stat5`, fem kort: Km-stand, Sist service, EU-kontroll,
+Mobilitetsgaranti, Aktiv sjåfør) rett under identitetslinjen, Kjøretøydetaljer
+er komprimert til seks horisontale label:verdi-rader (Reg.nr, Løyvenummer,
+Driftslag, Drivstoff, Årsmodell, Telefon — `.detalj-grid`/`.detalj-rad`,
+Kategori/Bilgruppe/Merke-modell/Biltype er bevisst fjernet fra denne
+seksjonen siden ticket-kravet ikke nevnte dem), en ny «📋 Verkstedhistorikk»-
+fane er lagt til (samme tre kilder som den frittstående Verkstedhistorikk-
+skjermen, kun forhåndsfiltrert på kjøretøyet — se `samletVerkstedHistorikkAlle()`),
+og Historikk-fanens gamle Tidslinje/Nøkkeltall/Kontroller-understruktur er
+erstattet med Kontroller/Skader/Kommentarer/Varsellamper (Skader gjenbruker
+`skadeBody`, som tidligere var reell, men UNÅBAR dødkode bak en fane
+`PROFIL_FANER` aldri inneholdt — se egen seksjon lenger ned og
+CHANGELOG.md, Prioritet 71.5, for full detalj, kartlegging og kjente
+begrensninger (bl.a. at sakbasert kostnadsregistrering — estimert/faktisk
+kostnad, avsetting — ikke lenger kan settes noe sted, siden det kun skjedde
+i den fjernede veiviserens Steg 4)). Før det: Prioritet 71.4 —
 **delvis reversering av Prioritet 71.2:** Aktive saker er igjen gruppert per
 kjøretøy (flat, ugruppert liste er IKKE lenger gjeldende — se advarsel i
 CHANGELOG.md, Prioritet 71.4), med en ny «Nyeste: {problem} • {dato}»-linje i
@@ -3219,3 +3249,190 @@ Layout Editor-mekanikken for øvrig, Bilkategorier, PWA/manifest-ikonfilene.
   det i Varslingssenter endrer ingenting ved at retting fortsatt utelukkende skjer manuelt
   via Rediger informasjon (Prioritet 66/66.2). Dette var en bevisst videreføring, ikke en
   forglemmelse.
+
+---
+
+## Prioritet 71.5 (2026-09-17) — Opprydding saksmotor og ny operativ bilprofil
+
+Bestilling: to deler. (1) Den gamle saksbehandlingsveiviseren («Avansert redigering» /
+«Vurder sak» / «Fortsett saken» / «Slett saken») skulle fjernes helt — saksbehandling skal
+kun skje gjennom Godta / Avslå / Registrer verksted / Utført uten verkstedbesøk, ingen
+alternativ arbeidsflyt. (2) Kjøretøyprofilen skulle bygges rundt operativ informasjon
+(km-stand, sist service, EU-status, mobilitetsgaranti, aktiv sjåfør) synlig UTEN scrolling,
+med Service → Utført arbeid automatisk oppdaterende bilen, Kjøretøydetaljer komprimert
+horisontalt, en egen Verkstedhistorikk-fane og en enklere Historikk-fane.
+
+**Kartlegging (før implementering, kun kodelesing — ingen antakelser):**
+
+1. Alt av «Avansert redigering»/«Vurder sak»/«Fortsett saken»/«Slett saken» lå utelukkende i
+   Aktive Saker sitt render-/lytter-lag: `sakKompaktKortHtml()` (togglet redigeringspanelet),
+   `sakFaneListeHtml()` (rendret `sakWizardHtml()` under den horisontale kortraden når en sak
+   var «under redigering»), og selve veiviseren
+   (`sakWizardHtml`/`sakWizardSteg1-4Html`/`sakWizardLesemodusHtml`/`sakWizardProgressHtml`/
+   `avvikRadHtml`) pluss mutasjonene bak den
+   (`toggleEditSak`/`submitSakWizardVurdering`/`submitSakWizardOppfolging`/
+   `submitSakWizardKommentar`/`submitSakWizardFullfor`/`reapneSak`/`deleteSak`/
+   `markerAvvikUtfort`/`sakOppdaterStatusEtterAvvik`/`sakAlleAvvikFerdig`). Ingenting av dette
+   ble referert fra `renderBilkort()` eller noe annet sted i appen — fjerningen er derfor
+   fullstendig avgrenset til disse to områdene. `sakAvvikAktive()` er BEVISST beholdt — den
+   brukes fortsatt av den kompakte sakoverskriften (`sakKortOverskrift()`), som IKKE er en
+   del av den fjernede veiviseren.
+2. `fullforVerkstedbestilling()` (Prioritet 70) satte allerede `t.utfort=true`, men opprettet
+   ALDRI en `servicehistorikk`-oppføring for en fullført verkstedtime av typen `'service'` —
+   dette var selve rotårsaken bak «må registreres manuelt på bilen». `vehicleSisteService()`/
+   `vehicleServiceStatus()`/`vehicleMobilitetsgaranti()` leser utelukkende `servicehistorikk`,
+   aldri `verkstedtimer` direkte.
+3. `verkstedtimer` (`WorkshopAppointments`) har ingen `km`-felt, og «Ny verkstedtime»-skjemaet
+   ber aldri om kilometerstand — ett-klikks fullføring (`data-fullfor-vt`) har ingen egen form.
+   Løsning: bruk `v.km` direkte som kilometerstand for den auto-opprettede
+   servicehistorikk-raden — `v.km` er allerede appens live-oppdaterte, autoritative
+   kilometerstand fra siste sjåførkontroll (Prioritet 43/66), akkurat slik ticket-tillegget om
+   KM-stand ber om («ikke manuelt vedlikeholdt verdi dersom nyere kontrolldata finnes»).
+4. `renderBilkort()` sin «Skader»-stat-flis (`.profil-stat4`) hadde `data-profil-fane="skader"`
+   — men `'skader'` var ALDRI en nøkkel i `PROFIL_FANER` eller `faneBody`. Flisen var altså
+   klikkbar, men landet stille tilbake på Oversikt-fanen igjen — en reell, eksisterende bug,
+   ikke noe jeg innførte. `skadeBody` (aktive/fikset-sub-accordion) fantes ferdig bygget, men
+   var uten en fungerende inngang. Løst ved å legge Skader inn som en av de fire nye
+   underseksjonene i Historikk-fanen (se punkt 6 i bestillingen) og re-koble flisen dit.
+
+**Løsning — Del 1 (saksmotor):**
+
+- Alle elleve funksjonene i kartleggingens punkt 1 er slettet, sammen med de tilhørende
+  DOM-lytterne (`data-toggle-edit-sak`, `data-goto-wizard-steg`, `data-marker-avvik-utfort`,
+  `swz-delete-*`/`swz-reapne-*`/`swz-vurdering-lagre-*`/`swz-vt-btn-*`/`swz-oppf-*`/
+  `swz-kommentar-*`/`swz-lagre-uten-lukk-*`/`swz-lukk-*`) og state-variablene
+  (`editingSakId`, `sakWizardStep`, `sakWizardSaving`, `sakWizardVtOpen`,
+  `sakWizardOppfolgingOpen`, `sakWizardKommentarOpen`) — inkludert referansene til dem i
+  `goTo()` sin skjerm-reset og i `goToSakDetalj()`, som tidligere åpnet veiviseren automatisk
+  ved dyplenking til en sak (fjernet — `goToSakDetalj()` navigerer nå kun til riktig
+  fane/bilgruppe, uendret ellers).
+- `sakKompaktKortHtml()` viser nå KUN sakstype/sjekkliste/beskrivelse/registrert av/dato og
+  fasens ene handlingsknapp — ingen «Avansert redigering»-lenke lenger.
+- **Kjent, bevisst konsekvens (ikke løst, ikke bedt om løst):** kostnadsregistrering
+  (`estimatedCost`/`actualCost`/`requiresProvision`/`provisionMonth`/`provisionAmount`) skjedde
+  UTELUKKENDE i den fjernede veiviserens Steg 4. Ingen gjenværende UI setter disse feltene
+  lenger. Kostnadsoversikt/Kostnadsrapport leser dem fortsatt uendret der de historisk finnes
+  (viser «Ingen kostnad registrert» for nye saker) — ingen kode er fjernet på lesesiden, kun
+  skrivesiden forsvant sammen med veiviseren. Dette var et eksplisitt, akseptert bytte
+  («Ingen alternative arbeidsflyter»), ikke en forglemmelse.
+
+**Løsning — Del 2 (Service oppdaterer bilen automatisk):**
+
+- Nytt felt `WorkshopAppointments.mobilitetsgarantiAktivert` (Airtable-kolonne
+  `MobilitetsgarantiAktivert`, boolsk), registrert i `LIST_TABLES.verkstedtimer` i
+  `storage.airtable.js` SAMTIDIG som det tas i bruk (feltregelen fulgt) —
+  `storage.airtable.js` `versjon` v2.16.0 → v2.17.0, `?v=` i `index.html`/`kontroll.html` til
+  2.17.0. **Krever en ny Airtable-kolonne før idriftsettelse** — se AIRTABLE_MIGRATION.md.
+- Ny, betinget avkrysningsboks «🛟 Mobilitetsgaranti inkludert i denne servicen» i «Ny
+  verkstedtime»-skjemaet, vist KUN når `vtPrefillType === 'service'` (dvs. skjemaet nådd via
+  «➕ Bestill tjenester» → Service). Fanget opp i `submitAddVT()` og lagret på selve
+  verkstedtimen.
+- `fullforVerkstedbestilling()` oppretter nå automatisk én `servicehistorikk`-oppføring når
+  den fullførte verkstedtimen er av typen `'service'` (`vtHarType(t,'service')`): kilometerstand
+  fra `v.km`, type fra `t.beskrivelse`, verksted fra `t.verksted`, kommentar fra `t.notater`,
+  `fraVerkstedtimeId` for sporbarhet (samme mønster som `fraPlanlagtServiceId` i
+  `fullforPlanlagtService()`), og `mobilitetsgarantiAktivert` videreført fra verkstedtimen.
+  Lagringen er beskyttet av samme snapshot/rollback-mønster som funksjonen allerede brukte for
+  `verkstedtimer`/`aktiveSaker` — feiler lagringen, rulles ALT (inkludert den nye
+  servicehistorikk-raden) tilbake lokalt, og brukeren varsles.
+- `vehicleMobilitetsgaranti()` har fått en TREDJE, uavhengig kilde: siste
+  `servicehistorikk`-rad med `mobilitetsgarantiAktivert === true`, +12 måneder — SAMME
+  «nyeste dato av alle kilder vinner»-prinsipp som allerede gjaldt mellom det navnebaserte
+  Mekonomen-signalet og den manuelle fritekstdatoen. Alle tre kilder sameksisterer uendret.
+- `samletVerkstedHistorikk()` sin postbygging er skilt ut UFILTRERT i en ny funksjon,
+  `samletVerkstedHistorikkAlle()` — dette løser en reell duplikat-risiko: uten en
+  de-duplisering ville en service fullført via Verksted-modulen vist seg TO GANGER i
+  Verkstedhistorikk (én gang fra `verkstedtimer` sin `utfort`-kilde, én gang fra den nye,
+  auto-opprettede `servicehistorikk`-raden). Løst ved at `servicehistorikk`-kilden hopper over
+  enhver rad som har `fraVerkstedtimeId` satt — den er allerede representert via
+  `verkstedtimer`-kilden. Manuelt registrerte servicer (via den eldre, fortsatt eksisterende
+  `submitService()`) har ALDRI `fraVerkstedtimeId` og vises uendret.
+
+**Løsning — Del 3 (ny operativ toppseksjon, fem kort):** ny `.profil-stat5`-seksjon (samme
+kortstil/token-bruk som den eksisterende `.profil-stat4`, kun fem kolonner med responsiv
+nedtrapping 5→3→2) satt inn i `renderBilkort()` rett under identitetslinjen (og under
+ute-av-drift-banneret når det vises) — FØR den eksisterende `.profil-stat4`
+(Kontrollstatus/Varsellamper/Skader/Aktive saker), som er UENDRET og beholdt (bestillingen ba
+ikke om å fjerne den, og Prioritet 65 etablerte den som nødvendig operativ informasjon).
+Fem kort, ingen av dem beregner noe nytt:
+
+| Kort | Verdi | Undertekst |
+|---|---|---|
+| 🚗 Km-stand | `v.km` | «Oppdatert fra siste kontroll» |
+| 🔧 Sist service | `vehicleSisteService(v.id).dato` | dager siden (`isoDateDiff`) |
+| 🚦 EU-kontroll | `v.euGodkjentTil` | dager igjen/forfalt (fra `vehicleEuKontrollStatus()`) |
+| 🛟 Mobilitetsgaranti | Aktiv/Utløpt/Registrert/Ingen | gyldig til-dato (fra `vehicleMobilitetsgaranti()`) |
+| 👤 Aktiv sjåfør | `vehicleAktivSjafor()` | sist kontrollert av / «Kjører nå» |
+
+**Løsning — Del 4 (Kjøretøydetaljer komprimert):** `bilkortAccordionRow('detaljer', …)` sitt
+innhold er erstattet med en ny, kompakt `.detalj-grid`/`.detalj-rad`-struktur (to kolonner av
+horisontale label:verdi-rader, én kolonne på mobil) med EKSAKT de seks feltene ticket-en ba om,
+i den rekkefølgen: Reg.nr, Løyvenummer, Driftslag, Drivstoff, Årsmodell, Telefon. Kategori,
+Bilgruppe, Merke/modell, Biltype, Kilometerstand, Mobilitetsgaranti og «Sist kontrollert av»
+er fjernet fra denne seksjonen — de tre sistnevnte fordi de nå vises i den nye toppseksjonen
+(Del 3) eller identitetslinjen, de øvrige fordi ticket-ens feltliste var eksplisitt og ikke
+inkluderte dem. Ingen av de underliggende dataene er slettet eller skjult andre steder i appen
+(Kategori/Biltype styrer fortsatt Biloversikt-gruppering som før).
+
+**Løsning — Del 5 (📋 Verkstedhistorikk som egen fane):** ny fane lagt til i `PROFIL_FANER`
+mellom Historikk og Dekk (Oversikt → Historikk → Verkstedhistorikk → Dekk → Kostnader — Dekk
+er beholdt, ticket-en ba ikke om å fjerne den). Bruker den nye `samletVerkstedHistorikkAlle()`
+filtrert på `vehicleId` — nøyaktig samme tre kilder (fullførte verkstedtimer, servicehistorikk,
+dekkhistorikk) som den frittstående Verkstedhistorikk-skjermen, ingen parallell historikkmotor.
+
+**Løsning — Del 6 (Historikk-fanen forenklet):** `HISTORIKK_SUB_ORDER` endret fra
+`['tidslinje', 'nokkeltall', 'kontroll']` til `['kontroll', 'skader', 'kommentarer',
+'varsellamper']`. `kontrollBody`/`skadeBody` er UENDRET og gjenbrukt uendret (`skadeBody` er nå
+faktisk nåbar, se kartleggingens punkt 4). To nye underseksjoner: `kommentarerBody` (bygget fra
+`nyeKommentarerListe(v.id)`/`nyeKommentarRadHtml()` — samme delte kilde/markup som
+Kommentaroversikt, med «✅ Marker som lest» siden Kjøretøyprofilen er en administratorvisning)
+og `varsellamperBody` (aktive + historiske varsellamper for bilen, `varsellysCard()` — samme
+komponent som allerede brukes i «Rediger informasjon»-panelet). De delte funksjonene/
+konstantene som tidligere kun matet Tidslinje/Nøkkeltall (`vehicleHistorikkTidslinje()`,
+`HISTORIKK_TYPE_ORDER`/`LABEL`/`IKON`, `bilkortHistorikkItem()`) er IKKE fjernet fra koden —
+de er fortsatt i aktiv bruk av den separate, flåtebrede Historikk-huben
+(`renderHistorikk()`/`flateHistorikkTidslinje()`), kun bruken INNI `renderBilkort()` er fjernet.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi),
+`storage.airtable.js` (`versjon` v2.16.0 → v2.17.0 — nytt felt
+`WorkshopAppointments.mobilitetsgarantiAktivert`), `sw.js` (`CACHE_VERSION` bilpark-v88 →
+bilpark-v89), `version-check.js` (`APP_VERSION` 88 → 89), `version.json` (`"version"` 88 → 89),
+`AIRTABLE_MIGRATION.md` (nytt felt dokumentert, pluss en ærlighetsnotis om at resten av filens
+brødtekst stammer fra en eldre, ikke fullstendig re-konsolidert gjennomgang).
+
+**Testet:** grep-basert verifisering av at INGEN kode fortsatt refererer de fjernede
+funksjonene/variablene (`editingSakId`, `sakWizardStep`, `toggleEditSak`, `deleteSak`,
+`sakWizardHtml` m.fl. — kun kommentartekst, ingen kjørende kode, gjenstår), og en global
+brace-/backtick-balansesjekk på hele `index.html` (5178 åpne = 5178 lukkede krøllparenteser,
+partall antall backticks) som svak, men konsistent signal på syntaktisk integritet. **`node`
+var ikke tilgjengelig i denne økten (verken via bash eller PowerShell) og ingen nettleser ble
+brukt til å faktisk laste appen** — i motsetning til flere tidligere prioriteter i denne filen
+er dette derfor IKKE verifisert i en kjørende nettleser mot en ekte eller mock-Airtable-base.
+Hver endrede funksjon/mal er i stedet lest i sin helhet før og etter redigering for å bekrefte
+strukturell korrekthet (balanserte maler, riktige avhengigheter, ingen temporal-dead-zone-feil
+av typen Prioritet 66.3). **Anbefalt før idriftsettelse:** åpne appen i en nettleser (mock-
+eller ekte Airtable), bekreft at Kjøretøyprofilen rendrer uten konsollfeil, test Godta/Avslå/
+Registrer verksted/Utført uten verkstedbesøk på en reell sak, fullfør en service-type
+verkstedtime og bekreft at «Sist service»-kortet og Verkstedhistorikk oppdateres uten
+duplikater, og legg til `MobilitetsgarantiAktivert`-kolonnen i Airtable før noen krysser av
+den nye avkrysningsboksen (uten kolonnen vil Airtable enten avvise skrivingen eller stille
+ignorere feltet, avhengig av API-oppførsel — ikke verifisert her).
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-skriveregler,
+`sakErApen()`/`sakFase()`/`sakOppfolgingStatus()`/`sakKreverHandlingSamletMaster()` (kun lest,
+aldri endret), Varslingssenter (Prioritet 71), Layout Editor, Bilkategorier, `renderVerksted()`/
+`renderVerkstedhistorikk()` (den frittstående skjermen — kun dens interne postbygging er delt ut
+til en ny, gjenbrukt funksjon, ingen atferdsendring der), PWA/manifest-ikonfilene.
+
+**Kjente, dokumenterte begrensninger:**
+- Kostnadsregistrering på en sak (estimert/faktisk kostnad, avsetting) har ingen gjenværende
+  inngang noe sted i appen — se Del 1 over. Vurder som egen, separat sak dersom dette
+  fortsatt trengs et sted (f.eks. et nytt, dedikert kostnadsfelt direkte på
+  Verksted-registreringen, utenfor sakflyten).
+- `fullforVerkstedbestilling()` sin auto-opprettede servicehistorikk-km er alltid `v.km` på
+  fullføringstidspunktet — er bilen kjørt videre mellom verkstedtimen ble BESTILT og faktisk
+  UTFØRT, reflekterer ikke km-tallet nødvendigvis kilometerstanden PÅ SELVE verkstedbesøket,
+  kun «siste kjente km når noen trykket Utført arbeid». Samme presisjonsnivå som resten av
+  appens km-regler (ingen ny svakhet).
+- Ikke testet i en faktisk kjørende nettleser i denne økten (se «Testet» over) — kun statisk
+  lese-/strukturverifisering.

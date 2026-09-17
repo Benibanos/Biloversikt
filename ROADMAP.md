@@ -1041,11 +1041,14 @@ beskyttelse og rollback-på-lagringsfeil for begge datasett (se
   `planlagteservicer` blir aldri stille nullstilt til tomt array ved
   korrupt JSON; datasettet flagges korrupt, lagring til det blokkeres, og
   brukeren varsles både ved oppstart og i Database status.
-- **Gjensidige referanser:** `deleteSak()`/`deleteVT()` rydder nå opp i
+- **Gjensidige referanser:** `deleteSak()`/`deleteVT()` ryddet opp i
   hverandres referanser (nullstiller `sakId`/`caseId` på verkstedtiden ved
   slettet sak; nullstiller `linkedVtId` og tilbakestiller sakstatus til
   "Tiltak planlagt" ved slettet verkstedtime) — ingen av delene slettes
-  automatisk som følge av den andre.
+  automatisk som følge av den andre. **Historisk merknad (Prioritet 71.5):**
+  `deleteSak()` (og hele den gamle saksveiviseren den var en del av) er
+  fjernet — «Slett saken» finnes ikke lenger noe sted i appen. `deleteVT()`
+  sin halvdel av denne opprydningslogikken er UENDRET og fortsatt aktiv.
 - **Kilometerstand:** `saveVehicleForm()` krever nå eksplisitt bekreftelse
   før den kan endre `v.km` direkte (kun ved faktisk verdiendring), og
   dupliserte `saveVehicles()`-kallet i samme funksjon er fjernet.
