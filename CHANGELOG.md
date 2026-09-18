@@ -15,6 +15,40 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-17
 
+### Prioritet 71.9 — Operativ opprydding i verksted, kalender og kjøretøyvisning
+
+Bestilling: fem delmål — bestill verkstedtime fra sak, Reparasjon som egen verkstedkategori,
+kalenderens nedre seksjon bygget om til «I dag»/«Senere», Reserve/Ute av drift skjult som
+standard, og Faresonen på Kjøretøyprofilen gjemt bak en kollapset seksjon. Full detalj i
+CLAUDE.md, Prioritet 71.9 — kort oppsummert her:
+
+- **Del 1** (bestill verkstedtime fra sak) var allerede levert i Prioritet 71.8 — kun
+  bekreftet, ikke endret.
+- **Del 2:** `vtTypeIkon()`/`vtTypeLucide()`/`vtTypeArt()`/`vtTypeTittel()` skiller nå ut
+  Service/Dekkskift (i tillegg til EU-kontroll/Ruteskift fra før) — resten faller til en
+  eksplisitt Reparasjon-betydning i stedet for det tidligere generiske «Verkstedtime».
+  Bevisst IKKE et femte Dashboard-bestillingskort (Prioritet 62 sitt prinsipp står).
+- **Del 3:** Kalenderens «📋 Alle kommende aktiviteter» (`planleggingSeksjonHtml()`, typegruppert
+  med egen periodevelger) er fjernet og erstattet av `kalenderIDagSenereHtml()` — leser SAMME
+  datakilde som månedsgriden (`kalenderAktiviteterKart()`), delt i «I dag»/«Senere».
+- **Del 4:** Reserve-/ute av drift-kjøretøy skjules nå som standard tre uavhengige steder —
+  Biloversikt (`visReserve`/`visUteAvDrift`), sjåførens Ringeliste
+  (`driverRingelisteVisReserve`/`driverRingelisteVisUteAvDrift`) og Dashboardets
+  Biloversikt-forhåndsvisning (`dashVisReserve`/`dashVisUteAvDrift`), hver med egne
+  «✅ Vis reserve»/«✅ Vis ute av drift»-hurtigknapper. Unntatt: «Har aktiv sjåfør»-visningen.
+- **Del 5:** Faresonen (`.danger-zone`) er erstattet av en kollapset akkordionrad
+  «⚙️ Avanserte handlinger» (`bilkortAccordionRow('avansert', …)`) — innholdet
+  (Marker ute av drift/Slett bil) er uendret, kun ikke lenger alltid synlig.
+- Ingen Airtable-endring i noen av de fem delene.
+
+**Testet:** Ringeliste-togglene (Del 4, sjåførmodus) testet direkte i nettleser mot ekte,
+live Airtable-data — bekreftet 11→14 (+reserve)→17 (+ute av drift) biler, og korrekt
+tilbakestilling ved re-navigering. Ingen konsollfeil, kun lesing/toggling utført. De fire
+admin-delene (Kalender/Biloversikt/Dashboard/Kjøretøyprofil) krever innlogging som ikke var
+tilgjengelig i denne økten — verifisert ved grundig kodelesing og brace-/backtick-balansesjekk.
+
+`sw.js`/`version-check.js`/`version.json` bumpet v92 → v93. `storage.airtable.js` uendret.
+
 ### Prioritet 71.8 — Fra sak til verkstedbestilling
 
 Bestilling: sakskortets «Registrer verkstedtime»-knapp (fase «Under oppfølging») skal hete

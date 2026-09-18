@@ -207,7 +207,14 @@
       skadeBilderCount: ['SkadeBilderCount', 'num'], kommentar: ['Kommentar'], linkedDamageId: ['LinkedDamageId'],
       // Les-status for kommentarfeltet over. Administrativt
       // felt, påvirker aldri Kontrollflyt/kilometerlogikk/bilstatus. Se markerKommentarSomLest().
-      kommentarLest: ['KommentarLest', 'bool']
+      kommentarLest: ['KommentarLest', 'bool'],
+      // Prioritet 71.10: resultat av driftskoordinatorens Godta/Avslå-behandling av et
+      // bekreftet stort kilometerhopp (>= 1 000 km over km-gulvet). '' | 'godkjent' |
+      // 'avvist'. Et 'avvist' hopp ekskluderes fra kontrollKmGulv() fremover, slik at en
+      // feilregistrering ikke permanent blokkerer senere, korrekte kontroller. Se
+      // godtaKmEndring()/avslaKmEndring() i index.html.
+      kmGodkjenningStatus: ['KmGodkjenningStatus'],
+      kmGodkjenningInfo: ['KmGodkjenningInfo']
     }},
     varsellys: { table: 'WarningLights', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], type: ['Type'], annetTekst: ['AnnetTekst'], status: ['Status'],
@@ -561,8 +568,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.17.0',
-    bygget: '17.09.2026 00:00',
+    versjon: 'v2.18.0',
+    bygget: '18.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
     masseslettVakt: MASSESLETT_VAKT,

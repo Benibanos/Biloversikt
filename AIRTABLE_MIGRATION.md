@@ -1,11 +1,13 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-17 (Prioritet 71.5 — nytt felt
+Sist oppdatert (feltendring): 2026-09-18 (Prioritet 71.10 — to nye felt
+`KmGodkjenningStatus`/`KmGodkjenningInfo` på `DriverChecks`, se seksjonen for
+den tabellen under). Før det: 2026-09-17 (Prioritet 71.5 — nytt felt
 `MobilitetsgarantiAktivert` på `WorkshopAppointments`, se seksjonen for den
 tabellen under). **Merk:** resten av denne filens brødtekst (versjonsnummer,
 "sist konsolidert"-dato under) stammer fra en tidligere, ikke fullstendig
 oppdatert gjennomgang (Prioritet 46, `storage.airtable.js` v2.11.0) — selve
-`storage.airtable.js` har siden gått videre til v2.17.0 gjennom flere
+`storage.airtable.js` har siden gått videre til v2.18.0 gjennom flere
 mellomliggende prioriteter uten at hele denne filen er re-konsolidert mot
 gjeldende `LIST_TABLES` i sin helhet. Stol på `LIST_TABLES` i
 `storage.airtable.js` som eneste 100 % oppdaterte kilde ved tvil; denne filen
@@ -131,11 +133,25 @@ kategorier — ingen av dem er Airtable-kolonner.
 | kommentar | Kommentar | tekst |
 | linkedDamageId | LinkedDamageId | tekst |
 | kommentarLest | KommentarLest | boolsk |
+| kmGodkjenningStatus | KmGodkjenningStatus | tekst (`''` \| `'godkjent'` \| `'avvist'`) |
+| kmGodkjenningInfo | KmGodkjenningInfo | tekst |
 
 > **Nytt i Prioritet 50 («Kommentarer 2.0»):** `kommentarLest` er les-status
 > for `kommentar`-feltet over, satt av administrator via «✅ Marker som lest»
 > i Kommentaroversikt/Aktive saker. Rent administrativt felt — påvirker aldri
 > Kontrollflyt, kilometerlogikk eller bilstatus.
+>
+> **Nytt i Prioritet 71.10 («Godkjenning av store kilometerendringer»):**
+> `kmGodkjenningStatus`/`kmGodkjenningInfo` er resultatet av driftskoordinatorens
+> Godta/Avslå-behandling av et bekreftet stort kilometerhopp (≥ 1 000 km, se
+> `kontrollKmGulv()`/`validerKontrollKm()` i `index.html`). Satt av
+> `godtaKmEndring()`/`avslaKmEndring()`, som nås fra «km»-kategorien i
+> 🔔 Varslingssenteret. `kmGodkjenningStatus === 'avvist'` ekskluderer kontrollen
+> fra `kontrollKmGulv()` fremover, slik at en feilregistrering ikke permanent
+> blokkerer senere, korrekte kontroller. `k.km` (selve den registrerte
+> kilometerstanden på kontrollen) røres ALDRI av verken godkjenning eller
+> avslag — kun disse to nye feltene. **Krever to nye kolonner i DriverChecks
+> før idriftsettelse** — se `storage.airtable.js` v2.18.0.
 >
 > Samtidig innført: en HELT NY, separat liste `kommentarer` (fristilte
 > sjåførkommentarer lagt til via ☰ Mer → 💬 Legg til kommentar, IKKE knyttet
