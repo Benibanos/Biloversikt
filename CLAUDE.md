@@ -1,6 +1,33 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 71.11 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 72.0 —
+**Dashboard 2.0, Lucide-standard og bedre navigasjon.** Seks delmål bestilt
+samlet: (1) full Lucide-ikonopprydding med en fargekodet standard (samme
+KONSEPT = samme farge — bil=blå, verksted/reparasjon=oransje, dekk=oransje,
+EU-kontroll=blå, varsler/avvik=gul, skader=rød, sjåfør=lilla, kalender=grønn,
+historikk=grå); (2) «God morgen»-hilsenen på Dashboard erstattet av
+«🎯 Operativ status» (ny `kontrollrateUke()`, kontrollrate siste 7 dager +
+dagens kontrollerte-tall, samme kilde som `kontrollstatusKpiHtml()` alltid
+har brukt); (3) én samlet KPI-rad med fem kort (Aktive saker/Under
+oppfølging/Planlagt verksted/Aktive biler/Varsler,
+`dashboardKpiRadHtml()`) — Planlagt verksted er bevisst IKKE fjernet; (4) et
+nytt, kompakt «📅 Denne uken»-kalenderwidget på Dashboard
+(`kalenderUkeWidgetHtml()`, samme datakilde som selve Kalenderen), klikk
+åpner full Kalender; (5) Biloversikt sine kategorigrupper er gjort om fra
+ekspander/lukk-akkordion til FANER (`.profil-tabs`, kun én gruppe synlig om
+gangen — `registerAktivFane`); (6) Kalenderens datodetaljer vises nå i et
+SIDEPANEL ved siden av månedsgriden (`.kal-split`) i stedet for stablet
+under. Aktiv sjåfør som primær visning (fremfor «Sist kontrollert av») var
+allerede levert på Biloversikt/Bilprofilens toppseksjon (Prioritet 71.11) —
+fullført i denne runden også for Dashboardets egen mini-biloversikt-tabell,
+som var det siste, dokumenterte unntaket. Full Lucide-standardisering er
+BEVISST en avgrenset, dokumentert pass (samme «migrer etter synlighet, ikke
+etter antall»-prinsipp som Prioritet 58) — se egen seksjon lenger ned for
+nøyaktig hva som er konvertert og hva som bevisst står igjen (bl.a.
+`HOVEDSTATUS_IKON` og andre statusfargesirkler, uendret siden Prioritet
+57/58). Ingen endring i `storage.airtable.js` — ren presentasjons-/
+navigasjonsendring på fire flater. Se egen seksjon lenger ned for full
+detalj, designvalg og kjente begrensninger. Før det: Prioritet 71.11 —
 **Aktiv sjåfør settes automatisk ved sjåførkontroll.** Bestilt etter en
 observasjon av «2/13 kontrollert i dag» samtidig som «0 aktive biler» på
 Dashboard. Grundig kartlegging (full lesing av
@@ -4298,9 +4325,254 @@ publisert side).
 **Kjente, dokumenterte begrensninger:**
 - Dashboardets kompakte forhåndsvisningstabell («Bilpark status» → Biloversikt-komponentet)
   viser fortsatt «🕓 {navn}» for siste kontrollør — bevisst utenfor omfang, se over.
+  **RETTET I PRIORITET 72.0:** denne mini-tabellen (Dashboard sin egen
+  `komponentHtml.biloversikt`) viser nå også Aktiv sjåfør som primær visning, med «sist
+  kontrollert av» degradert til en title-tooltip — samme mønster som resten av denne saken.
 - Kilometerstandsrapportens «Aktiv sjåfør»-eksportkolonne bruker fortsatt
   `vehicleSisteSjafor()` — en allerede kjent, akseptert avvik fra Prioritet 33, ikke rørt i
   denne runden (ticket nevnte ikke Rapporter).
 - Dersom den opprinnelige observasjonen («2/13 kontrollert, 0 aktive») skyldtes en publisert
   side som ligger bak dette repoets faktiske kode (samme klasse feil som Prioritet 42), løser
   ikke denne leveransen det — det krever en ny utrulling, ikke en kodeendring.
+
+---
+
+## Prioritet 72.0 (2026-09-18) — Dashboard 2.0, Lucide-standard og bedre navigasjon
+
+Bestilling: seks samlede delmål — (1) full Lucide-ikonstandardisering med en fargekodet
+konseptstandard, (2) Dashboard 2.0 (fjern «God morgen», vis kontrollrate), (3) behold
+toppkortene (Aktive saker/Under oppfølging/Planlagt verksted/Aktive biler/Varsler), (4)
+Kalender som kompakt dashboard-widget, (5) Biloversikt med faner i stedet for
+ekspander/lukk, (6) Aktiv sjåfør som (primær) visning fremfor «Sist kontrollert av» på
+Dashboard/Biloversikt/Bilprofil, (7) Kalenderdetaljer i sidepanel i stedet for under
+kalenderen. Mål: mindre scrolling, mindre visuell støy, mer operativ.
+
+**Kartlegging (før implementering, kun kodelesing):** punkt 6 (Aktiv sjåfør som primær
+visning) var allerede levert på to av tre navngitte flater i Prioritet 71.11
+(Biloversikt-kortet og Kjøretøyprofilens toppseksjon) — kun Dashboardets EGEN,
+kompakte biloversikt-forhåndsvisning (`komponentHtml.biloversikt` i `renderDashboard()`)
+gjensto fortsatt, dokumentert som en bevisst avgrensning i Prioritet 71.11 sine «Kjente,
+dokumenterte begrensninger». De øvrige fem punktene var ikke tidligere forsøkt.
+
+### Del 1 — Full Lucide-standardisering med fargekodet ikonstandard
+
+**Ny, varig kanonisk fargetabell** (CSS-klasser `.ic-blue`/`.ic-orange`/`.ic-red`/
+`.ic-yellow`/`.ic-purple`/`.ic-green`/`.ic-gray`, satt via `luc(navn, cls)` sitt
+eksisterende, valgfrie andre argument — INGEN ny ikonmekanisme):
+
+| Konsept | Farge | CSS-klasse |
+|---|---|---|
+| Bil/kjøretøy | Blå | `.ic-blue` |
+| Verksted/Reparasjon | Oransje | `.ic-orange` |
+| Dekk | Oransje (delt med Verksted — se begrunnelse under) | `.ic-orange` |
+| EU-kontroll | Blå | `.ic-blue` |
+| Varsler/Avvik | Gul (`--amber`) | `.ic-yellow` |
+| Skader | Rød | `.ic-red` |
+| Sjåfør | Lilla | `.ic-purple` |
+| Kalender | Grønn | `.ic-green` |
+| Historikk | Grå | `.ic-gray` |
+
+**Bevisst avvik fra ticket-ens «dekk = rød/oransje»:** dekk er satt til oransje, ikke rød —
+rød er allerede en etablert, sterk betydning i appen («kritisk»/«aktiv sak»/HOVEDSTATUS-nivå
+«Ute av drift», se Prioritet 59). Å gi Dekk samme farge som disse ville svekket akkurat det
+signalet «samme farge = samme betydning» skal beskytte.
+
+**Migrert etter SYNLIGHET, samme prinsipp som Prioritet 58 — ikke hele appen.** Konvertert i
+denne runden: desktop-sidebarens hovednavigasjon (`DESKTOP_NAV_PRIMARY`, var allerede 100 %
+Lucide siden Prioritet 55 — kun fargekodingen er ny) og sekundærseksjonen
+(Verkstedhistorikk→grå); hele Dashboard (KPI-rad, Operativ status, Bilpark-oversikt-panelet,
+Biloversikt-/Prioriterte biler-panelhoder, Kommende oppgaver-panelhode); hele Kalender
+(sidetittel, det nye ukewidgetet, datodetalj-panelhodet); Biloversikt sine nye fane-ikoner
+(`kategoriIkonLucide()`, var allerede Lucide siden gruppevisningen ble innført — kun
+fargekodingen er ny) og `galleryCard()`/Kjøretøyprofilens toppseksjon sitt kjøretøytype- og
+sjåførikon (erstatter de to siste gjenværende emoji — 🚛/🚐 og 👤 — på akkurat disse to
+stedene, som var de mest synlige, daglig brukte flatene disse to ikonene fortsatt fantes
+udekorert på).
+
+**Bevisst IKKE rørt (samme unntak som Prioritet 57/58, uendret):** `HOVEDSTATUS_IKON` og
+alle andre statusfargesirkler (🟢🟡🟠🔴⚪ — `P38_STATUS_STIL`, `dash50Ikon`,
+`vehicleServiceStatus()`/`vehicleEuKontrollStatus()`/`dekkAlderStatus()` sine egne
+`status.ikon`-verdier) — disse ER selve statuskommunikasjonen (STATUSREGLER), ikke
+dekorative konsept-ikoner, og skal aldri migreres til et Lucide-konsept-ikon som ville
+konkurrere med fargesirkelen. `.p38-pill`/`.flis`/`.dash40-kpi` sine ikoner som ALLEREDE
+fargelegges via inline `--tint`/`--tone` (f.eks. Bestill tjenester-kortene, sakskortenes
+sjekkliste-ikoner) er heller ikke rørt — de har allerede en fungerende, per-kort fargelogikk,
+og å legge en `.ic-*`-klasse OVENPÅ den ville enten vært virkningsløst (inline vinner alltid)
+eller skapt en falsk forventning om at klassen faktisk styrer fargen der. Verkstedmodulens
+`vtTypeIkon()`/Kalenderens `vtTypeIkon()`-baserte visning (Prioritet 46/58/71.9, delt
+mellom flere skjermer) er IKKE konvertert i denne runden — utenfor ticket-ens eksplisitt
+navngitte flater (Dashboard/Kalender/Biloversikt), og en «parallell-variant»-konvertering
+(samme mønster som `vtTypeLucide()` i Prioritet 58) er en egen, avgrenset oppgave dersom
+ønsket senere. Emoji i skjema-labels (f.eks. «⛽ Drivstoff», «🛟 Mobilitetsgaranti» i «Ny
+bil»-skjemaet), hurtigfilterknapper (✅/⚠️ på Biloversikt) og status-pillenes egne
+✅/⚠️/🔴-tilstandsikoner (`galleryCard()` sine badges) er BEVISST ikke rørt — disse er enten
+skjemaetiketter (utenfor «ikon»-begrepet ticket-en sikter til) eller booleans/tilstander av
+samme, beskyttede art som statusfargesirklene, ikke gjenbrukbare «konsepter» i ticket-ens
+forstand. Se «Kjente, dokumenterte begrensninger» for en ærlig oppsummering av hva som
+gjenstår — «ingen gamle ikoner skal eksistere» er derfor IKKE oppnådd for appen i sin helhet
+i denne runden, kun for de fem eksplisitt navngitte flatene/delene.
+
+### Del 2 — Dashboard 2.0: «God morgen» erstattet av «🎯 Operativ status»
+
+`greetingInfo()` (klokkeslettbasert hilsen, «God morgen»/«God dag»/«God kveld» + emoji) er
+FJERNET i sin helhet — ingen gjenværende kallested. Erstattet av en ny, fast (ikke
+Layout Editor-styrt, samme presedens som den gamle hilsenen alltid har hatt) seksjon øverst
+på Dashboard: **«🎯 Operativ status»**, med en ny, dedikert beregning
+**`kontrollrateUke()`** — gjennomsnittlig andel av dagens flåte (`vehicles.filter(v =>
+!v.uteAvDrift)`) som hadde minst én registrert kontroll, for hver av de siste 7
+kalenderdagene (inkl. i dag), avrundet til hel prosent. INGEN ny datakilde — leser kun
+`kontroller[]`, samme rader som `isKontrollertIdag()` alltid har brukt. Ny hjelpefunksjon
+**`isoDateOffset(iso, deltaDager)`** (ren kalenderdag-forskyvning fra en allerede kjent
+ISO-dato — ALDRI brukt til å definere «i dag» selv, som fortsatt utelukkende er
+`todayISO()`/`isoDateForOperationalDay()`, se CLAUDE.md-regelen under «Prioritet 66»).
+
+**Bevisst forenkling, dokumentert ærlig:** nevneren (dagens flåtestørrelse) brukes for ALLE
+sju dagene — ikke en historisk rekonstruksjon av hvilke biler som faktisk fantes/var i drift
+på hver enkelt dag. Presist nok til et trendtall på et dashboard, ikke egnet som
+revisjonsgrunnlag. Reservebil-unntaket (`vehicleErReserveUnntatt()`) gjelder kun «i dag» og
+er bevisst ikke forsøkt rekonstruert bakover.
+
+Under selve prosenttallet vises **samme tall som `kontrollstatusKpiHtml()` alltid har brukt**
+(`kontrollertIdagCount` av `aktiveVehicles.length − reserveUnntattCount`, Prioritet 62.1a) —
+«{X} av {Y} biler kontrollert i dag», tydelig merket «i dag» slik at det aldri kan
+mistolkes som en del av ukesprosenten (Prioritet 62.1a sin regel om at et tall på Dashboard
+aldri skal kreve forklaring — hver av de to tallene forklarer sin egen tidsramme i teksten,
+ingen skjult sammenheng mellom dem).
+
+### Del 3 — Én samlet KPI-rad (fem kort)
+
+Ny, delt funksjon **`dashboardKpiRadHtml(d)`** — Aktive saker/Under oppfølging/Planlagt
+verksted (samme tall/navigasjon som den eksisterende `sakFaseTellereHtml()`, som er
+UENDRET og fortsatt brukt av Mobil Hjem) pluss Aktive biler (`aktiveBilerKpiHtml(d)`,
+gjenbrukt uendret) og et nytt Varsler-kort (`varslingssenterAntall()`, samme kilde som
+klokkeikonet øverst til høyre og sidebarens badge). Ny CSS-klasse `.dash40-grid5-kpi`
+(5 kolonner ≥1200px → 3 ≤1199px → 2 ≤640px, samme responsive mønster som
+`.dash40-grid3`/`.dash40-grid4`). Erstatter den tidligere kombinasjonen av
+`sakFaseTellereHtml()` (3 kort, fast plassert) + et separat 3-korts
+Kontrollstatus/Aktive-biler/Kalender-rutenett (`komponentHtml.kpi`, Layout Editor-styrt) —
+Kontrollstatus-tallene lever nå i «Operativ status» (Del 2), og Kalender-snarveien er
+erstattet av det mer informative ukewidgetet (Del 4). `kpi`-nøkkelen i
+`DASHBOARD_LAYOUT_FLATER.desktop` er BEHOLDT (samme nøkkel, nytt innhold — brukeren kan
+fortsatt skjule/flytte hele KPI-raden), kun label oppdatert fra «Nøkkeltall (2 kort)» til
+«Nøkkeltall (5 kort)» (selve labelen var allerede historisk unøyaktig — 3 kort — fra en
+tidligere runde; nå korrekt). **Mobil er bevisst IKKE rørt** i denne runden — `renderMobilHjem()`
+sin egen `kpi`-komponent, `kontrollstatusKpiHtml()`/`aktiveBilerKpiHtml()`/
+`sakFaseTellereHtml()` sine kallesteder der er uendret.
+
+### Del 4 — Kalender som dashboard-widget
+
+Ny, delt funksjon **`kalenderUkeWidgetHtml()`** (+ hjelpefunksjon `kalenderUkeDager()`) —
+en hel `.panel` gjort om til én trykkbar knapp (ny CSS-klasse `.dash-kal-widget`, samme
+mønster som `.dash40-kpi`), som viser antall aktiviteter per ukedag (mandag–søndag, samme
+ukedefinisjon som selve månedsgriden) for INNEVÆRENDE uke, kun dager med aktivitet
+(`{navn} ({i dag})` · `N aktivitet(er)`), eller en tom-melding når uken er helt fri. Leser
+UTELUKKENDE `kalenderAktiviteterKart()` — samme, eksisterende datakilde som selve Kalenderen
+allerede bygger, ingen ny datamodell. Hele flaten navigerer til full Kalender via det
+eksisterende, generiske `data-quick-page`-attributtet — ingen ny lytterkode. Lagt til som en
+ny, togglebar/flyttbar komponent i Layout Editor (`kalenderwidget`, plassert i
+`DESKTOP_LAYOUT_KOLONNER.hoyre`, øverst — rett over Bilpark status).
+
+### Del 5 — Biloversikt: faner i stedet for ekspander/lukk
+
+`renderRegister()` sin gruppevisning (kategorier, `KATEGORI_ORDER` + `UTE_AV_DRIFT_KATEGORI_ID`)
+er gjort om fra et ekspander/lukk-akkordion (`registerGrupperApne`, ett `open`-flagg per
+gruppe, flere kunne stå åpne samtidig) til **faner** — samme `.profil-tabs`/`.profil-tab`-
+komponent som Kjøretøyprofilen (Prioritet 37/38) og Varslingssenteret (Prioritet 71.6)
+allerede bruker, KUN én gruppe synlig om gangen. Ny state-variabel **`registerAktivFane`**
+(ren visningstilstand, ALDRI lagret — nullstilles til `''` av `resetRegisterFiltre()`, som
+fra før allerede nullstiller alle andre Biloversikt-filtre ved generell navigasjon hit).
+
+**Aktiv fane-logikk** (i prioritert rekkefølge, speiler den gamle «hvilken gruppe er åpen»-
+regelen): et eksplisitt kategorifilter (`filterKategori`) vinner alltid → ellers forrige
+valgte fane, hvis den fortsatt finnes blant dagens grupper → ellers gruppen til egen aktive
+bil (`egenAktiveBil()`, samme auto-fremheving akkordionen hadde) → ellers første gruppe.
+`registerGrupperApne`/`toggleRegisterGruppe()` er BEVISST IKKE slettet fra koden (historisk,
+ingen gjenværende kallested i `renderRegister()`) — i tilfelle en fremtidig sak ønsker en
+ekspanderbar variant tilbake. «🚚 Biler i drift»-spesialvisningen (filteret «Har aktiv
+sjåfør», som viser ÉN samlet liste på tvers av kategorier — se Prioritet 41) er UENDRET og
+bruker fortsatt ikke faner, siden den prinsipielt aldri var en gruppe-per-kategori-visning.
+
+### Del 6 — Aktiv sjåfør fullført som primær visning (Dashboard)
+
+Fullfører Prioritet 71.11: Dashboardets egen, kompakte biloversikt-forhåndsvisning
+(`komponentHtml.biloversikt` i `renderDashboard()`) viste fortsatt «👤 {navn}» /
+«🕓 {sist kontrollert}» / «—» som TRE likestilte tilstander i Sjåfør-kolonnen — den
+eneste av de tre navngitte flatene (Dashboard/Biloversikt/Bilprofil) som IKKE fikk
+«Aktiv sjåfør som primær»-behandlingen i forrige runde (dokumentert som bevisst
+avgrensning der). Nå: kun to synlige tilstander — `luc('user-round')` + navn, eller
+«⚪ Ingen aktiv sjåfør» — med «sist kontrollert av» degradert til `title`-tooltip, identisk
+mønster som `galleryCard()`/Kjøretøyprofilens toppseksjon. `vehicleAktivSjafor()`/
+`vehicleSisteSjafor()` er UENDRET (kun lesefunksjoner, kun visningen av resultatet deres er
+endret) — se Prioritet 66.2 for hvorfor disse to ALDRI skal blandes sammen i samme visning.
+
+### Del 7 — Kalenderdetaljer i sidepanel
+
+`renderKalender()` sin layout er endret fra tre stablede paneler (månedsgrid → «Velg en
+dato»/valgt dags detaljer → «I dag»/«Senere», Prioritet 71.9) til **to kolonner side om
+side** (ny CSS-klasse `.kal-split`, samme responsive to-kolonnersmønster som
+`.dash40-split` — kollapser til én stablet kolonne ≤1199px, se `@media`-blokkene).
+Venstre kolonne: månedsgriden, uendret. Høyre kolonne: valgt dato sine aktiviteter (eller
+en «Velg en dato»-tomtilstand) ØVERST, med **`kalenderIDagSenereHtml()`** («I dag»/
+«Senere», Prioritet 71.9, INGEN endring i selve funksjonen) rett under. Ingen ny
+datakilde, ingen ny navigasjon — kun plasseringen av eksisterende paneler er endret, slik at
+ingen detaljer lenger krever scrolling forbi hele månedsgriden for å bli synlige.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v94 → bilpark-v95), `version-check.js` (`APP_VERSION` 94 → 95),
+`version.json` (`"version"` 94 → 95). **`storage.airtable.js` er IKKE endret** — ingen nye
+Airtable-felt, ingen `LIST_TABLES`-endring (ren presentasjons-/navigasjonsendring på
+eksisterende, allerede leste felt/funksjoner) — derfor uendret `versjon`/`?v=2.18.0`.
+
+**Testet:** `node` var ikke tilgjengelig i denne økten (samme begrensning som flere
+tidligere prioriteter, se f.eks. Prioritet 71.5/71.10). Verifisert i stedet: en global
+krøllparentes-/backtick-balansesjekk på hele `index.html` (5257 åpne = 5257 lukkede
+krøllparenteser, partall antall backticks — kontrollert både før og etter hver større
+redigeringsrunde i denne økten, ingen ny ubalanse introdusert noe sted underveis). Hver
+endret/ny funksjon (`kontrollrateUke()`, `isoDateOffset()`, `dashboardKpiRadHtml()`,
+`kalenderUkeDager()`/`kalenderUkeWidgetHtml()`, `renderRegister()` sin nye fane-gren,
+`renderKalender()` sin nye `.kal-split`-struktur, `renderDashboard()` i sin helhet) er lest
+i sin fulle sammenheng før og etter redigering for å bekrefte balanserte maler og riktige
+avhengigheter (samme type feil som Prioritet 66.3 advarer mot). **Ikke verifisert i en
+faktisk kjørende nettleser eller mot en ekte/mock-Airtable-base i denne økten** — kun
+statisk lese-/strukturverifisering.
+
+**Anbefalt før idriftsettelse:** åpne appen i en nettleser og bekreft: (1) «🎯 Operativ
+status» viser en rimelig prosent og at «{X} av {Y} biler kontrollert i dag» stemmer med
+Biloversikt sitt «Ikke kontrollert»-hurtigfilter; (2) alle fem KPI-kortene navigerer riktig
+(Aktive saker/Under oppfølging/Planlagt verksted → riktig fane i Aktive saker, Aktive biler
+→ Biloversikt filtrert på «Har aktiv sjåfør», Varsler → Varslingssenteret); (3)
+«📅 Denne uken»-widgeten viser korrekt ukedag-fordeling og åpner full Kalender ved klikk;
+(4) Biloversikt sine faner bytter korrekt uten sideeffekt på de øvrige filtrene, og at et
+kategorifilter fra et dashboard-snarveikort fortsatt tvinger riktig fane aktiv; (5)
+Kalenderens sidepanel oppdaterer seg korrekt ved datovalg, og at layouten kollapser pent til
+én kolonne på smal skjerm; (6) fargekodingen vises konsekvent i lys og mørk modus (alle sju
+`--tone`-baserte CSS-variabler er allerede definert i begge temaer, se Prioritet 38, men
+ikke separat re-verifisert i denne økten).
+
+**Ikke rørt:** Aktiv sjåfør-logikk (`settAktivSjafor()`/`vehicleAktivSjafor()`/
+`vehicleSisteSjafor()` — kun LEST), Sjåførkontroll (`submitKontroll()`), `v.km`-
+skriveregler, saksmotoren (`sakFase()`/`sakErApen()` kun lest via eksisterende
+kallesteder), Varslingssenteret sin egen logikk (`beregnVarslingssenterListe()`/
+`varselErSkjult()` — kun `varslingssenterAntall()` LEST for det nye Varsler-KPI-kortet),
+`flatePlanleggingData()`/`kalenderAktiviteterKart()` (kun LEST av det nye ukewidgetet),
+Layout Editor-mekanikken for øvrig, Bilkategorier, `storage.airtable.js`/Airtable-skjema,
+PWA/manifest-ikonfilene, `HOVEDSTATUS_IKON` og alle andre statusfargesirkler.
+
+**Kjente, dokumenterte begrensninger:**
+- Full Lucide-standardisering er, som i Prioritet 55/58, KUN gjennomført for de flatene
+  denne saken faktisk navngir (Dashboard, Kalender, Biloversikt sine nye faner/kort, samt
+  `galleryCard()`/Kjøretøyprofilens toppseksjon sitt kjøretøytype-/sjåførikon). Emoji finnes
+  fortsatt i store deler av resten av appen (Verksted, Aktive saker, Rapporter, Innstillinger,
+  skjemaer, statuspiller m.fl.) — «ingen gamle ikoner skal eksistere» gjelder derfor i praksis
+  kun de navngitte flatene i denne runden, ikke appen i sin helhet. Se Del 1 for full liste
+  over bevisste unntak (statusfargesirkler, allerede tone-fargede flater, skjemaetiketter).
+- Fargekodingen er en presentasjonsstandard (CSS-klasser), ikke en ny datamodell — den kan
+  derfor trygt utvides til flere flater i en senere, egen sak uten noen arkitekturendring.
+- Mobil (Mobil Dashboard/Mobil Hjem) er bevisst IKKE omfattet av Del 2/3/4 — «God morgen»/
+  KPI-rad/kalenderwidget finnes kun i den mobile forsiden slik den allerede var (egen
+  `renderMobilHjem()`-struktur, uendret). Vurder som egen, separat sak dersom mobil også
+  ønskes oppdatert til samme mønster.
+- «Kontrollrate siste 7 dager» (Del 2) er en forenklet, ikke-historisk rekonstruert
+  beregning (se Del 2) — egnet som trendindikator, ikke som revisjonsgrunnlag.
+- Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
+  kun grundig statisk lese-/strukturverifisering og en global balansesjekk.
