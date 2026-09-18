@@ -1,6 +1,9 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-18 (Prioritet 71.10 — to nye felt
+Sist oppdatert (feltendring): 2026-09-18 (Prioritet 72.1 — tre nye felt
+`AktivSjaforAutoReset`/`AktivSjaforAutoResetTid`/`AktivSjaforAutoResetSisteDato`
+på `Vehicles`, se seksjonen for den tabellen under). Før det: 2026-09-18
+(Prioritet 71.10 — to nye felt
 `KmGodkjenningStatus`/`KmGodkjenningInfo` på `DriverChecks`, se seksjonen for
 den tabellen under). Før det: 2026-09-17 (Prioritet 71.5 — nytt felt
 `MobilitetsgarantiAktivert` på `WorkshopAppointments`, se seksjonen for den
@@ -77,6 +80,9 @@ kategorier — ingen av dem er Airtable-kolonner.
 | drivstoff | Drivstoff | tekst (Prioritet 37) |
 | mobilitetsgaranti | Mobilitetsgaranti | tekst (Prioritet 37) |
 | **telefon** | **Telefon** | **tekst (Prioritet 45 — 📞 Ringeliste)** |
+| **aktivSjaforAutoReset** | **AktivSjaforAutoReset** | **boolsk — NYTT i Prioritet 72.1.** Per-bil-innstilling: skal aktiv sjåfør nullstilles automatisk kl. `aktivSjaforAutoResetTid` hver dag (`handhevAktivSjaforAutoReset()`)? Standard `true` for kjøretøy som matcher «Mercedes»/«eSprinter» i merke/modell (`vehicleErMercedesESprinter()`), `false` for alle andre — kun anvendt i minnet ved oppstart (`loadAll()`), aldri auto-lagret; administrator kan overstyre fritt per bil under Rediger informasjon. **Krever en ny kolonne «AktivSjaforAutoReset» (checkbox) i Vehicles-tabellen i Airtable før denne versjonen tas i bruk.** |
+| **aktivSjaforAutoResetTid** | **AktivSjaforAutoResetTid** | **tekst («HH:MM») — NYTT i Prioritet 72.1.** Klokkeslettet nullstillingen skjer på for akkurat denne bilen, standard `'14:50'` (`AKTIV_SJAFOR_AUTORESET_STD_TID`) når tomt/ugyldig. **Krever en ny kolonne «AktivSjaforAutoResetTid» (enkel tekst) i Vehicles-tabellen i Airtable.** |
+| **aktivSjaforAutoResetSisteDato** | **AktivSjaforAutoResetSisteDato** | **tekst (ISO-dato) — NYTT i Prioritet 72.1.** Intern dedup-sperre: hvilken operativ dag (`todayISO()`) funksjonen sist faktisk nullstilte akkurat denne bilen. Sikrer at nullstillingen kun skjer ÉN gang per dag — uten denne ville en sjåfør som sjekket inn igjen etter klokkeslettet blitt nullstilt på nytt ved neste inngangspunkt-sjekk samme dag. Ren driftsdata, ikke ment for manuell redigering. **Krever en ny kolonne «AktivSjaforAutoResetSisteDato» (enkel tekst) i Vehicles-tabellen i Airtable.** |
 
 ### Damages (app-nøkkel: `damages`)
 

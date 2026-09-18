@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.18.0"></script>
+<script src="storage.airtable.js?v=2.19.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -2773,9 +2773,18 @@ async function handhevOperativtDogn({rerender = false} = {}){
 // Retur til appen fra bakgrunnen (mobil-PWA lukkes sjelden — den bakgrunnslegges), og
 // bfcache-retur (pageshow). Dekker testkrav 2 og 3.
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible') handhevOperativtDogn({rerender:true});
+  if(document.visibilityState === 'visible'){
+    handhevOperativtDogn({rerender:true});
+    // Prioritet 72.1: samme inngangspunkt-mønster for stille km-avviksretting.
+    if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
+    if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+  }
 });
-window.addEventListener('pageshow', () => { handhevOperativtDogn({rerender:true}); });
+window.addEventListener('pageshow', () => {
+  handhevOperativtDogn({rerender:true});
+  if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
+  if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+});
 
 // ---- Værmelding (Larvik) ----
 // Henter gjeldende temperatur/værtype fra Open-Meteo (gratis, ingen API-nøkkel).
@@ -3707,6 +3716,10 @@ function oppstartApne(tilSkjerm){
     if(tilSkjerm && !driverMode && loggedInRole) screen = tilSkjerm;
     window.subscribeLiveSync(_lagBatchetLiveSyncHandler());
     render();
+    // Prioritet 72.1: rett ev. små, historiske km-avvik (< KM_HOPP_GRENSE) stille ved
+    // oppstart — se synkroniserSmaKmAvvik().
+    synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
+    handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
     if(!redusert){
       app.classList.add('oppstart-inn');
       setTimeout(() => app.classList.remove('oppstart-inn'), 300);
@@ -3731,6 +3744,17 @@ async function loadAll(){
     vehicles = vehiclesRaw && vehiclesRaw.value ? JSON.parse(vehiclesRaw.value) : [];
     vehiclesLoadStatus = vehicles.length > 0 ? 'lastet' : 'bekreftet-tom';
     vehiclesSisteOkLesing = new Date().toISOString();
+    // Prioritet 72.1: standardverdi for det nye per-bil-feltet aktivSjaforAutoReset —
+    // KUN når feltet mangler helt (eksisterende/nyinnlest kjøretøy uten en tidligere,
+    // eksplisitt admin-satt verdi). Mercedes eSprinter får PÅSLÅTT som standard, alle
+    // andre AV — samme «forslag, ikke låsing»-prinsipp som standardverksted (Prioritet 61):
+    // en administrator kan når som helst overstyre dette per bil i Rediger informasjon.
+    // Settes kun i minnet her — skrives IKKE tilbake til Airtable før admin faktisk lagrer
+    // noe på bilen (ingen uoppfordret skriving ved oppstart).
+    vehicles.forEach(v => {
+      if(v.aktivSjaforAutoReset === undefined) v.aktivSjaforAutoReset = vehicleErMercedesESprinter(v);
+      if(!v.aktivSjaforAutoResetTid) v.aktivSjaforAutoResetTid = AKTIV_SJAFOR_AUTORESET_STD_TID;
+    });
   }catch(e){
     // DEL 2: ingen automatisk DEFAULT_FLEET-seeding, ingen saveVehicles(), ingen
     // fortsettelse som om alt er normalt.
@@ -4002,6 +4026,10 @@ function _lagBatchetLiveSyncHandler(){
     // Prioritet 66: nyinnlest kjøretøydata kan inneholde en biløkt fra forrige operative
     // døgn (satt på en annen enhet). Håndhev dagskillet før skjermen tegnes på nytt.
     await handhevOperativtDogn();
+    // Prioritet 72.1: samme runde er også et naturlig sted å rette små km-avvik i
+    // nyinnlest data — se synkroniserSmaKmAvvik().
+    await synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
+    await handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
     if(formInProgress()) return;
     render();
   };
@@ -5022,6 +5050,9 @@ function goTo(scr, vehicleId, _isBack){
   // kallet er nå gratis når døgnet ikke har skiftet og ingen biløkt er foreldet — se
   // handhevOperativtDogn(), som returnerer med én gang i det tilfellet.
   if(loaded) handhevOperativtDogn().catch(e => console.error('[handhevOperativtDogn] Feilet', e));
+  // Prioritet 72.1: samme inngangspunkt for stille km-avviksretting (se synkroniserSmaKmAvvik()).
+  if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
+  if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
 // Dashboard (eller en oppgitt fallback-skjerm) dersom historikken er tom, f.eks. ved
@@ -5195,6 +5226,10 @@ async function saveVehicleForm(id){
   v.mobilitetsgaranti = document.getElementById('f-mobilitetsgaranti').value.trim();
   v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
   v.driftslag = document.getElementById('f-driftslag').value.trim();
+  // Prioritet 72.1: per-bil-innstilling for daglig nullstilling av aktiv sjåfør.
+  v.aktivSjaforAutoReset = document.getElementById('f-aktivsjafor-autoreset').checked;
+  const autoResetTidRaw = document.getElementById('f-aktivsjafor-autoreset-tid').value.trim();
+  v.aktivSjaforAutoResetTid = /^([01]\d|2[0-3]):[0-5]\d$/.test(autoResetTidRaw) ? autoResetTidRaw : AKTIV_SJAFOR_AUTORESET_STD_TID;
   if(pendingVehiclePhoto){
     v.hasPhoto = true;
     await savePhoto('vehicle:'+v.id, pendingVehiclePhoto);
@@ -6502,6 +6537,12 @@ function kontrollHarKmAvvik(k){
 // Del 10: REN RAPPORTERING av eksisterende motstridende data. Korrigerer ingenting.
 // Returnerer bilene der siste registrerte kontroll har HØYERE km enn kjøretøyets
 // autoritative v.km — altså akkurat det avviket som er meldt fra drift.
+// Prioritet 72.1: et km-avvik er KUN et driftsproblem (krever godkjenning) når
+// differansen faktisk er et bekreftet storthopp (>= KM_HOPP_GRENSE, se Prioritet 66/67).
+// Et avvik under grensen skal ALDRI vises her, ALDRI opprette et Varslingssenter-varsel og
+// ALDRI kreve Godta/Avslå — det rettes i stedet stille av synkroniserSmaKmAvvik() under.
+// Uten denne grensen fanget funksjonen tidligere opp ethvert positivt gap (f.eks. 452 km),
+// og tvang frem en unødvendig godkjenning for noe som burde vært en automatisk oppdatering.
 function kmAvvikForVehicle(v){
   const vKm = v ? kmVerdiEllerNull(v.km) : null;
   if(vKm === null) return null;
@@ -6509,8 +6550,10 @@ function kmAvvikForVehicle(v){
   // samme gulv som valideringen bruker — ikke bare siste kontroll.
   const gulv = kontrollKmGulv(v);
   if(gulv.kilde_type !== 'kontroll' || gulv.verdi === null || gulv.verdi <= vKm) return null;
+  const differanse = gulv.verdi - vKm;
+  if(differanse < KM_HOPP_GRENSE) return null; // Prioritet 72.1: under grensen — ikke et varsel.
   const k = gulv.kontroll;
-  return {vKm, kontrollKm: gulv.verdi, differanse: gulv.verdi - vKm,
+  return {vKm, kontrollKm: gulv.verdi, differanse,
     kontrollId: k ? k.id : '', dato: k ? k.dato : '', tidspunkt: k ? k.tidspunkt : '', sjafor: k ? k.sjafor : ''};
 }
 // Kjøres manuelt fra nettleserkonsollen av administrator: rapporterKmAvvik()
@@ -6520,10 +6563,108 @@ window.rapporterKmAvvik = function(){
     Differanse: a.differanse, Kontrolldato: a.dato + (a.tidspunkt ? ' kl. ' + a.tidspunkt : ''),
     Sjåfør: a.sjafor, 'Kontroll-ID': a.kontrollId
   }));
-  if(rader.length === 0){ console.log('Ingen biler har kontroll-km høyere enn v.km.'); return []; }
+  if(rader.length === 0){ console.log('Ingen biler har kontroll-km høyere enn v.km (>= ' + KM_HOPP_GRENSE + ' km).'); return []; }
   console.table(rader);
   return rader;
 };
+// ================= Prioritet 72.1: stille retting av SMÅ km-avvik (< KM_HOPP_GRENSE) =================
+// I normal drift skriver submitKontroll() allerede v.km automatisk for enhver differanse
+// under grensen (Prioritet 67) — et gjenværende lite avvik betyr derfor nesten alltid
+// eldre/historiske data (fra før den regelen fantes, eller en administrativ km-korrigering
+// via saveVehicleForm() som senere, allerede lagrede kontroller løper forbi igjen), ikke en
+// pågående feilregistrering noen må ta stilling til. Denne funksjonen er den SJETTE,
+// dokumenterte skrivestien til v.km (se CLAUDE.md, "Service"/Prioritet 66) — den løfter
+// v.km til km-gulvet STILLE (ingen varsel, ingen alert(), ingen Godta/Avslå) når
+// differansen er 1–999 km. Differanser >= KM_HOPP_GRENSE er UENDRET forbeholdt
+// godtaKmEndring()/avslaKmEndring() i Varslingssenteret — denne funksjonen rører dem aldri.
+// Kjøres ved samme type inngangspunkter som handhevOperativtDogn() (oppstart, goTo(),
+// live-sync, faneskifte) — ALDRI en egen setInterval.
+let _kmSyncPagar = false;
+async function synkroniserSmaKmAvvik(){
+  if(_kmSyncPagar) return false;
+  if(!Array.isArray(vehicles) || vehicles.length === 0) return false;
+  // Stille sjekk (IKKE krevVehiclesSkriving()) — dette er en bakgrunnsjobb og skal aldri
+  // vise en alert() til brukeren. Er skriving sperret, hopper vi bare over til neste
+  // inngangspunkt uten å varsle — samme lave alvorlighetsgrad som andre stille synk-feil.
+  if(!vehiclesSkrivingTillatt().ok) return false;
+  _kmSyncPagar = true;
+  try{
+    let endret = false;
+    vehicles.forEach(v => {
+      const vKm = kmVerdiEllerNull(v.km);
+      if(vKm === null) return;
+      const gulv = kontrollKmGulv(v);
+      if(gulv.kilde_type !== 'kontroll' || gulv.verdi === null) return;
+      const differanse = gulv.verdi - vKm;
+      if(differanse <= 0 || differanse >= KM_HOPP_GRENSE) return;
+      v.km = gulv.verdi;
+      endret = true;
+    });
+    if(!endret) return false;
+    await saveVehiclesOrThrow();
+    if(formInProgress()) return true;
+    render();
+    return true;
+  }catch(e){
+    console.error('[synkroniserSmaKmAvvik] Feilet — prøves igjen ved neste inngangspunkt', e);
+    return false;
+  }finally{
+    _kmSyncPagar = false;
+  }
+}
+
+// ================= Prioritet 72.1: daglig nullstilling av aktiv sjåfør per bil =================
+// Ny, PER BIL-innstilling: v.aktivSjaforAutoReset (boolsk) + v.aktivSjaforAutoResetTid
+// ("HH:MM", standard 14:50). Et eget, tredje felt — v.aktivSjaforAutoResetSisteDato — sporer
+// hvilken operativ dag funksjonen sist faktisk nullstilte bilen, slik at den kun nullstiller
+// ÉN gang per dag (uten denne sperren ville enhver sjåfør som sjekket inn EN GANG etter
+// klokkeslettet blitt nullstilt igjen ved neste inngangspunkt-sjekk samme dag). Kjøres ved
+// nøyaktig samme inngangspunkter som handhevOperativtDogn()/synkroniserSmaKmAvvik() —
+// ALDRI en egen setInterval (appen er en statisk GitHub Pages-PWA uten server-cron).
+// Aktiv sjåfør SKAL fortsatt settes automatisk av submitKontroll() (Prioritet 34/40/66.2,
+// uendret) — denne funksjonen rører KUN nullstillingen, aldri tildelingen.
+const AKTIV_SJAFOR_AUTORESET_STD_TID = '14:50';
+let _aktivSjaforAutoResetPagar = false;
+async function handhevAktivSjaforAutoReset(){
+  if(_aktivSjaforAutoResetPagar) return false;
+  if(!Array.isArray(vehicles) || vehicles.length === 0) return false;
+  const idag = todayISO(); // samme operative dag-definisjon som resten av appen
+  const naTid = nowTimeOslo(); // 'HH:MM', 24-timers, alltid zero-padded
+  // Rask, billig sjekk FØR skrivesperre-sjekk/lås — de aller fleste kall (de fleste
+  // inngangspunkter, de fleste tider på døgnet) skal koste tilnærmet ingenting.
+  const kandidater = vehicles.filter(v =>
+    v.aktivSjaforAutoReset === true &&
+    !!v.aktivSjafor &&
+    naTid >= (v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID) &&
+    v.aktivSjaforAutoResetSisteDato !== idag);
+  if(kandidater.length === 0) return false;
+  if(!vehiclesSkrivingTillatt().ok) return false; // stille — bakgrunnsjobb, ingen alert()
+  _aktivSjaforAutoResetPagar = true;
+  try{
+    kandidater.forEach(v => {
+      v.aktivSjafor = '';
+      v.aktivSjaforSiden = '';
+      v.aktivSjaforAutoResetSisteDato = idag;
+    });
+    await saveVehiclesOrThrow();
+    if(!formInProgress()) render();
+    return true;
+  }catch(e){
+    console.error('[handhevAktivSjaforAutoReset] Lagring feilet — prøves igjen ved neste inngangspunkt', e);
+    return false;
+  }finally{
+    _aktivSjaforAutoResetPagar = false;
+  }
+}
+// Prioritet 72.1: bevisst, dokumentert standardverdi — Mercedes eSprinter skal ha
+// funksjonen PÅSLÅTT som standard, alle andre biler AV, med mindre administrator endrer
+// dette eksplisitt for den enkelte bil (se infoBody i renderBilkort() / saveVehicleForm()).
+// Matcher fritekstfeltene v.merke/v.modell case-ufølsomt — «Mercedes» + «eSprinter»/
+// «e-Sprinter»/«E Sprinter» gir alle treff.
+function vehicleErMercedesESprinter(v){
+  const t = ((v.merke || '') + ' ' + (v.modell || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return t.includes('mercedes') && t.includes('esprinter');
+}
 
 // ================= Prioritet 71.10: Godkjenning av store kilometerendringer =================
 // Et bekreftet storthopp (Del 7/8 over) lagrer kontrollen med den registrerte km-verdien,
@@ -10881,6 +11022,14 @@ function renderBilkort(){
       <datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
       <div class="required-hint" style="margin-top:4px;">Styrer kun gruppering av bilvalg i Sjåførkontroll — påvirker ikke Biloversikt/Historikk/Rapporter/Planlegging.</div>
     </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input id="f-aktivsjafor-autoreset" type="checkbox" ${v.aktivSjaforAutoReset ? 'checked' : ''}>
+        <span>🔁 Nullstill aktiv sjåfør automatisk</span>
+      </label>
+      <div class="required-hint" style="margin-top:4px;">Kl. ${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)} fjernes aktiv sjåfør på denne bilen automatisk, dersom noen fortsatt står aktiv. Neste sjåførkontroll setter ny aktiv sjåfør som vanlig.</div>
+      <input id="f-aktivsjafor-autoreset-tid" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)}" style="margin-top:8px;max-width:120px;">
+    </div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
@@ -11145,42 +11294,42 @@ function renderBilkort(){
 
     <div class="profil-stat5">
       <div>
-        <span class="flis" style="--tint:var(--blue-soft);">${luc('gauge')}</span>
+        <span class="flis" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('gauge')}</span>
         <span><span class="l">Km-stand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
       </div>
       <div style="cursor:pointer;" data-goto-service="${v.id}">
-        <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};">${luc('wrench')}</span>
+        <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};--tone:var(--green-ink);">${luc('wrench')}</span>
         <span><span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span><span class="s">${vSisteServiceDagerSiden === null ? '–' : vSisteServiceDagerSiden + ' dag' + (vSisteServiceDagerSiden===1?'':'er') + ' siden'}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:${euKontrollFarge==='var(--green)'?'var(--green-soft)':'var(--red-soft)'};">${luc('shield-check')}</span>
+        <span class="flis" style="--tint:${euKontrollFarge==='var(--green)'?'var(--green-soft)':'var(--red-soft)'};--tone:var(--blue);">${luc('shield-check')}</span>
         <span><span class="l">EU-kontroll</span><span class="v">${v.euGodkjentTil ? 'Godkjent til ' + fmt(v.euGodkjentTil) : 'Mangler registrering'}</span><span class="s">${euDagerTekst}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:${mgPille.tint};">🛟</span>
+        <span class="flis" style="--tint:${mgPille.tint};--tone:${mgPille.tone};">${luc('life-buoy')}</span>
         <span><span class="l">Mobilitetsgaranti</span><span class="v">${MOBGARANTI_STATUS_LABEL[vMobgaranti.status]}</span><span class="s">${vMobgaranti.tilDato ? 'Gyldig til ' + fmt(vMobgaranti.tilDato) : '–'}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};">${luc('user-round')}</span>
+        <span class="flis" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:var(--purple);">${luc('user-round')}</span>
         <span><span class="l">Aktiv sjåfør</span><span class="v">${p38SjaforNa ? esc(p38SjaforNa) : 'Ingen aktiv sjåfør'}</span><span class="s">${p38SisteKontrollor ? 'Sist kontrollert av ' + esc(p38SisteKontrollor) : (p38SjaforNa ? 'Kjører nå' : '–')}</span></span>
       </div>
     </div>
 
     <div class="profil-stat4">
       <div>
-        <span class="flis" style="--tint:${vKontrollertIdag || vehicleErReserveUnntatt(v.id) ? 'var(--green-soft)' : 'var(--amber-soft)'};">${vKontrollertIdag ? '✅' : (vehicleErReserveUnntatt(v.id) ? '🚐' : '⚠️')}</span>
+        <span class="flis" style="--tint:${vKontrollertIdag || vehicleErReserveUnntatt(v.id) ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${vKontrollertIdag ? 'var(--green-ink)' : (vehicleErReserveUnntatt(v.id) ? 'var(--muted)' : 'var(--amber)')};">${vehicleErReserveUnntatt(v.id) && !vKontrollertIdag ? luc('truck') : luc('clipboard-check')}</span>
         <span><span class="l">Kontrollstatus</span><span class="v" style="font-size:15px;">${vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (vKontrollertIdag ? 'Kontrollert i dag' : 'Ikke kontrollert')}</span><span class="s">${vLastKontroll ? 'Sist ' + fmt(vLastKontroll.dato) : 'Ingen kontroll registrert'}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:${vAktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};">${vAktiveVarsler.length > 0 ? '🔴' : '🟢'}</span>
+        <span class="flis" style="--tint:${vAktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${vAktiveVarsler.length > 0 ? 'var(--amber)' : 'var(--green-ink)'};">${luc('triangle-alert')}</span>
         <span><span class="l">Varsellamper</span><span class="v" style="${vAktiveVarsler.length > 0 ? 'color:var(--red);' : ''}">${vAktiveVarsler.length}</span><span class="s">${vAktiveVarsler.length > 0 ? 'Aktive nå' : 'Ingen aktive'}</span></span>
       </div>
       <div data-goto-skader-fane style="cursor:pointer;">
-        <span class="flis" style="--tint:${vDamagesAktive.length > 0 ? 'var(--orange-soft)' : 'var(--green-soft)'};">${vDamagesAktive.length > 0 ? '⚠️' : '🟢'}</span>
+        <span class="flis" style="--tint:${vDamagesAktive.length > 0 ? 'var(--orange-soft)' : 'var(--green-soft)'};--tone:${vDamagesAktive.length > 0 ? 'var(--red)' : 'var(--green-ink)'};">${luc('octagon-alert')}</span>
         <span><span class="l">Skader</span><span class="v" style="${vDamagesAktive.length > 0 ? 'color:var(--orange);' : ''}">${vDamagesAktive.length}</span><span class="s">${vDamages.length} registrert totalt →</span></span>
       </div>
       <div ${vAktiveSakerListe.length > 0 ? 'id="op-saker-flis" style="cursor:pointer;"' : ''}>
-        <span class="flis" style="--tint:${vAktiveSakerListe.length > 0 ? 'var(--amber-soft)' : 'var(--green-soft)'};">${vAktiveSakerListe.length > 0 ? '📂' : '🟢'}</span>
+        <span class="flis" style="--tint:${vAktiveSakerListe.length > 0 ? 'var(--amber-soft)' : 'var(--green-soft)'};--tone:${vAktiveSakerListe.length > 0 ? 'var(--orange)' : 'var(--green-ink)'};">${luc('folder-open')}</span>
         <span><span class="l">Aktive saker</span><span class="v" style="${vAktiveSakerListe.length > 0 ? 'color:var(--amber);' : ''}">${vAktiveSakerListe.length}</span><span class="s">${vAktiveSakerListe.length === 0 ? 'Ingen åpne saker' : (vForfalteOppfolginger.length > 0 ? '⏰ ' + vForfalteOppfolginger.length + ' forfalt →' : (vNesteOppfolging && vNesteOppfolging.followUpDate ? 'Neste ' + fmt(vNesteOppfolging.followUpDate) + ' →' : 'Åpne saksliste →'))}</span></span>
       </div>
     </div>
@@ -11275,7 +11424,18 @@ function attachBilkortListeners(){
     if(btn) btn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; render(); });
   });
   attachBestillListeners(currentVehicleId);
-  document.getElementById('del-vehicle').addEventListener('click', () => deleteVehicle(currentVehicleId));
+  // Prioritet 72.1, KRITISK REGRESJONSFIKS: «del-vehicle»-knappen finnes i DOM-en KUN når
+  // «⚙️ Avanserte handlinger»-akkordionen (Prioritet 71.9) er ÅPEN — men den er lukket som
+  // standard. Uten dette null-vaktet kastet getElementById(...).addEventListener() en
+  // TypeError på HVER normal profilvisning, som stanset attachBilkortListeners() midt i
+  // funksjonen — alt registrert ETTER dette punktet (faneveksling,
+  // Kjøretøydetaljer/Avanserte handlinger-toggling, Lagre-knappen, skaderegistrering m.fl.)
+  // fikk derfor ALDRI en lytter, og siden refreshLucideIcons() kalles etter attach-kallet i
+  // render(), stoppet også ALLE Lucide-ikoner på siden opp som usynlige plassholdere
+  // (se `i.lucide-ic{opacity:0;}`). Dette var rotårsaken til de rapporterte «tomme
+  // ikonfelt», «Kjøretøydetaljer fungerer ikke» og «Avanserte handlinger fungerer ikke».
+  const delVehicleBtn = document.getElementById('del-vehicle');
+  if(delVehicleBtn) delVehicleBtn.addEventListener('click', () => deleteVehicle(currentVehicleId));
   document.querySelectorAll('[data-toggle-bilkort]').forEach(el => el.addEventListener('click', () => toggleBilkortSection(el.dataset.toggleBilkort)));
   document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
   document.querySelectorAll('[data-toggle-bilkort-historikk]').forEach(el => el.addEventListener('click', () => toggleBilkortHistorikkSub(el.dataset.toggleBilkortHistorikk)));

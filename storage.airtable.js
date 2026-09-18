@@ -181,7 +181,17 @@
       // (tel:-lenke). Registrert her SAMTIDIG som feltet tas i bruk i index.html
       // (FELTREGELEN i CLAUDE.md) — uten dette ville det forsvunnet stille ved neste
       // Airtable-henting, nøyaktig samme feilmønster som rammet feltene over historisk.
-      telefon: ['Telefon']
+      telefon: ['Telefon'],
+      // Prioritet 72.1: per-bil-innstilling for daglig, automatisk nullstilling av aktiv
+      // sjåfør (se handhevAktivSjaforAutoReset() i index.html). aktivSjaforAutoReset er en
+      // boolsk brukervalgt av/på-bryter (standard: kun Mercedes eSprinter er PÅ, alle andre
+      // AV — se vehicleErMercedesESprinter()); aktivSjaforAutoResetTid er klokkeslettet
+      // (standard "14:50"); aktivSjaforAutoResetSisteDato er en intern sporingsverdi (ISO-
+      // dato for operativt døgn) som hindrer at samme bil nullstilles flere ganger samme
+      // dag. Registrert her SAMTIDIG som feltene tas i bruk i index.html (FELTREGELEN).
+      aktivSjaforAutoReset: ['AktivSjaforAutoReset', 'bool'],
+      aktivSjaforAutoResetTid: ['AktivSjaforAutoResetTid'],
+      aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -568,7 +578,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.18.0',
+    versjon: 'v2.19.0',
     bygget: '18.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
