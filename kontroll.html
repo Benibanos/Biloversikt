@@ -2674,10 +2674,17 @@ function clearDriverLocalSession(){
 // Aktiv sjåfør på en bil — regnes alltid live mot operativt dagskille (04:00), akkurat
 // som isKontrollertIdag(). En biløkt fra en tidligere operativ dag regnes som avsluttet
 // selv om feltene på kjøretøyet ikke er ryddet opp ennå (se ryddOppBiloktDagskille).
+// Korrigert krav, testscenario "Ugyldig AktivSjaforSiden": new Date(ugyldig-streng) gir
+// Invalid Date, og Intl.DateTimeFormat (inne i isoDateForOperationalDay()) KASTER en
+// RangeError på en Invalid Date i stedet for å returnere en verdi — uten isNaN-vakten under
+// ville dette krasjet HVER visning som leser aktiv sjåfør (Dashboard/Biloversikt/
+// Kjøretøyprofil), ikke bare denne ene funksjonen.
 function vehicleAktivSjafor(vehicleId){
   const v = vehicles.find(x => x.id === vehicleId);
   if(!v || !v.aktivSjafor || !v.aktivSjaforSiden) return null;
-  if(isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== todayISO()) return null;
+  const sidenDato = new Date(v.aktivSjaforSiden);
+  if(isNaN(sidenDato.getTime())) return null;
+  if(isoDateForOperationalDay(sidenDato) !== todayISO()) return null;
   return v.aktivSjafor;
 }
 // "Aktiv sjåfør" i Operativ status skal
@@ -2709,9 +2716,17 @@ function vehicleSisteSjafor(vehicleId){
 //  startBilokt() → + lokal enhets-sesjon (sjåførmodus) = biløkt
 //  settAktivSjaforForKontroll() → ingenting ekstra (kontroll fra administrasjonen)
 //  overforAktivSjafor() → ingenting ekstra (👤 Ny sjåfør på Min Bil)
-// Nullstilling skjer fortsatt kun i avsluttBilokt() og ryddOppBiloktDagskille().
+// Nullstilling skjer fortsatt kun i avsluttBilokt(), ryddOppBiloktDagskille() og — nytt —
+// et manuelt admin-trykk (nullstillAktivSjaforManuelt(), Bilinformasjon).
 // Returnerer navnet på en ev. ANNEN bil samme sjåfør ble sjekket ut av, slik at
 // den som kaller kan gjøre kryss-bil-utsjekkingen synlig (uten blokkerende alert).
+//
+// KORRIGERT KRAV: aktivSjaforSiden skal beholde sitt OPPRINNELIGE tidsstempel når SAMME
+// sjåfør kontrollerer SAMME bil på nytt samme operative dag ("Ahmed kl. 07:12, igjen kl.
+// 11:45 → fortsatt 07:12") — kun en FAKTISK ny sjåfør, eller samme sjåfør etter et
+// operativt dagskille (en ny "vakt", selv med samme navn), skal få et nytt "siden"-
+// tidsstempel. Før denne rettingen ble aktivSjaforSiden ubetinget overskrevet ved HVER
+// kontroll, uansett om sjåføren var uendret.
 async function settAktivSjafor(vehicleId, navn){
   const navnTrim = (navn || '').trim();
   let utsjekketFra = '';
@@ -2722,7 +2737,16 @@ async function settAktivSjafor(vehicleId, navn){
     }
   });
   const v = vehicles.find(x => x.id === vehicleId);
-  if(v){ v.aktivSjafor = navnTrim; v.aktivSjaforSiden = new Date().toISOString(); }
+  if(v){
+    // isNaN-vakt: se vehicleAktivSjafor() — samme krasjrisiko på en ugyldig lagret
+    // aktivSjaforSiden-streng ville ellers rammet HVER sjåførkontroll, ikke bare visningen.
+    const forrigeSidenDato = v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden) : null;
+    const sammeSjaforSammeOperativeDag = navnTrim && v.aktivSjafor && forrigeSidenDato && !isNaN(forrigeSidenDato.getTime()) &&
+      v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase() &&
+      isoDateForOperationalDay(forrigeSidenDato) === todayISO();
+    v.aktivSjafor = navnTrim;
+    if(!sammeSjaforSammeOperativeDag) v.aktivSjaforSiden = new Date().toISOString();
+  }
   await saveVehicles();
   return utsjekketFra;
 }
@@ -2766,19 +2790,75 @@ async function avsluttBilokt(vehicleId){
   // fra en tidligere økt når sjåføren sendes tilbake til bilvalget.
   driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
 }
+// Korrigert krav (Aktiv sjåfør/dagskille), Del 9: administratorens ett-klikks manuelle
+// nullstilling i Bilinformasjon — fungerer UAVHENGIG av den automatiske 04:00-
+// nullstillingen (ryddOppBiloktDagskille()) og av den per-bil konfigurerbare
+// autoreset-tiden (handhevAktivSjaforAutoReset()). Begge feltene tømmes samlet, kun etter
+// BEKREFTET lagring — snapshot/rollback ved feil, samme mønster som
+// ryddOppBiloktDagskille(). Rører aldri kontroller/historikk/km/saker/verksted/løftebord.
+async function nullstillAktivSjaforManuelt(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v || !vehicleAktivSjafor(v.id)) return;
+  if(!krevVehiclesSkriving('Å nullstille aktiv sjåfør')) return;
+  if(!confirm(`Nullstille aktiv sjåfør (${v.aktivSjafor}) på ${vehicleLabel(v)}?`)) return;
+  const forrigeSjafor = v.aktivSjafor; const forrigeSiden = v.aktivSjaforSiden;
+  v.aktivSjafor = ''; v.aktivSjaforSiden = '';
+  try{
+    await saveVehiclesOrThrow();
+  }catch(e){
+    v.aktivSjafor = forrigeSjafor; v.aktivSjaforSiden = forrigeSiden;
+    console.error('[nullstillAktivSjaforManuelt] Lagring feilet — rullet tilbake', e);
+    if(!(e && (e.blokkertAvSperre || e.blokkertAvVakt))){
+      alert('Kunne ikke nullstille aktiv sjåfør. Ingenting er endret — prøv igjen.');
+    }
+    render();
+    return;
+  }
+  render();
+}
 // Rydder opp biløkter fra en tidligere operativ dag (dagskille kl. 04:00). Skriving til
 // Airtable her er kun for å holde dataene ryddige — selve statusen er uansett alltid
 // korrekt live via vehicleAktivSjafor() selv før denne har rukket å kjøre.
+//
+// KORRIGERT KRAV: denne funksjonen ER prosjektets "nullstillAktiveSjaforerEtterDagskille()"
+// — gjenbrukt, ikke duplisert under et nytt navn. Utvidet med snapshot/rollback ved
+// mislykket lagring (samme rollback-mønster som submitKontroll()/deleteVT(), Prioritet
+// 66.1): siden statusen uansett alltid er korrekt LIVE via vehicleAktivSjafor() (som gjør
+// nøyaktig samme foreldet-sjekk selv, uavhengig av om denne funksjonen har rukket å lagre),
+// er det tryggere å la den LOKALE `vehicles`-listen forbli uendret ved en lagringsfeil enn å
+// late som nullstillingen er gjennomført — se CLAUDE.md, "Korrigert krav — Aktiv sjåfør og
+// dagskille". Et mislykket forsøk prøves automatisk på nytt ved neste inngangspunkt
+// (oppstart/synk/goTo), siden sjekken over uendret vil finne den samme foreldede biløkten.
 async function ryddOppBiloktDagskille(){
   const idag = todayISO();
+  const snapshot = JSON.parse(JSON.stringify(vehicles));
   let endret = false;
   vehicles.forEach(v => {
-    if(v.aktivSjafor && v.aktivSjaforSiden && isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== idag){
+    if(!v.aktivSjafor) return;
+    // Testscenario "AktivSjaforSiden mangler/ugyldig": en bil med aktivSjafor satt, men uten
+    // et lesbart tidsstempel, kan aldri bevises å tilhøre INNEVÆRENDE operative dag — den
+    // ryddes derfor opp her på samme måte som en faktisk foreldet biløkt, i stedet for å bli
+    // stående som en varig anomali. vehicleAktivSjafor() har alltid behandlet den som IKKE
+    // aktiv (returnerer null) — denne oppryddingen bringer det lagrede feltet i samsvar.
+    const sidenDato = v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden) : null;
+    const gyldigSiden = sidenDato && !isNaN(sidenDato.getTime());
+    if(!gyldigSiden || isoDateForOperationalDay(sidenDato) !== idag){
       v.aktivSjafor = ''; v.aktivSjaforSiden = '';
       endret = true;
     }
   });
-  if(endret) await saveVehicles();
+  if(endret){
+    try{
+      await saveVehiclesOrThrow();
+    }catch(e){
+      console.error('[ryddOppBiloktDagskille] Lagring feilet — ruller tilbake lokalt, prøves igjen ved neste inngangspunkt', e);
+      vehicles.length = 0; Array.prototype.push.apply(vehicles, snapshot);
+      // Rulles tilbake, men IKKE et tidlig return: vehicleAktivSjafor() gjør sin egen,
+      // uendrede foreldet-sjekk live mot aktivSjaforSiden, helt uavhengig av om de rå
+      // feltene faktisk ble tømt i Airtable — sjåførens LOKALE enhets-sesjon skal derfor
+      // ryddes riktig uansett utfallet av selve lagringen.
+    }
+  }
   if(driverActiveVehicleId && !vehicleAktivSjafor(driverActiveVehicleId)){
     clearDriverLocalSession();
     driverScreen = 'velg-bil';
@@ -2805,8 +2885,15 @@ async function handhevOperativtDogn({rerender = false} = {}){
   // kan dermed ikke starte to samtidige Airtable-operasjoner.
   if(dogngHandhevingPagar) return false;
   const idagFor = todayISO();
-  const harForeldetBilokt = Array.isArray(vehicles) && vehicles.some(v =>
-    v && v.aktivSjafor && v.aktivSjaforSiden && isoDateForOperationalDay(new Date(v.aktivSjaforSiden)) !== idagFor);
+  // Samme, utvidede "foreldet"-definisjon som ryddOppBiloktDagskille() selv bruker (inkl.
+  // manglende/ugyldig aktivSjaforSiden) — ellers ville en slik anomali kunne unngå opprydding
+  // resten av dagen dersom den oppstod etter forrige dagskille-sjekk.
+  const harForeldetBilokt = Array.isArray(vehicles) && vehicles.some(v => {
+    if(!v || !v.aktivSjafor) return false;
+    const sidenDato = v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden) : null;
+    const gyldigSiden = sidenDato && !isNaN(sidenDato.getTime());
+    return !gyldigSiden || isoDateForOperationalDay(sidenDato) !== idagFor;
+  });
   if(sisteKjenteOperativeDag === idagFor && !harForeldetBilokt) return false;
   dogngHandhevingPagar = true;
   try{
@@ -4418,6 +4505,17 @@ function todayISO(){
 }
 function nowTimeOslo(){
   return new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date());
+}
+// Korrigert krav (Aktiv sjåfør/dagskille): formaterer klokkeslettet fra et VILKÅRLIG ISO-
+// tidsstempel (f.eks. v.aktivSjaforSiden) i Europe/Oslo — samme mønster som nowTimeOslo(),
+// som kun formaterer "nå". Brukes til å vise «Siden kl. HH:MM» i UI. Tolerant mot manglende/
+// ugyldige verdier (returnerer '' i stedet for å kaste) — dekker testscenarioene "AktivSjafor
+// finnes, men AktivSjaforSiden mangler" og "Ugyldig AktivSjaforSiden".
+function tidFraIso(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('nb-NO', {timeZone: APP_TIMEZONE, hour:'2-digit', minute:'2-digit', hour12:false}).format(d);
 }
 // Prioritet 72.0: greetingInfo() («God morgen»-hilsenen på Dashboard) er FJERNET — ingen
 // gjenværende kallested (se CLAUDE.md, Dashboard 2.0). Erstattet av «🎯 Operativ status».
@@ -6915,6 +7013,12 @@ async function submitKontroll(ev){
   // kjøretøyregisteret ikke sikkert lastet, vet vi ikke om vehicleId peker på riktig bil
   // — da skal ingen kontroll registreres i det hele tatt.
   if(!krevVehiclesSkriving('Å registrere kontroll')){ if(submitBtn) submitBtn.disabled = false; return; }
+  // Korrigert krav (Aktiv sjåfør/dagskille), Del 7 — «kjør dagskillekontroll FØR en eventuell
+  // ny sjåførovertakelse behandles»: håndhever et ev. forsinket operativt dagskille (04:00)
+  // FØR denne kontrollens egen settAktivSjaforForKontroll()/startBilokt() tildeler aktiv
+  // sjåfør lenger ned. Idempotent og billig (handhevOperativtDogn() gjør ingenting når
+  // døgnet ikke har skiftet og ingen biløkt er foreldet) — trygt å kalle her uansett kanal.
+  await handhevOperativtDogn();
   const v = vehicles.find(x => x.id === vehicleId);
   // Prioritet 66 DEL 6: lavere kilometerstand enn v.km BLOKKERES — ingen kontroll, ingen
   // sak, ingen bilder, ingen aktiv sjåfør, ingen endring av v.km. Tidligere var dette kun
@@ -9922,7 +10026,7 @@ function galleryCard(v, erMinAktiveBil){
         <span class="p48-dot" style="background:${st.tone};" title="${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}"></span>
       </div>
       <div class="gcard-badges">
-        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!sjaforNa && sjaforIdag ? `title="Sist kontrollert av ${esc(sjaforIdag)}"` : ''}>${sjaforNa ? luc('user-round') + ' ' + esc(sjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
+        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!sjaforNa && sjaforIdag ? `title="Sist kontrollert av ${esc(sjaforIdag)}"` : ''}>${sjaforNa ? luc('user-round') + ' ' + esc(sjaforNa) + (tidFraIso(v.aktivSjaforSiden) ? ' · siden ' + tidFraIso(v.aktivSjaforSiden) : '') : '⚪ Ingen aktiv sjåfør'}</span>
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
         ${aktiveVarsler.length > 0 ? `<span class="p38-pill" style="--tint:var(--red-soft);--tone:var(--red);">🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}</span>` : ''}
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
@@ -11021,6 +11125,15 @@ function renderBilkort(){
       <div class="required-hint" style="margin-top:4px;">Kl. ${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)} fjernes aktiv sjåfør på denne bilen automatisk, dersom noen fortsatt står aktiv. Neste sjåførkontroll setter ny aktiv sjåfør som vanlig.</div>
       <input id="f-aktivsjafor-autoreset-tid" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)}" style="margin-top:8px;max-width:120px;">
     </div>
+    <!-- Korrigert krav (Aktiv sjåfør/dagskille), Del 9: manuell nullstilling — en umiddelbar
+         handling (samme mønster som "✅ Utført løftebordkontroll", Prioritet 49 Del 2), IKKE
+         et skjemafelt knyttet til "Lagre"-knappen under. Fungerer uavhengig av den
+         automatiske 04:00-nullstillingen og den PER-BIL konfigurerbare autoreset-tiden over. -->
+    <div class="field" style="margin-bottom:10px;">
+      <label>👤 Aktiv sjåfør</label>
+      <div class="required-hint" style="margin-bottom:8px;">${(() => { const na = vehicleAktivSjafor(v.id); return na ? `${esc(na)} — siden kl. ${tidFraIso(v.aktivSjaforSiden) || '–'}` : 'Ingen aktiv sjåfør.'; })()}</div>
+      ${vehicleAktivSjafor(v.id) ? `<button type="button" class="btn secondary small" data-nullstill-aktiv-sjafor="${v.id}">🔁 Nullstill aktiv sjåfør</button>` : ''}
+    </div>
     <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
@@ -11315,7 +11428,7 @@ function renderBilkort(){
       </div>
       <div>
         <span class="flis" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:var(--purple);">${luc('user-round')}</span>
-        <span><span class="l">Aktiv sjåfør</span><span class="v">${p38SjaforNa ? esc(p38SjaforNa) : 'Ingen aktiv sjåfør'}</span><span class="s">${p38SisteKontrollor ? 'Sist kontrollert av ' + esc(p38SisteKontrollor) : (p38SjaforNa ? 'Kjører nå' : '–')}</span></span>
+        <span><span class="l">Aktiv sjåfør</span><span class="v">${p38SjaforNa ? esc(p38SjaforNa) : 'Ingen aktiv sjåfør'}</span><span class="s">${p38SjaforNa ? (tidFraIso(v.aktivSjaforSiden) ? 'Siden kl. ' + tidFraIso(v.aktivSjaforSiden) : 'Kjører nå') : (p38SisteKontrollor ? 'Sist kontrollert av ' + esc(p38SisteKontrollor) : '–')}</span></span>
       </div>
     </div>
 
@@ -11473,6 +11586,10 @@ function attachBilkortListeners(){
   // åpent (showBilinfoRediger) — querySelectorAll (ikke getElementById) er derfor trygt her
   // uansett, samme forsiktighetsprinsipp som del-vehicle-regresjonen i Prioritet 72.1 lærte.
   document.querySelectorAll('[data-lb-kontroll]').forEach(el => el.addEventListener('click', beskyttKlikk('registrerLoftebordKontroll:'+el.dataset.lbKontroll, el, () => registrerLoftebordKontroll(el.dataset.lbKontroll))));
+  // Korrigert krav (Aktiv sjåfør/dagskille), Del 9 — samme forsiktighetsprinsipp som over:
+  // knappen finnes kun i DOM-en når Bilinformasjon er åpen OG bilen faktisk har en aktiv
+  // sjåfør, derfor querySelectorAll.
+  document.querySelectorAll('[data-nullstill-aktiv-sjafor]').forEach(el => el.addEventListener('click', beskyttKlikk('nullstillAktivSjaforManuelt:'+el.dataset.nullstillAktivSjafor, el, () => nullstillAktivSjaforManuelt(el.dataset.nullstillAktivSjafor))));
   const skadeBtn = document.getElementById('ny-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
   const vtBtn = document.getElementById('ny-vt-btn');

@@ -15,6 +15,35 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-18
 
+### Prioritet 51 — Korrigert krav: Aktiv sjåfør og dagskille kl. 04:00
+
+Ferdig regel: «Aktiv sjåfør beholdes gjennom operativ dag, men nullstilles alltid ved
+operativt dagskille kl. 04:00.» Full detalj i CLAUDE.md, Prioritet 51 — kort oppsummert:
+grundig lesing av eksisterende kode (Prioritet 34/40/66/66.2) bekreftet at mekanismen
+allerede var praktisk talt komplett og korrekt. Tre reelle avvik rettet:
+
+1. `settAktivSjafor()` overskrev `aktivSjaforSiden` ved HVER kontroll, også når samme
+   sjåfør kontrollerte samme bil på nytt samme dag — rettet til å beholde det opprinnelige
+   tidsstempelet i det tilfellet.
+2. `ryddOppBiloktDagskille()` hadde ingen rollback ved mislykket lagring — lagt til samme
+   snapshot/rollback-mønster som `submitKontroll()`/`deleteVT()` (Prioritet 66.1). Denne
+   funksjonen ER ticket-ens etterspurte "nullstillAktiveSjaforerEtterDagskille()", gjenbrukt
+   under sitt eksisterende navn.
+3. **Reell krasjrisiko funnet under verifisering:** et ugyldig `aktivSjaforSiden` fikk
+   `isoDateForOperationalDay()` til å kaste en `RangeError` (Invalid Date i
+   `Intl.DateTimeFormat`) — ville krasjet `vehicleAktivSjafor()` og dermed praktisk talt
+   hele appens visning. Rettet med `isNaN`-vakter på alle berørte steder.
+
+Ny funksjonalitet: `nullstillAktivSjaforManuelt()` — et manuelt admin-«🔁 Nullstill aktiv
+sjåfør»-trykk i Bilinformasjon som IKKE fantes fra før (ticket antok feilaktig at det
+gjorde). `tidFraIso()` (ny, delt) gjør at «Siden kl. HH:MM» nå faktisk VISES i
+Kjøretøyprofilen og Biloversikt — `aktivSjaforSiden` ble tidligere kun lest internt.
+`handhevOperativtDogn()` kalles nå eksplisitt ved start av `submitKontroll()`.
+
+**Ikke rørt:** Kilometerlogikk, saksmotoren, Verksted, Løftebord, den separate per-bil
+14:50-autoreset-mekanismen (Prioritet 72.1, bevisst utenfor omfang), `storage.airtable.js`
+(uendret — ingen nye felt).
+
 ### Prioritet 50 — Dashboard 5.0: ett skall, ett banner, én Hurtigoversikt
 
 Bestilling: forenkle Dashboard til et rent operativt arbeidsbord. Full detalj i CLAUDE.md,

@@ -1,6 +1,12 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-18 (Prioritet 50 — Dashboard 5.0: sidepanel og sidebanner slått
+Sist oppdatert: 2026-09-18 (Prioritet 51 — Korrigert krav: Aktiv sjåfør beholdes gjennom
+operativ dag, men nullstilles alltid ved dagskille kl. 04:00. Rettet tre reelle avvik i den
+allerede eksisterende mekanismen — aktivSjaforSiden ble feilaktig overskrevet ved gjentatt
+kontroll av samme sjåfør, ryddOppBiloktDagskille() manglet rollback ved mislykket lagring,
+og et ugyldig aktivSjaforSiden kunne krasje vehicleAktivSjafor() app-bredt — pluss ny
+manuell «Nullstill aktiv sjåfør»-knapp i Bilinformasjon og synlig «Siden kl. HH:MM» i UI).
+Før det: 2026-09-18 (Prioritet 50 — Dashboard 5.0: sidepanel og sidebanner slått
 sammen til ett skall (kun desktop); Dashboard forenklet til KUN banner («🎯 Operativ
 kontroll» — dagens/7-dagers kontrollrate for en ny kjernepopulasjon Lag 2/Montering/
 Lastebil, pluss aktive biler-linje) + Bestill tjenester + en ny, fanedelt Hurtigoversikt

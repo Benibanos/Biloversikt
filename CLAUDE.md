@@ -1,6 +1,27 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 50 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 51 —
+**Korrigert krav: Aktiv sjåfør og dagskille kl. 04:00.** Den ferdige regelen:
+**«Aktiv sjåfør beholdes gjennom operativ dag, men nullstilles alltid ved operativt
+dagskille kl. 04:00.»** Denne saken RETTER tre reelle avvik funnet ved grundig lesing av
+den eksisterende (Prioritet 34/40/66/66.2) mekanismen mot et presist spesifisert
+korrigert krav — den bygger IKKE en ny mekanisme fra bunnen, siden `ryddOppBiloktDagskille()`/
+`handhevOperativtDogn()`/`vehicleAktivSjafor()` allerede dekket det aller meste korrekt:
+(1) **`settAktivSjafor()` overskrev `aktivSjaforSiden` ved HVER kontroll**, selv når samme
+sjåfør kontrollerte samme bil på nytt samme operative dag — rettet til å beholde det
+opprinnelige tidsstempelet i akkurat det tilfellet; (2) **`ryddOppBiloktDagskille()` hadde
+ingen rollback ved mislykket lagring** — en lokal nullstilling kunne dermed vises som
+gjennomført selv om Airtable-skrivingen feilet; rettet med samme snapshot/rollback-mønster
+som `submitKontroll()`/`deleteVT()` allerede bruker; (3) **en reell krasjrisiko**: et
+ugyldig `aktivSjaforSiden`-tidsstempel (`new Date('ugyldig-streng')` → Invalid Date) fikk
+`isoDateForOperationalDay()` (som bruker `Intl.DateTimeFormat`) til å KASTE en `RangeError`
+i stedet for å returnere en verdi — uten en `isNaN`-vakt ville dette krasjet `vehicleAktivSjafor()`,
+altså enhver visning som leser aktiv sjåfør (Dashboard/Biloversikt/Kjøretøyprofil/
+sjåførmodus). Ny funksjonalitet lagt til i samme runde: et manuelt admin-«🔁 Nullstill
+aktiv sjåfør»-trykk i Bilinformasjon (fantes ikke fra før, til tross for at ticket-en
+antok det), og «Siden kl. HH:MM» nå faktisk VIST i UI (Kjøretøyprofilens Aktiv sjåfør-kort
+og Biloversikt-kortets pille) — `aktivSjaforSiden` ble tidligere kun brukt internt, aldri
+vist. Se egen seksjon lenger ned for full detalj. Før det: Prioritet 50 —
 **Dashboard 5.0: ett sammenhengende skall, ett banner, én Hurtigoversikt.** (Merk:
 brukerens EGEN betegnelse «Dashboard 5.0» — det finnes fra før en helt annen, tidligere
 «Prioritet 53 — Dashboard 5.0» lenger ned i denne loggen; navnesammenfallet er tilfeldig,
@@ -5099,3 +5120,171 @@ Driftsmodus (`renderDriverShell()` — helt uberørt av Del 1, egen render-vei).
   `.danger-zone`, Prioritet 71.9).
 - Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
   kun grundig statisk lese-/strukturverifisering.
+
+---
+
+## Prioritet 51 (2026-09-18) — Korrigert krav: Aktiv sjåfør og dagskille kl. 04:00
+
+**Den ferdige, autoritative regelen** (ordrett fra ticket-en, gjelder permanent):
+
+> «Aktiv sjåfør beholdes gjennom operativ dag, men nullstilles alltid ved operativt
+> dagskille kl. 04:00.»
+
+**Viktig om denne saken sin natur:** ticket-en beskrev et fullstendig, detaljert
+kravsett for aktiv sjåfør/dagskille som om det skulle bygges fra bunnen
+(`nullstillAktiveSjaforerEtterDagskille()`, snapshot/rollback, `_koKjor()`-gjenbruk osv.).
+Grundig lesing av EKSISTERENDE kode (`ryddOppBiloktDagskille()`/`handhevOperativtDogn()`/
+`vehicleAktivSjafor()`/`settAktivSjafor()`, alle fra Prioritet 34/40/66/66.2) viste at
+praktisk talt HELE mekanismen allerede var på plass og korrekt — inkludert riktig
+tidssone-/DST-robust 04:00-grense (`isoDateForOperationalDay()`, `Intl.DateTimeFormat`
+med eksplisitt `Europe/Oslo`), riktig `window.storage.set('vehicles', ...)`-vei, riktig
+gjenbruk av den serialiserte ressurskøen, og riktig "GET skal aldri erstatte vehicles med
+tom liste ved feil"-beskyttelse (Prioritet 66.9). Denne saken er derfor en PRESIS
+KORRIGERING av tre reelle, konkrete avvik — ikke en ny arkitektur — pluss to reelle
+mangler (manuell nullstilling fantes ikke; «siden»-tidspunktet ble aldri vist).
+
+### Avvik 1 — `aktivSjaforSiden` ble overskrevet ved hver kontroll, selv for samme sjåfør
+
+**Feil (før):** `settAktivSjafor()` satte ubetinget `v.aktivSjaforSiden = new
+Date().toISOString()` ved HVER kontroll — Ahmed kl. 07:12, deretter Ahmed igjen kl. 11:45
+på samme bil, ga «Siden kl. 11:45», ikke «Siden kl. 07:12» som kravet sier.
+
+**Rettet:** en ny `sammeSjaforSammeOperativeDag`-sjekk (samme navn, trimmet/case-ufølsomt,
+OG forrige `aktivSjaforSiden` tilhører INNEVÆRENDE operative dag) avgjør om tidsstempelet
+skal beholdes. Kun en FAKTISK ny sjåfør, eller samme sjåfør etter et dagskille (en ny
+"vakt"), får et nytt tidsstempel. `settAktivSjaforForKontroll()`/`startBilokt()`/
+`overforAktivSjafor()` er alle UENDRET — de kaller fortsatt kun `settAktivSjafor()`, som nå
+har riktig oppførsel for alle tre.
+
+### Avvik 2 — ingen rollback i `ryddOppBiloktDagskille()` ved mislykket lagring
+
+**Feil (før):** funksjonen mutere `vehicles` direkte (tømte `aktivSjafor`/
+`aktivSjaforSiden`) og kalte `saveVehicles()` (den ALERT-varslende varianten) — ved en
+mislykket Airtable-skriving forble den LOKALE nullstillingen stående uendret, selv om
+Airtable fortsatt hadde det gamle, ikke-nullstilte innholdet. Ticket-krav 8/9/17: "Ved
+feil skal lokal tilstand rulles tilbake" / "ikke lat som nullstillingen er lagret".
+
+**Rettet:** samme snapshot/rollback-mønster som `submitKontroll()`/`deleteVT()` allerede
+etablerte (Prioritet 66.1) — en dyp kopi av `vehicles` tas FØR mutasjonen, og
+`saveVehiclesOrThrow()` brukes i et try/catch som gjenoppretter snapshotet ved feil. Denne
+funksjonen ER OG FORBLIR den ETT-og-eneste "nullstillAktiveSjaforerEtterDagskille()"
+ticket-en ba om — gjenbrukt under sitt eksisterende, allerede referererte navn, ikke
+duplisert under et nytt. Retry skjer automatisk: neste inngangspunkt (oppstart,
+`visibilitychange`, `pageshow`, live-synk, `goTo()`) finner den SAMME foreldede biløkten
+igjen, siden den lokale tilstanden ble rullet tilbake til akkurat det den var før forsøket.
+
+**Utvidet i samme runde:** "foreldet" dekker nå OGSÅ manglende/ugyldig `aktivSjaforSiden`
+(ikke bare "riktig dato, men fra en tidligere operativ dag") — dekker ticket-ens
+testscenarioer "AktivSjafor finnes, men AktivSjaforSiden mangler" og "Ugyldig
+AktivSjaforSiden" ved faktisk å RYDDE OPP anomalien i stedet for å la den stå for alltid.
+Samme utvidede sjekk er speilet i `handhevOperativtDogn()` sin `harForeldetBilokt`-
+forhåndssjekk, slik at en slik anomali ikke kan unngå opprydding resten av dagen fordi den
+oppsto etter forrige dagskille-kontroll.
+
+### Avvik 3 — reell krasjrisiko ved ugyldig `aktivSjaforSiden` (funnet under verifisering)
+
+**Feil (før, ikke tidligere oppdaget):** `vehicleAktivSjafor()` kalte
+`isoDateForOperationalDay(new Date(v.aktivSjaforSiden))` uten å sjekke om resultatet var et
+gyldig tidspunkt. `new Date('en-ugyldig-streng')` gir en `Invalid Date`, og
+`Intl.DateTimeFormat(...).formatToParts()` (brukt inne i `isoDateForOperationalDay()`)
+**kaster en `RangeError`** på en `Invalid Date` i stedet for å returnere noe. Siden
+`vehicleAktivSjafor()` er den ENESTE kilden til "aktiv sjåfør" og leses av praktisk talt
+alle skjermer (Dashboard, Biloversikt, Kjøretøyprofil, Min Bil, Aktive sjåfør-tellinger),
+ville én eneste korrupt `aktivSjaforSiden`-verdi i Airtable ha KRASJET render() på tvers av
+hele appen — ikke en isolert visningsfeil. Samme krasjrisiko fantes i `settAktivSjafor()`
+sin nye `sammeSjaforSammeOperativeDag`-sjekk (Avvik 1) mot den EKSISTERENDE, forrige
+verdien av `aktivSjaforSiden` på bilen som kontrolleres.
+
+**Rettet:** begge stedene sjekker nå eksplisitt `isNaN(dato.getTime())` FØR
+`isoDateForOperationalDay()` kalles, og behandler en ugyldig verdi som "ikke aktiv"/"ikke
+samme vakt" i stedet for å krasje. `tidFraIso()` (ny, se under) har samme vakt fra starten.
+
+### Ny funksjonalitet — manuell nullstilling (Del 9) og synlig "Siden kl. HH:MM" (Del 3)
+
+Ticket-en omtalte «Administratorens knapp beholdes: [Nullstill aktiv sjåfør]» som om den
+allerede fantes — et grundig søk bekreftet at den IKKE gjorde det (kun den urelaterte,
+PER-BIL konfigurerbare «🔁 Nullstill aktiv sjåfør automatisk»-bryteren fra Prioritet 72.1,
+med et helt annet, admin-valgt klokkeslett, standard 14:50 — en annen mekanisme enn det
+autoritative 04:00-dagskillet, og bevisst IKKE endret i denne saken). Bygget nå fra bunnen:
+
+- **`nullstillAktivSjaforManuelt(vehicleId)`** — ett-klikks admin-handling i Bilinformasjon
+  (`renderBilkort()` → `infoBody`), samme snapshot/rollback-mønster som over, `confirm()`
+  før utførelse, `krevVehiclesSkriving()`-vakt, virker HELT uavhengig av både det
+  automatiske 04:00-dagskillet og den per-bil konfigurerbare autoreset-tiden. Vises kun når
+  `vehicleAktivSjafor(v.id)` faktisk er sann (ingen knapp å trykke på en bil uten aktiv
+  sjåfør). Lytteren bruker samme `querySelectorAll`-forsiktighet som løftebord-knappen
+  (Prioritet 49 Del 2) — knappen finnes betinget i DOM-en.
+- **`tidFraIso(iso)`** (ny, delt hjelpefunksjon) formaterer et VILKÅRLIG ISO-tidsstempel
+  (ikke bare "nå", som `nowTimeOslo()` gjør) til `HH:MM` i Europe/Oslo — brukt til å
+  faktisk VISE `aktivSjaforSiden`, som frem til nå kun ble lest internt, aldri rendret i
+  UI. Lagt til to steder: Kjøretøyprofilens `.profil-stat5` "Aktiv sjåfør"-kort (`Siden kl.
+  HH:MM` i stedet for det tidligere «Kjører nå») og Biloversikt-kortets sjåførpille
+  (`👤 Ahmed · siden 07:12`).
+- **`handhevOperativtDogn()` kalles nå eksplisitt ved starten av `submitKontroll()`** —
+  dekker ticket-ens eksplisitte inngangspunktkrav ("før en ny sjåførkontroll behandles") og
+  garanterer rekkefølgen fra ticket-ens konkurrentseksjon (kjør dagskillekontroll FØR en
+  eventuell ny sjåførovertakelse behandles). Idempotent og billig — ingen ny Airtable-
+  trafikk når døgnet ikke har skiftet og ingen biløkt er foreldet.
+
+### Samtidighet — hvorfor ingen ny låsemekanisme var nødvendig
+
+Ticket-ens seksjon 7 spesifiserte en eksplisitt "hent → dagskille → sjåførovertakelse →
+lagre → verifiser"-rekkefølge for å hindre at en forsinket dagskillejobb kan fjerne en
+sjåfør som nettopp overtok. Analyse av den faktiske kjøremodellen viser at dette ALLEREDE
+er garantert, uten noen ny kø/lås: `vehicles` er ETT delt, kontinuerlig mutert JS-objekt,
+og `JSON.stringify(vehicles)` i `saveVehiclesOrThrow()` evalueres SYNKRONT i det
+øyeblikket kallet skjer — ikke tidligere. Uansett hvilken rekkefølge to
+`settAktivSjafor()`/`ryddOppBiloktDagskille()`-kall sine skrivinger til slutt når fram til
+Airtable i (via den eksisterende `_koKjor()`-køen), vil den SISTE skrivingen som faktisk
+kjører alltid inneholde ALLE mutasjoner gjort til da — inkludert en eventuell ny
+sjåførovertakelse som skjedde mens en tidligere dagskille-lagring ventet i køen. Data kan
+derfor ikke "tapes" i denne racen. Den eksplisitte `handhevOperativtDogn()`-kallingen i
+`submitKontroll()` (over) er likevel lagt til — ikke fordi det er strengt nødvendig for
+korrekthet her, men fordi det er billig, eksplisitt ba om, og gir raskere opprydding av
+ANDRE biler sin foreldede tilstand samtidig som en kontroll behandles.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v99 → bilpark-v100), `version-check.js` (`APP_VERSION` 99 → 100),
+`version.json` (`"version"` 99 → 100). **`storage.airtable.js` er IKKE endret** — ingen nye
+felt (`AktivSjafor`/`AktivSjaforSiden` var allerede registrert siden Prioritet 34/40) —
+derfor uendret `versjon`/`?v=`.
+
+**Testet:** verken `node` eller `python` var tilgjengelig i denne økten. Verifisert i
+stedet: en global krøllparentes-/backtick-/parentesbalansesjekk på `index.html` etter hver
+redigeringsrunde (balansert gjennomgående, parentesdiff uendret på −6), `diff index.html
+kontroll.html` bekreftet identiske etter synkronisering, og full gjennomlesning av hver
+endret funksjon (`settAktivSjafor()`, `ryddOppBiloktDagskille()`, `handhevOperativtDogn()`,
+`vehicleAktivSjafor()`, `nullstillAktivSjaforManuelt()`, `tidFraIso()`,
+`submitKontroll()` sitt nye tidlige kall, `galleryCard()`/`renderBilkort()` sine endrede
+visningslinjer) før og etter redigering — inkludert et manuelt gjennomspilt tankeeksperiment
+av alle 14 testscenarioene i ticket-ens seksjon 11. **Ikke verifisert i en faktisk kjørende
+nettleser eller mot en ekte/mock-Airtable-base i denne økten** — samme forbehold som flere
+tidligere prioriteter (se f.eks. Prioritet 71.5/49 Del 2/50).
+
+**Anbefalt før idriftsettelse:** åpne appen i en nettleser og bekreft: (1) kontroll kl.
+07:12 og igjen kl. 11:45 av samme sjåfør på samme bil beholder «Siden kl. 07:12» i
+Kjøretøyprofilen; (2) en ny sjåfør kl. 14:33 gir «Siden kl. 14:33»; (3) sett systemklokken
+forbi 04:00 mens appen er åpen (eller last siden på nytt med klokken forbi 04:00) og
+bekreft at Dashboardets "aktive biler"-tall og «Se hvilke»-listen ikke lenger viser
+gårsdagens sjåfører; (4) administratorens nye «🔁 Nullstill aktiv sjåfør»-knapp i
+Bilinformasjon fungerer og kun vises når bilen faktisk har en aktiv sjåfør; (5) simuler en
+mislykket Airtable-skriving (f.eks. ved å blokkere nettverket midlertidig) under et
+dagskille og bekreft at den lokale visningen IKKE stille viser "nullstilt" uten at det
+faktisk er lagret.
+
+**Ikke rørt:** Kilometerlogikk, kontrollflyten for øvrig (`submitKontroll()` sin km-/sak-/
+varsellampe-/skadelogikk), saksmotoren, Verksted, Løftebord (Prioritet 49 Del 2),
+`handhevAktivSjaforAutoReset()` (den separate, per-bil konfigurerbare 14:50-mekanismen fra
+Prioritet 72.1 — bevisst urørt, se «Kjente, dokumenterte begrensninger»), Layout Editor,
+Bilkategorier, `storage.airtable.js`/Airtable-skjema, PWA/manifest-ikonfilene.
+
+**Kjente, dokumenterte begrensninger:**
+- `handhevAktivSjaforAutoReset()` (Prioritet 72.1) har PRESIS samme manglende
+  rollback-svakhet som Avvik 2 hadde (muterer `vehicles` direkte, ingen gjenoppretting ved
+  mislykket `saveVehiclesOrThrow()`) — men er en helt annen, opt-in-per-bil mekanisme
+  (standard klokkeslett 14:50, ikke det autoritative 04:00-dagskillet) og eksplisitt
+  UTENFOR denne ticket-ens omfang. Flagget her for åpenhet, ikke rettet i denne runden —
+  vurder som egen, avgrenset sak dersom ønsket.
+- Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
+  kun grundig statisk lese-/strukturverifisering og et manuelt tankeeksperiment mot
+  ticket-ens 14 testscenarioer.
