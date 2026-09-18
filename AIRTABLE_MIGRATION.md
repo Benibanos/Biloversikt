@@ -1,6 +1,10 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-18 (Prioritet 72.1 — tre nye felt
+Sist oppdatert (feltendring): 2026-09-18 (Prioritet 49, Del 2 — ny tabell
+`LiftgateHistory` (app-nøkkel `loftebordHistorikk`), se egen seksjon under.
+Ingen nye felt på `Vehicles` — løftebord er bevisst IKKE en
+kjøretøykonfigurasjon, alle kjøretøy antas å ha løftebord). Før det:
+2026-09-18 (Prioritet 72.1 — tre nye felt
 `AktivSjaforAutoReset`/`AktivSjaforAutoResetTid`/`AktivSjaforAutoResetSisteDato`
 på `Vehicles`, se seksjonen for den tabellen under). Før det: 2026-09-18
 (Prioritet 71.10 — to nye felt
@@ -252,6 +256,31 @@ kategorier — ingen av dem er Airtable-kolonner.
 **Merk om "Sammenslåtte kontrollavvik":** flere avvikspunkter per sak lagres
 i `historikk`-feltet (JSON) på selve saken, IKKE som egne Airtable-rader i en
 separat tabell. Det finnes ingen egen "avvikspunkt"-tabell i Airtable.
+
+### LiftgateHistory (app-nøkkel: `loftebordHistorikk`) — NY, Prioritet 49 Del 2
+
+Løftebordvedlikehold (smøring med fettpresse, registrert av sjåfør) og
+løftebordkontroll (årlig, registrert av administrator). **Krever at denne
+tabellen opprettes i Airtable FØR appen tas i bruk med `storage.airtable.js`
+v2.20.0** — se seksjon 1.
+
+| App-felt | Airtable-kolonne | Type |
+|---|---|---|
+| id | AppId | tekst |
+| vehicleId | VehicleId | tekst |
+| dato | Dato | tekst |
+| tidspunkt | Tidspunkt | tekst |
+| type | Type | tekst — kun `'kontroll'` eller `'vedlikehold'`, aldri blandet |
+| utfortAv | UtfortAv | tekst |
+| kommentar | Kommentar | tekst |
+| registreringskanal | Registreringskanal | tekst — `'sjafor'` eller `'admin'` |
+
+**Ingen `HarLoftebord`-felt på `Vehicles`, og ingen annen
+løftebord-konfigurasjon noe sted.** Alle kjøretøy antas å ha løftebord — se
+CLAUDE.md, Prioritet 49 Del 2, Del 8, for full begrunnelse. Løftebord*avvik*
+(noe er FEIL med løftebordet) er bevisst IKKE en del av denne tabellen — det
+gjenbruker den eksisterende `AktiveSaker`-tabellen uendret, via kontrollavviks-
+typen `'loftebord'` i `KONTROLLAVVIK_ORDER` (index.html).
 
 ### Settings (Key/Value-mønster)
 

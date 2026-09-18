@@ -1,6 +1,48 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 49 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 50 —
+**Dashboard 5.0: ett sammenhengende skall, ett banner, én Hurtigoversikt.** (Merk:
+brukerens EGEN betegnelse «Dashboard 5.0» — det finnes fra før en helt annen, tidligere
+«Prioritet 53 — Dashboard 5.0» lenger ned i denne loggen; navnesammenfallet er tilfeldig,
+samme situasjon som Prioritet 49 sin nummerering.) To deler: **Del 1 (app-ramme)** — en ny,
+delt `.desktop-frame` slår sidepanelet og en full-bredde toppstripe (brand + løpende
+sidetittel + varselklokke, `desktopFrameTittel()`) sammen til ett visuelt sammenhengende
+skall, brukt AUTOMATISK av alle admin-skjermer siden den ligger i den delte
+render()-innpakningen, ikke i hver skjerms egen kode — scopet bevisst til desktop, siden
+mobil ikke har noe sidepanel å koble sammen med noe. **Del 2 (Dashboard-innhold)** —
+Dashboard er radikalt forenklet til KUN tre ting: et nytt «🎯 Operativ kontroll»-banner
+(dagens kontrollprosent for en ny, snevrere kjernepopulasjon — Lag 2/Montering/Lastebil,
+`operativeKjerneBiler()` — pluss 7-dagers trend og en «aktive biler»-linje, alt samlet fra
+det som før var to separate kort), «➕ Bestill tjenester» (uendret), og en ny, fanedelt
+«📋 Hurtigoversikt» (Aktive saker/Oppfølging/Verksted/Varsler — samme
+`.profil-tabs`/`.profil-tab`-mønster som Biloversikt/Varslingssenter) som erstatter de fire
+gamle KPI-kortene. Kommende oppgaver, Biloversikt-forhåndsvisningen, Bilpark status,
+Krever handling nå og Prioriterte biler er FJERNET fra Dashboard i sin helhet — begge
+plattformer (`renderDashboard()`/`renderMobilHjem()`) deler nå NØYAKTIG samme
+banner-/Hurtigoversikt-funksjoner, for ekte identisk oppførsel på tvers av desktop og
+mobil. `storage.airtable.js` er IKKE endret (ren presentasjonsendring på eksisterende
+data) — kun `CACHE_VERSION`/`APP_VERSION`/`version.json` økt (98 → 99). Se egen seksjon
+lenger ned for full detalj, designvalg og kjente begrensninger (bl.a. at flere interne
+felt i `dashboardBeregning()` nå beregnes uten noen gjenværende leser — bevisst ikke ryddet
+i denne runden for å avgrense omfanget). Før det: Prioritet 49, Del 2 —
+**Løftebord: avvik, vedlikehold og årlig kontroll.** Full løftebordstøtte lagt til Bilpark:
+(1) ny kontrollavvikstype `'loftebord'` (🛗) i den eksisterende `KONTROLLAVVIK_ORDER`-motoren
+— dukker automatisk opp i BÅDE full sjåførkontroll og Min Bil sin hurtigflyt, med et eget
+fritekst beskrivelsesfelt KUN for løftebord i Min Bil (`submitMinBilAvvik()`), som lagres som
+sakens beskrivelse via den UENDREDE `registrerAvvikSomSak()`; (2) et nytt, alltid synlig
+«🛗 Løftebord»-kort på Min Bil (utenfor Layout Editor — ingen konfigurasjon skjuler det),
+fargekodet fra dager siden sist smurt (🟢 0–14 · 🟡 15–30 · 🔴 31+ eller aldri) via ny
+`loftebordVedlikeholdStatus()`; (3) «🛢 Smør løftebord» åpner et bekreftelsesskjema
+(avkrysning påkrevd) → `submitMinBilLoftebordVedlikehold()`; (4) administratorens ett-klikks
+«✅ Utført løftebordkontroll» i Bilinformasjon (`registrerLoftebordKontroll()`) — dato/utført
+av/365-dagers gyldighet settes automatisk, kun `confirm()`, ingen sjåførvarsler; (5) en ny,
+egen Airtable-tabell **LiftgateHistory** (app-nøkkel `loftebordHistorikk`) for BÅDE
+vedlikehold og kontroll — disse to skal aldri blandes, og er samtidig en HELT annen datamodell
+enn løftebord*avvik* (som fortsatt går gjennom `AktiveSaker` uendret). **Bevisst INGEN
+«har løftebord»-felt eller annen kjøretøykonfigurasjon** — alle kjøretøy i flåten antas å ha
+løftebord. `storage.airtable.js` v2.19.0 → v2.20.0 (kun `LIST_TABLES`-tillegg, ingen endring i
+eksisterende felt). Se egen seksjon lenger ned for full detalj, designvalg og kjente
+begrensninger. Før det: Prioritet 49 (Del 1) —
 **Verkstedbestilling 3.0.** Merk nummereringen: dette er en bestilling brukeren
 selv omtalte som «Prioritet 49» i sin ticket, men den er levert KRONOLOGISK
 ETTER Prioritet 72.0 under — nummeret følger brukerens egen backlog, ikke
@@ -4749,3 +4791,311 @@ PWA/manifest-ikonfilene, `HOVEDSTATUS_IKON` og alle andre statusfargesirkler.
   screens Prioritet 55/58/72.0 offisielt fullmigrerte — se de seksjonene for gjeldende status.
 - Ikke UI-verifisert i en faktisk innlogget nettleserøkt i denne omgangen (se «Testet» over)
   — kun grundig statisk lese-/strukturverifisering.
+
+---
+
+## Prioritet 49, Del 2 (2026-09-18) — Løftebord: avvik, vedlikehold og årlig kontroll
+
+Bestilling: utvid Bilpark med full løftebordstøtte — sjåføravvik, sjåførvedlikehold
+(smøring), administratorens årlige kontroll, varsling og full historikk. Eksplisitt krav:
+**ingen** «Har løftebord»/«Løftebord aktivert»/«Vis/skjul løftebord»-felt eller annen
+kjøretøykonfigurasjon — alle kjøretøy i dagens flåte har løftebord. Tre begreper skal aldri
+blandes: løftebord*avvik* (noe er feil), løftebord*vedlikehold* (smøring) og
+løftebord*kontroll* (årlig).
+
+**Varig regel: løftebordavvik er IKKE en egen datamodell.** Det er en ren tilleggsverdi i den
+eksisterende `KONTROLLAVVIK_ORDER`/`_LABEL`/`_IKON`/`_LUCIDE`-motoren (samme mønster som
+«Slitte bremser» fikk i Prioritet 71.2) — dukker automatisk opp i BÅDE full sjåførkontroll
+(`renderKontroll()`) og Min Bil sin hurtigflyt (`renderDriverMinBil()`), uten én eneste linje
+ny avviks- eller saksmotorlogikk. Vedlikehold og kontroll er derimot HELT egne hendelser i en
+ny, dedikert Airtable-tabell — ingen av de tre begrepene deler datamodell med hverandre.
+
+**Løsning — Del 1 (avvik):**
+- `'loftebord'` lagt til i `KONTROLLAVVIK_ORDER` (ikon 🛗, Lucide `arrow-up-down`, label
+  «Løftebord»). Full sjåførkontroll trenger ingen endring — checkboxen dukker opp av seg selv,
+  registreres med den generiske «Automatisk generert fra kontrollregistrering.»-teksten
+  akkurat som de fire andre typene, i den eksisterende batch-saken
+  (`registrerKontrollAvvikSomSak()`).
+- Min Bil sin hurtigflyt (`mb-avvik-*`) fikk derimot en ny, betinget fritekst
+  **Beskrivelse**-textarea, vist KUN når `minBilAvvikType === 'loftebord'`
+  (`minBilAvvikBeskrivelse`, nullstilt så snart brukeren velger en annen type eller lukker
+  panelet — teksten skal aldri kunne henge igjen og sendes inn på en senere, urelatert
+  registrering). `submitMinBilAvvik()` bruker denne teksten som sakens `description` i stedet
+  for den generiske auto-teksten NÅR den faktisk er fylt ut — for løftebord alene, de fire
+  andre avvikstypene er UENDRET. Fortsatt kun ett kall til `registrerAvvikSomSak()` — ingen
+  parallell saksopprettelse.
+
+**Løsning — Del 2/3/4 (Min Bil — kort, vedlikehold, varsling):**
+- Nytt `.loftebord-card` (gjenbruker `.acc-row.ok/.oppfolging/.varsel` sin fargede
+  venstrekant — grønn/gul/rød, IKKE en ny statusfargekomponent) rendres alltid i
+  `renderDriverMinBil()`, BEVISST utenfor `layoutFlateHtml('minbil', komponentHtml)` — det
+  finnes ingen konfigurasjon som kan skjule det, siden det ikke finnes noen
+  «har løftebord»-bryter å skjule det bak (samme unntaksprinsipp som «✓ Sjekk ut bil»,
+  Prioritet 44).
+- `loftebordVedlikeholdStatus(vehicleId)` leser siste `loftebordHistorikk`-rad av typen
+  `'vedlikehold'` for bilen og beregner dager siden med `daysSince()` — en ren
+  Date.UTC-kalenderdifferanse (samme funksjon service-/EU-kontroll-status alltid har brukt),
+  IKKE månedsnummer, og fungerer derfor korrekt over månedsskifte/årsskifte/skuddår uten egen
+  logikk. Ingen historikk → 🔴 «Vedlikehold ikke registrert»; 0–14 dager → 🟢; 15–30 → 🟡;
+  31+ → 🔴.
+- «🛢 Smør løftebord» deler `minBilAksjon`-tilstanden med de fire andre handlingskortene
+  (verdi `'loftebord'`) — kun ett panel åpent om gangen, samme etablerte mønster. Panelet
+  krever en avkrysning («Løftebord er smurt») FØR «✅ Registrer vedlikehold»-knappen aktiveres
+  (`disabled`-attributt styrt av `minBilLoftebordSmurt`), med valgfri kommentar.
+  `submitMinBilLoftebordVedlikehold()` pusher `{id, vehicleId, dato, tidspunkt, type:
+  'vedlikehold', utfortAv: driverNavn, kommentar, registreringskanal: 'sjafor'}` til
+  `loftebordHistorikk`, lagrer, og viser `alert('✅ Vedlikehold registrert.')` — samme
+  bekreftelsesmønster som `submitMinBilAvvik()`/`submitMinBilVarsel()`. Beskyttet mot
+  dobbeltklikk med `beskyttKlikk()`.
+
+**Løsning — Del 5/6 (administratorens årlige kontroll, kun Bilinformasjon):**
+- Ny seksjon «🛗 Løftebord — Årlig kontroll» i `infoBody` (Kjøretøyprofil →
+  «✏️ Rediger informasjon»), MED VILJE plassert som en egen, alltid synlig statusblokk —
+  ikke et skjemafelt knyttet til «Lagre»-knappen, siden dette er en tidsstemplet hendelse
+  (som `godtaKmEndring()`), ikke en redigerbar kjøretøyegenskap.
+- «✅ Utført løftebordkontroll» (`registrerLoftebordKontroll(vehicleId)`) krever kun ett
+  `confirm()` — ingen skjema. Dato (`todayISO()`), utført av (`loggedInRole`, samme
+  identitetskilde som `godtaKmEndring()`/`avslaKmEndring()`, Prioritet 71.10) og
+  registreringskanal (`'admin'`) settes automatisk. Gyldighet er en LIVE beregning
+  (`loftebordKontrollStatus()`), ikke et lagret felt: `isoDateOffset(sisteKontrollDato, 365)`
+  — samme ren kalenderdato-forskyvning som `daysSince()` bruker, konsistent med
+  CLAUDE.md sin regel om at «i dag»/datoberegninger aldri skal bruke månedsnummer-aritmetikk.
+- Fire nivåer: >30 dager til utløp → 🟢 Gyldig; 0–30 → 🟡 Utløper snart; utløpt → 🔴 Kontroll
+  utløpt; ingen historikk → 🔴 Kontroll mangler. Vises UTELUKKENDE i Bilinformasjon — ingen
+  varsel lagt til Varslingssenteret, Dashboard eller noe sjåførvisning, som eksplisitt bedt om.
+
+**Løsning — Del 7 (historikk):** en ny, enkel `<ul class="dmg-simple-list">`-liste
+(`vehicleLoftebordHistorikk()`/`loftebordHistorikkRadHtml()`) rett under kontroll-statusen i
+samme Bilinformasjon-seksjon, nyeste først, tydelig merket «✅ Kontroll» eller
+«🛢 Vedlikehold» + utført av + eventuell kommentar — samme visningsmønster (dato – tekst) som
+den eksisterende Verkstedhistorikk-listen lenger ned i samme panel.
+
+**Løsning — Del 8 (datamodell):** ny Airtable-tabell **LiftgateHistory** (app-nøkkel
+`loftebordHistorikk`), registrert i `LIST_TABLES` i `storage.airtable.js` SAMTIDIG som
+funksjonene som bruker den (feltregelen fulgt) — felt `id`/`vehicleId`/`dato`/`tidspunkt`/
+`type`/`utfortAv`/`kommentar`/`registreringskanal`, `type` er ENTEN `'kontroll'` ELLER
+`'vedlikehold'`. Lastes/lagres med nøyaktig samme mønster som `dekkhistorikk`
+(`window.storage.get/set('loftebordHistorikk', ...)`) — en ekte Airtable-tabell, IKKE en
+JSON-blob i Settings. Lagt til i `loadAll()`, `reloadOne()` (inkl. `_lagBatchetLiveSyncHandler()`
+sin bakgrunnspoll, som automatisk plukker den opp via `Object.keys(LIST_TABLES)` uten egen
+kode) og `deleteVehicle()` sin opprydding (filtrert bort sammen med skader/verkstedtimer når
+et kjøretøy slettes). **Bevisst IKKE lagt til i `resetFleetData()`** — den funksjonen tømmer
+allerede i dag KUN damages/verkstedtimer/kontroller/varsellys, IKKE dekkhistorikk/
+servicehistorikk/aktiveSaker, til tross for sin egen kommentar om «all operativ historikk»;
+å inkludere løftebordhistorikk der ville vært et bevisst avvik fra dette eksisterende (om enn
+snevrere enn dokumentert) mønsteret, ikke en konsistent utvidelse av det.
+
+**Ingen `HarLoftebord`-felt på `Vehicles`, og ingen annen løftebord-konfigurasjon noe sted i
+koden.** `storage.airtable.js` versjon v2.19.0 → v2.20.0 (kun ett nytt `LIST_TABLES`-tillegg —
+ingen eksisterende felt endret), `?v=` i `index.html`/`kontroll.html` oppdatert tilsvarende,
+`CACHE_VERSION`/`APP_VERSION`/`version.json` økt sammen (app-shell-innhold endret betydelig).
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi),
+`storage.airtable.js`, `sw.js`, `version-check.js`, `version.json`, `AIRTABLE_MIGRATION.md`
+(ny `LiftgateHistory`-seksjon), `CHANGELOG.md`, `ROADMAP.md`.
+
+**Testet:** verken `node` eller `python` var tilgjengelig i denne økten (samme begrensning som
+flere tidligere prioriteter). Verifisert i stedet: en global krøllparentes-/backtick-
+balansesjekk på hele `index.html`, og full gjennomlesning av hver ny/endret funksjon
+(`vehicleLoftebordVedlikehold()`/`loftebordVedlikeholdStatus()`/`vehicleLoftebordKontroll()`/
+`loftebordKontrollStatus()`/`vehicleLoftebordHistorikk()`/`loftebordHistorikkRadHtml()`,
+`submitMinBilAvvik()`, `submitMinBilLoftebordVedlikehold()`, `registrerLoftebordKontroll()`,
+`renderDriverMinBil()`/`attachDriverMinBilListeners()`, `renderBilkort()`/
+`attachBilkortListeners()` sine endrede deler, `loadAll()`/`reloadOne()`/`deleteVehicle()`)
+før og etter redigering, samt `diff index.html kontroll.html` bekreftet identiske etter
+synkronisering. **Ikke verifisert i en faktisk kjørende nettleser eller mot en ekte/mock-
+Airtable-base i denne økten** — samme forbehold som flere tidligere prioriteter (se f.eks.
+Prioritet 71.5/71.10).
+
+**Anbefalt før idriftsettelse:** opprett `LiftgateHistory`-tabellen i Airtable (se
+AIRTABLE_MIGRATION.md for feltliste) FØR appen tas i bruk med denne versjonen — uten den vil
+lesing/skriving av løftebordhistorikk feile eller bli stille ignorert, avhengig av API-
+oppførsel. Deretter, i en nettleser: (1) registrer et løftebordavvik fra Min Bil med en
+beskrivelse og bekreft at saken får nettopp den teksten i Aktive saker; (2) registrer et
+løftebordavvik fra full sjåførkontroll og bekreft at det havner i samme batch-sak som andre
+samtidige avvik; (3) bekreft at «🛗 Løftebord»-kortet på Min Bil viser riktig farge/tekst for
+0/10/20/35 dager siden sist smurt, og for «aldri smurt»; (4) registrer vedlikehold og bekreft
+at kortet oppdaterer seg umiddelbart uten reload; (5) i Bilinformasjon, registrer en
+løftebordkontroll og bekreft dato/utført av/gyldig-til/status, og at historikklisten viser
+begge hendelsestyper korrekt skilt fra hverandre; (6) bekreft at et kjøretøy som slettes også
+fjerner dets løftebordhistorikk.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-skriveregler,
+saksmotoren (`registrerAvvikSomSak()`/`registrerKontrollAvvikSomSak()`/`sakErApen()`/`sakFase()`
+kun kalt/lest uendret, aldri endret), de fire eksisterende kontrollavvikstypene, Varslingssenteret
+(bevisst IKKE utvidet med løftebordvarsler — verken avvik, vedlikehold eller kontroll er en del
+av `beregnVarslingssenterListe()`, siden ticket-en eksplisitt skilte dette ut som egne, separate
+mekanismer), Layout Editor-mekanikken for øvrig, Bilkategorier, `resetFleetData()`.
+
+**Kjente, dokumenterte begrensninger:**
+- Løftebordhistorikken vises kun inne i Bilinformasjon-redigeringspanelet på Kjøretøyprofilen
+  — ikke som en egen fane i `PROFIL_FANER`/`HISTORIKK_SUB_ORDER`, og ikke i den flåtebrede
+  Historikk-huben (`renderHistorikk()`) eller i Rapporter. Tilstrekkelig for ticket-ens krav
+  («vise historikk for kontroll og vedlikehold»), men en fremtidig sak kan vurdere å løfte
+  denne inn i Historikk-fanen/Rapporthub dersom løftebordhistorikk trengs på flåtenivå.
+- Løftebordvedlikehold/-kontroll varsler ALDRI i Varslingssenteret, Dashboard eller noe annet
+  sted enn Min Bil-kortet (sjåfør) og Bilinformasjon (admin) — et bevisst, eksplisitt valg fra
+  ticket-en («Ingen varsler til sjåfør» for kontroll; vedlikeholdsvarselet skal kun vises på
+  Min Bil-kortet), ikke en forglemmelse.
+- Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) — kun
+  grundig statisk lese-/strukturverifisering.
+
+---
+
+## Prioritet 50 (2026-09-18) — Dashboard 5.0: ett skall, ett banner, én Hurtigoversikt
+
+Bestilling: forenkle Dashboard til et operativt arbeidsbord — under 2 sekunder skal
+brukeren forstå kontrollstatus i dag, kontrolltrend, aktive biler, saker som krever
+handling, planlagt verksted og varsler. To deler, begge omfattende.
+
+### Del 1 — Ny app-ramme (kun desktop)
+
+**Problem:** sidepanelet og innholdsområdet var visuelt to separate kort — sidepanelet
+hadde sin egen border/bakgrunn/radius, innholdsområdet hadde ingen, og hver skjerm bygde
+sin egen `<h2>`-tittel et sted inni innholdet i stedet for i et delt banner.
+
+**Løsning:** en ny, delt `.desktop-frame` (border/bakgrunn/radius) omslutter BÅDE en
+full-bredde toppstripe (`.desktop-frame-top`: brand + `desktopFrameTittel()` + varselklokke
+`#frame-varsler-btn`) og selve sidepanel+innhold-raden (`.desktop-frame-body`) under.
+`.desktop-sidebar` sin egen border/bakgrunn/radius (Design 4.1-laget, Prioritet 38) er
+nøytralisert til kun en loddrett `border-right` mot innholdet — rammen eier nå kantlinjen.
+`desktopFrameTittel()` slår opp gjeldende `screen` i en ny `DESKTOP_FRAME_TITTEL`-tabell.
+Brand-blokken er flyttet UT av `renderDesktopSidebarHtml()` (nå kun i toppstripen).
+
+**Delt, ikke per skjerm.** Rammen bygges ÉN gang i den sentrale `render()`-innpakningen —
+enhver admin-skjerm får den derfor automatisk, uten å måtte endres selv. `renderDashboard()`
+sin gamle egen `.p38-tophead`-tittel (tittel+bell+dato/vær) er fjernet — dato/vær-linjen
+er flyttet inn i det nye Operativ kontroll-banneret (se Del 2), tittelen inn i den delte
+toppstripen. De ANDRE ni skjermene (Biler, Verksted, Kalender, osv.) beholder sin egen,
+eksisterende `<h2>` UENDRET i denne runden — se «Kjente, dokumenterte begrensninger».
+
+**Regresjonsvern:** `#header-menu-btn` (den skjulte, men fortsatt fullt funksjonelle
+☰ Meny-knappen/drawer-mekanismen) render()-koden alltid har gjort et ubetinget
+`getElementById(...).addEventListener(...)`-kall på, MÅTTE forbli i DOM-en på begge
+grener (desktop og mobil) — akkurat den samme feilklassen som `del-vehicle`-regresjonen i
+Prioritet 72.1. Løst ved å beholde `shell-top`-markupen uendret og alltid til stede (kun
+visuelt skjult på desktop via `.app-shell-desktop .shell-top{display:none}`, uendret CSS),
+i en egen `shellTopHtml`-variabel gjenbrukt i begge grener.
+
+**Mobil er BEVISST ikke omfattet av Del 1** — mobil har ingen sidebar (bunnmeny er eneste
+navigasjon), og har allerede sin egen, kompakte topplinje (`.p41-head`, kun på Dashboard).
+Det finnes derfor ikke noe sidepanel å visuelt koble sammen med noe på mobil.
+
+### Del 2 — Dashboard-innhold: banner + Hurtigoversikt
+
+**Ny kjernepopulasjon for "Operativ kontroll" (Del 3 i ticket):** `operativeKjerneBiler()`
+— KUN kjøretøy med `v.driftslag` lik nøyaktig `'Lag 2'`, `'Montering'` eller `'Lastebil'`
+(eksakte strenger fra `DRIFTSLAG_ORDER`), i tillegg ekskludert dersom `v.uteAvDrift`,
+`v.kategori === 'reserve'` eller `v.status === 'verksted'`. Dette er en BEVISST, ny og
+SNEVRERE populasjon enn `aktiveVehicles - reserveUnntatt` (Prioritet 62.1a), som fortsatt
+gjelder UENDRET alle andre steder (Biloversikt-filteret «Ikke kontrollert»,
+`dashboardBeregning()` sine øvrige tellinger) — de to tallene svarer bevisst på to ulike
+spørsmål («hvor mange av flåten» vs. «hvor mange av kjernedriftslagene») og skal ALDRI
+blandes eller vises side om side som om de var samme ting. `operativKontrollStatusIdag()`
+gir `{kontrollert, totalt, prosent}` for i dag; `kontrollrateUke()` er omskrevet til å
+bruke SAMME kjernepopulasjon for 7-dagers trenden (tidligere: hele `!v.uteAvDrift`-flåten).
+
+**Banneret** (`dashOperativBannerHtml(d)`, delt av desktop og mobil): dagens prosent som
+stort tall (Del 3), «Kontroll siste 7 dager: X%» som undertekst (Del 4), og en
+«🚚 N aktive biler / Se hvilke →»-linje nederst (Del 5) — SAMME data (`d.hDriftCount`) og
+SAMME klikkmål (`data-goto-biloversikt-filter="har-aktiv-sjafor"`) som det gamle
+«Aktive biler»-KPI-kortet alltid brukte, kun flyttet fra eget kort til en banner-rad, som
+ticket eksplisitt ba om («Behold ikon, behold tekst, behold klikkbar funksjon. Kun flytt
+plassering»). Banneret er BEVISST fast innhold i selve returtemplaten — IKKE en Layout
+Editor-komponent (som «Sjekk ut bil» på Min Bil, Prioritet 44) — nettopp for at desktop og
+mobil skal vise identisk innhold uten noen parallell versjon (akseptansekriterium 14).
+
+**Bilpark status er fjernet i sin helhet** (Del 6) — hele `bilparkStatusInnholdHtml()`
+sammen med begge komponentene som viste den (desktop og mobil).
+
+**Hurtigoversikt** (`dashHurtigoversiktHtml(d)`, Del 7-11, delt av desktop og mobil): en ny
+panel med `.profil-tabs`/`.profil-tab` (SAMME fanekomponent/klasser som Biloversikt,
+Prioritet 72.0, og Varslingssenteret, Prioritet 71.6 — ingen ny fanemekanisme), plassert
+DIREKTE under Bestill tjenester i `DESKTOP_LAYOUT_KOLONNER.full`. Fire faner:
+- **Aktive saker** (`sakFase(s)==='aktiv'`) og **Oppfølging** (`sakFase(s)==='oppfolging'`)
+  og **Verksted** (`sakFase(s)==='verksted'`) leser alle `aktiveSaker` direkte, nyeste
+  først, via en felles radkomponent `dashHovSakRadHtml(s, fane)` — linje 2 varierer per
+  fane (sakens problem for Aktive saker, `s.nextAction` for Oppfølging, verkstedtimens
+  dato/verksted via `s.linkedVtId` for Verksted). Klikk navigerer med den UENDREDE
+  `goToSakDetalj()` (samme funksjon «Krever handling nå»/«Prioriterte biler» alltid brukte).
+- **Varsler** gjenbruker `varslingssenterRadHtml()` HELT UENDRET (samme handlingsknapper —
+  Åpne bilkort/sak/kommentarer, Merk som løst, Godta/Avslå km-endring, Marker som sett —
+  som selve Varslingssenteret allerede har). De tilhørende lytterne
+  (`data-goto-varsel-*`/`data-kvitter`/`data-godta-km`/`data-avsla-km`/
+  `data-marker-varsel-sett`) er lagt til i `attachDashboardListeners()`.
+- Hver fane viser maks 8 rader, med en «se alle»-lenke til riktig sted (Aktive saker sin
+  fane, hhv. Varslingssenteret) når det finnes flere.
+
+**De fire gamle KPI-kortene fjernet fullstendig** (`sakFaseTellereHtml()`,
+`dashboardKpiRadHtml()`, `kontrollstatusKpiHtml()`, `aktiveBilerKpiHtml()`, samt
+«Denne uken»-kalenderwidgeten `kalenderUkeWidgetHtml()`/`kalenderUkeDager()` og
+`kommendeOppgaveRadHtml()`/`dashKreverRadHtml()`/`bilparkStatusInnholdHtml()`) — alle var
+enten fullstendig orphanet av denne omleggingen eller erstattet av banneret/Hurtigoversikt,
+og er derfor SLETTET, ikke bare avkoblet, i tråd med prosjektets etablerte
+«hjelpere uten kallesteder er død kode»-prinsipp (Prioritet 62.1a). `KOMMENDE_ART` (kun
+brukt av den slettede `kommendeOppgaveRadHtml()`) er slettet av samme grunn. `goToSakFane()`
+er BEHOLDT — fortsatt i bruk av Hurtigoversikt sine «se alle i Aktive saker»-lenker.
+
+**`DASHBOARD_LAYOUT_FLATER`/`DESKTOP_LAYOUT_KOLONNER` er kraftig forenklet**: desktop og
+mobil har nå begge kun to Layout Editor-komponenter (`bestill`, `hurtigoversikt`) — det
+gamle to-kolonners oppsettet (`dash40-split`, `venstre`/`hoyre`) er avviklet til fordel for
+én, full bredde. `getLayoutFlate()` sin eksisterende fremtidssikring forkaster automatisk
+enhver tidligere lagret referanse til de fjernede komponentnøklene — ingen egen migrering.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v98 → bilpark-v99), `version-check.js` (`APP_VERSION` 98 → 99),
+`version.json` (`"version"` 98 → 99). **`storage.airtable.js` er IKKE endret** — ren
+presentasjons-/navigasjonsendring på eksisterende, allerede leste felt/funksjoner (kun
+`v.driftslag`/`v.status`/`v.kategori`/`v.uteAvDrift` LEST i en ny kombinasjon, aldri nye
+felt) — derfor uendret `versjon`/`?v=`.
+
+**Testet:** verken `node` eller `python` var tilgjengelig i denne økten. Verifisert i stedet:
+en global krøllparentes-/backtick-/parentesbalansesjekk på hele `index.html` etter hver
+større redigeringsrunde (balansert gjennomgående, parentesdiff uendret på −6 — samme
+baseline tidligere runder har rapportert), `diff index.html kontroll.html` bekreftet
+identiske etter synkronisering, og full gjennomlesning av hver endret/ny funksjon
+(`operativeKjerneBiler()`/`operativKontrollStatusIdag()`/`kontrollrateUke()`,
+`dashOperativBannerHtml()`/`dashHovSakRadHtml()`/`dashHurtigoversiktInnholdHtml()`/
+`dashHurtigoversiktHtml()`, `renderDashboard()`/`renderMobilHjem()` i sin helhet, den nye
+render()-innpakningen med `.desktop-frame`) før og etter redigering. **Ikke verifisert i en
+faktisk kjørende nettleser eller mot en ekte/mock-Airtable-base i denne økten** — samme
+forbehold som flere tidligere prioriteter (se f.eks. Prioritet 71.5/71.10/49 Del 2).
+
+**Anbefalt før idriftsettelse:** åpne appen i en nettleser og bekreft: (1) sidepanelet og
+toppstripen fremstår visuelt som ett sammenhengende skall på desktop, med korrekt
+sidetittel per skjerm og fungerende varselklokke; (2) ☰ Meny/drawer fortsatt fungerer
+(regresjonsvernet over); (3) Operativ kontroll-banneret viser korrekt prosent for
+KUN Lag 2/Montering/Lastebil-biler (sammenlign manuelt mot Biloversikt filtrert på
+driftslag); (4) «Se hvilke →» åpner Biloversikt filtrert på aktiv sjåfør; (5) alle fire
+Hurtigoversikt-fanene viser riktig antall og riktig innhold, og at handlingsknappene i
+Varsler-fanen (Godta/Avslå km, Merk som løst, Marker som sett) fungerer identisk til selve
+Varslingssenteret; (6) mobil viser nøyaktig samme banner og Hurtigoversikt som desktop.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-
+skriveregler, saksmotoren (`sakFase()`/`sakErApen()`/`godtaSak()`/`avslaSak()`/
+`goToSakDetalj()` kun lest/kalt uendret, aldri endret), Varslingssenteret sin egen logikk
+(`beregnVarslingssenterListe()`/`varselErSkjult()`/`varslingssenterRadHtml()` kun
+gjenbrukt uendret), Bestill tjenester-kortenes egen logikk, Layout Editor-mekanikken for
+øvrig, Bilkategorier, `storage.airtable.js`/Airtable-skjema, PWA/manifest-ikonfilene,
+Driftsmodus (`renderDriverShell()` — helt uberørt av Del 1, egen render-vei).
+
+**Kjente, dokumenterte begrensninger:**
+- Del 1 er BEVISST avgrenset til selve app-rammen (sidepanel+toppstripe) — de ni andre
+  skjermenes egne, eksisterende `<h2>`-titler (Biler, Verksted, Kalender, Aktive saker,
+  Varsler, Kostnader, Rapporter, Analyse, Innstillinger) er IKKE fjernet i denne runden,
+  til tross for at sidetittelen nå også vises i den delte toppstripen. Dette er en bevisst
+  risikobegrensning (stripping av ni separate skjermers markup økte omfanget vesentlig)
+  — akseptansekriteriene i denne saken tester kun selve rammen og Dashboard-innholdet, ikke
+  fravær av duplisert tittel på andre skjermer. Vurder som egen, avgrenset sak.
+- `dashboardBeregning()` beregner fortsatt flere felt (`dashKreverListe`/
+  `prioriterteBilerListe`/`kommendeOppgaver`/`hbp`/`biloversiktBiler` m.fl.) som nå har
+  INGEN gjenværende leser etter at de tilhørende visningene ble fjernet fra Dashboard —
+  ren, harmløs overflødig beregning (ikke en korrekthetsfeil), bevisst ikke ryddet i denne
+  runden for å avgrense omfanget av en allerede stor endring. Se kommentaren ved
+  `dashboardBeregning()` sin deklarasjon.
+- Flere nå-orphanede CSS-klasser (bl.a. `.dash40-grid5-kpi`, `.dash-kal-widget`,
+  `.p38-statrow`, `.dash50-biltabell`, `.desktop-sidebar-brand`) er ikke fjernet — samme
+  lavrisiko-vurdering som tidligere runder har gjort for tilsvarende orphanet CSS (f.eks.
+  `.danger-zone`, Prioritet 71.9).
+- Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
+  kun grundig statisk lese-/strukturverifisering.

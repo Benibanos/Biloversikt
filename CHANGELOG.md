@@ -13,6 +13,80 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-18
+
+### Prioritet 50 — Dashboard 5.0: ett skall, ett banner, én Hurtigoversikt
+
+Bestilling: forenkle Dashboard til et rent operativt arbeidsbord. Full detalj i CLAUDE.md,
+Prioritet 50 — kort oppsummert her:
+
+- **Del 1 (app-ramme, kun desktop):** ny, delt `.desktop-frame` kobler sidepanelet og en
+  full-bredde toppstripe (brand + løpende sidetittel + varselklokke) sammen til ett
+  sammenhengende skall, automatisk på alle admin-skjermer via den delte render()-
+  innpakningen. `#header-menu-btn` beholdt uendret i DOM (regresjonsvern, samme feilklasse
+  som Prioritet 72.1 sin `del-vehicle`-bug).
+- **Del 2 (innhold):** Dashboard er nå KUN banner + Bestill tjenester + Hurtigoversikt.
+  Banneret viser dagens kontrollprosent for en NY, snevrere kjernepopulasjon
+  (`operativeKjerneBiler()` — Lag 2/Montering/Lastebil, ekskl. reserve/ute av drift/
+  verksted), 7-dagers trend, og en «aktive biler»-linje (samme data/klikkmål som det gamle
+  KPI-kortet, kun flyttet). Bilpark status/Krever handling nå/Prioriterte biler/Kommende
+  oppgaver/Biloversikt-forhåndsvisning er FJERNET. En ny, fanedelt Hurtigoversikt (Aktive
+  saker/Oppfølging/Verksted/Varsler, samme `.profil-tabs`-mønster som Biloversikt) erstatter
+  de fire gamle KPI-kortene, delt uendret mellom desktop og mobil for ekte identisk
+  oppførsel.
+
+**Dødt-kode-opprydding i samme runde:** `sakFaseTellereHtml()`, `dashboardKpiRadHtml()`,
+`kontrollstatusKpiHtml()`, `aktiveBilerKpiHtml()`, `bilparkStatusInnholdHtml()`,
+`dashKreverRadHtml()`, `kommendeOppgaveRadHtml()`, `kalenderUkeWidgetHtml()`,
+`kalenderUkeDager()` og `KOMMENDE_ART` er alle SLETTET (ikke bare avkoblet) — hver var
+fullstendig orphanet av omleggingen.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll, `v.km`-skriveregler, saksmotoren (kun
+lest via `sakFase()`/`goToSakDetalj()`, aldri endret), Varslingssenteret sin egen logikk,
+Layout Editor-mekanikken for øvrig, `storage.airtable.js` (uendret — ren
+presentasjonsendring).
+
+### Prioritet 49, Del 2 — Løftebord: avvik, vedlikehold og årlig kontroll
+
+Bestilling: utvid Bilpark med full støtte for løftebord — sjåføravvik, sjåførvedlikehold
+(smøring), administratorens årlige kontroll, varsling og historikk — uten noen «har
+løftebord»-konfigurasjon (alle kjøretøy antas å ha løftebord). Full detalj i CLAUDE.md,
+Prioritet 49 Del 2 — kort oppsummert her:
+
+- **Del 1 (avvik):** ny kontrollavvikstype `'loftebord'` lagt til i `KONTROLLAVVIK_ORDER`/
+  `_LABEL`/`_IKON`/`_LUCIDE` — dukker automatisk opp i BÅDE full sjåførkontroll og Min Bil sin
+  hurtigflyt, uendret motor. Min Bil sin hurtigflyt (`submitMinBilAvvik()`) viser i tillegg et
+  fritekst beskrivelsesfelt KUN for løftebord, brukt som sakens beskrivelse i stedet for den
+  generiske auto-teksten — ren tilleggsvisning, samme `registrerAvvikSomSak()`-kall som før.
+- **Del 2/3 (Min Bil):** nytt, alltid synlig «🛗 Løftebord»-kort (utenfor Layout Editor —
+  ingen konfigurasjon å skjule det bak), fargekodet fra `loftebordVedlikeholdStatus()`.
+  «🛢 Smør løftebord» åpner et eget bekreftelsesskjema (avkrysning påkrevd, kommentar
+  valgfritt) → `submitMinBilLoftebordVedlikehold()`.
+- **Del 4 (varsling):** 0–14 dager siden sist smurt = 🟢, 15–30 = 🟡, 31+ eller ingen
+  registrering = 🔴. Kalenderdato-differanse (`daysSince()`), ikke månedsnummer — korrekt ved
+  månedsskifte/årsskifte/skuddår uten egen logikk.
+- **Del 5/6 (admin, Bilinformasjon):** ett-klikks «✅ Utført løftebordkontroll»
+  (`registrerLoftebordKontroll()`) — dato/utført av (`loggedInRole`)/gyldig-til (+365 dager)
+  settes automatisk, kun en `confirm()`. Status (🟢 Gyldig / 🟡 Utløper snart ≤30 dager /
+  🔴 Utløpt eller mangler) vises KUN i Bilinformasjon — ingen sjåførvarsler.
+- **Del 7 (historikk):** ny liste rett under kontroll-statusen i Bilinformasjon, nyeste
+  først, tydelig merket ✅ Kontroll / 🛢 Vedlikehold.
+- **Del 8 (datamodell):** ny Airtable-tabell `LiftgateHistory` (app-nøkkel
+  `loftebordHistorikk`), egen fra `aktiveSaker`/`kontroller` — kontroll og vedlikehold er ALDRI
+  blandet. **Ingen `HarLoftebord`-felt eller annen kjøretøykonfigurasjon.**
+  `storage.airtable.js` v2.19.0 → v2.20.0, `?v=` i `index.html`/`kontroll.html` oppdatert
+  tilsvarende, `CACHE_VERSION`/`APP_VERSION`/`version.json` økt sammen.
+
+**Krever ny Airtable-tabell `LiftgateHistory` før idriftsettelse** — se AIRTABLE_MIGRATION.md
+for feltliste.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-skriveregler,
+saksmotoren (`registrerAvvikSomSak()` kun kalt uendret, aldri endret), eksisterende
+kontrollavvikstyper (slitte-dekk/defekt-lys/manglende-utstyr/slitte-bremser/feil-pa-kjoretoy),
+Layout Editor-mekanikken for øvrig, Bilkategorier.
+
+---
+
 ## 2026-09-17
 
 ### Prioritet 71.9 — Operativ opprydding i verksted, kalender og kjøretøyvisning

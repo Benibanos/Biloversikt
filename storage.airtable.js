@@ -266,6 +266,15 @@
       // Airtable FØR denne filen tas i bruk — se leveransenotatet.
       avvik: ['Avvik', 'json']
     }},
+    // Prioritet 49, Del 2: løftebordvedlikehold (smøring, sjåfør) og løftebordkontroll
+    // (årlig, admin) — egen tabell, ALDRI blandet med aktiveSaker/kontroller. Ingen
+    // "HarLoftebord"-felt på Vehicles: alle kjøretøy antas å ha løftebord (se CLAUDE.md,
+    // Prioritet 49 Del 8). type er ENTEN 'kontroll' ELLER 'vedlikehold'.
+    loftebordHistorikk: { table: 'LiftgateHistory', fields: {
+      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
+      type: ['Type'], utfortAv: ['UtfortAv'], kommentar: ['Kommentar'],
+      registreringskanal: ['Registreringskanal']
+    }},
   };
   // Enkeltverdier (ikke lister) lagres som én rad hver i Settings-tabellen, med
   // Key = nøkkelnavnet og Value = selve verdien (tekst) — dette gjelder
@@ -578,7 +587,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.19.0',
+    versjon: 'v2.20.0',
     bygget: '18.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.

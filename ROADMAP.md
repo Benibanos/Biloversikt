@@ -1,6 +1,19 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-17 (Prioritet 71 — 🔔 Varslingssenter erstatter Påminnelser,
+Sist oppdatert: 2026-09-18 (Prioritet 50 — Dashboard 5.0: sidepanel og sidebanner slått
+sammen til ett skall (kun desktop); Dashboard forenklet til KUN banner («🎯 Operativ
+kontroll» — dagens/7-dagers kontrollrate for en ny kjernepopulasjon Lag 2/Montering/
+Lastebil, pluss aktive biler-linje) + Bestill tjenester + en ny, fanedelt Hurtigoversikt
+(Aktive saker/Oppfølging/Verksted/Varsler) delt uendret mellom desktop og mobil; Bilpark
+status/Krever handling nå/Prioriterte biler/Kommende oppgaver fjernet fra Dashboard i sin
+helhet, sammen med ni nå-orphanede render-hjelpefunksjoner). Før det: 2026-09-18
+(Prioritet 49, Del 2 — full løftebordstøtte: sjåføravvik
+(ny kontrollavvikstype `'loftebord'`, gjenbruker eksisterende sak-/kontrollavviksmotor
+uendret), sjåførvedlikehold (smøring, alltid synlig kort på Min Bil, farget grønn/gul/rød
+0–14/15–30/31+ dager siden sist), administratorens ett-klikks årlige kontroll (365 dagers
+gyldighet, kun i Bilinformasjon, ingen sjåførvarsler) og full historikk — ny Airtable-tabell
+`LiftgateHistory`, ingen «har løftebord»-konfigurasjon noe sted). Før det: 2026-09-17
+(Prioritet 71 — 🔔 Varslingssenter erstatter Påminnelser,
 samler nye kommentarer/km-avvik/service/EU/verkstedoppfølging/skader/oppfølging med
 marker-som-sett og 48-timers gjenoppdukking; «Kommende frister»-KPI fjernet fra mobil;
 sveip-tilbake-regresjon på Verkstedhistorikk/Kalender/Bestill/Kommentarer rettet).

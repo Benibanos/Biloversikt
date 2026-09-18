@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.19.0"></script>
+<script src="storage.airtable.js?v=2.20.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -168,10 +168,26 @@
      funksjonell i DOM (ingen logikk fjernet), men skjules visuelt siden Analyse/
      Innstillinger/overstyring allerede ligger i sidebarens sekundærseksjon. */
   .app-shell-desktop .shell-top-right{display:none;}
+  /* Prioritet 50, Del 1: sidepanel og sideoverskrift skal oppleves som ÉN sammenhengende
+     komponent, ikke to separate kort. .desktop-frame er den nye, felles rammen (border/
+     bakgrunn/radius) som omslutter BÅDE en full-bredde toppstripe (brand + sidetittel +
+     varselklokke) OG selve sidebar+innhold-raden under. .desktop-sidebar sin EGEN border/
+     bakgrunn/radius (satt lenger ned, Design 4.1-laget) er derfor nøytralisert — rammen
+     eier nå kantlinjen, sidebaren beholder kun en loddrett skillelinje mot innholdet.
+     Denne rammen brukes AUTOMATISK av alle admin-skjermer, siden den ligger i den delte
+     render()-innpakningen, ikke i hver enkelt skjerm sin egen kode. */
+  .desktop-frame{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .desktop-frame-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 22px;border-bottom:1.5px solid var(--line);}
+  .desktop-frame-brand{display:flex;align-items:center;gap:10px;}
+  .desktop-frame-brand .brand-mark{width:26px;height:26px;border-radius:7px;flex-shrink:0;}
+  .desktop-frame-brand-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:.04em;text-transform:uppercase;}
+  .desktop-frame-brand-sub{font-size:10.5px;color:var(--muted);font-weight:500;}
+  .desktop-frame-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--ink);}
+  .desktop-frame-body{display:flex;align-items:stretch;}
+  .desktop-frame-body .app-shell-main{flex:1;min-width:0;padding:22px 26px;}
   .desktop-sidebar{
-    flex:0 0 232px;position:sticky;top:20px;
+    flex:0 0 232px;
     display:flex;flex-direction:column;gap:4px;
-    background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);
     padding:18px 14px;
   }
   .desktop-sidebar-brand{padding:2px 8px 16px;}
@@ -438,6 +454,10 @@
   .acc-row.oppfolging{border-left-color:var(--amber);}
   .acc-row.verksted{border-left-color:var(--blue);}
   .acc-row.varsel{border-left-color:var(--red);}
+  /* Prioritet 49, Del 2: Min Bil sitt alltid-synlige «🛗 Løftebord»-kort gjenbruker
+     .acc-row sin fargede venstrekant (grønn/gul/rød), men har egen padding siden det ikke
+     bruker .acc-head/.acc-body sin ekspander/lukk-struktur — statusen er alltid synlig. */
+  .loftebord-card{padding:14px 16px;}
   .acc-row:hover{box-shadow:0 3px 14px rgba(0,0,0,.06);}
   .acc-head{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;flex-wrap:wrap;max-width:100%;box-sizing:border-box;}
   .acc-head-left{display:flex;align-items:center;gap:10px;min-width:0;}
@@ -1076,7 +1096,7 @@
   }
 
   /* ---- Sidemeny ---- */
-  .desktop-sidebar{background:var(--surface);border-right:1px solid var(--line-soft);}
+  .desktop-sidebar{background:transparent;border-right:1.5px solid var(--line-soft);}
   .desktop-sidebar-item{border-radius:11px;color:var(--ink-2);font-weight:500;}
   .desktop-sidebar-item:hover{background:var(--surface-2);}
   .desktop-sidebar-item.active,
@@ -1793,6 +1813,10 @@ let sakUtenVerkstedPanelId = null;
 // vis hele saken utvidet som standard»), og om den gamle, fulle filter-/gruppevisningen
 // Saker vises alltid i dagens bilgrupperte arbeidsflyt.
 let sakAktivFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted'
+// Prioritet 50, Del 7: hvilken fane som er valgt i Dashboardets nye "Hurtigoversikt"-modul
+// (Aktive saker/Oppfølging/Verksted/Varsler) — ren visningstilstand, samme mønster som
+// sakAktivFane/bilkortAktivFane/registerAktivFane, ALDRI lagret.
+let dashHurtigoversiktFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted' | 'varsler'
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
@@ -2007,6 +2031,13 @@ function clearKontrollDraft(){
 let varsellys = []; // vedvarende varsellamper knyttet til bil, se saveVarsellys()
 let dekkhistorikk = []; // logg over dekkskifter (sommer/vinter) per bil, se saveDekkhistorikk()
 let dekkkostnader = []; // logg over registrerte dekk-kjøp/kostnader per bil, se saveDekkkostnader()
+// Prioritet 49, Del 2: løftebordkontroll (årlig, admin) og løftebordvedlikehold (smøring,
+// sjåfør) — samme LIST_TABLES-mønster som dekkhistorikk over (egen Airtable-tabell
+// LiftgateHistory, IKKE en JSON-blob i Settings). {id, vehicleId, dato, tidspunkt, type,
+// utfortAv, kommentar, registreringskanal}. type er ENTEN 'kontroll' ELLER 'vedlikehold' —
+// disse to skal aldri blandes (se CLAUDE.md, Prioritet 49 Del 2, Begrepsavklaring). Ingen
+// eget "har løftebord"-felt på kjøretøyet — alle kjøretøy antas å ha løftebord.
+let loftebordHistorikk = []; // se saveLoftebordHistorikk()
 // Ny funksjonalitet (godkjent eksplisitt — Service fantes IKKE i kodebasen fra før, se
 // CLAUDE.md "Service — km-basert serviceintervall"): logg over utførte servicer per bil,
 // samme lagringsmønster som dekkhistorikk (window.storage, delt, JSON-liste).
@@ -2539,12 +2570,18 @@ function sakHarBlittViderebehandlet(sak){
 // fire eksisterende (kun ny nøkkel i disse fire oppslagene — ingen egen logikk, siden
 // sjåførkontrollens avvikschips, Min Bil sin hurtigflyt og saksmotoren allerede bygger
 // dynamisk fra KONTROLLAVVIK_ORDER.map(...)).
-const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'slitte-bremser', 'feil-pa-kjoretoy'];
-const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'slitte-bremser':'Slitte bremser', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'annet-avvik':'Andre kontrollavvik'};
-const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'slitte-bremser':'⚠️', 'feil-pa-kjoretoy':'🚨', 'annet-avvik':'📋'};
+// Prioritet 49, Del 2: «Løftebord» lagt til som eget kontrollavvik, på samme måte som
+// «Slitte bremser» ble (Prioritet 71.2) — kun ny nøkkel i disse fire oppslagene, ingen egen
+// avvikslogikk, siden sjåførkontrollens avvikschips, Min Bil sin hurtigflyt og saksmotoren
+// allerede bygger dynamisk fra KONTROLLAVVIK_ORDER.map(...). Løftebordets EGEN beskrivelses-
+// felt (Min Bil sin hurtigflyt, se submitMinBilAvvik()) og status/vedlikehold/kontroll-
+// mekanikken er en tilleggsting utenfor selve avviks-motoren.
+const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'slitte-bremser', 'feil-pa-kjoretoy', 'loftebord'];
+const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'slitte-bremser':'Slitte bremser', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'loftebord':'Løftebord', 'annet-avvik':'Andre kontrollavvik'};
+const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'slitte-bremser':'⚠️', 'feil-pa-kjoretoy':'🚨', 'loftebord':'🛗', 'annet-avvik':'📋'};
 // Samme begrunnelse som GRUPPE_LUCIDE/SAK_TYPE_LUCIDE over — egen Lucide-variant for de
 // rene HTML-stedene (avvik-chips), se CLAUDE.md, Prioritet 56.
-const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'slitte-bremser':'triangle-alert', 'feil-pa-kjoretoy':'triangle-alert', 'annet-avvik':'clipboard-list'};
+const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'slitte-bremser':'triangle-alert', 'feil-pa-kjoretoy':'triangle-alert', 'loftebord':'arrow-up-down', 'annet-avvik':'clipboard-list'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 // ---- Optimalisering 3 (Kontrollsletting med full cleanup) ----
@@ -2607,6 +2644,15 @@ let pendingMinBilFoto = null;
 let minBilVarselType = '';
 let minBilVarselAnnetTekst = '';
 let minBilAvvikType = '';
+// Prioritet 49, Del 2: fritekstbeskrivelse vist KUN når minBilAvvikType === 'loftebord'
+// (se renderDriverMinBil()/submitMinBilAvvik()) — de fire andre avvikstypene bruker fortsatt
+// uendret den generiske "Automatisk generert fra sjåførregistrering."-teksten.
+let minBilAvvikBeskrivelse = '';
+// Prioritet 49, Del 2/3: Min Bil sitt "🛗 Løftebord"-kort (alltid synlig, ingen Layout
+// Editor-styring) og «🛢 Smør løftebord»-panelet. Åpne/lukk deler samme minBilAksjon-
+// tilstand som de øvrige handlingskortene (verdi 'loftebord') — kun ett panel av gangen.
+let minBilLoftebordSmurt = false;
+let minBilLoftebordKommentar = '';
 const DRIVER_SESSION_KEY = 'bilpark_driver_session_v1';
 function saveDriverLocalSession(){
   try{ window.localStorage.setItem(DRIVER_SESSION_KEY, JSON.stringify({vehicleId: driverActiveVehicleId, navn: driverNavn})); }
@@ -3140,28 +3186,28 @@ function kategoriOptionsHtml(valgt, tomTekst){
 // — «order» er den FULLSTENDIGE rekkefølgen (også skjulte komponenter blir stående i order,
 // slik at de dukker opp igjen på riktig plass dersom de vises på nytt). Kun komponent-ID-er
 // og deres rekkefølge/synlighet lagres — aldri komponentenes eget innhold/markup.
+// Prioritet 50: Dashboard er radikalt forenklet ("Dashboard inneholder KUN: Banner,
+// Bestill tjenester, Hurtigoversikt") — Nøkkeltall/Denne uken/Kommende oppgaver/
+// Biloversikt/Bilpark status/Krever handling nå/Prioriterte biler er alle FJERNET som
+// egne komponenter (ikke bare skjult) fra BÅDE Desktop og Mobil Dashboard, siden
+// innholdet deres enten er flyttet til det nye, faste banneret (dashOperativBannerHtml())
+// eller til den nye "hurtigoversikt"-komponenten (dashHurtigoversiktHtml()) under. Banneret
+// er BEVISST IKKE en Layout Editor-komponent — det er fast innhold, som "Sjekk ut bil" på
+// Min Bil. getLayoutFlate() sin eksisterende fremtidssikring forkaster automatisk enhver
+// tidligere lagret referanse til de fjernede nøklene — ingen egen migrering nødvendig.
 const DASHBOARD_LAYOUT_FLATER = {
   desktop: {
     label: 'Desktop Dashboard',
     komponenter: [
-      {key:'kpi',            label:'Nøkkeltall (5 kort)'},
       {key:'bestill',        label:'➕ Bestill tjenester'},
-      {key:'kalenderwidget', label:'📅 Denne uken (kalender)'},
-      {key:'kommende',       label:'📋 Kommende oppgaver'},
-      {key:'biloversikt',    label:'🚐 Biloversikt (biltabell)'},
-      {key:'bilparkstatus',  label:'🚚 Bilpark status'},
-      {key:'kreverhandling', label:'⚠️ Krever handling nå'},
-      {key:'prioriterte',    label:'🎯 Prioriterte biler'}
+      {key:'hurtigoversikt', label:'📋 Hurtigoversikt'}
     ]
   },
   mobil: {
     label: 'Mobil Dashboard',
     komponenter: [
-      {key:'kpi',            label:'Nøkkeltall (2 kort)'},
       {key:'bestill',        label:'➕ Bestill tjenester'},
-      {key:'kommende',       label:'📋 Kommende oppgaver'},
-      {key:'bilparkstatus',  label:'🚚 Bilpark status'},
-      {key:'kreverhandling', label:'⚠️ Krever handling nå'}
+      {key:'hurtigoversikt', label:'📋 Hurtigoversikt'}
     ]
   },
   minbil: {
@@ -3182,17 +3228,19 @@ const DASHBOARD_LAYOUT_FLATER = {
     ]
   }
 };
-// Desktop Dashboard beholder sitt eksisterende to-kolonners CSS-oppsett UENDRET (`dash40-split`)
-// — å gjøre om hele Dashboard til én stablet kolonne ville vært en
-// unødvendig visuell redesign langt utover det denne saken ber om. Layout Editoren gir
-// driftskoordinator ÉN samlet liste per flate (slik bestillingen beskriver «3 flater»), men
-// for Desktop bestemmer denne faste kolonne-tilhørigheten hvilken av de to kolonnene en
-// komponent faktisk tegnes i — kun REKKEFØLGEN *innenfor* egen kolonne, og synlighet på tvers
-// av alle, styres av Layout Editoren.
+// Prioritet 50: Desktop Dashboard sitt tidligere to-kolonners oppsett (`dash40-split`) er
+// FJERNET sammen med komponentene som fylte høyre/venstre kolonne — de to gjenværende
+// komponentene (Bestill tjenester, Hurtigoversikt) ligger nå begge i full bredde, én under
+// den andre, i den rekkefølgen Layout Editoren sier (se DASHBOARD_LAYOUT_FLATER over).
+// venstre/hoyre er bevisst tomme arrays, ikke fjernet — renderDashboard() sin
+// `(venstreHtml || hoyreHtml)`-sjekk er selv fjernet (ingen kolonneoppdeling lenger), men
+// layoutFlateSynligeNokler()/komponent-filtreringen leser fortsatt disse tre gruppene
+// generisk, så en tom gruppe er den korrekte, minst-risikofylte måten å love bort
+// kolonneoppdelingen på uten å skrive om selve filtreringsmekanismen.
 const DESKTOP_LAYOUT_KOLONNER = {
-  full:    ['kpi', 'bestill'],
-  venstre: ['kommende', 'biloversikt'],
-  hoyre:   ['kalenderwidget', 'bilparkstatus', 'kreverhandling', 'prioriterte']
+  full:    ['bestill', 'hurtigoversikt'],
+  venstre: [],
+  hoyre:   []
 };
 function defaultLayoutForFlate(flateKey){
   const flate = DASHBOARD_LAYOUT_FLATER[flateKey];
@@ -3795,6 +3843,8 @@ async function loadAll(){
   catch(e){ dekkhistorikk = []; }
   try{ const dk = await window.storage.get('dekkkostnader', true); dekkkostnader = dk && dk.value ? JSON.parse(dk.value) : []; }
   catch(e){ dekkkostnader = []; }
+  try{ const lb = await window.storage.get('loftebordHistorikk', true); loftebordHistorikk = lb && lb.value ? JSON.parse(lb.value) : []; }
+  catch(e){ loftebordHistorikk = []; }
   // bruker parseJsonTrygt() i stedet for en generell
   // try/catch som stille satte servicehistorikk = [] ved korrupt JSON — det tomme
   // arrayet ville deretter blitt lagret TILBAKE til Airtable ved neste endring og
@@ -4003,6 +4053,7 @@ async function reloadOne(key){
     else if(key === 'admin-users') adminUsers = parsed;
     else if(key === 'dekkhistorikk') dekkhistorikk = parsed;
     else if(key === 'dekkkostnader') dekkkostnader = parsed;
+    else if(key === 'loftebordHistorikk') loftebordHistorikk = parsed;
     else if(key === 'aktiveSaker') aktiveSaker = parsed;
   }catch(e){
     console.error('[reloadOne] Feilet for', key, e);
@@ -4170,6 +4221,12 @@ async function saveDekkhistorikk(){
 }
 async function saveDekkkostnader(){
   try{ await window.storage.set('dekkkostnader', JSON.stringify(dekkkostnader), true); }
+  catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+// Prioritet 49, Del 2: samme lagringsmønster som saveDekkhistorikk() — egen Airtable-tabell
+// (LiftgateHistory), ikke en JSON-blob i Settings.
+async function saveLoftebordHistorikk(){
+  try{ await window.storage.set('loftebordHistorikk', JSON.stringify(loftebordHistorikk), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
 async function saveServicehistorikk(){
@@ -4792,6 +4849,64 @@ function vehicleServiceStatus(v){
 function vehicleHarAktivPlanlagtService(vehicleId){
   return planlagteServicer.some(t => t.vehicleId === vehicleId && t.dato >= todayISO());
 }
+// ================= Prioritet 49, Del 2: Løftebord — vedlikehold og årlig kontroll =================
+// Alle kjøretøy antas å ha løftebord — det finnes bevisst INGEN "har løftebord"-felt eller
+// annen kjøretøykonfigurasjon (se CLAUDE.md, Prioritet 49 Del 2, DEL 8). Løftebordavvik
+// (feil/skade) går gjennom den vanlige kontrollavviks-/saksmotoren (KONTROLLAVVIK_ORDER
+// 'loftebord') og er IKKE del av denne seksjonen — vedlikehold (smøring) og kontroll (årlig,
+// admin) er egne, separate hendelser lagret i loftebordHistorikk (LiftgateHistory), ALDRI
+// blandet med hverandre eller med avvik/saker.
+function vehicleLoftebordVedlikehold(vehicleId){
+  return loftebordHistorikk
+    .filter(l => l.vehicleId === vehicleId && l.type === 'vedlikehold')
+    .sort((a,b) => (b.dato + (b.tidspunkt||'')).localeCompare(a.dato + (a.tidspunkt||'')))[0] || null;
+}
+// Dager siden siste vedlikehold beregnes med daysSince() — ren kalenderdato-differanse
+// (Date.UTC), IKKE månedsnummer — fungerer derfor korrekt over månedsskifte, årsskifte og
+// skuddår uten noen egen logikk her (se CLAUDE.md, Prioritet 49 Del 4).
+function loftebordVedlikeholdStatus(vehicleId){
+  const siste = vehicleLoftebordVedlikehold(vehicleId);
+  if(!siste) return {status:'rod', ikon:'🔴', tekst:'Må gjøres!', undertekst:'Vedlikehold ikke registrert', dagerSiden:null, siste:null};
+  const dager = daysSince(siste.dato);
+  if(dager === null) return {status:'rod', ikon:'🔴', tekst:'Må gjøres!', undertekst:'Vedlikehold ikke registrert', dagerSiden:null, siste:null};
+  const undertekst = `Sist smurt: ${dager} dag${dager===1?'':'er'} siden`;
+  if(dager <= 14) return {status:'gronn', ikon:'🟢', tekst:'Vedlikehold utført', undertekst, dagerSiden:dager, siste};
+  if(dager <= 30) return {status:'gul', ikon:'🟡', tekst:'Bør gjøres', undertekst, dagerSiden:dager, siste};
+  return {status:'rod', ikon:'🔴', tekst:'Må gjøres!', undertekst, dagerSiden:dager, siste};
+}
+function vehicleLoftebordKontroll(vehicleId){
+  return loftebordHistorikk
+    .filter(l => l.vehicleId === vehicleId && l.type === 'kontroll')
+    .sort((a,b) => (b.dato + (b.tidspunkt||'')).localeCompare(a.dato + (a.tidspunkt||'')))[0] || null;
+}
+// Årlig kontroll er gyldig i 365 dager fra utført dato (isoDateOffset() — ren
+// kalenderdato-forskyvning, samme prinsipp som over). Vises KUN i Bilinformasjon
+// (administrator) — ingen varsler til sjåfør, se CLAUDE.md, Prioritet 49 Del 6.
+function loftebordKontrollStatus(vehicleId){
+  const siste = vehicleLoftebordKontroll(vehicleId);
+  if(!siste) return {status:'rod', ikon:'🔴', tekst:'Kontroll mangler', gyldigTil:null, siste:null};
+  const gyldigTil = isoDateOffset(siste.dato, 365);
+  const dagerTilUtlop = daysUntil(gyldigTil);
+  if(dagerTilUtlop === null) return {status:'rod', ikon:'🔴', tekst:'Kontroll mangler', gyldigTil:null, siste:null};
+  if(dagerTilUtlop < 0) return {status:'rod', ikon:'🔴', tekst:'Kontroll utløpt', gyldigTil, siste};
+  if(dagerTilUtlop <= 30) return {status:'gul', ikon:'🟡', tekst:'Utløper snart', gyldigTil, siste};
+  return {status:'gronn', ikon:'🟢', tekst:'Gyldig', gyldigTil, siste};
+}
+// Ren visningsliste for BEGGE typer, nyeste først — se DEL 7 (Historikk skal skille tydelig
+// mellom kontroll og vedlikehold, aldri blande dem i betydning, men vises fint sammen i én
+// kronologisk logg akkurat som ticket-eksempelet viser).
+function vehicleLoftebordHistorikk(vehicleId){
+  return loftebordHistorikk
+    .filter(l => l.vehicleId === vehicleId)
+    .sort((a,b) => (b.dato + (b.tidspunkt||'')).localeCompare(a.dato + (a.tidspunkt||'')));
+}
+function loftebordHistorikkRadHtml(l){
+  const erKontroll = l.type === 'kontroll';
+  return `
+    <li>
+      <span class="dmg-simple-main">${fmt(l.dato)} — ${erKontroll ? '✅ Kontroll' : '🛢 Vedlikehold'} · Utført av ${esc(l.utfortAv || 'Ukjent')}${l.kommentar ? ' · ' + esc(l.kommentar) : ''}</span>
+    </li>`;
+}
 // Dekkskifttime: identisk "aktiv"-prinsipp som vehicleHarAktivPlanlagtService()
 // over — kun en KOMMENDE (dato >= i dag) dekkskifttime teller. En passert, ikke fullført time
 // faller bevisst tilbake til Krever handling nå (se dashKreverListe i renderDashboard()).
@@ -4839,9 +4954,8 @@ function vtHarType(t, kode){
 // Prioritet 71.9: alle fem kanoniske typer (VT_TYPE_VELGER, Prioritet 71.6) skilles nå fra
 // hverandre her — tidligere falt Service/Dekkskift/Reparasjon alle sammen til det samme
 // generiske "🏭 Verkstedtime", selv om t.type siden Prioritet 71.6/71.8 pålitelig kan skille
-// dem. Kalenderens I dag/Senere-seksjon (kalenderIDagSenereHtml()) og Dashboardets
-// "Kommende oppgaver" (KOMMENDE_ART, via vtTypeArt()) leser begge disse funksjonene direkte
-// — ingen egen, parallell typelogikk innført noe sted.
+// dem. Kalenderens I dag/Senere-seksjon (kalenderIDagSenereHtml()) leser vtTypeIkon()/
+// vtTypeTittel() direkte — ingen egen, parallell typelogikk innført noe sted.
 function vtTypeIkon(t){
   const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
   if(eu && rs) return '🚦💥';
@@ -4864,10 +4978,11 @@ function vtTypeLucide(t){
   if(vtHarType(t, 'dekkskift')) return luc('circle-dot');
   return luc('factory');
 }
-// Samme typelogikk igjen, men som ren NOKKEL — brukes av Dashboard sitt
-// "Kommende oppgaver" til aa slaa opp bade ikon og fargetone i KOMMENDE_ART. 'dekk' (ikke
-// 'dekkskift') for å matche nøkkelen KOMMENDE_ART/de andre kildene i kommendeOppgaver
-// allerede bruker for planlagt dekkskift.
+// Samme typelogikk igjen, men som ren NØKKEL-streng ('service'/'dekk'/'eu'/'ruteskift'/
+// 'eu-ruteskift'/'verksted'). Eneste gjenværende kallested er dashboardBeregning() sin
+// kommendeOppgaver-bygging (Prioritet 50: selve visningen av "Kommende oppgaver" er
+// fjernet fra Dashboard, men beregningen av kommendeOppgaver er bevisst IKKE fjernet fra
+// dashboardBeregning() i denne runden — se kommentaren ved funksjonens deklarasjon).
 function vtTypeArt(t){
   const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
   if(eu && rs) return 'eu-ruteskift';
@@ -5264,9 +5379,11 @@ async function deleteVehicle(id){
   vehicles = vehicles.filter(v => v.id !== id);
   damages = damages.filter(d => d.vehicleId !== id);
   verkstedtimer = verkstedtimer.filter(t => t.vehicleId !== id);
+  loftebordHistorikk = loftebordHistorikk.filter(l => l.vehicleId !== id);
   await saveVehicles();
   await saveDamages();
   await saveVerkstedtimer();
+  await saveLoftebordHistorikk();
   for(const d of vDamages){ if(d.hasPhoto) await deletePhoto('damage:'+d.id); }
   if(v && v.hasPhoto) await deletePhoto('vehicle:'+id);
   goTo('register');
@@ -5427,14 +5544,52 @@ async function submitMinBilAvvik(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v || !minBilAvvikType){ alert('Velg et avvik.'); return; }
   const dato = todayISO();
+  // Prioritet 49, Del 1: kun «Løftebord» viser et fritekst beskrivelsesfelt (se
+  // renderDriverMinBil()) — sjåførens egen tekst brukes da som sakens beskrivelse i stedet
+  // for den generiske auto-teksten. De fire andre avvikstypene er UENDRET. Uansett type:
+  // dette er fortsatt kun ett kall til den eksisterende registrerAvvikSomSak() — ingen egen
+  // saksmotor for løftebord.
+  const beskrivelse = (minBilAvvikType === 'loftebord' && minBilAvvikBeskrivelse.trim())
+    ? minBilAvvikBeskrivelse.trim()
+    : 'Automatisk generert fra sjåførregistrering.';
   registrerAvvikSomSak({
     vehicleId: v.id, caseType: 'kontrollavvik', sourceId: minBilAvvikType,
-    tittel: KONTROLLAVVIK_LABEL[minBilAvvikType] || 'Kontrollavvik registrert', beskrivelse: 'Automatisk generert fra sjåførregistrering.',
+    tittel: KONTROLLAVVIK_LABEL[minBilAvvikType] || 'Kontrollavvik registrert', beskrivelse,
     reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: ''
   });
   await saveAktiveSaker();
-  minBilAksjon = ''; minBilAvvikType = '';
+  minBilAksjon = ''; minBilAvvikType = ''; minBilAvvikBeskrivelse = '';
   alert('Avvik registrert.');
+  render();
+}
+// Prioritet 49, Del 3: sjåførens «🛢 Smør løftebord» — REN vedlikeholdsregistrering (smøring
+// med fettpresse), aldri en sak, aldri en kontroll. Knappen som kaller denne er allerede
+// deaktivert i malen (renderDriverMinBil()) inntil avkrysningen er huket av — sjekket her på
+// nytt som et sikkerhetsnett, ikke fordi UI-en kan omgås i normal bruk.
+async function submitMinBilLoftebordVedlikehold(){
+  const v = vehicles.find(x => x.id === driverActiveVehicleId);
+  if(!v || !minBilLoftebordSmurt) return;
+  loftebordHistorikk.push({
+    id: uid(), vehicleId: v.id, dato: todayISO(), tidspunkt: nowTimeOslo(), type: 'vedlikehold',
+    utfortAv: driverNavn || 'Ukjent', kommentar: minBilLoftebordKommentar.trim(), registreringskanal: 'sjafor'
+  });
+  await saveLoftebordHistorikk();
+  minBilAksjon = ''; minBilLoftebordSmurt = false; minBilLoftebordKommentar = '';
+  alert('✅ Vedlikehold registrert.');
+  render();
+}
+// Prioritet 49, Del 5: administratorens ett-klikks «✅ Utført løftebordkontroll» — ingen
+// ekstra skjema. Dato/utført av/gyldighet (365 dager) settes automatisk, samme mønster som
+// godtaKmEndring() (Prioritet 71.10) bruker loggedInRole som identitet på admin-handlingen.
+async function registrerLoftebordKontroll(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v) return;
+  if(!confirm(`Registrere utført løftebordkontroll for ${vehicleLabel(v)}?\n\nBlir gyldig i 365 dager fra i dag.`)) return;
+  loftebordHistorikk.push({
+    id: uid(), vehicleId, dato: todayISO(), tidspunkt: nowTimeOslo(), type: 'kontroll',
+    utfortAv: loggedInRole || 'Administrator', kommentar: '', registreringskanal: 'admin'
+  });
+  await saveLoftebordHistorikk();
   render();
 }
 
@@ -7612,10 +7767,25 @@ const DESKTOP_NAV_PRIMARY = [
   {scr:'kostnadsoversikt', ikon:luc('bar-chart-3'), label:'Kostnader'},
   {scr:'rapporter', ikon:luc('file-bar-chart'), label:'Rapporter'}
 ];
+// Prioritet 50, Del 1: sidetittelen som nå vises i den delte .desktop-frame-top-stripen
+// (se render()), i stedet for hver enkelt skjerms egen overskrift. Kun én kilde til
+// tittel per skjerm — DESKTOP_NAV_PRIMARY sine `label`-verdier gjenbrukes IKKE direkte,
+// siden de er menytekst ("Hjem") og ikke nødvendigvis samme ord som sidetittelen
+// ("Dashboard", jf. wireframe i ticket).
+const DESKTOP_FRAME_TITTEL = {
+  dashboard:'Dashboard', register:'Biler', bilkort:'Kjøretøyprofil',
+  verksted:'Verksted', service:'Verksted', dekk:'Verksted',
+  verkstedhistorikk:'Verkstedhistorikk', historikk:'Verkstedhistorikk',
+  kalender:'Kalender', aktivesaker:'Aktive saker', skader:'Aktive saker',
+  varsler:'Varslingssenter', kostnadsoversikt:'Kostnader',
+  rapporter:'Rapporter', analyse:'Analyse', innstillinger:'Innstillinger',
+  bestill:'Bestill tjenester', kommentaroversikt:'Kommentarer',
+  dekkoversikt:'Dekk', kontrolloversikt:'Kontroller'
+};
+function desktopFrameTittel(){ return DESKTOP_FRAME_TITTEL[screen] || 'Bilpark'; }
 function renderDesktopSidebarHtml(){
   return `
     <nav class="desktop-sidebar">
-      <div class="desktop-sidebar-brand">${brandBlockHtml()}</div>
       <div class="desktop-sidebar-nav">
         ${DESKTOP_NAV_PRIMARY.map(item => {
           // Tellere på to menypunkter — begge fra eksisterende funksjoner, ingen ny beregning.
@@ -7766,11 +7936,14 @@ function render(){
   // på desktop, se .app-shell-desktop .shell-top-right) — minimerer risiko ved å ikke
   // røre drawer-logikken i det hele tatt, kun legge sidebaren til SIDEN AV den.
   const desktopSidebarHtml = uiExp === 'desktop' ? renderDesktopSidebarHtml() : '';
-
-  app.innerHTML = `
-    <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : 'app-shell-mobil'}">
-      ${desktopSidebarHtml}
-      <div class="app-shell-main">
+  // Prioritet 50, Del 1: samme innhold (shell-top) som før, men på desktop ligger den nå
+  // NESTET inne i .desktop-frame i stedet for direkte i .app-shell-main sitt toppnivå.
+  // Beholdt uendret og ALLTID i DOM-en (uansett uiExp) — #header-menu-btn festes til den
+  // helt uavhengig av layout, og render() sitt getElementById('header-menu-btn') ville
+  // kastet en TypeError dersom elementet manglet på desktop (samme feilklasse som
+  // del-vehicle-regresjonen i Prioritet 72.1). Den er fortsatt visuelt skjult på desktop
+  // via den eksisterende .app-shell-desktop .shell-top{display:none}-regelen.
+  const shellTopHtml = `
         <div class="shell-top">
           ${brandBlockHtml()}
           <div class="shell-top-right">
@@ -7780,15 +7953,52 @@ function render(){
               </button>
             </div>
           </div>
+        </div>`;
+  // Prioritet 50, Del 1: ny, felles ramme som visuelt kobler sidepanelet og en
+  // full-bredde toppstripe (brand + sidetittel + varselklokke) sammen til ÉN komponent —
+  // se .desktop-frame/.desktop-frame-top i CSS-en. Delt på tvers av ALLE admin-skjermer
+  // siden dette er en del av den delte render()-innpakningen, ikke noe hver enkelt skjerm
+  // selv bygger. Kun for desktop — mobil har sin egen, allerede kompakte topplinje
+  // (.p41-head, kun på Dashboard) og bunnmeny som eneste navigasjon, uten sidepanel å
+  // koble sammen med noe.
+  const aktiveVarslerFrameAntall = varslingssenterAntall();
+  app.innerHTML = `
+    <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : 'app-shell-mobil'}">
+      ${uiExp === 'desktop' ? `
+      <div class="desktop-frame">
+        <div class="desktop-frame-top">
+          <div class="desktop-frame-brand">
+            <img class="brand-mark" src="icons/bilpark-icon-192-v63.png" alt="" aria-hidden="true">
+            <div>
+              <div class="desktop-frame-brand-name">Bilpark</div>
+              <div class="desktop-frame-brand-sub">Operativ kontroll</div>
+            </div>
+          </div>
+          <div class="desktop-frame-title">${esc(desktopFrameTittel())}</div>
+          <button type="button" class="p38-iconbtn" id="frame-varsler-btn" title="Varslingssenter">${luc('bell')}${aktiveVarslerFrameAntall > 0 ? `<span class="n">${aktiveVarslerFrameAntall}</span>` : ''}</button>
         </div>
+        <div class="desktop-frame-body">
+          ${desktopSidebarHtml}
+          <div class="app-shell-main">
+            <div style="display:none;">${shellTopHtml}</div>
+            ${body}
+          </div>
+        </div>
+      </div>` : `
+      <div class="app-shell-main">
+        ${shellTopHtml}
         ${body}
-      </div>
+      </div>`}
     </div>
     ${uiExp === 'mobil' ? renderMobilBunnmenyHtml() : ''}
   `;
 
   document.querySelectorAll('[data-nav]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.nav)));
   document.getElementById('header-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleHeaderMenu(); });
+  // Prioritet 50, Del 1: varselklokken i den nye, delte .desktop-frame-top-stripen —
+  // finnes kun i DOM-en når uiExp === 'desktop'.
+  const frameVarslerBtn = document.getElementById('frame-varsler-btn');
+  if(frameVarslerBtn) frameVarslerBtn.addEventListener('click', () => goTo('varsler'));
   if(uiExp === 'desktop') attachDesktopSidebarListeners(); else attachMobilBunnmenyListeners();
 
   renderDrawer();
@@ -8257,6 +8467,10 @@ function renderDriverMinBil(){
   const activeVarsellysList = activeVarsellysForVehicle(v.id);
   const activeVarselTypes = new Set(activeVarsellysList.map(w => w.type));
   const activeAvvikTypes = new Set(aktiveSaker.filter(s => s.vehicleId === v.id && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId));
+  // Prioritet 49, Del 2: løftebordkortets status — alltid beregnet, aldri konfigurert
+  // (alle kjøretøy antas å ha løftebord, se CLAUDE.md Prioritet 49 Del 8).
+  const lbStatus = loftebordVedlikeholdStatus(v.id);
+  const lbAccKlasse = lbStatus.status === 'gronn' ? 'ok' : (lbStatus.status === 'gul' ? 'oppfolging' : 'varsel');
   // overskriften viser BILENS aktive sjåfør (vehicleAktivSjafor — samme
   // kilde som Dashboard, Biler i drift, Biloversikt og Kjøretøyprofil), ikke bare navnet
   // som ligger i denne enhetens lokale sesjon. Er bilen overført til en ny sjåfør via
@@ -8355,6 +8569,7 @@ function renderDriverMinBil(){
             </button>`;
           }).join('')}
         </div>
+        ${minBilAvvikType === 'loftebord' ? `<div class="field" style="margin-top:10px;"><label>Beskrivelse</label><textarea id="mb-avvik-beskrivelse" placeholder="F.eks. Hydraulikk lekker olje">${esc(minBilAvvikBeskrivelse)}</textarea></div>` : ''}
         <div class="panel-actions"><button type="button" class="btn" id="mb-avvik-lagre-btn">Lagre avvik</button></div>
       </div>` : ''}`,
     kontakt: `
@@ -8401,6 +8616,32 @@ function renderDriverMinBil(){
       </div>
     </div>
     ${mbOverfort ? `<div class="required-hint" style="margin-bottom:16px;">Bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.</div>` : ''}
+
+    <!-- Prioritet 49, Del 2: «🛗 Løftebord»-kortet er BEVISST utenfor layoutFlateHtml()/
+         komponentHtml — det skal alltid vises, med ingen «har løftebord»-konfigurasjon å
+         skjule det bak (se CLAUDE.md, Prioritet 49 Del 8). Samme fargede venstrekant-mønster
+         som .acc-row.ok/.oppfolging/.varsel allerede bruker andre steder i appen (grønn/gul/
+         rød), ikke en ny statusfargekomponent. -->
+    <div class="acc-row loftebord-card ${lbAccKlasse}" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div style="font-weight:700;font-size:14.5px;">🛗 Løftebord</div>
+          <div style="margin-top:4px;font-size:13px;">${lbStatus.ikon} ${lbStatus.tekst}</div>
+          <div style="margin-top:2px;font-size:12px;color:var(--muted);">${lbStatus.undertekst}</div>
+        </div>
+      </div>
+      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn small" id="mb-loftebord-btn">🛢 Smør løftebord</button></div>
+      ${minBilAksjon === 'loftebord' ? `
+      <div class="panel" style="margin-top:10px;">
+        <div class="required-hint" style="margin-bottom:12px;">Bekreft at løftebordet er smurt med fettpresse.</div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:12px;cursor:pointer;">
+          <input type="checkbox" id="mb-loftebord-smurt" style="width:auto;" ${minBilLoftebordSmurt ? 'checked' : ''}>
+          Løftebord er smurt
+        </label>
+        <div class="field" style="margin-bottom:10px;"><label>Kommentar (valgfritt)</label><textarea id="mb-loftebord-kommentar" placeholder="Valgfritt">${esc(minBilLoftebordKommentar)}</textarea></div>
+        <div class="panel-actions"><button type="button" class="btn" id="mb-loftebord-lagre-btn" ${minBilLoftebordSmurt ? '' : 'disabled'}>✅ Registrer vedlikehold</button></div>
+      </div>` : ''}
+    </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
       ${layoutFlateHtml('minbil', komponentHtml)}
@@ -8480,10 +8721,31 @@ function attachDriverMinBilListeners(){
 
   document.querySelectorAll('[data-mb-avvik]').forEach(el => el.addEventListener('click', () => {
     minBilAvvikType = minBilAvvikType === el.dataset.mbAvvik ? '' : el.dataset.mbAvvik;
+    // Prioritet 49, Del 1: beskrivelsesfeltet gjelder kun «Løftebord» — bytter sjåføren til
+    // en annen avvikstype (eller lukker chippen), skal en tidligere skrevet løftebordtekst
+    // ikke henge igjen skjult og bli sendt inn ved en senere, urelatert registrering.
+    if(minBilAvvikType !== 'loftebord') minBilAvvikBeskrivelse = '';
     render();
   }));
+  const avvikBeskrivelseInput = document.getElementById('mb-avvik-beskrivelse');
+  if(avvikBeskrivelseInput) avvikBeskrivelseInput.addEventListener('input', e => { minBilAvvikBeskrivelse = e.target.value; });
   const avvikLagreBtn = document.getElementById('mb-avvik-lagre-btn');
   if(avvikLagreBtn) avvikLagreBtn.addEventListener('click', submitMinBilAvvik);
+
+  // Prioritet 49, Del 2/3: «🛗 Løftebord»-kortet er alltid synlig (utenfor Layout Editor,
+  // se renderDriverMinBil()) og deler minBilAksjon med de øvrige handlingskortene.
+  const loftebordBtn = document.getElementById('mb-loftebord-btn');
+  if(loftebordBtn) loftebordBtn.addEventListener('click', () => {
+    minBilAksjon = minBilAksjon === 'loftebord' ? '' : 'loftebord';
+    minBilLoftebordSmurt = false; minBilLoftebordKommentar = '';
+    render();
+  });
+  const loftebordSmurtInput = document.getElementById('mb-loftebord-smurt');
+  if(loftebordSmurtInput) loftebordSmurtInput.addEventListener('change', e => { minBilLoftebordSmurt = e.target.checked; render(); });
+  const loftebordKommentarInput = document.getElementById('mb-loftebord-kommentar');
+  if(loftebordKommentarInput) loftebordKommentarInput.addEventListener('input', e => { minBilLoftebordKommentar = e.target.value; });
+  const loftebordLagreBtn = document.getElementById('mb-loftebord-lagre-btn');
+  if(loftebordLagreBtn) loftebordLagreBtn.addEventListener('click', beskyttKlikk('submitMinBilLoftebordVedlikehold:'+driverActiveVehicleId, loftebordLagreBtn, submitMinBilLoftebordVedlikehold));
 }
 
 // 📞 Ringeliste som egen sjåførskjerm (flyttet ut av Min Bil, se
@@ -8751,28 +9013,21 @@ function renderLoginShell(){
 //  KPI-kortene → Aktive saker / Kalender (samme klikkmål som desktop)
 //  Bestill-kortene → bestillService/bestillEuKontroll/bestillDekkskift/bestillRuteskift
 // Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
+// Prioritet 50, akseptansekriterium 14: mobil skal fungere IDENTISK til desktop —
+// samme banner (dashOperativBannerHtml) og samme Hurtigoversikt-modul
+// (dashHurtigoversiktHtml), begge delte funksjoner, ingen parallell mobilversjon. Kommende
+// oppgaver/Bilpark status/Krever handling nå/den gamle KPI-raden/sakFaseTellereHtml er
+// fjernet herfra i sin helhet, akkurat som på desktop.
 function renderMobilHjem(){
   const d = dashboardBeregning();
   const aktiveVarslerAntall = varslingssenterAntall();
-  const kommendeTop = d.kommendeOppgaver.slice(0, 4);
-  const kreverTop = d.dashKreverListe.slice(0, 4);
   // 🎨 Layout Editor. Samme prinsipp som renderDashboard(): UENDRET markup
   // per komponent, kun flyttet inn i et navngitt objekt slik at layoutFlateHtml() kan velge
   // rekkefølge/synlighet. Mobilforsiden er allerede én stablet kolonne, så her trengs ingen
   // kolonne-partisjonering slik Desktop Dashboard har (DESKTOP_LAYOUT_KOLONNER) — hele
   // rekkefølgen fra Layout Editor brukes direkte.
   const komponentHtml = {
-    kpi: `
-    <div class="dash40-grid3">
-      <button type="button" class="dash40-kpi" data-goto-aktivesaker-filter="krever-handling" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis">${luc('siren')}</span>
-        <span class="dash40-kpi-num" style="${d.harHastesaker ? 'color:var(--red);' : ''}">${d.dashTotalSaker}</span>
-        <span class="dash40-kpi-label">Aktive saker</span>
-        <span class="dash40-kpi-link">${d.forfalteSakerAlle.length} forfalt${d.forfalteSakerAlle.length===1?'':'e'} · Se alle →</span>
-      </button>
-      ${kontrollstatusKpiHtml(d)}
-      ${aktiveBilerKpiHtml(d)}
-    </div>`,
+    hurtigoversikt: dashHurtigoversiktHtml(d),
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
     <div class="dash40-grid4-bestill">
@@ -8800,36 +9055,6 @@ function renderMobilHjem(){
         <span class="dash40-bestill-sub">Bestill ruteskift</span>
         <span class="dash40-bestill-pil">→</span>
       </button>
-    </div>`,
-    kommende: `
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="p38-panel-head">
-        <div class="tittel">${luc('calendar-clock')} Kommende oppgaver</div>
-        <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${d.kommendeOppgaver.length}) →</button>
-      </div>
-      ${d.kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
-      ${kommendeTop.map(kommendeOppgaveRadHtml).join('')}
-      ${d.kommendeOppgaver.length > kommendeTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeTop.length} av ${d.kommendeOppgaver.length} — +${d.kommendeOppgaver.length - kommendeTop.length} flere i Kalender.</div>` : ''}
-      `}
-    </div>`,
-    bilparkstatus: `
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
-      ${bilparkStatusInnholdHtml(d.hbp)}
-    </div>`,
-    kreverhandling: `
-    <div class="panel" style="margin-bottom:14px;${d.harHastesaker ? 'border-color:var(--red);' : ''}">
-      <div class="p38-panel-head">
-        <div class="tittel" style="color:${d.harHastesaker ? 'var(--red)' : (d.dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
-        ${d.dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${d.dashTotalSaker > 4 ? ` (${d.dashTotalSaker})` : ''} →</button>` : ''}
-      </div>
-      ${d.dashKreverListe.length === 0 ? `
-      <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
-      ` : `
-      ${kreverTop.map(dashKreverRadHtml).join('')}
-      ${d.dashKreverListe.length > kreverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kreverTop.length} av ${d.dashKreverListe.length} — +${d.dashKreverListe.length - kreverTop.length} flere.</div>` : ''}
-      ${(d.uteAvDriftBiler.length > 0 || d.manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[d.uteAvDriftBiler.length > 0 ? `${d.uteAvDriftBiler.length} bil${d.uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', d.manglerKontrollCount > 0 ? `${d.manglerKontrollCount} bil${d.manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
-      `}
     </div>`
   };
 
@@ -8859,7 +9084,7 @@ function renderMobilHjem(){
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
 
-    ${sakFaseTellereHtml(d.sakFaseAntall)}
+    ${dashOperativBannerHtml(d)}
 
     ${layoutFlateHtml('mobil', komponentHtml)}
 
@@ -8926,178 +9151,66 @@ function attachMobilBunnmenyListeners(){
 // fra den samme koden. Det er bevisst ingen ny/parallell tellelogikk: alle funksjonene som
 // kalles her (sakKreverHandlingSamletMaster, vehicleHovedstatus, vehicleAktivSjafor,
 // flatePlanleggingData, vehicleServiceStatus, vehicleEuKontrollStatus osv.) er uendret.
-// markupen for EN rad i "Kommende oppgaver" er flyttet ut hit UENDRET, slik at
-// desktopens Dashboard og mobilens forside viser nøyaktig samme rad fra samme kode.
-// Prioritet 58: ikonet og fargetonen for en rad i "Kommende oppgaver" slaas nå opp
-// fra EN tabell via o.art i stedet for aa sammenligne emoji-strenger. Fargene er
-// identiske med den gamle emoji-sammenligningen (service=green, dekk=orange,
-// EU=blue, verkstedtime=purple, resten=amber) — kun glyfen er byttet til Lucide.
-const KOMMENDE_ART = {
-  service:        {ikon:'wrench',       farge:'green'},
-  dekk:           {ikon:'circle-dot',   farge:'orange'},
-  eu:             {ikon:'shield-check', farge:'blue'},
-  verksted:       {ikon:'factory',      farge:'purple'},
-  ruteskift:      {ikon:'car-front',    farge:'amber'},
-  'eu-ruteskift': {ikon:'shield-check', farge:'amber'},
-  oppfolging:     {ikon:'clock-3',      farge:'amber'}
-};
-function kommendeOppgaveRadHtml(o){
-              const v = vehicles.find(x => x.id === o.vehicleId);
-              const nav = o.mal === 'service' ? `data-goto-service="${o.vehicleId}"`
-                : o.mal === 'dekk' ? `data-goto-dekk="${o.vehicleId}"`
-                : o.mal === 'sak' ? `data-goto-sak="${o.sakId}"`
-                : o.mal === 'verksted' ? `data-goto-vt="${o.vtId}"`
-                : `data-goto-bilkort="${o.vehicleId}"`;
-              const art = KOMMENDE_ART[o.art] || KOMMENDE_ART.oppfolging;
-              const farge = art.farge;
-              const tint = `var(--${farge}-soft)`;
-              // Datoen skal stå ÉN gang: som dato/klokkeslett øverst, og som en fargekodet
-              // "hvor lenge til"-pille under. Km-baserte varsler (uten dato) beholder sin
-              // egen tekst i pillen, siden det ikke finnes noen dato å telle ned til.
-              const harDato = o.sortDato !== '9999-99-99';
-              const tid = (o.naar.match(/kl\. (\d{2}:\d{2})/) || [])[1] || '';
-              const dagerIgjen = harDato ? daysUntil(o.sortDato) : null;
-              const pilleTekst = dagerIgjen === null ? o.naar
-                : (dagerIgjen < 0 ? `Forfalt ${Math.abs(dagerIgjen)} dag${Math.abs(dagerIgjen)===1?'':'er'}`
-                : (dagerIgjen === 0 ? 'I dag' : `${dagerIgjen} dag${dagerIgjen===1?'':'er'}`));
-              const pilleHast = o.hast === 0 || (dagerIgjen !== null && dagerIgjen <= 2);
-              return `
-              <div class="p38-task" ${nav}>
-                <span class="flis sm" style="--tint:${tint};">${luc(art.ikon)}</span>
-                <div>
-                  <div class="p38-task-t1">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} — ${esc(o.tittel)}</div>
-                  ${o.detalj ? `<div class="p38-task-t2">${esc(o.detalj)}</div>` : ''}
-                </div>
-                <div class="p38-task-right">
-                  <div class="p38-task-dato">${harDato ? fmt(o.sortDato) + (tid ? ' kl. ' + tid : '') : ''}</div>
-                  <span class="p38-pill" style="--tint:${pilleHast ? 'var(--red-soft)' : 'var(--surface-3)'};--tone:${pilleHast ? 'var(--red)' : 'var(--muted)'};">${esc(pilleTekst)}</span>
-                </div>
-              </div>`;
-}
+// Prioritet 50: kommendeOppgaveRadHtml()/dashKreverRadHtml()/kontrollstatusKpiHtml()/
+// aktiveBilerKpiHtml()/bilparkStatusInnholdHtml() (Kommende oppgaver/Krever handling nå/
+// de to gamle KPI-kortene/Bilpark status) er FJERNET herfra i sin helhet, sammen med de
+// Dashboard-komponentene som var deres eneste kallesteder — Dashboard viser nå kun banner
+// (dashOperativBannerHtml)/Bestill tjenester/Hurtigoversikt (dashHurtigoversiktHtml), se
+// CLAUDE.md, Prioritet 50, akseptansekriterium 15. KOMMENDE_ART er FJERNET i samme runde —
+// den var utelukkende et oppslag for den nå fjernede kommendeOppgaveRadHtml(); vtTypeArt()
+// (fortsatt i bruk av Kalenderen) returnerer kun en ren nøkkelstreng og har aldri lest
+// denne tabellen selv.
 
-// markupen for EN rad i "Krever handling nå" er flyttet ut hit UENDRET — samme
-// rad, samme farger og samme klikkmål på både desktop og mobil.
-function dashKreverRadHtml(item){
-            const v = vehicles.find(x => x.id === item.vehicleId);
-            // Prioritet 59: fargetonen kommer na fra HASTEGRAD utledet av
-            // oppfolgingsdatoen, ikke fra en manuelt satt saksprioritet.
-            // Forfalt = rod, I dag = oransje, Uten frist = amber.
-            const tone = item.hast === 'Forfalt' ? 'var(--red)' : (item.hast === 'I dag' ? 'var(--orange)' : 'var(--amber)');
-            const tint = item.hast === 'Forfalt' ? 'var(--red-soft)' : (item.hast === 'I dag' ? 'var(--orange-soft)' : 'var(--amber-soft)');
-            return `
-            <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
-              <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
-              <span>
-                <b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'} · ${esc(item.linje1)}</b>
-                <span>${item.linje2 ? esc(item.linje2) + ' · ' : ''}<span style="color:${tone};font-weight:600;">${item.hast}</span> · ${luc('arrow-right')} ${esc(item.aksjon)}</span>
-              </span>
-            </div>`;
+// Prioritet 50, Del 3: "Operativ kontroll" på Dashboard skal KUN telle kjernefloaten —
+// Lag 2, Montering og Lastebil — ikke hele flåten. Ekskluderer i tillegg reservebiler,
+// biler ute av drift og biler på verksted (v.status==='verksted'), siden ingen av disse
+// realistisk kan kontrolleres/kjøres i dag. Dette er en BEVISST, ny og SNEVRERE
+// populasjon enn kontrollstatusKpiHtml() sin "aktiveVehicles - reserveUnntatt" (som
+// fortsatt gjelder uendret for Biloversikt-filteret "Ikke kontrollert" og for
+// dashboardBeregning() sine øvrige tellinger) — de to tallene svarer bevisst på to ulike
+// spørsmål og skal ALDRI blandes eller vises side om side som om de var samme ting.
+function operativeKjerneBiler(){
+  return vehicles.filter(v =>
+    !v.uteAvDrift && v.kategori !== 'reserve' && v.status !== 'verksted' &&
+    (v.driftslag === 'Lag 2' || v.driftslag === 'Montering' || v.driftslag === 'Lastebil'));
 }
-
-// ================= Prioritet 62.1: Kontrollstatus + Aktive sjaforer =================
-// Bakgrunn (se rotarsaksanalysen i ROADMAP.md): KPI-en "Biler i drift na" malte
-// vehicleAktivSjafor() - altsa "har aktiv bilokt akkurat na". Det er RIKTIG for
-// sjaformotoren, men feil sporsmal for driftskoordinatoren, som trenger a vite hvor mange
-// biler som er kontrollert i dag. De to tallene er na SKILT i hver sin KPI, slik at ingen
-// av dem lenger later som om de svarer pa det andre sporsmalet.
-//
-// Begge kortene er delte funksjoner (samme monster som bilparkStatusInnholdHtml()), slik
-// at desktop og mobil viser IDENTISK markup. Ingen ny beregning: alle fire tallene
-// (kontrollertIdagCount, aktiveVehicles, manglerKontrollCount, hDriftCount) kommer
-// uendret fra dashboardBeregning().
-//
-// VIKTIG: Kontrollstatus bruker ALDRI vehicleAktivSjafor(). Den leser kun
-// isKontrollertIdag() via kontrollertIdagCount - fire kontroller i dag gir alltid fire,
-// uavhengig av hvor mange biloekter som er aktive.
-function kontrollstatusKpiHtml(d){
-  // Prioritet 62.1a — MATEMATISK KONSISTENS. Alle tre tallene bruker nå NØYAKTIG samme
-  // populasjon: biler som verken er ute av drift ELLER en reservebil som ikke er tatt i
-  // bruk i dag. Det gir X + N = Y uten unntak:
-  //   Y = aktiveVehicles − reserveUnntatt   (bilene som faktisk har kontrollkrav i dag)
-  //   X = kontrollertIdagCount              (en reserveUnntatt bil er per definisjon
-  //                                          IKKE kontrollert, se vehicleErReserveUnntatt(),
-  //                                          så X ligger alltid innenfor Y)
-  //   N = manglerKontrollCount = aktiveVehicles − X − reserveUnntatt = Y − X
-  // N er fortsatt SAMME tall som Biloversikt-filteret klikket lander på
-  // (data-stat-nav="mangler-kontroll" → goToRegisterFiltered('ikke')) — étt tall, én sannhet.
-  const nevner = d.aktiveVehicles.length - d.reserveUnntattCount;
-  const mangler = d.manglerKontrollCount;
-  return `
-      <button type="button" class="dash40-kpi" data-stat-nav="mangler-kontroll" style="--tint:var(--blue-soft);--tone:var(--blue);" title="Viser bilene som mangler kontroll i dag">
-        <span class="flis">${luc('clipboard-check')}</span>
-        <span class="dash40-kpi-num"${mangler > 0 ? ' style="color:var(--amber);"' : ''}>${d.kontrollertIdagCount} / ${nevner}</span>
-        <span class="dash40-kpi-label">Kontrollert i dag</span>
-        <span class="dash40-kpi-link">${mangler} mangler kontroll →</span>
-      </button>`;
+function operativKontrollStatusIdag(){
+  const biler = operativeKjerneBiler();
+  const kontrollert = biler.filter(v => isKontrollertIdag(v.id)).length;
+  const totalt = biler.length;
+  const prosent = totalt > 0 ? Math.round((kontrollert / totalt) * 100) : 0;
+  return {kontrollert, totalt, prosent};
 }
-// Prioritet 62.1a: kortet heter nå "Aktive biler" og er en HURTIGKNAPP til Biloversikt
-// filtrert på "Har aktiv sjåfør" — altså bilene som faktisk er i bruk akkurat nå.
-// Tallet er uendret (hDriftCount fra vehicleAktivSjafor()); det er den eneste kilden som
-// svarer på "hvilke biler kjører akkurat nå". Sjåførmotoren er urørt.
-// Klikket gjenbruker det EKSISTERENDE filteret data-goto-biloversikt-filter="har-aktiv-sjafor"
-// → goToRegisterHovedstatus() — ingen ny filtreringsmodell, ingen ny skjerm.
-function aktiveBilerKpiHtml(d){
-  return `
-      <button type="button" class="dash40-kpi" data-goto-biloversikt-filter="har-aktiv-sjafor" style="--tint:var(--green-soft);--tone:var(--green-ink);" title="Åpner Biloversikt filtrert på biler med aktiv sjåfør">
-        <span class="flis">${luc('truck')}</span>
-        <span class="dash40-kpi-num">${d.hDriftCount}</span>
-        <span class="dash40-kpi-label">Aktive biler</span>
-        <span class="dash40-kpi-link">${d.hDriftCount === 1 ? '1 aktiv bil' : d.hDriftCount + ' aktive biler'} · Se hvilke →</span>
-      </button>`;
-}
-
-// innholdet i panelet "Bilpark status" er flyttet ut hit UENDRET, slik at mobil
-// og desktop viser identisk panel. Tellingen (hbp) kommer fortsatt fra
-// dashboardBeregning() — altså fra vehicleHovedstatus(), uendret. Prioritet 62.1 fjernet
-// hDriftCount herfra; det tallet bor nå i KPI-kortet Aktive sjåfører.
-// DEL 8 (Dashboard 5.0): komprimert fra syv detaljerte kategorier til tre — leser
-// FORTSATT de samme, uendrede tellingene fra hbp (vehicleHovedstatus() sitt
-// sju-nivås hierarki er urørt, kun VISNINGEN her slår sammen kategoriene). Detaljert
-// nedbryting per kategori finnes fortsatt på Bil-siden/Biloversikt (uendret).
-// Prioritet 62.1: panelet er forenklet til TO linjer - Operative og Ma folges opp.
-// "Ute av drift" er fjernet fra DASHBOARDVISNINGEN (den var et tall uten neste handling
-// her), og "X biler i drift na"-linjen er erstattet av det nye KPI-kortet Aktive sjaforer.
-// Ute-av-drift-logikken selv er URORT: den ligger fortsatt i vehicleHovedstatus() (niva 1),
-// i Biloversikt, i filtrene, pa Kjoretoyprofilen og i rapportene. Kun visningen her er
-// forenklet. hDriftCount er derfor ikke lenger en parameter til denne funksjonen.
-function bilparkStatusInnholdHtml(hbp){
-  const grupper = [
-    {key:'operativ', ikon:'🟢', label:'Operative', antall: hbp['operativ'] || 0, nav:'data-goto-biloversikt-filter="operativ"'},
-    {key:'ma-folges-opp', ikon:'🟡', label:'Må følges opp',
-      antall: (hbp['oppfolging']||0) + (hbp['verksted']||0) + (hbp['reserve']||0) + (hbp['ikke-kontrollert']||0),
-      nav:'data-quick-page="register"'}
-  ];
-  return `
-          ${grupper.map(g => `
-            <div class="p38-statrow" ${g.nav}>
-              <span class="flis sm" style="--tint:var(--surface-3);">${g.ikon}</span>
-              <span class="n">${g.antall}</span>
-              <span class="l">${g.label}</span>
-            </div>`).join('')}
-  `;
-}
-
-// Prioritet 72.0: «Kontrollrate siste 7 dager» til Dashboard 2.0 sin «🎯 Operativ
-// status»-seksjon (erstatter «God morgen»-hilsenen, som ikke hadde operativ verdi).
-// INGEN ny datakilde — leser kun kontroller[] (samme rader som isKontrollertIdag()/
-// vehicleKontroller() allerede bruker) over de siste 7 kalenderdagene. Bevisst
-// forenkling: dagens flåtesammensetning (vehicles.filter(v=>!v.uteAvDrift)) brukes som
-// nevner for ALLE sju dagene, ikke en historisk rekonstruksjon av hvilke biler som
-// faktisk var i drift/registrert på hver enkelt dag — presist nok til et trendtall,
-// ikke egnet som revisjonsgrunnlag. Reservebil-unntaket (vehicleErReserveUnntatt())
-// gjelder kun "i dag" og er bevisst IKKE forsøkt rekonstruert bakover i tid.
+// «Kontrollrate siste 7 dager» i Dashboardets "Operativ kontroll"-banner. INGEN ny
+// datakilde — leser kun kontroller[] (samme rader som isKontrollertIdag()/
+// vehicleKontroller() allerede bruker) over de siste 7 kalenderdagene, nå over SAMME
+// kjernepopulasjon som dagens prosent (operativeKjerneBiler(), Prioritet 50 Del 3/4) i
+// stedet for hele flåten — de to tallene i banneret skal måle det samme utvalget.
+// Bevisst forenkling: dagens flåtesammensetning brukes som nevner for ALLE sju dagene,
+// ikke en historisk rekonstruksjon av hvilke biler som faktisk tilhørte kjernefloaten på
+// hver enkelt dag — presist nok til et trendtall, ikke egnet som revisjonsgrunnlag.
 function kontrollrateUke(){
-  const aktiveVehicles = vehicles.filter(v => !v.uteAvDrift);
+  const kjerneBiler = operativeKjerneBiler();
   const idag = todayISO();
   let sumRate = 0;
   for(let i = 6; i >= 0; i--){
     const iso = isoDateOffset(idag, -i);
-    const kontrollerteIDenne = aktiveVehicles.filter(v => kontroller.some(k => k.vehicleId === v.id && k.dato === iso)).length;
-    sumRate += aktiveVehicles.length > 0 ? kontrollerteIDenne / aktiveVehicles.length : 0;
+    const kontrollerteIDenne = kjerneBiler.filter(v => kontroller.some(k => k.vehicleId === v.id && k.dato === iso)).length;
+    sumRate += kjerneBiler.length > 0 ? kontrollerteIDenne / kjerneBiler.length : 0;
   }
-  const prosent = aktiveVehicles.length > 0 ? Math.round((sumRate / 7) * 100) : 0;
-  return {prosent, aktiveVehiclesCount: aktiveVehicles.length};
+  const prosent = kjerneBiler.length > 0 ? Math.round((sumRate / 7) * 100) : 0;
+  return {prosent, aktiveVehiclesCount: kjerneBiler.length};
 }
+// Prioritet 50, kjent begrensning: Dashboard/Mobil Hjem bruker i dag kun d.hDriftCount og
+// d.sakFaseAntall fra denne funksjonens returverdi (banneret og Hurtigoversikt). Flere av
+// de øvrige feltene under (dashKreverListe/dashKreverTop5/prioriterteBiler*/kommendeOppgaver*/
+// hbp/biloversiktBiler m.fl.) beregnes fortsatt her, men har ingen gjenværende leser etter at
+// Kommende oppgaver/Bilpark status/Krever handling nå/Prioriterte biler ble fjernet fra
+// Dashboard i sin helhet. Bevisst IKKE fjernet i denne runden — en trygg fjerning krever å
+// bekrefte at ingen av de mange interne hjelpevariablene (f.eks. sakerKreverHandlingMaster,
+// euForfalteBiler) har sideeffekter eller gjenbrukes andre steder, noe som ville økt omfanget
+// av en allerede stor endring vesentlig. Ren, harmløs overflødig beregning — ikke en
+// korrekthetsfeil — men et reelt opprydningspunkt for en senere, avgrenset sak.
 function dashboardBeregning(){
   const totalVehicles = vehicles.length;
   // Ny regel ("Ute av drift" skjules fra dashboard-kort som teller operative biler): alle
@@ -9270,150 +9383,120 @@ function dashboardBeregning(){
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
     sakFaseAntall};
 }
-// delt markup for de tre saksflyt-tellerne, brukt UENDRET av både Desktop
-// Dashboard og Mobil Hjem (samme mønster som andre delte Dashboard-komponenter). Hver
-// knapp går til Aktive saker og velger riktig fane direkte — ingen egen tellelogikk her.
-function sakFaseTellereHtml(sakFaseAntall){
+
+// ================= Prioritet 50 — Dashboard 5.0: banner + Hurtigoversikt =================
+// (Merk: "Dashboard 5.0" er brukerens EGEN betegnelse på denne ticketen — det finnes fra før
+// en helt annen, tidligere "Prioritet 53 — Dashboard 5.0" i denne loggen. Navnesammenfallet
+// er tilfeldig, samme situasjon som Prioritet 49 sin nummerering.)
+//
+// Dashboardet skal nå INNEHOLDE KUN: banner, Bestill tjenester, Hurtigoversikt — ingen
+// andre informasjonsblokker (se CLAUDE.md, Prioritet 50, akseptansekriterium 15). Banneret
+// under er BEVISST fast innhold i selve returtemplaten (som "Sjekk ut bil" på Min Bil,
+// Prioritet 44) — IKKE en Layout Editor-styrt komponent — nøyaktig samme, delte funksjon
+// brukes av BÅDE renderDashboard() (desktop) og renderMobilHjem() (mobil), slik at de to
+// alltid viser identisk innhold (akseptansekriterium 14) uten noen parallell versjon.
+function dashOperativBannerHtml(d){
+  const opIdag = operativKontrollStatusIdag();
+  const opUke = kontrollrateUke();
   return `
-    <div style="display:flex;gap:14px;margin-bottom:14px;">
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="aktiv" style="--tint:var(--red-soft);--tone:var(--red);flex:1;">
-        <span class="flis">${luc('triangle-alert')}</span>
-        <span class="dash40-kpi-num">${sakFaseAntall.aktiv}</span>
-        <span class="dash40-kpi-label">Aktive saker</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="oppfolging" style="--tint:var(--amber-soft);--tone:var(--amber);flex:1;">
-        <span class="flis">${luc('clock-3')}</span>
-        <span class="dash40-kpi-num">${sakFaseAntall.oppfolging}</span>
-        <span class="dash40-kpi-label">Under oppfølging</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="verksted" style="--tint:var(--orange-soft);--tone:var(--orange);flex:1;">
-        <span class="flis">${luc('wrench')}</span>
-        <span class="dash40-kpi-num">${sakFaseAntall.verksted}</span>
-        <span class="dash40-kpi-label">Planlagt verksted</span>
-      </button>
+    <div class="panel" style="margin-bottom:16px;padding:20px 22px;">
+      <div class="p38-panel-head"><div class="tittel">${luc('target', 'ic-green')} Operativ kontroll</div></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
+      <div style="display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:46px;font-weight:700;line-height:1;letter-spacing:-.02em;">${opIdag.prosent}%</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${opIdag.kontrollert} av ${opIdag.totalt} operative biler kontrollert i dag</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:13.5px;color:var(--ink-2);">Kontroll siste 7 dager: <b>${opUke.prosent}%</b></div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;">${luc('truck')} ${d.hDriftCount} ${d.hDriftCount === 1 ? 'aktiv bil' : 'aktive biler'}</span>
+        <button type="button" class="p38-lenke" data-goto-biloversikt-filter="har-aktiv-sjafor">Se hvilke →</button>
+      </div>
     </div>`;
 }
+// Fire kompakte rader (sak-fase-baserte tabs + Varsler) — samme fanemønster/klasser som
+// Biloversikt/Kjøretøyprofil/Varslingssenter bruker (.profil-tabs/.profil-tab), i stedet for
+// egne KPI-kort. sakFaseAntall/varslingssenterAntall() er UENDRET kilder — kun samlet i én
+// modul med faner i stedet for fire separate kort.
+const DASH_HOV_FANE_ORDER = ['aktiv', 'oppfolging', 'verksted', 'varsler'];
+const DASH_HOV_FANE_LABEL = {aktiv:'Aktive saker', oppfolging:'Oppfølging', verksted:'Verksted', varsler:'Varsler'};
+const DASH_HOV_FANE_IKON = {aktiv:'triangle-alert', oppfolging:'clock-3', verksted:'wrench', varsler:'bell'};
+// Én rad for en sak i fasen 'aktiv'/'oppfolging'/'verksted' — reelt innhold varierer per fane
+// (se linje2), men markup/klasse (.p38-case) og klikkmål (data-goto-sak → goToSakDetalj(),
+// UENDRET) er de samme som "Krever handling nå"/"Prioriterte biler" alltid har brukt.
+function dashHovSakRadHtml(s, fane){
+  const v = vehicles.find(x => x.id === s.vehicleId);
+  const tone = fane === 'aktiv' ? 'var(--red)' : (fane === 'oppfolging' ? 'var(--amber)' : 'var(--orange)');
+  const tint = fane === 'aktiv' ? 'var(--red-soft)' : (fane === 'oppfolging' ? 'var(--amber-soft)' : 'var(--orange-soft)');
+  let linje2 = esc(sakKortOverskrift(s));
+  if(fane === 'oppfolging') linje2 = esc(s.nextAction || 'Følg opp sak');
+  else if(fane === 'verksted'){
+    const vt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
+    linje2 = vt ? `${fmt(vt.dato)}${vt.tidspunkt ? ' kl. ' + esc(vt.tidspunkt) : ''} · ${esc(vt.verksted || '')}` : 'Verkstedtime ikke registrert';
+  }
+  return `
+    <div class="p38-case" data-goto-sak="${s.id}">
+      <span class="flis sm" style="--tint:${tint};color:${tone};">${luc('circle')}</span>
+      <span>
+        <b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</b>
+        <span>${linje2} · <span style="color:${tone};font-weight:600;">${luc('arrow-right')} Åpne sak</span></span>
+      </span>
+    </div>`;
+}
+function dashHurtigoversiktInnholdHtml(fane, d){
+  if(fane === 'varsler'){
+    const aktive = varslingssenterAktiveListe();
+    if(aktive.length === 0) return `<div class="empty-note">🟢 Ingen varsler — alt er fulgt opp.</div>`;
+    return `<div class="dmg-list">${aktive.slice(0, 8).map(x => varslingssenterRadHtml(x)).join('')}${aktive.length > 8 ? `<div class="required-hint" style="margin-top:6px;">Viser 8 av ${aktive.length} — <button type="button" class="p38-lenke" data-quick-page="varsler">se alle i Varslingssenteret →</button></div>` : ''}</div>`;
+  }
+  const saker = aktiveSaker.filter(s => sakFase(s) === fane).sort((a,b) => (b.reportedAt||'').localeCompare(a.reportedAt||''));
+  if(saker.length === 0) return `<div class="empty-note">Ingen saker her nå.</div>`;
+  return saker.slice(0, 8).map(s => dashHovSakRadHtml(s, fane)).join('')
+    + (saker.length > 8 ? `<div class="required-hint" style="margin-top:6px;">Viser 8 av ${saker.length} — <button type="button" class="p38-lenke" data-goto-sak-fane="${fane}">se alle i Aktive saker →</button></div>` : '');
+}
+function dashHurtigoversiktHtml(d){
+  const fane = DASH_HOV_FANE_ORDER.includes(dashHurtigoversiktFane) ? dashHurtigoversiktFane : 'aktiv';
+  const antallForFane = {aktiv: d.sakFaseAntall.aktiv, oppfolging: d.sakFaseAntall.oppfolging, verksted: d.sakFaseAntall.verksted, varsler: varslingssenterAntall()};
+  return `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="p38-panel-head"><div class="tittel">${luc('layout-list')} Hurtigoversikt</div></div>
+      <div class="profil-tabs">
+        ${DASH_HOV_FANE_ORDER.map(f => `<button type="button" class="profil-tab ${fane===f?'active':''}" data-dash-hov-fane="${f}">${luc(DASH_HOV_FANE_IKON[f])} ${DASH_HOV_FANE_LABEL[f]} (${antallForFane[f]})</button>`).join('')}
+      </div>
+      <div class="dash-hov-innhold">${dashHurtigoversiktInnholdHtml(fane, d)}</div>
+    </div>`;
+}
+
+// goToSakFane() er UENDRET og fortsatt i bruk (Hurtigoversikt sine "se alle"-lenker, se
+// dashHurtigoversiktInnholdHtml()). sakFaseTellereHtml()/dashboardKpiRadHtml() (de gamle
+// KPI-radene) og kalenderUkeDager()/kalenderUkeWidgetHtml() (Denne uken-widgeten) er
+// FJERNET — Hurtigoversikt/banneret erstatter dem i sin helhet (Prioritet 50).
 function goToSakFane(fase){
   sakAktivFane = fase;
   goTo('aktivesaker');
 }
-// Prioritet 72.0 (Dashboard 2.0): ÉN samlet KPI-rad med fem like store kort — erstatter
-// den tidligere kombinasjonen av sakFaseTellereHtml() (3 kort) + et separat
-// Kontrollstatus/Aktive biler/Kalender-kort (kontrollstatusKpiHtml() er derfor ikke
-// lenger kalt fra Desktop Dashboard — samme tall vises nå i «🎯 Operativ status» over).
-// sakFaseTellereHtml() selv er UENDRET og fortsatt i bruk av Mobil Hjem (se
-// renderMobilHjem()) — kun DESKTOP bruker denne nye, utvidede raden.
-function dashboardKpiRadHtml(d){
-  const aktiveVarslerAntall = varslingssenterAntall();
-  return `
-    <div class="dash40-grid5-kpi">
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="aktiv" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis">${luc('triangle-alert')}</span>
-        <span class="dash40-kpi-num">${d.sakFaseAntall.aktiv}</span>
-        <span class="dash40-kpi-label">Aktive saker</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="oppfolging" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">${luc('clock-3')}</span>
-        <span class="dash40-kpi-num">${d.sakFaseAntall.oppfolging}</span>
-        <span class="dash40-kpi-label">Under oppfølging</span>
-      </button>
-      <button type="button" class="dash40-kpi" data-goto-sak-fane="verksted" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis">${luc('wrench')}</span>
-        <span class="dash40-kpi-num">${d.sakFaseAntall.verksted}</span>
-        <span class="dash40-kpi-label">Planlagt verksted</span>
-      </button>
-      ${aktiveBilerKpiHtml(d)}
-      <button type="button" class="dash40-kpi" id="dash-varsler-kpi-btn" style="--tint:var(--amber-soft);--tone:var(--amber);">
-        <span class="flis">${luc('bell')}</span>
-        <span class="dash40-kpi-num">${aktiveVarslerAntall}</span>
-        <span class="dash40-kpi-label">Varsler</span>
-      </button>
-    </div>`;
-}
-// Prioritet 72.0: kompakt «Denne uken»-widget på Dashboard — leser SAMME datakilde som
-// selve Kalenderen (kalenderAktiviteterKart()), ingen ny datamodell. Uken er
-// mandag–søndag, samme ukedefinisjon som Kalenderens egen månedsgrid bruker. Widgeten
-// oppretter/redigerer aldri noe selv — hele flaten er én knapp som åpner full Kalender
-// (samme mønster som Kalenderen selv bruker mot sine underliggende skjermer).
-function kalenderUkeDager(){
-  const kart = kalenderAktiviteterKart();
-  const idag = todayISO();
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(idag);
-  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  const ukedagIdx = (dt.getUTCDay() + 6) % 7; // mandag = 0
-  const dager = [];
-  for(let i = 0; i < 7; i++){
-    const iso = isoDateOffset(idag, i - ukedagIdx);
-    dager.push({iso, navn: KAL_UKEDAG_KORT[i], antall: (kart[iso] || []).length, idag: iso === idag});
-  }
-  return dager;
-}
-function kalenderUkeWidgetHtml(){
-  const dager = kalenderUkeDager();
-  const medAktivitet = dager.filter(x => x.antall > 0);
-  const totalt = dager.reduce((s,x) => s + x.antall, 0);
-  return `
-    <button type="button" class="panel dash-kal-widget" data-quick-page="kalender" style="margin-bottom:16px;">
-      <div class="p38-panel-head"><div class="tittel">${luc('calendar-days', 'ic-green')} Denne uken</div><span class="p38-lenke">Åpne kalender →</span></div>
-      ${totalt === 0 ? `<div class="empty-note">Ingen planlagte aktiviteter denne uken.</div>` : `
-      <div style="display:flex;flex-direction:column;gap:7px;">
-        ${medAktivitet.map(x => `
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13.5px;${x.idag ? 'font-weight:700;' : ''}">
-            <span>${x.navn}${x.idag ? ' (i dag)' : ''}</span>
-            <span style="color:var(--muted);">${x.antall} aktivitet${x.antall===1?'':'er'}</span>
-          </div>`).join('')}
-      </div>`}
-    </button>`;
-}
 
+// Prioritet 50: Dashboard er nå radikalt forenklet — INNEHOLDER KUN banneret
+// (dashOperativBannerHtml, fast innhold), Bestill tjenester og Hurtigoversikt (begge
+// fortsatt Layout Editor-styrt via komponentHtml/layoutFlateHtml, som før). Kommende
+// oppgaver, Biloversikt-forhåndsvisningen, Bilpark status, Krever handling nå og
+// Prioriterte biler er FJERNET fra Dashboard i sin helhet (se
+// akseptansekriterium 15 i CLAUDE.md, Prioritet 50) — informasjonen deres lever videre,
+// omorganisert som faner i Hurtigoversikt (Aktive saker/Oppfølging/Verksted/Varsler)
+// eller uendret på sine egne, dedikerte skjermer (Kalender, Biloversikt).
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   // Mobil får en helt annen forside her — ingen av
   // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
-  // Prioritet 62.1: `d` holdes tilgjengelig ved siden av destruktureringen, slik at de
-  // delte KPI-komponentene (kontrollstatusKpiHtml/aktiveBilerKpiHtml) kan ta imot hele
-  // beregningen — nøyaktig samme objekt, kun ETT kall til dashboardBeregning().
   const d = dashboardBeregning();
-  const {totalVehicles, kontrollertIdagCount, manglerKontrollCount,
-    forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger, harHastesaker,
-    dashKreverListe, dashKreverTop5, kommendeOppgaver, kommendeOppgaverTop,
-    hbp, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe} = d;
-
-  // Prioritet 72.0: «God morgen»-hilsenen (greetingInfo()) er FJERNET — den hadde ingen
-  // operativ verdi (se CLAUDE.md). Erstattet av «🎯 Operativ status» i selve
-  // returtemplaten under, bygget på kontrollrateUke() (ny) og de samme
-  // kontrollertIdagCount/nevner-tallene som kontrollstatusKpiHtml() alltid har brukt —
-  // ingen ny sannhet for «kontrollert i dag».
-  const opStatus = kontrollrateUke();
-  const opStatusNevner = d.aktiveVehicles.length - d.reserveUnntattCount;
-
-  // Prioritet 62: `bestillKortHtml` er FJERNET herfra. Den var død kode — deklarert, men
-  // aldri brukt (erstattet av komponentHtml.bestill i Layout Editor-oppsettet), og den
-  // inneholdt fortsatt både emoji og Verkstedtime-kortet.
-
-  // fargepar per tjeneste/alvorlighet — kun presentasjon (ikonflis-tint
-  // og aksentfarge), ingen kobling til status- eller saksberegning.
-  const aktiveVarslerAntall = varslingssenterAntall();
+  const {totalVehicles} = d;
 
   // ================= 🎨 Layout Editor =================
-  // Hver seksjon under er UENDRET markup fra før denne prioriteten — kun flyttet inn i et
-  // navngitt objekt (komponentHtml) slik at layoutFlateHtml()/layoutFlateSynligeNokler()
-  // (se lenger opp i filen) kan avgjøre HVILKE som vises og i hvilken REKKEFØLGE, uten å
-  // røre selve innholdet. «kpi» og «bestill» («full»-gruppen i DESKTOP_LAYOUT_KOLONNER)
-  // vises øverst i sin innbyrdes rekkefølge; «kommende»/«biloversikt» («venstre») og
-  // «bilparkstatus»/«kreverhandling»/«prioriterte» («hoyre») beholder det eksisterende
-  // to-kolonners oppsettet (dash40-split), men i sin innbyrdes rekkefølge innad i kolonnen.
+  // To Layout Editor-styrte komponenter gjenstår (Bestill tjenester/Hurtigoversikt) —
+  // begge i DESKTOP_LAYOUT_KOLONNER.full, altså full bredde, én under den andre.
   const komponentHtml = {
-    // Prioritet 72.0: én samlet KPI-rad (5 kort) — se dashboardKpiRadHtml(). Erstatter det
-    // tidligere 3-korts rutenettet (Kontrollstatus/Aktive biler/Kalender-snarvei):
-    // Kontrollstatus-tallene vises nå i «🎯 Operativ status» over, og Kalender-snarveien
-    // er erstattet av det egne, mer informative «📅 Denne uken»-widgetet (se
-    // komponentHtml.kalenderwidget under).
-    kpi: dashboardKpiRadHtml(d),
-    // Prioritet 72.0: kompakt kalenderwidget — «hva skjer denne uken» uten å måtte åpne
-    // full Kalender. Samme datakilde som selve Kalenderen, se kalenderUkeWidgetHtml().
-    kalenderwidget: kalenderUkeWidgetHtml(),
     bestill: `
     <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
     <div class="dash40-grid4-bestill">
@@ -9442,155 +9525,23 @@ function renderDashboard(){
         <span class="dash40-bestill-pil">→</span>
       </button>
     </div>`,
-    kommende: `
-        <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head">
-            <div class="tittel">${luc('calendar-clock', 'ic-green')} Kommende oppgaver</div>
-            <button type="button" class="p38-lenke" data-quick-page="kalender">Se alle (${kommendeOppgaver.length}) →</button>
-          </div>
-          ${kommendeOppgaver.length === 0 ? `<div class="empty-note">Ingen frister eller avtaler de neste 7 dagene.</div>` : `
-          <div>
-            ${kommendeOppgaverTop.map(kommendeOppgaveRadHtml).join('')}
-          </div>
-          ${kommendeOppgaver.length > kommendeOppgaverTop.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${kommendeOppgaverTop.length} av ${kommendeOppgaver.length} — +${kommendeOppgaver.length - kommendeOppgaverTop.length} flere i Kalender.</div>` : ''}
-          `}
-        </div>`,
-    biloversikt: (() => {
-      // Prioritet 71.9: Reserve og Ute av drift skjules som standard også i denne
-      // forhåndsvisningen — samme regel som selve Biloversikt-siden (visReserve/
-      // visUteAvDrift), men egne variabler siden Dashboard ikke deler filtertilstand med
-      // den fulle siden. Den fulle, ufiltrerte biloversiktBiler fra dashboardBeregning() er
-      // uendret — filtreringen skjer kun her, ved selve visningen.
-      const dashBiler = biloversiktBiler.filter(v =>
-        (dashVisReserve || v.kategori !== 'reserve') && (dashVisUteAvDrift || !v.uteAvDrift));
-      const dashSkjulteAntall = biloversiktBiler.length - dashBiler.length;
-      return `
-        <div class="panel" style="margin-bottom:16px;">
-        <div class="p38-panel-head">
-          <div class="tittel">${luc('truck', 'ic-blue')} Biloversikt</div>
-          <button type="button" class="p38-lenke" data-quick-page="register">Se alle biler →</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-          <button type="button" class="btn small ${dashVisReserve ? '' : 'secondary'}" id="dash-vis-reserve-btn">✅ Vis reserve</button>
-          <button type="button" class="btn small ${dashVisUteAvDrift ? '' : 'secondary'}" id="dash-vis-ute-btn">✅ Vis ute av drift</button>
-        </div>
-        ${dashBiler.length === 0 ? `<div class="empty-note">${biloversiktBiler.length === 0 ? 'Ingen kjøretøy registrert ennå.' : 'Ingen biler å vise med gjeldende filter.'}</div>` : `
-        <div class="biltabell-wrap">
-          <table class="biltabell dash50-biltabell">
-            <thead>
-              <tr><th>Kjøretøy</th><th>Status</th><th>Sjåfør</th></tr>
-            </thead>
-            <tbody>
-              ${dashBiler.map(v => {
-                const hs = vehicleHovedstatus(v.id);
-                const sjafor = vehicleAktivSjafor(v.id);
-                const sisteSjafor = vehicleSisteSjafor(v.id);
-                // DEL 7 (Dashboard 5.0): status skal primært kommuniseres visuelt — de syv
-                // detaljerte hovedstatusene (se HOVEDSTATUS_ORDER) komprimeres til fire enkle
-                // indikatorer her. Full detalj (HOVEDSTATUS_LABEL) ligger fortsatt i title-
-                // attributtet (hover) og uendret på selve Bil-siden/Kjøretøyprofilen.
-                const dash50Ikon = {operativ:'🟢', oppfolging:'🟡', verksted:'🟡', reserve:'🟡', 'ute-av-drift':'🔴', 'ikke-kontrollert':'⚪'}[hs] || '⚪';
-                // Prioritet 72.0: Aktiv sjåfør er nå PRIMÆR visning her også (samme
-                // fullføring av Prioritet 71.11 som Biloversikt-kortet/Kjøretøyprofilens
-                // toppseksjon allerede fikk) — «sist kontrollert av» er degradert til en
-                // title-tooltip, ikke lenger en konkurrerende, synlig tekst.
-                const dash50SjaforTitle = sjafor ? 'Aktiv sjåfør nå' : (sisteSjafor ? 'Sist kontrollert av ' + sisteSjafor : 'Ingen aktiv sjåfør — bilen er tilgjengelig');
-                return `
-                <tr data-goto-bilkort="${v.id}">
-                  <td>
-                    <div class="p38-bil">
-                      <span class="flis sm" style="--tint:var(--surface-3);">${luc('truck', 'ic-blue')}</span>
-                      <span><b>${esc(v.bilnummer || '–')}</b><span>${esc(v.merke || '')} ${esc(v.modell || '')}</span></span>
-                    </div>
-                  </td>
-                  <td style="font-size:18px;" title="${esc(HOVEDSTATUS_LABEL[hs] || '')}">${dash50Ikon}</td>
-                  <td title="${esc(dash50SjaforTitle)}">${sjafor ? luc('user-round', 'ic-purple') + ' ' + esc(sjafor) : '<span style="color:var(--muted);">⚪ Ingen aktiv sjåfør</span>'}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="required-hint" style="margin-top:10px;">Viser ${dashBiler.length} av ${biloversiktBiler.length} biler${dashSkjulteAntall > 0 ? ` (${dashSkjulteAntall} skjult — reserve/ute av drift)` : ''}. Trykk på en rad for å åpne kjøretøyprofilen.</div>
-        `}
-        </div>`;
-    })(),
-    bilparkstatus: `
-        <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">${luc('activity')} Bilpark status</div></div>
-          ${bilparkStatusInnholdHtml(hbp)}
-        </div>`,
-    kreverhandling: `
-        <div class="panel" id="dash-krever-handling-card" style="margin-bottom:16px;${harHastesaker ? 'border-color:var(--red);' : ''}">
-          <div class="p38-panel-head">
-            <div class="tittel" style="color:${harHastesaker ? 'var(--red)' : (dashTotalHandlinger > 0 ? 'var(--amber)' : 'var(--green-ink)')};">${luc('siren')} Krever handling nå</div>
-            ${dashKreverListe.length > 0 ? `<button type="button" class="p38-lenke" data-goto-aktivesaker-filter="krever-handling">Se alle${dashTotalSaker > 5 ? ` (${dashTotalSaker})` : ''} →</button>` : ''}
-          </div>
-          ${dashKreverListe.length === 0 ? `
-          <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Alt er under kontroll — ingen saker krever umiddelbar handling.</div>
-          ` : `
-          ${dashKreverTop5.map(dashKreverRadHtml).join('')}
-          ${dashKreverListe.length > dashKreverTop5.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${dashKreverTop5.length} av ${dashKreverListe.length} — +${dashKreverListe.length - dashKreverTop5.length} flere.</div>` : ''}
-          ${(uteAvDriftBiler.length > 0 || manglerKontrollCount > 0) ? `<div class="required-hint" style="margin-top:8px;">+ ${[uteAvDriftBiler.length > 0 ? `${uteAvDriftBiler.length} bil${uteAvDriftBiler.length===1?'':'er'} ute av drift` : '', manglerKontrollCount > 0 ? `${manglerKontrollCount} bil${manglerKontrollCount===1?'':'er'} mangler kontroll` : ''].filter(Boolean).join(', ')} — ikke saker, vises kun her og i Biloversikt.</div>` : ''}
-          `}
-        </div>`,
-    prioriterte: `
-        <div class="panel" id="dash-prioriterte-biler-card" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">${luc('truck', 'ic-blue')} Prioriterte biler</div></div>
-          ${prioriterteBilerListe.length === 0 ? `
-          <div style="color:var(--green-ink);font-weight:600;font-size:14px;">Ingen biler krever prioritering nå.</div>
-          ` : `
-          ${prioriterteBilerListe.map(item => {
-            const v = vehicles.find(x => x.id === item.vehicleId);
-            const tint = item.hast === 'Forfalt' ? 'var(--red-soft)' : (item.hast === 'I dag' ? 'var(--orange-soft)' : 'var(--amber-soft)');
-            return `
-            <div class="p38-case" ${item.sakId ? `data-goto-sak="${item.sakId}"` : `data-goto-bilkort="${item.vehicleId}"`}>
-              <span class="flis sm" style="--tint:${tint};">${item.ikon}</span>
-              <span><b>${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</b><span>${esc(item.linje1)}</span></span>
-            </div>`;
-          }).join('')}
-          ${prioriterteBilerMap.size > prioriterteBilerListe.length ? `<div class="required-hint" style="margin-top:10px;">Viser ${prioriterteBilerListe.length} av ${prioriterteBilerMap.size} — +${prioriterteBilerMap.size - prioriterteBilerListe.length} flere.</div>` : ''}
-          `}
-        </div>`
+    // Prioritet 50, Del 7-11: se dashHurtigoversiktHtml() — samlet, fanedelt erstatning
+    // for de fire tidligere KPI-kortene (Aktive saker/Under oppfølging/Planlagt
+    // verksted/Varsler), plassert direkte under Bestill tjenester.
+    hurtigoversikt: dashHurtigoversiktHtml(d)
   };
   const synligeDesktop = layoutFlateSynligeNokler('desktop');
   const fullHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.full.includes(k)).map(k => komponentHtml[k]).join('');
-  const venstreHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.venstre.includes(k)).map(k => komponentHtml[k]).join('');
-  const hoyreHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.hoyre.includes(k)).map(k => komponentHtml[k]).join('');
 
   return `
-    <div class="p38-tophead">
-      <div>
-        <div class="p38-hi">Dashboard</div>
-        <div class="p38-hi-sub">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <button type="button" class="p38-iconbtn" id="dash-varsler-btn" title="Varslingssenter">${luc('bell')}${aktiveVarslerAntall > 0 ? `<span class="n">${aktiveVarslerAntall}</span>` : ''}</button>
-      </div>
-    </div>
-
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--amber-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--amber);">
       ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
-    <div class="panel" style="margin-bottom:16px;padding:20px 22px;">
-      <div class="p38-panel-head"><div class="tittel">${luc('target', 'ic-green')} Operativ status</div></div>
-      <div style="display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;">
-        <div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:46px;font-weight:700;line-height:1;letter-spacing:-.02em;">${opStatus.prosent}%</div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">Kontrollrate siste 7 dager</div>
-        </div>
-        <div style="font-size:14px;color:var(--ink-2);padding-bottom:6px;">${kontrollertIdagCount} av ${opStatusNevner} biler kontrollert i dag</div>
-      </div>
-    </div>
+    ${dashOperativBannerHtml(d)}
 
     ${fullHtml}
-
-    ${(venstreHtml || hoyreHtml) ? `
-    <div class="dash40-split">
-      ${venstreHtml ? `<div>${venstreHtml}</div>` : ''}
-      ${hoyreHtml ? `<div>${hoyreHtml}</div>` : ''}
-    </div>` : ''}
 
     ${totalVehicles === 0 ? `<div class="empty-note" style="margin-top:8px;">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : ''}
   `;
@@ -9607,15 +9558,30 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation(); bestillDekkskift(el.dataset.gotoDekk);
   }));
-  // de to hurtigknappene i hilsenen (✅ kontroll / 🔧 verkstedtime) er
-  // fjernet fra Dashboard etter bestilling — begge funksjonene er fortsatt tilgjengelige
-  // fra Kjøretøyprofilen og fra sine egne skjermer. Kun varselklokken står igjen.
+  // Prioritet 50: desktop sin varselklokke bor nå i den delte .desktop-frame-top-stripen
+  // (#frame-varsler-btn, egen lytter i render()). #dash-varsler-btn finnes fortsatt — det
+  // er mobilens EGEN klokke i .p41-head (renderMobilHjem()), uendret. Den tidligere
+  // KPI-kort-klokken (#dash-varsler-kpi-btn, dashboardKpiRadHtml()) er fjernet sammen med
+  // hele komponenten den hørte til.
   const varslerBtn = document.getElementById('dash-varsler-btn');
   if(varslerBtn) varslerBtn.addEventListener('click', () => goTo('varsler'));
-  // Prioritet 72.0: Varsler-kortet i den nye, samlede KPI-raden (dashboardKpiRadHtml()).
-  const varslerKpiBtn = document.getElementById('dash-varsler-kpi-btn');
-  if(varslerKpiBtn) varslerKpiBtn.addEventListener('click', () => goTo('varsler'));
   document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
+  // Prioritet 50, Del 7: Hurtigoversikt sine fire faner (se dashHurtigoversiktHtml()).
+  document.querySelectorAll('[data-dash-hov-fane]').forEach(el => el.addEventListener('click', () => {
+    dashHurtigoversiktFane = el.dataset.dashHovFane;
+    render();
+  }));
+  // Prioritet 50, Del 11: Varsler-fanen gjenbruker varslingssenterRadHtml() UENDRET —
+  // samme handlingsknapper (Åpne bilkort/sak/kommentarer, Merk som løst, Godta/Avslå
+  // km-endring, Marker som sett) som selve Varslingssenteret allerede har, se
+  // attachVarslerOversiktListeners().
+  document.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoVarselBilkort)));
+  document.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
+  document.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
+  document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
+  document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
+  document.querySelectorAll('[data-marker-varsel-sett]').forEach(el => el.addEventListener('click', () => markerVarselSett(el.dataset.markerVarselSett)));
   // Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive
   // saker"-tall åpner Aktive Saker med et relevant filter i stedet for en egen dashboard-liste.
   document.querySelectorAll('[data-goto-aktivesaker-filter]').forEach(el => el.addEventListener('click', (e) => {
@@ -10908,6 +10874,11 @@ function renderBilkort(){
   const vKontrollertIdag = isKontrollertIdag(v.id);
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
   const vVarselHistorikk = historikkVarsellysForVehicle(v.id);
+  // Prioritet 49, Del 5/6/7: årlig løftebordkontroll + historikk — kun i Bilinformasjon,
+  // ingen sjåførvarsler (se CLAUDE.md, Prioritet 49 Del 6).
+  const vLbKontrollStatus = loftebordKontrollStatus(v.id);
+  const vLbKontrollAccKlasse = vLbKontrollStatus.status === 'gronn' ? 'ok' : (vLbKontrollStatus.status === 'gul' ? 'oppfolging' : 'varsel');
+  const vLbHistorikk = vehicleLoftebordHistorikk(v.id);
   // Prioritet 71.5: Tidslinje/Nøkkeltall-underseksjonene (og filterdropdownen som hørte
   // til Tidslinje) er fjernet fra Historikk-fanen — se HISTORIKK_SUB_ORDER under. De
   // delte funksjonene/konstantene (vehicleHistorikkTidslinje/HISTORIKK_TYPE_*/
@@ -11057,6 +11028,19 @@ function renderBilkort(){
          bestillingen). INGEN data er slettet: feltet v.hasPhoto er urørt i Airtable, og
          eventuelle eksisterende bilder ligger fortsatt i Photos-tabellen under nøkkelen
          vehicle:{id}. Kun opplasting og visning er tatt bort fra grensesnittet. -->
+
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">🛗 Løftebord — Årlig kontroll</h4>
+    <div class="acc-row loftebord-card ${vLbKontrollAccKlasse}" style="margin-bottom:14px;">
+      <div class="ov-grid" style="margin-bottom:0;">
+        <div class="ov-item"><span class="ov-label">Sist utført</span><span class="ov-value">${vLbKontrollStatus.siste ? fmt(vLbKontrollStatus.siste.dato) : 'Ingen registrert'}</span></div>
+        <div class="ov-item"><span class="ov-label">Gyldig til</span><span class="ov-value">${vLbKontrollStatus.gyldigTil ? fmt(vLbKontrollStatus.gyldigTil) : '–'}</span></div>
+      </div>
+      <div style="margin-top:10px;font-weight:600;">${vLbKontrollStatus.ikon} ${vLbKontrollStatus.tekst}</div>
+      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn small" data-lb-kontroll="${v.id}">✅ Utført løftebordkontroll</button></div>
+    </div>
+    ${vLbHistorikk.length > 0 ? `
+    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px;">Løftebordhistorikk (${vLbHistorikk.length})</h4>
+    <ul class="dmg-simple-list" style="margin-bottom:20px;">${vLbHistorikk.map(l => loftebordHistorikkRadHtml(l)).join('')}</ul>` : ''}
 
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Aktive varsellamper (${vAktiveVarsler.length})</h4>
     ${vAktiveVarsler.length === 0
@@ -11485,6 +11469,10 @@ function attachBilkortListeners(){
 
   const saveBtn = document.getElementById('save-vehicle');
   if(saveBtn) saveBtn.addEventListener('click', beskyttKlikk('saveVehicleForm:'+currentVehicleId, saveBtn, () => saveVehicleForm(currentVehicleId)));
+  // Prioritet 49, Del 5: knappen finnes kun i DOM-en når «✏️ Bilinformasjon»-panelet er
+  // åpent (showBilinfoRediger) — querySelectorAll (ikke getElementById) er derfor trygt her
+  // uansett, samme forsiktighetsprinsipp som del-vehicle-regresjonen i Prioritet 72.1 lærte.
+  document.querySelectorAll('[data-lb-kontroll]').forEach(el => el.addEventListener('click', beskyttKlikk('registrerLoftebordKontroll:'+el.dataset.lbKontroll, el, () => registrerLoftebordKontroll(el.dataset.lbKontroll))));
   const skadeBtn = document.getElementById('ny-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
   const vtBtn = document.getElementById('ny-vt-btn');
