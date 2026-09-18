@@ -1,6 +1,70 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 72.0 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 49 —
+**Verkstedbestilling 3.0.** Merk nummereringen: dette er en bestilling brukeren
+selv omtalte som «Prioritet 49» i sin ticket, men den er levert KRONOLOGISK
+ETTER Prioritet 72.0 under — nummeret følger brukerens egen backlog, ikke
+denne loggens løpende rekkefølge (49 var aldri brukt tidligere i prosjektet,
+bekreftet ved søk før denne runden). Mål: gjør verkstedbestillingen fra en
+aktiv sak («Aktiv sak → Godta → Bestill verksted») om fra et administrativt
+registreringsskjema til en operativ arbeidsordre — ren design-/UX-endring,
+ingen endring i Airtable-struktur, verkstedlogikk, saksmotor eller
+statusflyt. `renderVerksted()` sin `linkedSak`-gren (skjemaet som åpnes av
+`bestillVerkstedForSak()`) har fått en ny «arbeidsordre-header»
+(`.vt-order-header`): bil (`${luc('truck','ic-blue')}` + `vehicleLabel()`)
+og sakstype (`SAK_TYPE_LUCIDE`/`SAK_TYPE_LABEL` + `sakAvvikChecklistHtml()`,
+samme sjekkliste-komponent som allerede vises på selve sakskortet i Aktive
+saker, Prioritet 52/58 — gjenkjennelig fra forrige skjerm) vises tydelig
+øverst, ikke lenger som redigerbare felt. Feltrekkefølgen er nå Bil → Problem
+→ Verksted → Dato → Tid, matchende ticket-ens visuelle prioritet. Kommentar/
+Kontaktperson/Telefonnummer er samlet under en ny, lukket-som-standard
+«▼ Flere detaljer»-seksjon (`vtFlereDetaljerApen`, ny ren visningstilstand,
+nullstilt til `false` hver gang skjemaet åpnes — se `bestillService()` m.fl.
+og `add-vt-btn`-lytteren). Toggling skjer UTEN `render()` (ren DOM-klasse-/
+`style.display`-veksling i `attachVerkstedListeners()`), av samme grunn som
+den eksisterende type-velger-lytteren allerede unngår `render()`: en full
+re-rendring ville nullstilt Dato/Tid/Verksted til malens statiske
+`value`-attributter og slettet alt brukeren allerede hadde fylt inn.
+Kommentarfeltet foreslår nå automatisk `sakKildeTekster(linkedSak)` (samme
+kilde som sakskortets «beskrivelse», Prioritet 68) når skjemaet åpnes fra en
+sak — feltet er fortsatt skjult til brukeren selv åpner «Flere detaljer»
+(ferdigkrav 8). Primærknappen er endret fra «Lagre» til
+«✅ Bestill verkstedtime» — for BEGGE grener av skjemaet (også den
+frittstående «🔧 Ny verkstedtime», siden den også alltid bestiller en
+verkstedtime, aldri bare «lagrer en post»). Ingen endring i `submitAddVT()`
+sin innsendingslogikk, feltvalidering, sak-kobling eller type-utledning —
+alle `id`-er (`vt-vehicle`, `vt-verksted`, `vt-dato`, `vt-tid`,
+`vt-beskrivelse`, `vt-kontaktperson`, `vt-telefon`, `vt-notater`,
+`vt-mobilitetsgaranti`) er UENDRET, kun plassering/synlighet i malen er
+endret — `submitAddVT()` selv er ikke rørt. Den generelle, IKKE sak-koblede
+«Ny verkstedtime»-grenen (Verkstedoversiktens eget «+ Ny verkstedtime») har
+fått samme «Flere detaljer»-seksjon og samme knappetekst, men beholder sin
+egen type-velger/bilvelger/beskrivelsesfelt øverst uendret — ticket-ens
+wireframe gjaldt eksplisitt sak-flyten, men kravet «kommentarfelt skal ikke
+vises som standard» var ikke avgrenset til den, så samme forenkling er
+anvendt konsekvent begge steder. `sakTilVtType()`/`bestillVerkstedForSak()`/
+`standardVerkstedForVtType()`/`submitAddVT()` er alle UENDRET — kun
+`renderVerksted()` sin markup og `attachVerkstedListeners()` sin nye
+toggle-lytter er endret. `storage.airtable.js` er IKKE endret — ingen nye
+felt, ingen `LIST_TABLES`-endring — derfor uendret `versjon`/`?v=`.
+`CACHE_VERSION` i `sw.js`, `APP_VERSION` i `version-check.js` og `version.json`
+økt sammen (v96 → v97, appens app-shell-innhold endret). `node`/`python` var
+ikke tilgjengelig i denne økten — verifisert med en global krøllparentes-/
+backtick-/parentesbalansesjekk på `index.html` (5291 åpne = 5291 lukkede
+krøllparenteser, partall antall backticks, parentesdiff uendret på −6, samme
+baseline som tidligere runder har rapportert) og full gjennomlesning av hver
+endret funksjon/mal før og etter redigering. **Ikke verifisert i en faktisk
+kjørende nettleser eller mot en ekte/mock-Airtable-base i denne økten** —
+anbefalt før idriftsettelse: åpne appen, klikk «📅 Bestill verkstedtime» på
+en sak i «Under oppfølging», bekreft at bil/problem/sjekkliste vises korrekt
+i headeren, at «▼ Flere detaljer» åpner/lukker uten å nullstille andre
+felt, at et forhåndsforeslått kommentarfelt vises riktig kun etter åpning,
+og at innsending fortsatt kobler verkstedtimen til riktig sak akkurat som
+før. Ikke rørt: Aktiv sjåfør-logikk, Sjåførkontroll, `v.km`-skriveregler,
+saksmotoren (`sakFase()`/`sakErApen()`/`godtaSak()`/`avslaSak()`/
+`markerSakUtfort()` kun lest, aldri endret), Kalender, Biloversikt,
+Varslingssenteret, Layout Editor, Bilkategorier, PWA/manifest-ikonfilene.
+Før det: Prioritet 72.0 —
 **Dashboard 2.0, Lucide-standard og bedre navigasjon.** Seks delmål bestilt
 samlet: (1) full Lucide-ikonopprydding med en fargekodet standard (samme
 KONSEPT = samme farge — bil=blå, verksted/reparasjon=oransje, dekk=oransje,
@@ -4576,3 +4640,112 @@ PWA/manifest-ikonfilene, `HOVEDSTATUS_IKON` og alle andre statusfargesirkler.
   beregning (se Del 2) — egnet som trendindikator, ikke som revisjonsgrunnlag.
 - Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
   kun grundig statisk lese-/strukturverifisering og en global balansesjekk.
+
+---
+
+## Prioritet 49 (2026-09-18) — Verkstedbestilling 3.0
+
+**Nummerering:** brukeren omtalte denne bestillingen selv som «Prioritet 49» i sin ticket.
+Søk i denne filen før implementering bekreftet at nummeret aldri tidligere er brukt — den
+er likevel levert KRONOLOGISK ETTER Prioritet 72.0 over. Tallet følger brukerens egen,
+uavhengige nummerering, ikke denne loggens løpende rekkefølge.
+
+**Mål:** verkstedbestilling skal oppleves som «jeg sender Bil X på verksted», ikke «jeg
+registrerer en database-post». Rammet inn av brukeren selv: ikke endre Airtable-struktur,
+ikke endre verkstedlogikk, ikke endre saksmotor, ikke endre eksisterende statusflyt — kun
+design/UX/informasjonsarkitektur/forhåndsutfylling.
+
+**Kartlegging (før implementering, kun kodelesing):** `renderVerksted()` sin `linkedSak`-
+gren (skjemaet `bestillVerkstedForSak()` åpner fra en sak i fasen «Under oppfølging») viste
+allerede Bil/Regnr/Sakstype/Sakstittel forhåndsutfylt — men i en «databasepost»-aktig
+infoboks (`🗂️ {caseId} — {title}` + en andre linje med bil/type/dato), ikke som en tydelig
+arbeidsordre. Feltrekkefølgen var Verksted → Dato/Tid → Kontaktperson/Telefon → Kommentar,
+uten noen skjult/åpne-mekanikk. Ett funn: `vtPrefillKommentar` (en variabel som allerede satt
+riktig verdi per bestillingsvei — `s.title` fra `bestillVerkstedForSak()`, `'Ruteskift'` fra
+`bestillRuteskift()`, tom streng ellers) var deklarert og tildelt hele fem steder, men ALDRI
+lest av noen mal — et forberedt, men aldri fullført krok for nettopp denne saken.
+
+**Løsning:**
+1. **Ny arbeidsordre-header** (`.vt-order-header`) i `linkedSak`-grenen: bil
+   (`${luc('truck','ic-blue')} ${vehicleLabel(lv)}`) og sakstype
+   (`${luc(SAK_TYPE_LUCIDE[caseType])} ${SAK_TYPE_LABEL[caseType]}` + `sakAvvikChecklistHtml()`
+   — samme sjekkliste-komponent Aktive saker allerede viser på selve sakskortet, Prioritet
+   52/58, gjenkjennelig fra forrige skjerm i stedet for en ny visning) erstatter den gamle
+   infoboksen. Saksreferansen (`caseId` + registreringsdato) er beholdt, men nedtonet til en
+   liten, dempet linje (`.vt-order-sakref`) for sporbarhet uten å konkurrere med arbeidsordren.
+2. **Feltrekkefølge snudd til ticket-ens visuelle prioritet:** Bil/Problem (header, kun lest)
+   → Verksted → Dato → Tid → (Mobilitetsgaranti, kun for service) → Flere detaljer. Gjelder
+   begge grener av skjemaet — også den frittstående «🔧 Ny verkstedtime» fikk Bil/Beskrivelse
+   flyttet foran Verksted i stedet for side ved side i en `row2`.
+3. **«▼ Flere detaljer» — ny, lukket-som-standard seksjon** (`vtFlereDetaljerApen`, ren
+   visningstilstand, ALDRI lagret) samler Kommentar/Kontaktperson/Telefonnummer, gjenbruker de
+   eksisterende `.acc-row`/`.acc-head`/`.acc-body`/`.chevron`-klassene (samme visuelle språk som
+   Kjøretøyprofilens `bilkortAccordionRow()`). Toggles i `attachVerkstedListeners()` med en ny,
+   dedikert lytter som VERKEN kaller `render()` — samme begrunnelse som den eksisterende
+   type-velger-lytteren (`oppdaterForslag()`, Prioritet 61/62) allerede dokumenterer: en full
+   `render()` ville nullstilt Dato/Tid/Verksted/Bil til malens statiske `value`-attributter og
+   slettet alt brukeren allerede hadde fylt inn. Nullstilles til `false` hver gang skjemaet
+   åpnes på nytt: i `bestillService()`/`bestillDekkskift()`/`bestillEuKontroll()`/
+   `bestillRuteskift()`/`bestillVerkstedForSak()`/`goToRegisterVT()`, i `add-vt-btn`-lytteren
+   (begge retninger — åpne og lukke), i `submitAddVT()` sin post-innsending-reset, og i
+   `goTo()` sin `scr !== 'verksted'`-opprydding.
+4. **Kommentarfelt-forslag (ferdigkrav 8):** når skjemaet åpnes fra en sak, foreslås nå
+   `sakKildeTekster(linkedSak)` (samme kilde sakskortets «beskrivelse» allerede leser,
+   Prioritet 68) som startverdi i `vt-notater` — feltet er likevel skjult til brukeren selv
+   åpner «Flere detaljer». Den tidligere ubrukte `vtPrefillKommentar` brukes fortsatt for de
+   ikke-sak-koblede bestillingsveiene (f.eks. `'Ruteskift'` fra `bestillRuteskift()`), nå
+   endelig faktisk lest av malen i stedet for å stå urørt.
+5. **Primærknapp omdøpt:** «Lagre» → «✅ Bestill verkstedtime», for BEGGE grener av skjemaet
+   (også ikke-sak-koblet registrering, siden også den alltid bestiller en verkstedtime).
+
+**Ingen endring i `submitAddVT()`.** Samtlige `id`-er skjemaet leser
+(`vt-vehicle`/`vt-verksted`/`vt-dato`/`vt-tid`/`vt-beskrivelse`/`vt-kontaktperson`/
+`vt-telefon`/`vt-notater`/`vt-mobilitetsgaranti`) er uendret — kun plassering og
+synlighet i malen er endret. `sakTilVtType()`, `standardVerkstedForVtType()`,
+`vtBeskrivelseForslag()`, `bestillVerkstedForSak()` sin kobling til
+`vtPrefillSakId`/`vtPrefillType`, og hele auto-koblingslogikken i `submitAddVT()`
+(Prioritet 71.5 Del 2b) er UENDRET.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v96 → bilpark-v97), `version-check.js` (`APP_VERSION` 96 → 97),
+`version.json` (`"version"` 96 → 97). **`storage.airtable.js` er IKKE endret** — ren
+presentasjons-/tilstandsendring på eksisterende, allerede leste felt/funksjoner — derfor
+uendret `versjon`/`?v=`.
+
+**Testet:** verken `node` eller `python` var tilgjengelig i denne økten. Verifisert i stedet:
+en global krøllparentes-/backtick-/parentesbalansesjekk på hele `index.html` (5291 åpne =
+5291 lukkede krøllparenteser, partall antall backticks, parentesdiff uendret på −6 — samme
+baseline tidligere runder har rapportert, ingen ny ubalanse introdusert), `diff index.html
+kontroll.html` bekreftet identiske etter synkronisering, og full gjennomlesning av hver
+endret funksjon/mal (`renderVerksted()` sin `linkedSak`- og ikke-`linkedSak`-gren,
+`attachVerkstedListeners()`, `bestillService()`/`bestillDekkskift()`/`bestillEuKontroll()`/
+`bestillRuteskift()`/`bestillVerkstedForSak()`/`goToRegisterVT()`, `submitAddVT()`,
+`goTo()`) før og etter redigering. **Ikke verifisert i en faktisk kjørende nettleser eller
+mot en ekte/mock-Airtable-base i denne økten** — Verksted er en administrasjonsskjerm som
+krever innlogging, samme begrensning som flere tidligere prioriteter (se f.eks. Prioritet
+71.8/71.10).
+
+**Anbefalt før idriftsettelse:** logg inn som administrator og bekreft i en ekte nettleser:
+(1) «📅 Bestill verkstedtime» fra en sak i «Under oppfølging» viser korrekt bil, sakstype og
+sjekkliste i den nye headeren, med riktig forhåndsutfylt verksted/type; (2) «▼ Flere
+detaljer» åpner/lukker uten å nullstille Dato/Tid/Verksted-feltene, og kommentarforslaget
+vises korrekt først etter åpning; (3) innsending fortsatt kobler verkstedtimen til riktig
+sak og setter `sak.status = 'verksted-bestilt'` som før; (4) den frittstående «🔧 Ny
+verkstedtime» (uten sak) fortsatt fungerer uendret med ny feltrekkefølge og «Flere
+detaljer»; (5) mobilitetsgaranti-boksen vises/skjules fortsatt korrekt ved typebytte.
+
+**Ikke rørt:** Aktiv sjåfør-logikk, Sjåførkontroll (`submitKontroll()`), `v.km`-
+skriveregler, saksmotoren (`sakFase()`/`sakErApen()`/`godtaSak()`/`avslaSak()`/
+`markerSakUtfort()`/`sakTilVtType()` kun lest, aldri endret), Kalender, Biloversikt,
+Varslingssenteret, Layout Editor, Bilkategorier, `storage.airtable.js`/Airtable-skjema,
+PWA/manifest-ikonfilene, `HOVEDSTATUS_IKON` og alle andre statusfargesirkler.
+
+**Kjente, dokumenterte begrensninger:**
+- Arbeidsordre-headerens ikoner (`luc('truck','ic-blue')`, `SAK_TYPE_LUCIDE`) er Lucide,
+  mens resten av Verksted-skjermen (h2/h3-titler, mobilitetsgaranti-boksen) fortsatt bruker
+  emoji — bevisst, IKKE en ny inkonsistens: `VT_TYPE_VELGER` (Prioritet 71.6) bruker allerede
+  Lucide-ikoner på nøyaktig dette skjemaet, og `SAK_TYPE_LUCIDE` er samme ikon brukeren
+  nettopp så på sakskortet i Aktive saker rett før navigering hit. Verksted er ikke en av de
+  screens Prioritet 55/58/72.0 offisielt fullmigrerte — se de seksjonene for gjeldende status.
+- Ikke UI-verifisert i en faktisk innlogget nettleserøkt i denne omgangen (se «Testet» over)
+  — kun grundig statisk lese-/strukturverifisering.

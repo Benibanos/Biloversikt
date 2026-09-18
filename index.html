@@ -737,6 +737,12 @@
   .vt-type-opt input{display:none;}
   .vt-type-opt:has(input:checked){border-color:var(--ink);background:var(--amber-soft);}
   .vt-type-opt.checked{border-color:var(--ink);background:var(--amber-soft);}
+  /* Prioritet 49: arbeidsordre-header i "Bestill verkstedtime for sak" — bil og problem
+     skal oppleves som konteksten man handler i, ikke som redigerbare skjemafelt. */
+  .vt-order-header{margin-bottom:14px;padding:14px 16px;border-radius:12px;background:var(--blue-soft);border:1.5px solid var(--line);}
+  .vt-order-bil{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--ink);display:flex;align-items:center;gap:8px;}
+  .vt-order-problem{margin-top:6px;font-weight:600;font-size:14.5px;color:var(--ink);display:flex;align-items:center;gap:8px;}
+  .vt-order-sakref{margin-top:8px;font-size:11.5px;color:var(--muted);}
   .kt-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px;}
   .kt-photo-thumb{position:relative;}
   .kt-photo-thumb img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);}
@@ -1792,6 +1798,11 @@ let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
 let vtPrefillType = 'reparasjon';
 let vtPrefillKommentar = '';
+// Prioritet 49: "Flere detaljer" (Kommentar/Kontaktperson/Telefonnummer) i Ny
+// verkstedtime-skjemaet er lukket som standard — ren visningstilstand, aldri lagret,
+// og nullstilles til false hver gang skjemaet åpnes på nytt (samme mønster som
+// showVtFilterMeny/sakUtenVerkstedPanelId).
+let vtFlereDetaljerApen = false;
 let vtHistFilterType = 'alle'; // 'alle' | 'service' | 'dekkskift' | 'ruteskift' | 'reparasjon' | 'eu-kontroll' | 'annet'
 let vtHistFilterBil = '';
 let vtHistFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
@@ -5022,7 +5033,7 @@ function goTo(scr, vehicleId, _isBack){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; editingVTId = null; showVtFilterMeny = false; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; editingVTId = null; showVtFilterMeny = false; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
@@ -6142,6 +6153,8 @@ async function submitAddVT(ev){
   showAddVT = false;
   vtPrefillVehicleId = '';
   vtPrefillSakId = '';
+  vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
   render();
 }
 function toggleEditVT(id){
@@ -6297,6 +6310,7 @@ function bestillService(vehicleId){
   vtPrefillType = 'service';
   vtPrefillSakId = '';
   vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
@@ -6305,6 +6319,7 @@ function bestillDekkskift(vehicleId){
   vtPrefillType = 'dekkskift';
   vtPrefillSakId = '';
   vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
@@ -6319,6 +6334,7 @@ function bestillEuKontroll(vehicleId){
   vtPrefillType = 'eu-kontroll';
   vtPrefillSakId = '';
   vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
@@ -6331,6 +6347,7 @@ function bestillRuteskift(vehicleId){
   vtPrefillType = 'ruteskift';
   vtPrefillKommentar = 'Ruteskift';
   vtPrefillSakId = '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
@@ -6354,12 +6371,15 @@ function bestillVerkstedForSak(sakId){
   vtPrefillVehicleId = s ? s.vehicleId : '';
   vtPrefillType = sakTilVtType(s);
   vtPrefillKommentar = s ? s.title : '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
 function goToRegisterVT(vehicleId){
   vtPrefillVehicleId = vehicleId || '';
   vtPrefillType = 'reparasjon';
+  vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
 }
@@ -13274,10 +13294,27 @@ function renderVerksted(){
       // denne til én av de fem kanoniske type-id-ene (se VT_TYPE_VELGER) før showAddVT settes
       // til true.
       const initialType = VT_TYPE_VELGER.some(o => o.id === vtPrefillType) ? vtPrefillType : 'reparasjon';
+      // Krav 8: kommer bestillingen fra en aktiv sak med registrert kommentar (kilden
+      // sakKompaktKortHtml allerede viser som "beskrivelse", se sakKildeTekster()),
+      // foreslås denne teksten i det skjulte kommentarfeltet — brukeren kan alltid
+      // endre eller fjerne den. Uten sak brukes vtPrefillKommentar uendret (satt av
+      // f.eks. bestillRuteskift()).
+      const kommentarForslag = linkedSak
+        ? sakKildeTekster(linkedSak).map(t => t.tekst).join('\n')
+        : vtPrefillKommentar;
       return `
     <form class="panel" id="add-vt-form">
-      <h3>${linkedSak ? 'Bestill verkstedtime for sak' : 'Ny verkstedtime'}</h3>
-      ${linkedSak ? '' : `
+      <h3>${linkedSak ? '🛠 Bestill verkstedtime' : '🔧 Ny verkstedtime'}</h3>
+      ${linkedSak ? `
+      <div class="vt-order-header">
+        <div class="vt-order-bil">${luc('truck','ic-blue')} ${lv ? esc(vehicleLabel(lv)) : 'Ukjent kjøretøy'}</div>
+        <div class="vt-order-problem">${luc(SAK_TYPE_LUCIDE[linkedSak.caseType] || 'folder')} ${esc(SAK_TYPE_LABEL[linkedSak.caseType] || 'Annet')}</div>
+        ${sakAvvikChecklistHtml(linkedSak) || `<div style="margin-top:6px;font-size:12.5px;line-height:1.5;">${esc(linkedSak.title)}</div>`}
+        <div class="vt-order-sakref">🗂️ ${esc(linkedSak.caseId)} · Registrert ${fmt(linkedSak.reportedAt)}</div>
+      </div>
+      <input type="hidden" id="vt-vehicle" value="${linkedSak.vehicleId}">
+      <input type="hidden" id="vt-beskrivelse" value="${esc(linkedSak.title)}">
+      ` : `
       <div class="field" style="margin-bottom:10px;">
         <label>Type</label>
         <div class="vt-type-row" id="vt-type-row">
@@ -13288,51 +13325,42 @@ function renderVerksted(){
           </label>`).join('')}
         </div>
       </div>
+      <div class="field"><label>Bil</label>
+        <select id="vt-vehicle" required>
+          <option value="">Velg bil...</option>
+          ${vehicleOptions(vtPrefillVehicleId, {ekskluderUteAvDrift:true})}
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." value="${esc(vtBeskrivelseForslag(initialType))}" data-std-default="${esc(vtBeskrivelseForslag(initialType))}" required></div>
       `}
-      <div class="required-hint" id="vt-mobilitetsgaranti-wrap" style="margin-bottom:10px;background:var(--green-soft);padding:10px 12px;border-radius:8px;${initialType === 'service' ? '' : 'display:none;'}">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:inherit;"><input type="checkbox" id="vt-mobilitetsgaranti" style="width:auto;"> 🛟 Mobilitetsgaranti inkludert i denne servicen</label>
-      </div>
-      ${linkedSak ? `
-      <div class="required-hint" style="margin-bottom:14px;background:var(--blue-soft);padding:10px 12px;border-radius:8px;">
-        🗂️ ${esc(linkedSak.caseId)} — ${esc(linkedSak.title)}<br>
-        ${lv ? esc(vehicleLabel(lv)) : ''} · ${SAK_TYPE_LABEL[linkedSak.caseType] || 'Annet'} · Registrert ${fmt(linkedSak.reportedAt)}
-      </div>
-      <input type="hidden" id="vt-vehicle" value="${linkedSak.vehicleId}">
-      <input type="hidden" id="vt-beskrivelse" value="${esc(linkedSak.title)}">
       <div class="field"><label>Verksted</label>
-        <select id="vt-verksted" required>
+        <select id="vt-verksted" required ${linkedSak ? '' : `data-std-default="${esc(standardVerkstedForVtType(initialType))}"`}>
           <option value="">Velg verksted...</option>
           ${verkstedSelectOptions(standardVerkstedForVtType(initialType))}
         </select>
       </div>
-      ` : `
-      <div class="row2">
-        <div class="field"><label>Bil</label>
-          <select id="vt-vehicle" required>
-            <option value="">Velg bil...</option>
-            ${vehicleOptions(vtPrefillVehicleId, {ekskluderUteAvDrift:true})}
-          </select>
-        </div>
-        <div class="field"><label>Verksted</label>
-          <select id="vt-verksted" required data-std-default="${esc(standardVerkstedForVtType(initialType))}">
-            <option value="">Velg verksted...</option>
-            ${verkstedSelectOptions(standardVerkstedForVtType(initialType))}
-          </select>
-        </div>
-      </div>
-      `}
       <div class="row2">
         <div class="field"><label>Dato</label><input id="vt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
         <div class="field"><label>Tidspunkt</label><input id="vt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
       </div>
-      ${linkedSak ? '' : `<div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." value="${esc(vtBeskrivelseForslag(initialType))}" data-std-default="${esc(vtBeskrivelseForslag(initialType))}" required></div>`}
-      <div class="row2">
-        <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
-        <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
+      <div class="required-hint" id="vt-mobilitetsgaranti-wrap" style="margin-bottom:10px;background:var(--green-soft);padding:10px 12px;border-radius:8px;${initialType === 'service' ? '' : 'display:none;'}">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:inherit;"><input type="checkbox" id="vt-mobilitetsgaranti" style="width:auto;"> 🛟 Mobilitetsgaranti inkludert i denne servicen</label>
       </div>
-      <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><textarea id="vt-notater" placeholder="Valgfritt"></textarea></div>
+      <div class="acc-row ${vtFlereDetaljerApen ? 'expanded' : ''}" id="vt-detaljer-seksjon" style="margin-bottom:14px;">
+        <div class="acc-head" id="vt-detaljer-toggle" style="cursor:pointer;">
+          <div class="acc-head-left"><div class="flag-name">Flere detaljer</div></div>
+          <div class="acc-head-right"><span class="chevron">${luc('chevron-down')}</span></div>
+        </div>
+        <div class="acc-body" id="vt-detaljer-body" style="${vtFlereDetaljerApen ? '' : 'display:none;'}">
+          <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="vt-notater" placeholder="Valgfritt">${esc(kommentarForslag)}</textarea></div>
+          <div class="row2" style="margin-bottom:0;">
+            <div class="field"><label>Kontaktperson</label><input id="vt-kontaktperson" type="text" placeholder="Valgfritt"></div>
+            <div class="field"><label>Telefonnummer</label><input id="vt-telefon" type="text" inputmode="tel" placeholder="Valgfritt"></div>
+          </div>
+        </div>
+      </div>
       <div class="form-msg" id="vt-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">Lagre</button></div>
+      <div class="panel-actions"><button class="btn" type="submit">✅ Bestill verkstedtime</button></div>
     </form>`;
     })() : ''}
 
@@ -13438,7 +13466,8 @@ function attachVerkstedListeners(){
   document.getElementById('vt-back').addEventListener('click', () => goBack());
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
-    if(!showAddVT){ vtPrefillVehicleId = ''; vtPrefillSakId = ''; }
+    vtFlereDetaljerApen = false;
+    if(!showAddVT){ vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; }
     // Prioritet 71.6: en helt fersk, uforhåndsutfylt "🔧 Registrer verkstedtime" (ingen bil/
     // sak forhåndsvalgt av en Bestill-snarvei) skal starte på standardtypen Reparasjon, ikke
     // henge igjen på hvilken som helst type en tidligere Bestill-snarvei satt.
@@ -13447,6 +13476,20 @@ function attachVerkstedListeners(){
   });
   const f = document.getElementById('add-vt-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
+  // Prioritet 49: "▼ Flere detaljer" (Kommentar/Kontaktperson/Telefonnummer) toggles rent i
+  // DOM-en, uten render() — samme begrunnelse som oppdaterForslag() under: en full render()
+  // ville nullstilt Dato/Tid/Verksted/Bil til malens statiske value-attributter og dermed
+  // slettet alt brukeren allerede har fylt inn i skjemaet.
+  const vtDetaljerToggle = document.getElementById('vt-detaljer-toggle');
+  if(vtDetaljerToggle){
+    vtDetaljerToggle.addEventListener('click', () => {
+      vtFlereDetaljerApen = !vtFlereDetaljerApen;
+      const row = document.getElementById('vt-detaljer-seksjon');
+      const body = document.getElementById('vt-detaljer-body');
+      if(row) row.classList.toggle('expanded', vtFlereDetaljerApen);
+      if(body) body.style.display = vtFlereDetaljerApen ? '' : 'none';
+    });
+  }
   // Prioritet 71.6: den horisontale, enkeltvalgte type-velgeren (VT_TYPE_VELGER) erstatter de
   // to uavhengige avkrysningsboksene fra Prioritet 61/62. Radioknappenes egen native
   // enkeltvalg-oppførsel + `:has(input:checked)` i CSS-en holder selve valget synlig uten
