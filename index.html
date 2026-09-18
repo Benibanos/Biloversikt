@@ -9400,16 +9400,13 @@ function galleryCard(v, erMinAktiveBil){
   // Optimalisering 14: reservebil som ikke er tatt i bruk ennå i dag — vis tydelig HVORFOR
   // kontroll ikke er forventet, i stedet for den vanlige amber "Ikke kontrollert"-varselen.
   const reserveUnntatt = vehicleErReserveUnntatt(v.id);
-  // kortet viser nå «Aktiv sjåfør» på nøyaktig samme måte
-  // som desktopens biltabell allerede gjør: 👤 = live biløkt
-  // (vehicleAktivSjafor), 🕓 = kun kontrollert i dag (vehicleSisteSjafor), ellers ⚪.
-  // BEGGE lesefunksjonene er UENDRET — kun etiketten er presisert, slik at kortet aldri
-  // sier «Aktiv sjåfør» om en bil som ikke dukker opp i filteret «Har aktiv sjåfør».
+  // Prioritet 71.11: «Aktiv sjåfør» = hvem som DISPONERER bilen akkurat nå
+  // (vehicleAktivSjafor, uendret), ikke hvem som sist sendte inn en kontroll. Pillen viser
+  // derfor kun to tilstander — navn eller «Ingen aktiv sjåfør» — «Sist kontrollert av» er
+  // BEVISST fjernet som primær/synlig informasjon her (ticket-krav), men beholdt som
+  // title-tooltip (sekundær, ikke-primær) siden underliggende historikk fortsatt finnes.
   const sjaforNa = vehicleAktivSjafor(v.id);
-  // Prioritet 66.2 punkt 5: sjaforNa (vehicleAktivSjafor) er ENESTE kilde til «aktiv
-  // sjåfør». sjaforIdag (vehicleSisteSjafor) vises kun når det IKKE finnes en aktiv
-  // sjåfør, og merkes eksplisitt som «sist kontrollert av» — aldri som aktiv.
-  const sjaforIdag = vehicleSisteSjafor(v.id);
+  const sjaforIdag = sjaforNa ? null : vehicleSisteSjafor(v.id);
   const hs = vehicleHovedstatus(v.id);
   const st = P38_STATUS_STIL[hs] || {tint:'var(--surface-3)', tone:'var(--muted)'};
   // PRIORITET 64 — komprimert bilkort. SAMME data og SAMME lesefunksjoner som før
@@ -9437,7 +9434,7 @@ function galleryCard(v, erMinAktiveBil){
         <span class="p48-dot" style="background:${st.tone};" title="${HOVEDSTATUS_IKON[hs]} ${HOVEDSTATUS_LABEL[hs]}"></span>
       </div>
       <div class="gcard-badges">
-        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};">${sjaforNa ? '👤 ' + esc(sjaforNa) : (sjaforIdag ? '🕓 Sist kontrollert av ' + esc(sjaforIdag) : '⚪ Tilgjengelig')}</span>
+        <span class="p38-pill" style="--tint:${sjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${sjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!sjaforNa && sjaforIdag ? `title="🕓 Sist kontrollert av ${esc(sjaforIdag)}"` : ''}>${sjaforNa ? '👤 ' + esc(sjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
         <span class="p38-pill" style="--tint:${reserveUnntatt || kontrollertIdag ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${reserveUnntatt || kontrollertIdag ? 'var(--green-ink)' : 'var(--amber)'};">${reserveUnntatt ? '🚐 Ikke i bruk i dag' : (kontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert')}</span>
         ${aktiveVarsler.length > 0 ? `<span class="p38-pill" style="--tint:var(--red-soft);--tone:var(--red);">🔴 ${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}</span>` : ''}
         ${totalCount > 0 ? `<span class="p38-pill" style="--tint:${openCount > 0 ? 'var(--orange-soft)' : 'var(--surface-3)'};--tone:${openCount > 0 ? 'var(--orange)' : 'var(--muted)'};">⚠️ ${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}</span>` : ''}
@@ -10767,8 +10764,7 @@ function renderBilkort(){
           <div class="profil-ident-meta"><span>${esc([v.merke, v.modell].filter(Boolean).join(' ')) || 'Modell ikke satt'} • ${esc(v.regnr)}</span></div>
           <div class="profil-ident-meta"><span>${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '⚠️ Løyve mangler'} • ${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}</span></div>
           <div class="profil-ident-meta">
-            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};">${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
-            ${p38SisteKontrollor ? `<span class="p38-pill" style="--tint:var(--surface-3);--tone:var(--muted);">🕓 Sist kontrollert av ${esc(p38SisteKontrollor)}</span>` : ''}
+            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!p38SjaforNa && p38SisteKontrollor ? `title="🕓 Sist kontrollert av ${esc(p38SisteKontrollor)}"` : ''}>${p38SjaforNa ? '👤 ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
             <span class="p38-pill" style="--tint:${mgPille.tint};--tone:${mgPille.tone};" title="${esc(vMobgaranti.kilde || 'Ingen mobilitetsgaranti registrert')}">${mgPille.tekst}</span>
           </div>
         </div>

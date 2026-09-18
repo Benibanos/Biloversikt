@@ -1,6 +1,23 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 71.10 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 71.11 —
+**Aktiv sjåfør settes automatisk ved sjåførkontroll.** Bestilt etter en
+observasjon av «2/13 kontrollert i dag» samtidig som «0 aktive biler» på
+Dashboard. Grundig kartlegging (full lesing av
+`settAktivSjafor()`/`startBilokt()`/`settAktivSjaforForKontroll()`/
+`vehicleAktivSjafor()` m.fl., pluss et uttømmende grep-søk) bekreftet at
+selve TILDELINGSLOGIKKEN allerede var fullstendig implementert siden
+Prioritet 34/40/66.2 — `submitKontroll()` setter alltid aktiv sjåfør som
+sitt siste steg, uansett kanal, og aktiv sjåfør beholdes til eksplisitt
+utsjekk, kryss-bil-overtakelse eller operativt dagskille. Den reelle,
+gjenstående forskjellen lå kun i VISNINGEN: Biloversikt-kortet og
+Bilprofilens toppseksjon viste tidligere en konkurrerende «🕓 Sist
+kontrollert av»-pille ved siden av «Aktiv sjåfør»-pillen. Denne er fjernet
+fra begge steder som primær/synlig informasjon (beholdt som ikke-primær
+title-tooltip) — «Aktiv sjåfør»/«Ingen aktiv sjåfør» står nå alene, slik
+ticket ba om. Se egen seksjon lenger ned for full detalj og et forbehold om
+at et avvik mellom kode og PUBLISERT side (samme klasse feil som Prioritet
+42) ikke løses av en kodeendring. Før det: Prioritet 71.10 —
 **godkjenning av store kilometerendringer.** Et bekreftet «storthopp»
 (sjåførregistrert kilometerøkning på 1 000 km eller mer, allerede lagret
 uendret siden Prioritet 66/67) har fått en formell Godta/Avslå-arbeidsflyt
@@ -3584,3 +3601,114 @@ Bilkategorier, `renderVerksted()`/`renderVerkstedhistorikk()`, PWA/manifest-ikon
 - Som resten av Varslingssenteret (Prioritet 71): «Marker som sett» er fortsatt tilgjengelig
   også for km-varsler, ved siden av Godta/Avslå. Et km-varsel som kun markeres «sett» (uten
   Godta/Avslå) kommer automatisk tilbake etter 48 timer, siden gulvet fortsatt er upåvirket.
+
+---
+
+## Prioritet 71.11 (2026-09-18) — Aktiv sjåfør skal settes automatisk ved sjåførkontroll
+
+Bestilling: fullført sjåførkontroll skal automatisk sette Aktiv sjåfør på bilen (ingen ekstra
+knapp/manuell aktivering), aktiv sjåfør skal beholdes til eksplisitt utsjekk eller til en ny
+sjåfør kontrollerer samme bil, Dashboard/Biloversikt/Bilprofil skal vise Aktiv sjåfør (ikke
+«Sist kontrollert av») som primær informasjon, og kontrollhistorikken skal fortsatt lagre
+hvem/når uten at det brukes til å AVGJØRE aktiv sjåfør. Bakgrunn oppgitt av bruker: observert
+et dashboard som viste «2/13 kontrollert i dag» samtidig som «0 aktive biler».
+
+**Kartlegging (før noen endring — hele denne saken ble først verifisert mot faktisk kode, ikke
+antatt):** ALLE fem kjernekravene i «NY REGEL»/«AKTIV SJÅFØR SKAL BEHOLDES»/«DASHBOARD» var
+allerede fullt implementert, fra Prioritet 34/40/66.2:
+- `settAktivSjafor(vehicleId, navn)` er den ENE tildeleren av `v.aktivSjafor`/
+  `v.aktivSjaforSiden` (uendret siden Prioritet 40), med innebygd kryss-bil-utsjekking (én
+  sjåfør kan kun disponere én bil samtidig — «en ny sjåfør overtar bilen ved ny kontroll» var
+  allerede eksakt slik funksjonen alltid har virket).
+- `submitKontroll()` kaller ALLTID enten `startBilokt()` (sjåførmodus) eller
+  `settAktivSjaforForKontroll()` (administrasjonen) som STEG 8, etter at kontrollen er
+  fullstendig og gyldig lagret — bekreftet ved å lese hele funksjonen fra topp til bunn, ingen
+  bypass-vei funnet (`kontroller.push(...)` finnes kun ett sted i hele `index.html`, inne i
+  nettopp denne funksjonen).
+- Aktiv sjåfør beholdes til `avsluttBilokt()` (eksplisitt «Sjekk ut bil»), kryss-bil-
+  utsjekking i `settAktivSjafor()`, eller `ryddOppBiloktDagskille()` (operativt dagskille kl.
+  04:00) — ingen fjerde, udokumentert nullstillingsvei ble funnet (grep på alle
+  `.aktivSjafor =`-tildelinger i filen ga nøyaktig disse fire treffene).
+- `vehicleAktivSjafor()` — Dashboardets «Aktive biler»-KPI (`hDriftCount`, Prioritet 62.1/
+  62.1a) bygger allerede utelukkende på denne, over ALLE kjøretøy, ikke på
+  `isKontrollertIdag()`/`kontrollertIdagCount`. De to tallene måler bevisst to ulike
+  spørsmål («hvor mange er kontrollert i dag» vs. «hvor mange disponeres akkurat nå») —
+  et gap mellom dem (f.eks. «2 kontrollert, 0 aktive») oppstår derfor NORMALT når sjåfører har
+  sjekket ut igjen etter kontrollen, ikke av en kodefeil i tildelingen. Dette bekreftet
+  IKKE noen «0 aktive selv om noen kjører»-defekt i selve logikken.
+
+**Den faktiske, gjenstående forskjellen mellom ticket og kode lå KUN i visningen**, ikke i
+tildelingslogikken:
+1. **Biloversikt (`galleryCard()`):** badge-pillen viste tidligere «🕓 Sist kontrollert av
+   {navn}» som en tredje, likestilt tilstand ved siden av «👤 {aktiv sjåfør}»/«⚪
+   Tilgjengelig» — det var nettopp DENNE tredje tilstanden ticket ba om å fjerne som «primær
+   informasjon». Endret til kun to synlige tilstander — navn eller «⚪ Ingen aktiv sjåfør»
+   (tekst endret fra «Tilgjengelig» for å matche ticket-ordlyden eksakt) — med «sist
+   kontrollert av» beholdt som `title`-tooltip (sekundær, ikke-primær), siden
+   `vehicleSisteSjafor()`/kontrollhistorikken fortsatt eksisterer uendret og informasjonen
+   ikke er slettet, kun degradert fra primær til sekundær.
+2. **Bilprofil (`renderBilkort()`, toppraden/`profil-ident-meta`):** viste tidligere BÅDE en
+   «👤/⚪ Aktiv sjåfør»-pille OG en konkurrerende «🕓 Sist kontrollert av»-pille ved siden av
+   hverandre. Den frittstående «Sist kontrollert av»-pillen er fjernet fra selve toppraden
+   (samme title-tooltip-mønster som over) — «Aktiv sjåfør»-pillen står nå alene som ticket
+   ba om («Toppraden skal vise: Aktiv sjåfør i stedet for: Sist kontrollert av»). Den
+   EKSISTERENDE, mer detaljerte «👤 Aktiv sjåfør»-statuskortet i `.profil-stat5`
+   (Prioritet 71.5, lenger ned på siden — IKKE «toppraden») er UENDRET: det har alltid vist
+   «Aktiv sjåfør» som hovedverdi med «Sist kontrollert av …»/«Kjører nå» som liten,
+   underordnet forklaringstekst — det var allerede riktig og konkurrerer ikke med toppraden.
+3. **Dashboard:** «Aktive biler»-KPI-kortet var allerede eksakt som spesifisert (biler MED
+   aktiv sjåfør, via `vehicleAktivSjafor()`/`hDriftCount`) — ingen endring nødvendig.
+
+**Bevisst IKKE endret:** Dashboardets egen forhåndsvisningstabell (`komponentHtml.biloversikt`
+i `renderDashboard()`, «Bilpark status»-panelets Sjåfør-kolonne) beholder sin eksisterende
+👤/🕓/— tre-tilstands-kolonne uendret. Denne er en annen, mer kompakt tabellcelle (ikke en
+frittstående pille som kan mistolkes som «aktiv»), skiller allerede tydelig mellom
+tilstandene via ikon OG title-tooltip, og lå utenfor ticket-ens eksplisitt navngitte
+skjermer (Dashboard-seksjonen i ticket-en omtalte kun selve KPI-tallet). Å endre den ville
+vært utenfor angitt omfang («endre minst mulig»). `vehicleSisteSjafor()` selv,
+Excel-eksportenes «Aktiv sjåfør»-kolonne (Kilometerstandsrapport, som fortsatt bruker
+`vehicleSisteSjafor()`, en allerede dokumentert, akseptert avvik siden Prioritet 33) og alle
+fire tildelings-/nullstillingsfunksjonene er UENDRET.
+
+**Filer endret:** `index.html`, `kontroll.html` (synkronisert som eksakt kopi), `sw.js`
+(`CACHE_VERSION` bilpark-v90 → bilpark-v91), `version-check.js` (`APP_VERSION` 90 → 91),
+`version.json` (`"version"` 90 → 91). **`storage.airtable.js` er IKKE endret** — ingen nye
+felt, ingen logikkendring i tildelingen — derfor uendret `versjon`/`?v=2.18.0`.
+
+**Testet:** `node` var ikke tilgjengelig i denne økten. Verifisert: en global krøllparentes-/
+backtick-balansesjekk på `index.html` viser samme, uendrede parentesbalanse som før
+endringen (ingen ny ubalanse introdusert). Kjernepåstanden i kartleggingen (at
+tildelingslogikken allerede var korrekt) er verifisert ved fullstendig lesing av
+`settAktivSjafor()`/`startBilokt()`/`settAktivSjaforForKontroll()`/`overforAktivSjafor()`/
+`avsluttBilokt()`/`ryddOppBiloktDagskille()`/`vehicleAktivSjafor()`/`vehicleSisteSjafor()` og
+et uttømmende grep-søk på `.aktivSjafor =` og `kontroller.push(` — ikke ved kodelesing av kun
+utdrag. **Ikke verifisert i en faktisk kjørende nettleser eller mot en ekte/mock-Airtable-base
+i denne økten.**
+
+**Anbefalt før idriftsettelse:** bekreft i en nettleser at en fullført sjåførkontroll (både
+via sjåfør-URL og via administrasjonens ✅-ikon) umiddelbart viser bilen som «👤 {navn}» i
+Biloversikt/Bilprofil/Dashboard sitt «Aktive biler»-tall uten noen ekstra handling, at en NY
+sjåførs kontroll på samme bil overtar den (gammel sjåfør forsvinner fra sin forrige bil, se
+kryss-bil-varselet i «👤 Ny sjåfør»-panelet), og at «Sjekk ut bil» fjerner bilen fra «Aktive
+biler» igjen. Dersom den rapporterte «2 kontrollert / 0 aktive»-observasjonen fortsatt kan
+reproduseres etter denne leveransen, er det IKKE lenger et logikkspørsmål (bekreftet korrekt
+over) — undersøk i stedet om de aktuelle sjåførene faktisk sjekket ut bilen etter kontrollen,
+eller om den observerte tilstanden var fra en tidligere, ikke oppdatert utrulling av appen
+(se Prioritet 42 for et tidligere, reelt eksempel på nøyaktig dette avviket mellom kode og
+publisert side).
+
+**Ikke rørt:** `settAktivSjafor()`/`startBilokt()`/`settAktivSjaforForKontroll()`/
+`overforAktivSjafor()`/`avsluttBilokt()`/`ryddOppBiloktDagskille()`/`vehicleAktivSjafor()`/
+`vehicleSisteSjafor()` (alle kun LEST og verifisert, ingen linje endret),
+`submitKontroll()` sin kilometer-/sak-/varsellampelogikk, saksmotoren, Varslingssenteret,
+`storage.airtable.js`/Airtable-skjema, Rapporter/Analyse.
+
+**Kjente, dokumenterte begrensninger:**
+- Dashboardets kompakte forhåndsvisningstabell («Bilpark status» → Biloversikt-komponentet)
+  viser fortsatt «🕓 {navn}» for siste kontrollør — bevisst utenfor omfang, se over.
+- Kilometerstandsrapportens «Aktiv sjåfør»-eksportkolonne bruker fortsatt
+  `vehicleSisteSjafor()` — en allerede kjent, akseptert avvik fra Prioritet 33, ikke rørt i
+  denne runden (ticket nevnte ikke Rapporter).
+- Dersom den opprinnelige observasjonen («2/13 kontrollert, 0 aktive») skyldtes en publisert
+  side som ligger bak dette repoets faktiske kode (samme klasse feil som Prioritet 42), løser
+  ikke denne leveransen det — det krever en ny utrulling, ikke en kodeendring.
