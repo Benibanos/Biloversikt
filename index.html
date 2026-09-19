@@ -121,7 +121,11 @@
      uten at noen enkelt-dropdown trenger egen styling. */
   select, select option{background-color:var(--surface);color:var(--ink);}
   select option:checked, select option:hover{background-color:var(--bg);}
-  html{overflow-x:hidden;}
+  /* Prioritet 52, Del 1: PERMANENT scrollbarspor. Uten dette dukker scrollbaren opp/forsvinner
+     når innholdet i f.eks. Hurtigoversikt blir høyere/lavere enn viewporten, og hele siden
+     (sidepanel, banner, kortrekker) hopper ~15 px sideveis. overflow-y:scroll reserverer
+     sporet alltid; scrollbar-gutter:stable er belte og bukseseler der det støttes. */
+  html{overflow-x:hidden;overflow-y:scroll;scrollbar-gutter:stable;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;width:100%;padding-top:env(safe-area-inset-top, 0px);}
   #app{max-width:1080px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom, 0px));}
   h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;margin:0;}
@@ -1183,6 +1187,46 @@
   .p38-lenke{font-size:12px;font-weight:700;color:var(--green-ink);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;}
   .p38-lenke:hover{text-decoration:underline;}
 
+  /* ---- Prioritet 52: Dashboard UX Polish ----
+     Del 2: kompakt Operativ kontroll-banner — dato/vær på én linje, tre målinger på én linje.
+     Ingen ekstra kort: samme .panel som før, men uten egen overskrift og uten høyt tall. */
+  .dash-banner{margin-bottom:6px;padding:12px 18px;}
+  .dash-banner-meta{font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  .dash-banner-rad{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;}
+  .dash-banner-maal{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;font-size:13.5px;color:var(--ink-2);}
+  .dash-banner-maal b{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .dash-banner-maal .skille{color:var(--line);}
+  .dash-banner-aktive{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink);}
+  /* Del 3: seksjoner skilles med luft, overskrift og en subtil linje — ikke med flere bokser. */
+  .dash-sek{margin-top:22px;}
+  .dash-sek + .dash-sek{margin-top:26px;padding-top:22px;border-top:1px solid var(--line-soft);}
+  .dash-sek-tittel{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+  .dash-sek .dash40-grid4-bestill{margin-bottom:0;}
+  /* Del 1: fast minimumshøyde på innholdet som byttes, så siden under aldri flytter seg. */
+  .dash-hov-innhold{min-height:420px;}
+  .dash-sek .profil-tabs{margin-bottom:6px;}
+  /* Bestill tjenester på Dashboard er ÉN rad med fire kort som ikke bytter innhold (kortene
+     navigerer videre), så den trenger ingen minimumshøyde — en slik ville bare gitt tomrom.
+     Den dedikerte Bestill tjenester-skjermen (2×2) har fast 260 px, så listen under ikke
+     flytter seg. */
+  .dash40-grid2x2{min-height:260px;align-content:start;}
+
+  /* Del 4: Biloversikt viser kun Søk + Filter som standard; resten ligger i et lukket panel. */
+  .reg-filterbar{display:flex;gap:10px;margin-bottom:12px;}
+  .reg-filterbar input[type=text]{flex:1;min-width:0;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
+  .reg-filterbar input[type=text]:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+  .reg-filterbtn{white-space:nowrap;flex-shrink:0;}
+  .reg-filterbtn .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--green);color:var(--chrome-text);font-size:11px;font-weight:700;line-height:18px;text-align:center;}
+  .reg-filterpanel{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:14px 16px;margin-bottom:16px;}
+  .reg-filterpanel-tittel{font-family:'Space Grotesk',sans-serif;font-size:13.5px;font-weight:700;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);}
+  .reg-filtergruppe{display:flex;flex-wrap:wrap;gap:8px 22px;margin-bottom:12px;}
+  .reg-filtergruppe .gl{flex-basis:100%;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  .reg-filtergruppe label{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;}
+  .reg-filtergruppe input[type=checkbox]{width:17px;height:17px;accent-color:var(--green);cursor:pointer;}
+  .reg-filterselects{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
+  .reg-filterselects label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+  .reg-filterselects select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
+
   /* ---- Oppgaverader ---- */
   .p38-task{display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid var(--line-soft);cursor:pointer;}
   .p38-task:first-child{border-top:none;}
@@ -1695,6 +1739,10 @@ let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'ut
 // "Biler"-navigasjonen.
 let visReserve = false;
 let visUteAvDrift = false;
+// Prioritet 52, Del 4: Biloversikt viser kun Søk + [Filter ▼] som standard; de øvrige filtrene
+// ligger i et lukket panel. Ren visningstilstand (aldri lagret) — nullstilles av
+// resetRegisterFiltre() sammen med filtrene selv.
+let showRegisterFilter = false;
 // Prioritet 71.9: samme skjul-som-standard-regel for Dashboardets Biloversikt-forhåndsvisning
 // (biloversiktBiler i dashboardBeregning()) — egne variabler, siden Dashboard ikke deler
 // filtertilstand med den fulle Biloversikt-siden (visReserve/visUteAvDrift over).
@@ -5308,6 +5356,7 @@ function goToAktiveSakerFiltered(opts){
 function resetRegisterFiltre(){
   filterSearch = ''; filterKategori = ''; filterKontrollStatus = ''; filterLoyve = ''; filterHovedstatus = '';
   visReserve = false; visUteAvDrift = false;
+  showRegisterFilter = false;
   showAddVehicleForm = false;
   registerAktivFane = '';
 }
@@ -9132,34 +9181,7 @@ function renderMobilHjem(){
   // rekkefølgen fra Layout Editor brukes direkte.
   const komponentHtml = {
     hurtigoversikt: dashHurtigoversiktHtml(d),
-    bestill: `
-    <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
-    <div class="dash40-grid4-bestill">
-      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">${luc('wrench')}</span>
-        <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Bestill service</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">${luc('shield-check')}</span>
-        <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskift</span>
-        <span class="dash40-bestill-sub">Bestill dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">${luc('car-front')}</span>
-        <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Bestill ruteskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-    </div>`
+    bestill: dashBestillSekHtml()
   };
 
   return `
@@ -9502,22 +9524,59 @@ function dashboardBeregning(){
 function dashOperativBannerHtml(d){
   const opIdag = operativKontrollStatusIdag();
   const opUke = kontrollrateUke();
+  // Prioritet 52, Del 2: banneret er komprimert til to linjer (dato/klokkeslett/vær, deretter
+  // «33% i dag • 38% siste 7 dager • 🚚 1 aktiv» + «Se hvilke →» på SAMME rad). Samme tre tall,
+  // samme kilder og samme klikkmål som før — ingen nye KPI-er. Overskriften «Operativ kontroll»
+  // er tatt bort fra selve kortet: sidetittelen ligger i den delte toppstripen (desktop)
+  // hhv. .p41-head (mobil), og «X av Y operative biler» ligger nå i title-tooltip.
   return `
-    <div class="panel" style="margin-bottom:16px;padding:20px 22px;">
-      <div class="p38-panel-head"><div class="tittel">${luc('target', 'ic-green')} Operativ kontroll</div></div>
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
-      <div style="display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;">
-        <div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:46px;font-weight:700;line-height:1;letter-spacing:-.02em;">${opIdag.prosent}%</div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${opIdag.kontrollert} av ${opIdag.totalt} operative biler kontrollert i dag</div>
+    <div class="panel dash-banner">
+      <div class="dash-banner-meta">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
+      <div class="dash-banner-rad">
+        <div class="dash-banner-maal">
+          <span title="${opIdag.kontrollert} av ${opIdag.totalt} operative biler kontrollert i dag"><b>${opIdag.prosent}%</b> i dag</span>
+          <span class="skille" aria-hidden="true">•</span>
+          <span><b>${opUke.prosent}%</b> siste 7 dager</span>
+          <span class="skille" aria-hidden="true">•</span>
+          <span class="dash-banner-aktive">${luc('truck')} <b>${d.hDriftCount}</b> ${d.hDriftCount === 1 ? 'aktiv' : 'aktive'}</span>
         </div>
-      </div>
-      <div style="margin-top:10px;font-size:13.5px;color:var(--ink-2);">Kontroll siste 7 dager: <b>${opUke.prosent}%</b></div>
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <span style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;">${luc('truck')} ${d.hDriftCount} ${d.hDriftCount === 1 ? 'aktiv bil' : 'aktive biler'}</span>
         <button type="button" class="p38-lenke" data-goto-biloversikt-filter="har-aktiv-sjafor">Se hvilke →</button>
       </div>
     </div>`;
+}
+// Prioritet 52, Del 3: «Bestill tjenester» som seksjon (overskrift + luft + subtil skiller),
+// ikke en boks. ÉN delt funksjon for desktop og mobil — samme fire kort, identisk markup.
+function dashBestillSekHtml(){
+  return `
+    <section class="dash-sek">
+      <div class="dash-sek-tittel">${luc('plus')} Bestill tjenester</div>
+      <div class="dash40-grid4-bestill">
+        <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
+          <span class="flis lg">${luc('wrench')}</span>
+          <span class="dash40-bestill-tittel">Service</span>
+          <span class="dash40-bestill-sub">Bestill service</span>
+          <span class="dash40-bestill-pil">→</span>
+        </button>
+        <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
+          <span class="flis lg">${luc('shield-check')}</span>
+          <span class="dash40-bestill-tittel">EU-kontroll</span>
+          <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
+          <span class="dash40-bestill-pil">→</span>
+        </button>
+        <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
+          <span class="flis lg">${luc('circle-dot')}</span>
+          <span class="dash40-bestill-tittel">Dekkskift</span>
+          <span class="dash40-bestill-sub">Bestill dekkskift</span>
+          <span class="dash40-bestill-pil">→</span>
+        </button>
+        <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
+          <span class="flis lg">${luc('car-front')}</span>
+          <span class="dash40-bestill-tittel">Ruteskift</span>
+          <span class="dash40-bestill-sub">Bestill ruteskift</span>
+          <span class="dash40-bestill-pil">→</span>
+        </button>
+      </div>
+    </section>`;
 }
 // Fire kompakte rader (sak-fase-baserte tabs + Varsler) — samme fanemønster/klasser som
 // Biloversikt/Kjøretøyprofil/Varslingssenter bruker (.profil-tabs/.profil-tab), i stedet for
@@ -9562,14 +9621,60 @@ function dashHurtigoversiktInnholdHtml(fane, d){
 function dashHurtigoversiktHtml(d){
   const fane = DASH_HOV_FANE_ORDER.includes(dashHurtigoversiktFane) ? dashHurtigoversiktFane : 'aktiv';
   const antallForFane = {aktiv: d.sakFaseAntall.aktiv, oppfolging: d.sakFaseAntall.oppfolging, verksted: d.sakFaseAntall.verksted, varsler: varslingssenterAntall()};
+  // Prioritet 52, Del 1/3: seksjon (ikke boks) med fast id, slik at fanebytte kan oppdatere
+  // KUN .dash-hov-innhold (se byttHurtigoversiktFane()) i stedet for hele Dashboardet.
   return `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="p38-panel-head"><div class="tittel">${luc('layout-list')} Hurtigoversikt</div></div>
+    <section class="dash-sek" id="dash-hov-sek">
+      <div class="dash-sek-tittel">${luc('layout-list')} Hurtigoversikt</div>
       <div class="profil-tabs">
         ${DASH_HOV_FANE_ORDER.map(f => `<button type="button" class="profil-tab ${fane===f?'active':''}" data-dash-hov-fane="${f}">${luc(DASH_HOV_FANE_IKON[f])} ${DASH_HOV_FANE_LABEL[f]} (${antallForFane[f]})</button>`).join('')}
       </div>
       <div class="dash-hov-innhold">${dashHurtigoversiktInnholdHtml(fane, d)}</div>
-    </div>`;
+    </section>`;
+}
+// Prioritet 52, Del 1: fanebytte i Hurtigoversikt uten render(). Bytter kun aktiv fane-klasse
+// og innholdet under — sidepanel, banner, kortrekke og scrollposisjon røres ikke, og
+// scrollbarsporet er permanent (html{overflow-y:scroll}), så ingenting flytter seg.
+// Fanenes tall (antall) endres ikke av selve bytte, så tabs-raden bygges ikke på nytt.
+// Faller tilbake til render() dersom seksjonen mot formodning ikke finnes i DOM-en.
+function byttHurtigoversiktFane(fane){
+  if(!DASH_HOV_FANE_ORDER.includes(fane)) return;
+  dashHurtigoversiktFane = fane;
+  const sek = document.getElementById('dash-hov-sek');
+  const innhold = sek ? sek.querySelector('.dash-hov-innhold') : null;
+  if(!sek || !innhold){ render(); return; }
+  sek.querySelectorAll('[data-dash-hov-fane]').forEach(b => b.classList.toggle('active', b.dataset.dashHovFane === fane));
+  // Innholdet får aldri krympe under den høyeste fanen som allerede er vist (min-height
+  // «ratchetes» opp fra CSS-minimum 420 px). Uten dette kan en lavere fane forkorte hele
+  // siden, og nettleseren klemmer da scrollposisjonen når man står nær bunnen — det ser ut
+  // som et hopp. Bare vekst, aldri krymping; nullstilles av neste full render().
+  const naaH = Math.ceil(innhold.getBoundingClientRect().height);
+  if(naaH > (parseFloat(getComputedStyle(innhold).minHeight) || 0)) innhold.style.minHeight = naaH + 'px';
+  innhold.innerHTML = dashHurtigoversiktInnholdHtml(fane, null);
+  attachHovInnholdListeners(innhold);
+  refreshLucideIcons();
+}
+// Lyttere for innholdet i Hurtigoversikt (sak-rader, «se alle»-lenker og Varsler-radenes
+// handlingsknapper). Samme handlere som tidligere lå direkte i attachDashboardListeners() —
+// flyttet hit slik at de kan festes på nytt kun på det utskiftede innholdet ved fanebytte
+// (root = .dash-hov-innhold), mens attachDashboardListeners() kaller den med document.
+function attachHovInnholdListeners(root){
+  root.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
+  root.querySelectorAll('[data-goto-sak-fane]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToSakFane(el.dataset.gotoSakFane);
+  }));
+  root.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
+  // Varsler-fanen gjenbruker varslingssenterRadHtml() UENDRET — samme handlingsknapper
+  // (Åpne bilkort/sak/kommentarer, Merk som løst, Godta/Avslå km-endring, Marker som sett)
+  // som selve Varslingssenteret allerede har, se attachVarslerOversiktListeners().
+  root.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoVarselBilkort)));
+  root.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
+  root.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
+  root.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  root.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
+  root.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
+  root.querySelectorAll('[data-marker-varsel-sett]').forEach(el => el.addEventListener('click', () => markerVarselSett(el.dataset.markerVarselSett)));
 }
 
 // goToSakFane() er UENDRET og fortsatt i bruk (Hurtigoversikt sine "se alle"-lenker, se
@@ -9601,34 +9706,8 @@ function renderDashboard(){
   // To Layout Editor-styrte komponenter gjenstår (Bestill tjenester/Hurtigoversikt) —
   // begge i DESKTOP_LAYOUT_KOLONNER.full, altså full bredde, én under den andre.
   const komponentHtml = {
-    bestill: `
-    <div class="ov-label" style="margin-bottom:10px;">${luc('plus')} Bestill tjenester</div>
-    <div class="dash40-grid4-bestill">
-      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">${luc('wrench')}</span>
-        <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Bestill service</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">${luc('shield-check')}</span>
-        <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskift</span>
-        <span class="dash40-bestill-sub">Bestill dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">${luc('car-front')}</span>
-        <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Bestill ruteskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-    </div>`,
+    // Prioritet 52: delt seksjonsmarkup, se dashBestillSekHtml() (samme for desktop og mobil).
+    bestill: dashBestillSekHtml(),
     // Prioritet 50, Del 7-11: se dashHurtigoversiktHtml() — samlet, fanedelt erstatning
     // for de fire tidligere KPI-kortene (Aktive saker/Under oppfølging/Planlagt
     // verksted/Varsler), plassert direkte under Bestill tjenester.
@@ -9669,23 +9748,12 @@ function attachDashboardListeners(){
   // hele komponenten den hørte til.
   const varslerBtn = document.getElementById('dash-varsler-btn');
   if(varslerBtn) varslerBtn.addEventListener('click', () => goTo('varsler'));
-  document.querySelectorAll('[data-quick-page]').forEach(el => el.addEventListener('click', () => goTo(el.dataset.quickPage)));
-  // Prioritet 50, Del 7: Hurtigoversikt sine fire faner (se dashHurtigoversiktHtml()).
-  document.querySelectorAll('[data-dash-hov-fane]').forEach(el => el.addEventListener('click', () => {
-    dashHurtigoversiktFane = el.dataset.dashHovFane;
-    render();
-  }));
-  // Prioritet 50, Del 11: Varsler-fanen gjenbruker varslingssenterRadHtml() UENDRET —
-  // samme handlingsknapper (Åpne bilkort/sak/kommentarer, Merk som løst, Godta/Avslå
-  // km-endring, Marker som sett) som selve Varslingssenteret allerede har, se
-  // attachVarslerOversiktListeners().
-  document.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoVarselBilkort)));
-  document.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
-  document.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
-  document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
-  document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
-  document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
-  document.querySelectorAll('[data-marker-varsel-sett]').forEach(el => el.addEventListener('click', () => markerVarselSett(el.dataset.markerVarselSett)));
+  // Prioritet 50, Del 7 / Prioritet 52, Del 1: Hurtigoversikt sine fire faner bytter nå kun
+  // innholdet (byttHurtigoversiktFane()), ikke hele Dashboardet. Sak-rader, «se alle»-lenker
+  // og Varsler-radenes handlingsknapper festes av attachHovInnholdListeners() (samme
+  // handlere som før, flyttet dit slik at de kan festes på nytt på utskiftet innhold).
+  document.querySelectorAll('[data-dash-hov-fane]').forEach(el => el.addEventListener('click', () => byttHurtigoversiktFane(el.dataset.dashHovFane)));
+  attachHovInnholdListeners(document);
   // Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive
   // saker"-tall åpner Aktive Saker med et relevant filter i stedet for en egen dashboard-liste.
   document.querySelectorAll('[data-goto-aktivesaker-filter]').forEach(el => el.addEventListener('click', (e) => {
@@ -9694,12 +9762,6 @@ function attachDashboardListeners(){
     if(kind === 'oppfolging-idag') goToAktiveSakerFiltered({oppfolging: 'idag', kreverHandling: true});
     else if(kind === 'krever-handling') goToAktiveSakerFiltered({kreverHandlingSamlet: true});
     else goToAktiveSakerFiltered({});
-  }));
-  // Dashboard sine tre nye saksflyt-tellere: navigerer rett til riktig
-  // fane i den nye, forenklede Aktive saker-skjermen (se sakFaseTellereHtml()/goToSakFane()).
-  document.querySelectorAll('[data-goto-sak-fane]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    goToSakFane(el.dataset.gotoSakFane);
   }));
   document.querySelectorAll('[data-goto-vt-vehicle]').forEach(el => el.addEventListener('click', () => {
     const vehicleId = el.dataset.gotoVtVehicle;
@@ -9712,7 +9774,6 @@ function attachDashboardListeners(){
     goTo('verksted');
   }));
   document.querySelectorAll('[data-goto-kontroll]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToRegisterKontroll(el.dataset.gotoKontroll); }));
-  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goTo('bilkort', el.dataset.gotoBilkort); }));
   const dashVisReserveBtn = document.getElementById('dash-vis-reserve-btn');
   if(dashVisReserveBtn) dashVisReserveBtn.addEventListener('click', () => { dashVisReserve = !dashVisReserve; render(); });
@@ -9836,38 +9897,54 @@ function renderRegister(){
       <div class="panel-actions"><button class="btn" type="submit">Legg til og åpne</button></div>
     </form>` : ''}
 
-    <!-- Prioritet 71.6: hurtigfilter, ikke et eget filtersystem — leser/skriver nøyaktig
-         samme filterKontrollStatus som "f-kontrollstatus"-nedtrekket under. Erstatter ikke
-         de øvrige filtrene (kategori/bil/status/løyvenummer), kun en snarvei til dem. -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      <button type="button" class="btn small ${filterKontrollStatus==='kontrollert' ? '' : 'secondary'}" id="qf-kontrollert-btn">✅ Kontrollert</button>
-      <button type="button" class="btn small ${filterKontrollStatus==='ikke' ? '' : 'secondary'}" id="qf-ikke-kontrollert-btn">⚠️ Ikke kontrollert</button>
-      <button type="button" class="btn small ${visReserve ? '' : 'secondary'}" id="qf-vis-reserve-btn">✅ Vis reserve</button>
-      <button type="button" class="btn small ${visUteAvDrift ? '' : 'secondary'}" id="qf-vis-ute-btn">✅ Vis ute av drift</button>
-    </div>
-
-    <div class="filters-row">
+    <!-- Prioritet 52, Del 4: kun PRESENTASJON er endret. Søkefeltet og Filter-knappen er alltid
+         synlige; alle øvrige filtre ligger i et lukket panel. Filterlogikken (variablene
+         filterKontrollStatus/visReserve/visUteAvDrift/filterKategori/filterHovedstatus/
+         filterLoyve og predikatet i renderRegister()) er UENDRET — de fire hurtigknappene fra
+         Prioritet 71.6/71.9 er blitt avkrysningsbokser som leser/skriver de samme variablene
+         med samme toggle-semantikk (Kontrollert/Ikke kontrollert utelukker hverandre, som
+         det tidligere nedtrekket «f-kontrollstatus» — hvis funksjon boksene nå dekker). -->
+    ${(() => {
+      const aktiveFiltre = [filterKategori, filterKontrollStatus, filterHovedstatus, filterLoyve].filter(Boolean).length + (visReserve ? 1 : 0) + (visUteAvDrift ? 1 : 0);
+      return `
+    <div class="reg-filterbar">
       <input type="text" id="f-search" placeholder="Søk på bilnummer, regnr., modell eller løyvenummer..." value="${esc(filterSearch)}">
-      <select id="f-kategori">${kategoriOptionsHtml(filterKategori, 'Alle kategorier')}</select>
-      <select id="f-kontrollstatus">
-        <option value="" ${filterKontrollStatus===''?'selected':''}>Alle biler</option>
-        <option value="kontrollert" ${filterKontrollStatus==='kontrollert'?'selected':''}>Kontrollert i dag</option>
-        <option value="ikke" ${filterKontrollStatus==='ikke'?'selected':''}>Ikke kontrollert i dag</option>
-      </select>
-      <select id="f-hovedstatus">
-        <option value="" ${filterHovedstatus===''?'selected':''}>Alle statuser</option>
-        <option value="operativ" ${filterHovedstatus==='operativ'?'selected':''}>🟢 Operative</option>
-        <option value="oppfolging" ${filterHovedstatus==='oppfolging'?'selected':''}>🟡 Under oppfølging</option>
-        <option value="verksted" ${filterHovedstatus==='verksted'?'selected':''}>🟠 Verksted bestilt</option>
-        <option value="ute-av-drift" ${filterHovedstatus==='ute-av-drift'?'selected':''}>🔴 Ute av drift</option>
-        <option value="har-aktiv-sjafor" ${filterHovedstatus==='har-aktiv-sjafor'?'selected':''}>🚚 Har aktiv sjåfør</option>
-      </select>
-      <select id="f-loyve">
-        <option value="" ${filterLoyve===''?'selected':''}>Alle (løyvenummer)</option>
-        <option value="har" ${filterLoyve==='har'?'selected':''}>Har løyvenummer</option>
-        <option value="mangler" ${filterLoyve==='mangler'?'selected':''}>Mangler løyvenummer</option>
-      </select>
+      <button type="button" class="btn ${showRegisterFilter || aktiveFiltre > 0 ? '' : 'secondary'} reg-filterbtn" id="reg-filter-btn" aria-expanded="${showRegisterFilter}" aria-controls="reg-filter-panel">Filter ${showRegisterFilter ? '▲' : '▼'}${aktiveFiltre > 0 ? `<span class="n">${aktiveFiltre}</span>` : ''}</button>
     </div>
+    ${showRegisterFilter ? `
+    <div class="reg-filterpanel" id="reg-filter-panel">
+      <div class="reg-filterpanel-tittel">Filtrer</div>
+      <div class="reg-filtergruppe">
+        <span class="gl">Kontrollstatus i dag</span>
+        <label><input type="checkbox" id="qf-kontrollert-cb" ${filterKontrollStatus==='kontrollert' ? 'checked' : ''}> Kontrollert</label>
+        <label><input type="checkbox" id="qf-ikke-kontrollert-cb" ${filterKontrollStatus==='ikke' ? 'checked' : ''}> Ikke kontrollert</label>
+      </div>
+      <div class="reg-filtergruppe">
+        <span class="gl">Vis også</span>
+        <label><input type="checkbox" id="qf-vis-reserve-cb" ${visReserve ? 'checked' : ''}> Reserve</label>
+        <label><input type="checkbox" id="qf-vis-ute-cb" ${visUteAvDrift ? 'checked' : ''}> Ute av drift</label>
+      </div>
+      <div class="reg-filterselects">
+        <div><label for="f-kategori">Kategori</label>
+          <select id="f-kategori">${kategoriOptionsHtml(filterKategori, 'Alle kategorier')}</select></div>
+        <div><label for="f-hovedstatus">Status</label>
+          <select id="f-hovedstatus">
+            <option value="" ${filterHovedstatus===''?'selected':''}>Alle statuser</option>
+            <option value="operativ" ${filterHovedstatus==='operativ'?'selected':''}>🟢 Operative</option>
+            <option value="oppfolging" ${filterHovedstatus==='oppfolging'?'selected':''}>🟡 Under oppfølging</option>
+            <option value="verksted" ${filterHovedstatus==='verksted'?'selected':''}>🟠 Verksted bestilt</option>
+            <option value="ute-av-drift" ${filterHovedstatus==='ute-av-drift'?'selected':''}>🔴 Ute av drift</option>
+            <option value="har-aktiv-sjafor" ${filterHovedstatus==='har-aktiv-sjafor'?'selected':''}>🚚 Har aktiv sjåfør</option>
+          </select></div>
+        <div><label for="f-loyve">Løyvenummer</label>
+          <select id="f-loyve">
+            <option value="" ${filterLoyve===''?'selected':''}>Alle (løyvenummer)</option>
+            <option value="har" ${filterLoyve==='har'?'selected':''}>Har løyvenummer</option>
+            <option value="mangler" ${filterLoyve==='mangler'?'selected':''}>Mangler løyvenummer</option>
+          </select></div>
+      </div>
+    </div>` : ''}`;
+    })()}
 
     ${filtered.length === 0 ? `
       <div class="empty">
@@ -9960,20 +10037,20 @@ function attachRegisterListeners(){
     filterSearch = e.target.value; render();
     const el = document.getElementById('f-search'); el.focus(); el.selectionStart = el.value.length;
   });
-  document.getElementById('f-kategori').addEventListener('change', e => { filterKategori = e.target.value; render(); });
-  document.getElementById('f-kontrollstatus').addEventListener('change', e => { filterKontrollStatus = e.target.value; render(); });
-  document.getElementById('f-hovedstatus').addEventListener('change', e => { filterHovedstatus = e.target.value; render(); });
-  document.getElementById('f-loyve').addEventListener('change', e => { filterLoyve = e.target.value; render(); });
-  document.getElementById('qf-kontrollert-btn').addEventListener('click', () => {
-    filterKontrollStatus = filterKontrollStatus === 'kontrollert' ? '' : 'kontrollert';
-    render();
-  });
-  document.getElementById('qf-ikke-kontrollert-btn').addEventListener('click', () => {
-    filterKontrollStatus = filterKontrollStatus === 'ikke' ? '' : 'ikke';
-    render();
-  });
-  document.getElementById('qf-vis-reserve-btn').addEventListener('click', () => { visReserve = !visReserve; render(); });
-  document.getElementById('qf-vis-ute-btn').addEventListener('click', () => { visUteAvDrift = !visUteAvDrift; render(); });
+  // Prioritet 52, Del 4: Filter-knappen åpner/lukker panelet; alle filterelementene under
+  // finnes kun i DOM-en når panelet er åpent (derfor betingede oppslag). Selve filtervariablene
+  // og -semantikken er uendret.
+  document.getElementById('reg-filter-btn').addEventListener('click', () => { showRegisterFilter = !showRegisterFilter; render(); });
+  const regSel = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('change', fn); };
+  regSel('f-kategori', e => { filterKategori = e.target.value; render(); });
+  regSel('f-hovedstatus', e => { filterHovedstatus = e.target.value; render(); });
+  regSel('f-loyve', e => { filterLoyve = e.target.value; render(); });
+  // Kontrollert/Ikke kontrollert leser/skriver samme filterKontrollStatus som det tidligere
+  // nedtrekket og de tidligere hurtigknappene (utelukker hverandre; å fjerne krysset = «Alle»).
+  regSel('qf-kontrollert-cb', e => { filterKontrollStatus = e.target.checked ? 'kontrollert' : ''; render(); });
+  regSel('qf-ikke-kontrollert-cb', e => { filterKontrollStatus = e.target.checked ? 'ikke' : ''; render(); });
+  regSel('qf-vis-reserve-cb', e => { visReserve = e.target.checked; render(); });
+  regSel('qf-vis-ute-cb', e => { visUteAvDrift = e.target.checked; render(); });
   // Prioritet 72.0: gruppene er faner, ikke lenger en ekspander/lukk-akkordion —
   // data-toggle-register-gruppe finnes ikke lenger i markup (kun det historiske
   // "Biler i drift"-panelet, som fortsatt ikke er en fane og derfor ikke trenger en

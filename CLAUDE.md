@@ -1,6 +1,11 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 51 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 52 —
+**Dashboard UX Polish** (ren opprydding, ingen ny funksjonalitet): permanent scrollbarspor
+og fanebytte i Hurtigoversikt uten full `render()` (ingen layout shift), Operativ kontroll-
+banneret komprimert til to linjer, Bestill tjenester/Hurtigoversikt som seksjoner med
+overskrift og skillelinje i stedet for bokser, og Biloversikt med kun Søk + Filter-panel.
+Se egen seksjon «Prioritet 52» nederst. Før det: Prioritet 51 —
 **Korrigert krav: Aktiv sjåfør og dagskille kl. 04:00.** Den ferdige regelen:
 **«Aktiv sjåfør beholdes gjennom operativ dag, men nullstilles alltid ved operativt
 dagskille kl. 04:00.»** Denne saken RETTER tre reelle avvik funnet ved grundig lesing av
@@ -5288,3 +5293,60 @@ Bilkategorier, `storage.airtable.js`/Airtable-skjema, PWA/manifest-ikonfilene.
 - Ikke UI-verifisert i en faktisk kjørende nettleser i denne omgangen (se «Testet» over) —
   kun grundig statisk lese-/strukturverifisering og et manuelt tankeeksperiment mot
   ticket-ens 14 testscenarioer.
+
+---
+
+## Prioritet 52 (2026-09-18) — Dashboard UX Polish
+
+Bestilling: stabil layout, mindre visuell støy, tydeligere seksjoner, bedre plassutnyttelse —
+uten nye KPI-er, widgets eller dashboardmoduler. `storage.airtable.js` er IKKE endret (ren
+presentasjon); `CACHE_VERSION`/`APP_VERSION`/`version.json` økt sammen (100 → 101),
+`kontroll.html` er eksakt kopi av `index.html`.
+
+**Del 1 — ingen layout shift (varige regler):**
+- `html{overflow-y:scroll;scrollbar-gutter:stable}` — scrollbarsporet er permanent. Fjern det
+  ikke: uten det hopper hele siden ~15 px sideveis når en fane gir kortere/lengre innhold.
+- **Fanebytte i Hurtigoversikt kaller ikke `render()`.** `byttHurtigoversiktFane()` bytter
+  aktiv fane-klasse og `.dash-hov-innhold` (id `dash-hov-sek`), og fester lyttere på nytt kun
+  på det nye innholdet via `attachHovInnholdListeners(root)` (samme handlere som før; kalles
+  med `document` fra `attachDashboardListeners()`). Nye lyttere for Hurtigoversikt-innhold
+  skal legges i `attachHovInnholdListeners()`, ikke direkte i `attachDashboardListeners()`,
+  ellers dobbeltfestes de eller mangler etter fanebytte.
+- `.dash-hov-innhold{min-height:420px}`, og funksjonen «ratchet»er inline `min-height` opp til
+  høyeste fane som er vist (aldri ned). Grunn: en lavere fane forkorter ellers siden, og
+  nettleseren klemmer scrollposisjonen når man står nær bunnen (målt: `same:false` uten dette).
+  Nullstilles av neste full `render()`.
+- **Bestill tjenester på Dashboard bytter ikke innhold** (de fire kortene navigerer videre),
+  så tolkningen av «min-height 260 px» er: fast 260 px på den dedikerte Bestill tjenester-
+  skjermens 2×2-rutenett (`.dash40-grid2x2`). En minimumshøyde på Dashboardets enkeltrad ga
+  bare ~100 px tomrom og er bevisst utelatt.
+
+**Del 2 — banner:** `dashOperativBannerHtml()` (delt desktop/mobil) er to linjer: dato/klokkeslett/
+vær, deretter «N% i dag • N% siste 7 dager • 🚚 N aktive» + «Se hvilke →» (`data-goto-biloversikt-
+filter="har-aktiv-sjafor"`, uendret klikkmål). Samme tre tall/kilder som før (`operativKontrollStatusIdag()`,
+`kontrollrateUke()`, `d.hDriftCount`); høyde ca. 190 → 75 px. Overskriften «Operativ kontroll»
+er fjernet fra kortet (sidetittelen ligger i toppstripen/`.p41-head`); «X av Y operative biler»
+ligger i `title`-tooltip.
+
+**Del 3 — seksjoner:** ny delt `dashBestillSekHtml()` (desktop og mobil, samme markup) og
+`dashHurtigoversiktHtml()` er `<section class="dash-sek">` med `.dash-sek-tittel` (versal
+overskrift) og `.dash-sek + .dash-sek` (luft + `--line-soft`-skillelinje). Ingen nye kort/rammer;
+Hurtigoversikt mistet i stedet sin egen `.panel`-ramme.
+
+**Del 4 — Biloversikt:** kun `#f-search` + `#reg-filter-btn` («Filter ▼», antall aktive filtre
+som merke) er synlige; `showRegisterFilter` (ren visningstilstand, nullstilles av
+`resetRegisterFiltre()`) åpner panelet med avkrysning for Kontrollert/Ikke kontrollert
+(`filterKontrollStatus`, utelukker hverandre som før) og Reserve/Ute av drift (`visReserve`/
+`visUteAvDrift`), samt selectene Kategori/Status/Løyvenummer (`f-kategori`/`f-hovedstatus`/
+`f-loyve`). Filtervariabler og -predikat i `renderRegister()` er uendret. Det gamle
+`f-kontrollstatus`-nedtrekket er fjernet som kontroll (funksjonen dekkes av de to avkrysningene).
+«Biltype» i ticket-ens filterliste finnes ikke som filter i koden (kategori er det nærmeste).
+
+**Verifisert:** global brace-/paren-/bracket-balanse identisk med HEAD, backticks partall; nettleser-
+test (lokal statisk server, live Airtable-lesing med `storage.set`/`delete` no-op, admin-tilstand
+satt i konsollen) på 1400 px og 579 px: posisjon og bredde for sidepanel, toppstripe, banner,
+kortrekke og faner identisk før/etter alle fanebytter, også ved scroll til bunn; scrollbarspor
+15 px konstant; filterpanelet og alle filtre endrer bilantallet riktig. **Ikke testet:** ekte
+mobilenhet/touch, og at Hurtigoversikt-handlingsknappene i Varsler-fanen (Godta/Avslå km, Merk
+som løst) fortsatt fungerer etter fanebytte — lytterne festes på nytt, men handlingene ble ikke
+utløst mot ekte data (skriving var bevisst avslått).

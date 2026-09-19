@@ -1,6 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-18 (Prioritet 51 — Korrigert krav: Aktiv sjåfør beholdes gjennom
+Sist oppdatert: 2026-09-18 (Prioritet 52 — Dashboard UX Polish: permanent scrollbarspor og
+fanebytte i Hurtigoversikt uten full render (ingen layout shift), Operativ kontroll-banner
+komprimert til to linjer, Bestill tjenester/Hurtigoversikt som seksjoner med overskrift og
+skillelinje, Biloversikt med kun Søk + Filter-panel. Ingen ny funksjonalitet). Før det:
+2026-09-18 (Prioritet 51 — Korrigert krav: Aktiv sjåfør beholdes gjennom
 operativ dag, men nullstilles alltid ved dagskille kl. 04:00. Rettet tre reelle avvik i den
 allerede eksisterende mekanismen — aktivSjaforSiden ble feilaktig overskrevet ved gjentatt
 kontroll av samme sjåfør, ryddOppBiloktDagskille() manglet rollback ved mislykket lagring,

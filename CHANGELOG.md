@@ -15,6 +15,31 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-18
 
+### Prioritet 52 — Dashboard UX Polish
+
+Ren opprydding av eksisterende design — ingen nye KPI-er, widgets, moduler eller Airtable-felt
+(`storage.airtable.js` uendret). Full detalj i CLAUDE.md, Prioritet 52.
+
+1. **Ingen layout shift ved fanebytte.** `html{overflow-y:scroll;scrollbar-gutter:stable}`
+   (permanent scrollbarspor). Hurtigoversikt-faner bytter nå KUN `.dash-hov-innhold` via ny
+   `byttHurtigoversiktFane()` (ingen `render()`), med `min-height:420px` som «ratchetes» opp til
+   høyeste fane som er vist, så siden aldri kan krympe og klemme scrollposisjonen. Lyttere for
+   innholdet er flyttet til `attachHovInnholdListeners(root)`.
+2. **Operativ kontroll-banner komprimert** fra ca. 190 til ca. 75 px: dato/klokkeslett/vær på én
+   linje, «33% i dag • 38% siste 7 dager • 🚚 1 aktiv» + «Se hvilke →» på én linje.
+3. **Tydeligere seksjoner** uten nye bokser: Bestill tjenester (ny delt `dashBestillSekHtml()`)
+   og Hurtigoversikt er seksjoner med versal overskrift, luft og subtil skillelinje.
+4. **Biloversikt:** kun Søk + `[Filter ▼]` som standard; Kontrollert/Ikke kontrollert/Reserve/
+   Ute av drift (avkrysning), Kategori, Status og Løyvenummer ligger i et lukket panel
+   (`showRegisterFilter`). Filterlogikken er uendret; knappen viser antall aktive filtre.
+5. Versjon 101 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert.
+
+Verifisert i nettleser (lokal server, live Airtable-lesing, skriving av `storage.set` deaktivert,
+admin-tilstand satt i konsollen) på desktop (1400 px) og smal visning (579 px): posisjon/bredde
+for sidepanel, toppstripe, banner, kortrekke og faner identisk før/etter alle fire fanebytter,
+også ved scroll til bunn; filterpanelet, avkrysningene og selectene endrer bilantallet som før.
+Ikke verifisert på ekte mobilenhet.
+
 ### Prioritet 51 — Korrigert krav: Aktiv sjåfør og dagskille kl. 04:00
 
 Ferdig regel: «Aktiv sjåfør beholdes gjennom operativ dag, men nullstilles alltid ved
