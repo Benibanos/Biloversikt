@@ -1,6 +1,14 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 57 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 58 —
+**Dashboard Editor 1.0.** (Brukerens EGEN betegnelse «Prioritet 58» — det finnes fra før en helt annen,
+«Prioritet 58 (2026-09-13) — Synlighetsdrevet Lucide-migrering»; navnesammenfallet er tilfeldig.) Administrator
+omorganiserer Desktop Dashboard selv i et 12-kolonners rutenett: dra kort, endre bredde/høyde, skjule/vise, legge
+til kort fra et bibliotek, angre, forhåndsvise, lagre og tilbakestille — Innstillinger → Layout Editor → Desktop
+Dashboard → «Rediger dashboard». Layouten lagres som én versjonert Settings-blob `dashboard-layout-v1`;
+`storage.airtable.js` er IKKE endret. Se «Prioritet 58 (2026-09-19)» nederst — den avløser opp/ned-modellen for
+Desktop Dashboard (Prioritet 44) og «banneret er fast innhold» (Prioritet 50/57) for desktop; mobil og Min Bil er
+uendret. Før det: 2026-09-19 (Prioritet 57 —
 **Dashboard og Hurtigoversikt.** Varsler-fanen har samme radmønster som de andre fanene, og «Neste
 verkstedtime» ligger i Dashboard-banneret (høyre kolonne). Se «Prioritet 57 (2026-09-19)» nederst — den
 avløser Dashboard-plasseringen fra Prioritet 54 og Varsler-radene fra Prioritet 50. Før det: 2026-09-19
@@ -1421,6 +1429,10 @@ testresultater.
 ---
 
 ## Prioritet 44 (2026-09-10) — 🎨 Layout Editor under Innstillinger
+
+> ⚠️ **Delvis avløst av Prioritet 58 (2026-09-19):** opp/ned-modellen gjelder nå KUN Mobil Dashboard og Min Bil.
+> Desktop Dashboard har egen rutenett-editor (`dashboard-layout-v1`); `DESKTOP_LAYOUT_KOLONNER`,
+> `layoutFlateSynligeNokler()` og `DASHBOARD_LAYOUT_FLATER.desktop` er fjernet. Se «Prioritet 58 (2026-09-19)» nederst.
 
 Bestilling: redusere behovet for kodeendringer ved layoutjusteringer. Egen
 «🎨 Layout Editor» under Innstillinger som lar brukeren administrere
@@ -4991,6 +5003,11 @@ mekanismer), Layout Editor-mekanikken for øvrig, Bilkategorier, `resetFleetData
 
 ## Prioritet 50 (2026-09-18) — Dashboard 5.0: ett skall, ett banner, én Hurtigoversikt
 
+> ⚠️ **Delvis avløst av Prioritet 58 (2026-09-19) for DESKTOP:** «banneret er fast innhold, ikke en Layout Editor-
+> komponent» gjelder ikke lenger der — Operativ kontroll og Neste verkstedtime er nå to vanlige kort i Dashboard
+> Editor (`operativ-kontroll`, `neste-verkstedtime`) som kan flyttes/skjules. Mobil bruker fortsatt det samlede,
+> faste banneret (`dashOperativBannerHtml()`). Resten av denne seksjonen (kontrollgrunnlag, Hurtigoversikt) gjelder uendret.
+
 Bestilling: forenkle Dashboard til et operativt arbeidsbord — under 2 sekunder skal
 brukeren forstå kontrollstatus i dag, kontrolltrend, aktive biler, saker som krever
 handling, planlagt verksted og varsler. To deler, begge omfattende.
@@ -5694,3 +5711,161 @@ for kontrollstatus), klikk på indre tekst åpner avtalen, tom-tilstand uten bok
 lik radstruktur/høyde (56 px)/startposisjon og ingen knapper i alle fire faner, klikkmål for varsellampe/kommentar,
 stabling og ingen horisontal overflow på mobil. **Ikke testet:** ekte Airtable, ekte telefon, eller pikselsammenligning
 av banneret (skjermbildene i panelet er små; layout målt via DOM).
+
+---
+
+## Prioritet 58 (2026-09-19) — Dashboard Editor 1.0
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 58 (2026-09-13) — Synlighetsdrevet
+Lucide-migrering» lenger opp. Nummeret følger brukerens backlog, ikke denne filens rekkefølge.)
+
+**Varig regel: utseendet på Desktop Dashboard er data, ikke kode.** Administrator bestemmer plassering, størrelse og
+synlighet av kortene selv. Layouten styrer KUN dette — kortene bruker fortsatt sine egne eksisterende funksjoner og
+data, og ingen forretningslogikk er endret. Skal Dashboard få et nytt kort, legges det til i `DASH_WIDGETER` (ett
+sted), ikke bygges inn i `renderDashboard()`.
+
+**Inngang:** Innstillinger → 🎨 Layout Editor → Desktop Dashboard → «Rediger dashboard»
+(`#dash-rediger-btn` → `dashStartRedigering()` → åpner Dashboard i redigeringsmodus). Innstillinger viser status
+(standard/egendefinert, sist endret av/når, ugyldig/lesefeil) og en skjematisk miniforhåndsvisning. Knappen er
+deaktivert i mobilvisning og ved lesefeil.
+
+### Datamodell
+
+ÉN versjonert JSON-blob i den eksisterende Settings-tabellen, nøkkel **`dashboard-layout-v1`**
+(`DASH_LAYOUT_KEY`) — samme mønster som `operativ-kontrollgrunnlag`/`standardverksted`. Ingen ny Airtable-tabell, ingen
+`LIST_TABLES`-endring, **`storage.airtable.js` uendret** (uendret `versjon`/`?v=2.20.0`):
+
+    {"version":1,
+     "widgets":[{"widgetId":"neste-verkstedtime","x":8,"y":0,"width":4,"height":2,"visible":true}, …],
+     "updatedAt":"ISO", "updatedBy":"<innlogget rolle>"}
+
+Delt/global for hele bilparken (ikke per bruker), som tema/bilkategorier. `version:1` er selve formatversjonen — en
+framtidig v2 skal lese v1 og migrere. Mobil Dashboard og Min Bil bruker fortsatt den eldre `dashboard-layout`
+(opp/ned + skjul/vis, `DASHBOARD_LAYOUT_FLATER` — nå uten `desktop`).
+
+### Rutenettet (regler som aldri skal brytes)
+
+- **12 kolonner.** `x` (0–11) og `width` (1–12) er kolonner; `y` og `height` er rader. Ingen piksler lagres. Radhøyden
+  (`DASH_RAD_PX` = 40) og mellomrommet (`DASH_GAP_PX` = 12) er rene CSS-enheter og må samsvare med `.dash-grid` i CSS —
+  editoren regner pekerposisjon om til kolonne/rad med dem.
+- **`height` er en MINSTEHØYDE.** Radene er `minmax(40px, auto)`: et kort med mer innhold vokser i stedet for å bli
+  klippet. Derfor kan en for lav høyde aldri skjule innhold.
+- **Ingen overlapp — noensinne.** `dashLayoutPlaser(liste, prioId, prioStartY)` er ENESTE sted plassering løses og
+  brukes av alt (drag, tastatur, steppere, Vis kort, Tilbakestill, innlesing). Den klemmer kort inn i rutenettet og
+  innenfor `min`-grensene (`DASH_WIDGETER[id].min`, maks høyde 24), og plasserer synlige kort ett og ett med
+  «tyngdekraft»: hvert får laveste `y` der det ikke kolliderer. `x` og størrelse endres aldri av plasseringen. Tomme
+  rader mellom kort kan derfor ikke oppstå (tomme kolonner kan).
+- **Rekkefølgen avgjør hvem som viker**, og er bygget som «sett inn»: vanlige kort ordnes etter midtpunktet
+  (`y + høyde/2`), kortet du drar etter overkanten, og ved flytting NEDOVER etter underkanten. To kort bytter altså
+  plass når underkanten på kortet du drar passerer midten av kortet under; dras kortet oppover havner det over det det
+  treffer. **Lærdom:** den første versjonen skjøv alltid det andre kortet under det du drar — men tyngdepakkingen
+  reverserte det, så et kort kunne ikke dras ned forbi et annet (det «falt tilbake»). Oppdaget først med en ekte
+  museforflytning; ikke gå tilbake til «det flyttede kortet står fast».
+- **Innlesing kaster aldri** (`dashLayoutNormaliser()`): ukjent `widgetId`, duplikater og ikke-objekter ignoreres;
+  ugyldig geometri (ikke-heltall) på et KJENT kort repareres fra dets standardplassering i stedet for at kortet
+  forsvinner; kort som mangler helt (f.eks. et nytt bibliotekskort lagt til i koden etter at layouten ble lagret)
+  legges til som **skjult** — de dukker aldri opp uventet, men finnes under «Legg til kort». Strukturelt ugyldig blob
+  (ikke objekt, `version` ≠ 1, `widgets` ikke liste) = status `korrupt`.
+- **Skjulte kort** beholder geometrien sin men ligger ikke på rutenettet (teller ikke i overlapp). «Legg til kort»
+  (`dashEditVis()`) setter kortet nederst i kolonne 1 og lar tyngdekraften løfte det til første ledige plass.
+- **Ingen egne farger/skrifter/pikselplassering er mulig** — editoren har bare posisjon, bredde, høyde og synlighet.
+
+### Komponentbiblioteket (`DASH_WIDGETER`)
+
+Hvert kort = `{label, ikon, beskrivelse, std:{x,y,width,height,visible}, min:{width,height}, html(d)}`. `html` er ETT kall
+til en eksisterende dashboardfunksjon:
+
+| widgetId | Standard | Innhold / kilde |
+|---|---|---|
+| `operativ-kontroll` | x0 y0 8×2, synlig | `dashOperativBannerVenstreHtml(d)` — kontrollprosent i dag/7 driftsdager, aktive |
+| `neste-verkstedtime` | x8 y0 4×2, synlig | `dashBannerVerkstedHtml()` — `nesteVerkstedtime()` (Prioritet 54/57) |
+| `bestill` | x0 y2 12×4, synlig | `dashBestillSekHtml()` |
+| `hurtigoversikt` | x0 y6 12×11, synlig | `dashHurtigoversiktHtml(d)` (faner uendret) |
+| `aktive-biler` | skjult | `d.hDriftCount` + «Se hvilke →» (Biloversikt → Har aktiv sjåfør) |
+| `kalender` | skjult | `kalenderUkeWidgetHtml()` — «Denne uken», samme kilde som Kalenderen |
+| `varsler` | skjult | `varslingssenterAktiveListe()` + `dashHovVarselRadHtml()` (4 nyeste) |
+| `aktive-saker` | skjult | `sakFase(s)==='aktiv'` + `dashHovSakRadHtml()` (4 nyeste) |
+| `loftebord` | skjult | telling per status fra `loftebordVedlikeholdStatus()`/`loftebordKontrollStatus()` (flåten, ikke ute av drift) |
+
+Standardlayouten (de fire synlige) er Dashboard slik det var før Prioritet 58, med ÉN synlig forskjell: banneret er nå
+to kort side om side (Operativ kontroll | Neste verkstedtime) i stedet for ett kort med en innfelt knapp.
+`kalenderUkeDager()`/`kalenderUkeWidgetHtml()` var fjernet i Prioritet 50 og er gjeninnført fra git (kun uten den inline bunnmargen)
+(`310a9b1^`). Ingen av de fem bibliotekskortene innfører ny beregning eller datamodell; løftebordkortet er bevisst
+kun et telleoppsett uten klikkmål (det finnes ingen naturlig flate for «alle biler»), og «Aktive biler» dupliserer
+med vilje «N aktive»-lenken i Operativ kontroll (skjult som standard).
+
+**Eldre lagret desktop-layout:** finnes ikke `dashboard-layout-v1`, bygges standarden med hensyn til en eventuell
+tidligere `dashboard-layout`.desktop (skjult/rekkefølge for Bestill/Hurtigoversikt), slik at en administrator som
+allerede hadde tilpasset Dashboard ikke får det «tilbakestilt» av oppgraderingen (`dashLayoutStandard(true)`).
+«Tilbakestill» i editoren bruker ren standard (`dashLayoutStandard(false)`).
+
+### Normalmodus
+
+`renderDashboard()` (desktop) = DB-varselbanner + `dashRutenettHtml(dashLayoutAktiv(), d, false)`.
+`dashLayoutAktiv()` = gyldig lagret layout, ellers standard — en lesefeil/manglende/korrupt layout gir aldri krasj eller
+tomt Dashboard. Hvert kort er `<div class="dash-w" data-dash-widget style="--gx/--gy/--gw/--gh">`; DOM-rekkefølgen er
+`(y, x)`. Et kort som kaster under rendring erstattes av «Kortet kunne ikke vises» uten å ta med resten av Dashboard
+(`dashWidgetHtml()`). Smal innholdsflate (`@container (max-width:640px)` på `.dash-grid-wrap`, altså brukbar bredde og ikke
+vindusbredde) stabler kortene i full bredde i leserekkefølge. Alle eksisterende lyttere (`attachDashboardListeners()`)
+virker uendret siden kortene er vanlig DOM. Mobil (`renderMobilHjem()`) er uendret og bruker fortsatt det samlede banneret.
+
+### Redigeringsmodus
+
+- **Kun administrator, kun desktop.** `dashKanRedigere()` = `!driverMode && loggedInRole && isAdmin` (samme
+  innloggingsgrunnlag som resten av administrasjonsdelen — Innstillinger er allerede bak innlogging). Mobilvisning
+  (`currentUiExperience()==='mobil'`) nekter å starte og avslutter en pågående redigering stille. Utlogging avslutter den.
+- **Utkast, ikke lagring.** `dashEditUtkast` er en kopi; normalmodus leser aldri utkastet, og INGENTING skrives til
+  Airtable før «Lagre layout». Tilstand (`dashEditModus` m.fl.) er ren visningstilstand og overlever ikke omlasting.
+- **Skjematisk redigering (fast radhøyde) og ekte forhåndsvisning.** Redigering viser skjematiske kort (navn,
+  størrelse, beskrivelse, kontroller) på fast 40 px rad, slik at pekerposisjon kan regnes om til kolonne/rad uten at
+  innholdshøyder forstyrrer; kolonnene vises som svake striper. «Forhåndsvis» viser de EKTE kortene med utkastet, i et
+  `inert` rutenett (ingenting kan aktiveres, så man ikke navigerer bort fra utkastet).
+- **Handlinger:** dra i tittelen (flytt) eller hjørnet (størrelse) med musepeker/berøring — kortene «snapper», og
+  alle kort tegnes om live (`dashLayoutPlaser()` → CSS-variabler, uten `render()`), lagres i utkastet først ved slipp;
+  Bredde/Høyde −/+; Skjul; «Legg til kort»-chips for skjulte kort; piltaster på et fokusert kort flytter (Pil opp/ned
+  gjentar til kortet kommer forbi det neste), Skift+piltaster endrer størrelse; **Angre** (opptil 50 steg);
+  **Tilbakestill** (bekreftelse → ren standard i UTKASTET, kan angres, lagres ikke før Lagre); **Avbryt** (bekreftelse
+  ved endringer); **Lagre layout** (kun aktiv ved endringer).
+- **Lagring** (`dashEditLagre()`): validerer (minst ett synlig kort), avviser ved status `lesefeil`, ber om bekreftelse
+  hvis en annen administrator har lagret siden redigeringen startet, låser knappen, skriver, og byttes først ETTER
+  bekreftet skriving til ny aktiv layout (+ toast «Dashboard-layout lagret»). **Ved feil beholdes forrige layout og
+  utkastet urørt**, med melding. `dashLayoutLagrer` hindrer dobbeltlagring og at en eldre lesing overskriver en lagring.
+- **Navigasjonsvern:** `goTo()` til en annen skjerm med ulagrede endringer krever bekreftelse (Avbryt = blir stående);
+  uendret utkast forlates uten spørsmål. `formInProgress()` er sann i redigeringsmodus, så bakgrunnssynken aldri tegner
+  over et utkast eller et pågående drag.
+
+### Synk mellom administratorenheter
+
+`subscribeLiveSync()` poller kun `LIST_TABLES`-nøkler, så `lastDashLayout()` kalles eksplisitt i `loadAll()` (oppstart)
+og i `_lagBatchetLiveSyncHandler()` (hver runde, som operativt kontrollgrunnlag — én ekstra Settings-lesing per 45 s
+per klient; i motsetning til `varselSett`/`standardverksted` synkroniseres altså denne). Samme tre tilstander som
+kontrollgrunnlaget: `mangler`, `korrupt` (standard brukes, ingenting gjettes) og `lesefeil` (en tidligere gyldig layout
+beholdes urørt — en lesefeil er ikke en tom layout). En endring gjort av en annen mens du redigerer overskriver aldri
+utkastet: varsel i verktøylinjen (`#dash-edit-ekstern`) og bekreftelse ved lagring.
+
+### Filer, tester og begrensninger
+
+**Endret:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (`CACHE_VERSION` v105 → v106), `version-check.js`
+(`APP_VERSION` 105 → 106), `version.json` (105 → 106), CLAUDE.md/ROADMAP.md/CHANGELOG.md. **Ikke endret:**
+`storage.airtable.js`, Airtable, `AIRTABLE_MIGRATION.md` (Settings-raden opprettes av storage-laget ved første lagring),
+mobil/Min Bil-editorene, all forretningslogikk (`dashboardBeregning()`, saksmotor, kontrollgrunnlag, km, aktiv sjåfør).
+
+**Testet** i nettleser (Browser-pane) mot en scratch-kopi med in-memory mock-storage — ingen kontakt med ekte Airtable
+(`node`/`python` finnes ikke): standardlayout ≙ før; alle ni kort rendres uten klipping; drag/resize/skjul/vis/tastatur/
+Angre/Tilbakestill/forhåndsvisning uten noen gang overlapp (også med ekte museforflytning); min-størrelser; mislykket
+lagring (forrige layout + utkast beholdt), vellykket lagring (blob i riktig format), omlasting, korrupt JSON/feil versjon/
+ikke-liste/tall, ukjente og duplikate widgeter, søppelgeometri, overlappende lagret data, lesefeil med og uten tidligere
+layout, manglende bibliotekskort, eldre desktop-layout, synk via den faktiske bakgrunnshandleren (normalmodus og under
+redigering), navigasjons-/Avbryt-/utloggingsvern, mobil (editor nektes, mobilforside og mobil/Min Bil-editorene uendret),
+stabling og ingen horisontal overflow ved 800 px, redigering ved 800 px, brace-/backtick-balanse.
+**Ikke testet:** mot ekte Airtable (bl.a. at Settings-raden faktisk opprettes ved første lagring — samme mønster som
+`operativ-kontrollgrunnlag`), på ekte berøringsskjerm/nettbrett (`touch-action:none` er satt på håndtakene, men drag er
+kun testet med mus), i lys modus, og Lucide-ikonene kommer som før fra CDN.
+
+**Kjente begrensninger:** (a) redigering av flere administratorer samtidig følger «siste lagring vinner» (med varsel/
+bekreftelse), ikke sammenslåing; (b) utkastet mistes ved omlasting av siden (ingen `beforeunload`-vern); (c) ingen Esc for
+å avbryte et drag (avbrutt pekerhendelse forkastes) og ingen Gjenta; (d) tyngdepakkingen fjerner tomme rader — et kort
+kan ikke stå igjen med bevisst luft over seg; (e) kort med mye innhold (Hurtigoversikt) vokser utover sin lagrede høyde
+i normalmodus, så redigeringens høyde er et minimum, ikke en fasit; (f) Tilbakestill i editoren er utkast-basert — det
+finnes ingen egen «lagre standard direkte»-knapp i Innstillinger; (g) `dashboardBeregning()` beregnes også for skjulte kort
+(kun i normalmodus/forhåndsvisning) — samme overflødige beregning som før, bevisst ikke ryddet.

@@ -15,6 +15,46 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-19
 
+### Prioritet 58 — Dashboard Editor 1.0
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 58 (2026-09-13) — Synlighetsdrevet
+Lucide-migrering».) Full detalj i CLAUDE.md, «Prioritet 58 (2026-09-19)».
+
+1. **Rutenett-editor for Desktop Dashboard.** Innstillinger → Layout Editor → Desktop Dashboard → «Rediger dashboard»
+   åpner Dashboard i redigeringsmodus (kun innlogget administrator, kun desktop). 12 kolonner; `x`/`y`/`width`/`height`
+   er kolonner og rader, ingen piksler, ingen frie farger/skrifter. Dra i tittelen (flytt) eller hjørnet (størrelse),
+   Bredde/Høyde −/+, Skjul, «Legg til kort», piltaster (Skift = størrelse), **Angre**, **Forhåndsvis** (ekte kort, `inert`),
+   **Tilbakestill** (i utkastet), **Avbryt**, **Lagre layout**. Ingenting lagres før «Lagre layout».
+2. **Komponentbibliotek på ni kort** (`DASH_WIDGETER`): Operativ kontroll og Neste verkstedtime (banneret splittet i to
+   kort), Bestill tjenester, Hurtigoversikt, og fem nye bibliotekskort som er skjult som standard — Aktive biler,
+   Kalender («Denne uken», gjeninnført fra git), Varsler, Aktive saker, Løftebordstatus. Alle kaller eksisterende
+   funksjoner/data; ingen forretningslogikk endret. Standard = Dashboard som før, med banneret som to kort.
+3. **Ingen overlapp, ingen klipping.** `dashLayoutPlaser()` løser all plassering («tyngdekraft», innsettingsrekkefølge så
+   kort kan bytte plass ved å dras forbi hverandre); `height` er en minstehøyde (`minmax(40px, auto)`). Smal
+   innholdsflate (< 640 px container) stabler kortene i leserekkefølge.
+4. **Lagring:** én versjonert Settings-blob `dashboard-layout-v1`
+   (`{version:1, widgets:[{widgetId,x,y,width,height,visible}], updatedAt, updatedBy}`). Ingen ny tabell, ingen
+   `LIST_TABLES`-endring, **`storage.airtable.js` uendret**. Mislykket lagring beholder forrige layout og utkastet.
+   Ugyldig/korrupt/manglende/uleselig layout → standard uten krasj; ukjente widgeter ignoreres; ugyldig geometri
+   repareres; nye bibliotekskort som mangler i en lagret layout legges til skjult. Eldre `dashboard-layout`.desktop
+   brukes som utgangspunkt for standard til første lagring.
+5. **Synk mellom administratorenheter:** `lastDashLayout()` i oppstart og i bakgrunnssynken; et åpent utkast
+   overskrives aldri (varsel + bekreftelse ved lagring). `goTo()`/utlogging/mobilvisning har vern rundt et åpent utkast.
+6. **Rettet underveis (egen funn):** første versjon av plasseringen lot kortet du drar stå fast og skjøv de andre under;
+   tyngdepakkingen reverserte det, så et kort ikke kunne dras ned forbi et annet. Oppdaget med en ekte museforflytning
+   (ikke med simulerte hendelser) og rettet med innsettingsrekkefølgen i pkt. 3.
+7. **Fjernet:** `DESKTOP_LAYOUT_KOLONNER`, `layoutFlateSynligeNokler()`, `DASHBOARD_LAYOUT_FLATER.desktop` og
+   desktop-grenen i den skjematiske forhåndsvisningen. Mobil Dashboard og Min Bil bruker fortsatt opp/ned-modellen.
+8. Versjon 106 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert.
+
+**Verifisert** i nettleser (Browser-pane) mot scratch-kopi med mock-storage — ingen ekte Airtable: standard ≙ før;
+alle ni kort uten klipping; drag/resize/skjul/vis/tastatur/Angre/Tilbakestill/forhåndsvisning uten overlapp (også ekte
+museforflytning); min-størrelser; mislykket og vellykket lagring; omlasting; korrupt JSON, feil versjon, ikke-liste,
+ukjente/duplikate widgeter, søppelgeometri, overlappende lagret data; lesefeil med/uten tidligere layout; synk via
+bakgrunnshandleren (normalmodus og under redigering); navigasjons-/Avbryt-/utloggingsvern; mobil (editor nektes,
+mobilforside og øvrige editorer uendret); ingen horisontal overflow ved 800 px; brace-/backtick-balanse.
+**Ikke testet** mot ekte Airtable eller ekte berøringsskjerm; ikke i lys modus.
+
 ### Prioritet 57 — Dashboard og Hurtigoversikt
 
 (Brukerens egen nummerering.) Full detalj i CLAUDE.md, «Prioritet 57 (2026-09-19)».

@@ -1,6 +1,11 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-19 (Prioritet 57 — Dashboard og Hurtigoversikt: Varsler-fanen bruker samme radmønster
+Sist oppdatert: 2026-09-19 (Prioritet 58 — Dashboard Editor 1.0: administrator omorganiserer Desktop Dashboard
+selv i et 12-kolonners rutenett — dra kort, endre bredde/høyde, skjule/vise, legge til kort fra et bibliotek på ni
+kort, angre, forhåndsvise, lagre og tilbakestille — via Innstillinger → Layout Editor → Desktop Dashboard → «Rediger
+dashboard». Én versjonert Settings-blob `dashboard-layout-v1`, ingen `storage.airtable.js`-endring; kort kan aldri
+overlappe; ugyldig/manglende/uleselig layout gir standard uten krasj; synkroniseres mellom administratorenheter. Mobil
+og Min Bil uendret). Før det: 2026-09-19 (Prioritet 57 — Dashboard og Hurtigoversikt: Varsler-fanen bruker samme radmønster
 som de andre Hurtigoversikt-fanene (ingen egne knapper/layout), og «Neste verkstedtime» ligger nå i
 Dashboard-banneret til høyre for kontrollstatusen — ett klikkbart felt — i stedet for nederst). Før det:
 2026-09-19 (Prioritet 56 — Moderniser hele sjåførmodus: Ringeliste er referansedesign for
@@ -924,6 +929,16 @@ i dybden i denne gjennomgangen (ingen egen "Operativ Belastning"-indikator
 funnet — se merknad under Dashboard-optimaliseringer).
 
 ## Dashboard-optimaliseringer
+
+✅ **Prioritet 58 (2026-09-19) — Dashboard Editor 1.0 (kun Desktop Dashboard).** Se CHANGELOG.md/CLAUDE.md.
+Verifisert i nettleser mot mock-storage (inkl. ekte museforflytning), **ikke** mot ekte Airtable eller ekte
+berøringsskjerm. Gjenstår/kjent: (a) første lagring mot ekte Airtable er ikke prøvd (Settings-raden opprettes av
+storage-laget, samme mønster som `operativ-kontrollgrunnlag`); (b) drag er kun testet med mus — `touch-action:none`
+er satt, men nettbrett er ikke prøvd; (c) siste lagring vinner ved samtidig redigering (varsel + bekreftelse, ikke
+sammenslåing); (d) utkastet mistes ved omlasting (ingen `beforeunload`-vern), ingen Esc under drag, ingen Gjenta;
+(e) Mobil Dashboard og Min Bil har fortsatt enkel opp/ned-editor — samme rutenett for mobil er en mulig egen sak;
+(f) «Tilbakestill» virker på utkastet og må lagres — ingen «lagre standard direkte» i Innstillinger.
+Standard er uendret Dashboard, men banneret er nå to kort side om side (Operativ kontroll | Neste verkstedtime).
 
 ✅ Implementert og verifisert — Prioritet 26.2 (Dashboard Nullstilling):
 svarer kun på tre spørsmål (hva må gjøres nå / hva kommer snart / hvilken
