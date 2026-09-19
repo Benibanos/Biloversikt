@@ -1,6 +1,15 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-18 (Prioritet 52 — Dashboard UX Polish: permanent scrollbarspor og
+Sist oppdatert: 2026-09-19 (Prioritet 53 — Konfigurerbart grunnlag for operativ kontroll:
+administrator velger selv hvilke kjøretøy (lagret på Vehicle-ID) og hvilke ukedager
+(ISO 1–7) som utgjør operativ kontroll, i Innstillinger → Systeminnstillinger → Operativ
+kontrollgrunnlag. Én Settings-blob `operativ-kontrollgrunnlag` — ingen ny tabell, ingen
+`storage.airtable.js`-endring. Erstatter den hardkodede kjernepopulasjonen (Lag 2/Montering/
+Lastebil) og «siste 7 kalenderdager»: Dashboard-banneret viser nå dagens prosent kun på
+driftsdager («Ingen planlagt kontroll i dag» ellers), «siste 7 driftsdager», og «Se hvilke →»
+med Kontrollert/Mangler kontroll. Manglende, korrupt eller uleselig grunnlag gir aldri en
+prosent — banneret ber om konfigurering. Bakgrunnssynk oppdaterer Dashboard uten å overskrive et
+åpent skjema). Før det: 2026-09-18 (Prioritet 52 — Dashboard UX Polish: permanent scrollbarspor og
 fanebytte i Hurtigoversikt uten full render (ingen layout shift), Operativ kontroll-banner
 komprimert til to linjer, Bestill tjenester/Hurtigoversikt som seksjoner med overskrift og
 skillelinje, Biloversikt med kun Søk + Filter-panel. Ingen ny funksjonalitet). Før det:
@@ -857,6 +866,15 @@ Kostnadsrapport i Rapporthub.
 
 ✅ Implementert og verifisert — Dashboard, Operativ status, "Biler i drift
 nå"-telling (kategori-agnostisk, verifisert ved kodegjennomgang).
+
+✅ **Prioritet 53 (2026-09-19) — konfigurerbart kontrollgrunnlag.** Kjøretøyutvalg og driftsdager
+styres av administrator (Innstillinger → Systeminnstillinger → 🎯 Operativ kontrollgrunnlag),
+lagret som Settings-blob `operativ-kontrollgrunnlag` på Vehicle-ID. Dashboard-banneret bruker
+kun denne listen som teller/nevner-grunnlag. Verifisert i nettleser mot mock-storage (se
+CHANGELOG.md, 2026-09-19) — **ikke** testet mot ekte Airtable. Gjenstår: (a) første gang appen
+tas i bruk med denne versjonen må administrator velge kjøretøy og driftsdager, ellers viser
+banneret «Operativ kontroll må konfigureres»; (b) Kontrollstatus-nevneren i Biloversikt-filteret
+«Ikke kontrollert» er en annen, bevisst uendret populasjon (`aktiveVehicles − reserveUnntatt`).
 
 ## Påminnelsesmotor
 

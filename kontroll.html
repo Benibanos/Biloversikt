@@ -1197,6 +1197,38 @@
   .dash-banner-maal b{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;}
   .dash-banner-maal .skille{color:var(--line);}
   .dash-banner-aktive{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink);}
+  /* Prioritet 53: linje 2 i banneret, «N aktive» som snarvei, mangler-tilstand og «Se hvilke»-listen. */
+  .dash-banner-maal{margin-bottom:4px;}
+  .dash-banner-linje2{display:flex;align-items:center;justify-content:space-between;gap:4px 16px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2);}
+  .dash-banner-teller{font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;}
+  .dash-banner-aktive-knapp{background:none;border:none;padding:0;font-family:inherit;font-size:inherit;cursor:pointer;}
+  .dash-banner-aktive-knapp:hover{text-decoration:underline;}
+  .dash-banner-mangler{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:var(--ink);}
+  .dash-kontroll-liste{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);}
+  .dash-kontroll-liste ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;}
+  .dash-kl-tittel{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px;}
+  .dash-kl-bil{background:none;border:none;padding:2px 0;font-family:inherit;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;text-align:left;}
+  .dash-kl-bil:hover{text-decoration:underline;}
+  .dash-kl-tom{font-size:13px;color:var(--muted);}
+  @media(max-width:640px){.dash-kontroll-liste{grid-template-columns:1fr;}}
+  /* Prioritet 53: Innstillinger → Operativ kontrollgrunnlag. */
+  .og-rot{display:flex;flex-direction:column;gap:14px;}
+  .og-antall{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--ink);}
+  .og-hjelp{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .og-gruppe{border:1px solid var(--line-soft);border-radius:10px;padding:8px 12px;}
+  .og-gruppe-hode{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+  .og-gruppe-navn{font-weight:700;font-size:14px;color:var(--ink);}
+  .og-gruppe-teller{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:6px;}
+  .og-gruppe-knapper,.og-globale-knapper{display:flex;gap:6px;flex-wrap:wrap;}
+  .og-rad{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:14px;color:var(--ink);cursor:pointer;}
+  .og-rad input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:var(--green);cursor:pointer;}
+  .og-tag{font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;}
+  .og-dager{display:flex;flex-wrap:wrap;gap:0 20px;}
+  .og-melding{padding:8px 12px;border-radius:8px;font-size:13.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .og-melding.ok{background:var(--green-soft);color:var(--green-ink);}
+  .og-melding.feil{background:var(--red-soft);color:var(--red);}
+  .og-handlinger{display:flex;gap:8px;justify-content:flex-end;}
+  .og-rad[hidden],.og-gruppe[hidden],.og-melding[hidden],.dash-kontroll-liste[hidden]{display:none !important;}
   /* Del 3: seksjoner skilles med luft, overskrift og en subtil linje — ikke med flere bokser. */
   .dash-sek{margin-top:22px;}
   .dash-sek + .dash-sek{margin-top:26px;padding-top:22px;border-top:1px solid var(--line-soft);}
@@ -1654,6 +1686,26 @@ const STANDARD_RINGELISTE_EKSTRA = {
   homeDelivery: {navn:'Home Delivery', beskrivelse:'Kjørekontoret', telefon:''},
   veihjelp: {navn:'Veihjelp', beskrivelse:'Assistanse', telefon:''}
 };
+// Prioritet 53: konfigurerbart grunnlag for operativ kontroll. ÉN JSON-blob i den
+// eksisterende Settings-tabellen (samme mønster som standardVerksted/varselSett/
+// ringelisteEkstra — ingen ny Airtable-tabell, ingen nye felt på Vehicles, ingen
+// LIST_TABLES-registrering). Format: {version:1, vehicleIds:[Vehicle-ID…], activeWeekdays:
+// [ISO 1=man…7=søn], updatedAt, updatedBy}. Kjøretøy lagres med id, aldri navn/gruppe.
+// operativGrunnlag er ALLTID enten en validert konfigurasjon eller null — status forteller
+// hvorfor den er null. Ingen fallback: uten gyldig grunnlag vises ingen prosent.
+const OPERATIV_GRUNNLAG_KEY = 'operativ-kontrollgrunnlag';
+const OPERATIV_STANDARD_UKEDAGER = [1, 2, 3, 4, 5];
+const OPERATIV_UKEDAG_NAVN = {1:'Mandag', 2:'Tirsdag', 3:'Onsdag', 4:'Torsdag', 5:'Fredag', 6:'Lørdag', 7:'Søndag'};
+let operativGrunnlag = null;
+let operativGrunnlagStatus = 'ikke-lastet';   // 'ok' | 'mangler' | 'korrupt' | 'lesefeil' | 'ikke-lastet'
+// Redigeringsskjemaet (Innstillinger → Operativ kontrollgrunnlag) arbeider mot en KOPI, ikke
+// mot operativGrunnlag — Dashboard endres først når lagringen er bekreftet. Ren visnings-
+// tilstand, aldri lagret: {vehicleIds:Set, activeWeekdays:Set, sok, baseUpdatedAt}.
+let operativGrunnlagDraft = null;
+let operativGrunnlagLagrer = false;
+let operativGrunnlagMelding = null;           // {type:'ok'|'feil', tekst}
+let operativGrunnlagEksternEndring = false;   // grunnlaget er endret av andre mens skjemaet er åpent
+let dashKontrollListeApen = false;            // «Se hvilke» under dagens kontrollstatus (ren visningstilstand)
 // redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
 // Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
 // tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
@@ -4085,6 +4137,10 @@ async function loadAll(){
   if(!Array.isArray(ringelisteEkstra.ledelse)) ringelisteEkstra.ledelse = [];
   if(!ringelisteEkstra.homeDelivery || typeof ringelisteEkstra.homeDelivery !== 'object') ringelisteEkstra.homeDelivery = {navn:'Home Delivery', beskrivelse:'Kjørekontoret', telefon:''};
   if(!ringelisteEkstra.veihjelp || typeof ringelisteEkstra.veihjelp !== 'object') ringelisteEkstra.veihjelp = {navn:'Veihjelp', beskrivelse:'Assistanse', telefon:''};
+  // Prioritet 53: operativt kontrollgrunnlag lastes HER, før Dashboard noen gang beregnes
+  // (oppstartApne() tegner først etter at loadAll() er ferdig). Feiler aldri oppstarten —
+  // status ('mangler'/'korrupt'/'lesefeil') gjør at Dashboard i stedet ber om konfigurering.
+  await lastOperativGrunnlag();
   try{
     const au = await window.storage.get('admin-users', true);
     adminUsers = au && au.value ? JSON.parse(au.value) : [];
@@ -4219,6 +4275,12 @@ function _lagBatchetLiveSyncHandler(){
     const nokler = Array.from(pending);
     pending.clear();
     await Promise.all(nokler.map(k => reloadOne(k)));
+    // Prioritet 53: subscribeLiveSync() poller kun LIST_TABLES-nøkler, og det operative
+    // kontrollgrunnlaget er en Settings-blob — leses derfor eksplisitt her, i samme runde,
+    // slik at en endring gjort på en annen enhet slår gjennom på Dashboard. Et åpent
+    // redigeringsskjema overskrives aldri (se operativGrunnlagEtterEksternLasting()).
+    const grunnlagEndret = await lastOperativGrunnlag().catch(() => false);
+    if(grunnlagEndret) operativGrunnlagEtterEksternLasting();
     batchPagaar = false;
     // Prioritet 66: nyinnlest kjøretøydata kan inneholde en biløkt fra forrige operative
     // døgn (satt på en annen enhet). Håndhev dagskillet før skjermen tegnes på nytt.
@@ -5299,6 +5361,10 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
+  // Prioritet 53: ulagrede valg i Operativ kontrollgrunnlag følger ikke med ut av Innstillinger,
+  // og «Se hvilke»-listen i Dashboard-banneret starter lukket ved neste besøk.
+  if(scr !== 'innstillinger'){ operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false; }
+  if(scr !== 'dashboard'){ dashKontrollListeApen = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
   if(scr !== 'kontroll'){
@@ -9287,45 +9353,241 @@ function attachMobilBunnmenyListeners(){
 // (fortsatt i bruk av Kalenderen) returnerer kun en ren nøkkelstreng og har aldri lest
 // denne tabellen selv.
 
-// Prioritet 50, Del 3: "Operativ kontroll" på Dashboard skal KUN telle kjernefloaten —
-// Lag 2, Montering og Lastebil — ikke hele flåten. Ekskluderer i tillegg reservebiler,
-// biler ute av drift og biler på verksted (v.status==='verksted'), siden ingen av disse
-// realistisk kan kontrolleres/kjøres i dag. Dette er en BEVISST, ny og SNEVRERE
-// populasjon enn kontrollstatusKpiHtml() sin "aktiveVehicles - reserveUnntatt" (som
-// fortsatt gjelder uendret for Biloversikt-filteret "Ikke kontrollert" og for
-// dashboardBeregning() sine øvrige tellinger) — de to tallene svarer bevisst på to ulike
-// spørsmål og skal ALDRI blandes eller vises side om side som om de var samme ting.
-function operativeKjerneBiler(){
-  return vehicles.filter(v =>
-    !v.uteAvDrift && v.kategori !== 'reserve' && v.status !== 'verksted' &&
-    (v.driftslag === 'Lag 2' || v.driftslag === 'Montering' || v.driftslag === 'Lastebil'));
+// ================= Prioritet 53: konfigurerbart grunnlag for operativ kontroll =================
+// Erstatter Prioritet 50 sin hardkodede kjernepopulasjon (operativeKjerneBiler(): Lag 2/
+// Montering/Lastebil minus reserve/ute av drift/verksted) og «alle sju kalenderdager». Den
+// LAGREDE kjøretøylisten er nå eneste grunnlag for både teller og nevner — ingen filtrering
+// på reserve, ute av drift, verkstedstatus, aktiv sjåfør eller gruppe. Et kjøretøy uten
+// kontroll i dag teller som «mangler» også når det står på verksted; det er administrators
+// valg av grunnlag som avgjør, ikke appens gjetning.
+// Dette er fortsatt en ANNEN populasjon enn kontrollstatusKpiHtml()/Biloversikt-filteret
+// «Ikke kontrollert» (aktiveVehicles − reserveUnntatt) — de svarer på to ulike spørsmål.
+function validerOperativGrunnlag(obj){
+  if(!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  if(obj.version !== 1) return null;
+  if(!Array.isArray(obj.vehicleIds) || !Array.isArray(obj.activeWeekdays)) return null;
+  if(obj.vehicleIds.some(id => typeof id !== 'string' || !id)) return null;
+  if(obj.activeWeekdays.some(d => !Number.isInteger(d) || d < 1 || d > 7)) return null;
+  const vehicleIds = Array.from(new Set(obj.vehicleIds));
+  const activeWeekdays = Array.from(new Set(obj.activeWeekdays)).sort((a, b) => a - b);
+  if(vehicleIds.length === 0 || activeWeekdays.length === 0) return null;
+  return {
+    version: 1, vehicleIds, activeWeekdays,
+    updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : '',
+    updatedBy: typeof obj.updatedBy === 'string' ? obj.updatedBy : ''
+  };
 }
-function operativKontrollStatusIdag(){
-  const biler = operativeKjerneBiler();
-  const kontrollert = biler.filter(v => isKontrollertIdag(v.id)).length;
-  const totalt = biler.length;
-  const prosent = totalt > 0 ? Math.round((kontrollert / totalt) * 100) : 0;
-  return {kontrollert, totalt, prosent};
-}
-// «Kontrollrate siste 7 dager» i Dashboardets "Operativ kontroll"-banner. INGEN ny
-// datakilde — leser kun kontroller[] (samme rader som isKontrollertIdag()/
-// vehicleKontroller() allerede bruker) over de siste 7 kalenderdagene, nå over SAMME
-// kjernepopulasjon som dagens prosent (operativeKjerneBiler(), Prioritet 50 Del 3/4) i
-// stedet for hele flåten — de to tallene i banneret skal måle det samme utvalget.
-// Bevisst forenkling: dagens flåtesammensetning brukes som nevner for ALLE sju dagene,
-// ikke en historisk rekonstruksjon av hvilke biler som faktisk tilhørte kjernefloaten på
-// hver enkelt dag — presist nok til et trendtall, ikke egnet som revisjonsgrunnlag.
-function kontrollrateUke(){
-  const kjerneBiler = operativeKjerneBiler();
-  const idag = todayISO();
-  let sumRate = 0;
-  for(let i = 6; i >= 0; i--){
-    const iso = isoDateOffset(idag, -i);
-    const kontrollerteIDenne = kjerneBiler.filter(v => kontroller.some(k => k.vehicleId === v.id && k.dato === iso)).length;
-    sumRate += kjerneBiler.length > 0 ? kontrollerteIDenne / kjerneBiler.length : 0;
+// Leser grunnlaget fra Settings. Returnerer true når noe faktisk er endret (brukes av
+// bakgrunnssynken). Tre ulike «ikke gyldig»-tilstander holdes bevisst adskilt:
+//   'mangler'  — raden finnes ikke (aldri konfigurert)
+//   'korrupt'  — raden finnes, men er ikke gyldig JSON/format (ingen fallback, ingen gjetting)
+//   'lesefeil' — Airtable svarte ikke. En lesefeil er IKKE et tomt/ugyldig grunnlag: en
+//                tidligere gyldig konfigurasjon beholdes urørt (samme prinsipp som
+//                vehiclesLoadStatus, Prioritet 66.9).
+async function lastOperativGrunnlag(){
+  let raw;
+  try{ raw = await window.storage.get(OPERATIV_GRUNNLAG_KEY, true); }
+  catch(e){
+    console.error('[lastOperativGrunnlag] Lesefeil', e);
+    if(!operativGrunnlag && operativGrunnlagStatus !== 'lesefeil'){ operativGrunnlagStatus = 'lesefeil'; return true; }
+    return false;
   }
-  const prosent = kjerneBiler.length > 0 ? Math.round((sumRate / 7) * 100) : 0;
-  return {prosent, aktiveVehiclesCount: kjerneBiler.length};
+  // En pågående lagring har allerede den nyeste sannheten — en lesing som ble startet FØR
+  // den skal ikke få sette den gamle verdien tilbake.
+  if(operativGrunnlagLagrer) return false;
+  let ny = null, status;
+  if(!raw || !raw.value){ status = 'mangler'; }
+  else {
+    try{ ny = validerOperativGrunnlag(JSON.parse(raw.value)); }catch(e){ ny = null; }
+    status = ny ? 'ok' : 'korrupt';
+  }
+  const endret = status !== operativGrunnlagStatus || JSON.stringify(ny) !== JSON.stringify(operativGrunnlag);
+  operativGrunnlag = ny;
+  operativGrunnlagStatus = status;
+  return endret;
+}
+// Kjøretøyene som faktisk finnes og er valgt. En lagret id som ikke lenger finnes i
+// kjøretøyregisteret (slettet bil) ignoreres — den kan verken kontrolleres eller kjøres, og
+// ville ellers gjort 100 % umulig. Navneendring/gruppeflytting berører aldri dette, siden
+// oppslaget skjer på id.
+function operativGrunnlagBiler(){
+  if(!operativGrunnlag) return [];
+  const valgt = new Set(operativGrunnlag.vehicleIds);
+  return vehicles.filter(v => valgt.has(v.id));
+}
+// {ok:true, biler} — eller {ok:false, arsak} når det IKKE finnes et brukbart grunnlag.
+// Alle beregninger og bannere går gjennom denne: ingen prosent uten gyldig grunnlag.
+function operativGrunnlagTilstand(){
+  if(operativGrunnlagStatus === 'ok' && operativGrunnlag){
+    const biler = operativGrunnlagBiler();
+    if(biler.length === 0) return {ok:false, arsak:'ingen-kjoretoy'};
+    return {ok:true, biler};
+  }
+  return {ok:false, arsak: operativGrunnlagStatus};
+}
+// ISO-ukedag (1=mandag … 7=søndag) for en ISO-dato. Regnes fra selve kalenderdatoen (UTC-
+// mønsteret som isoDateOffset()/isoDateDiff()), så det operative dagskillet kl. 04:00 følger
+// av at todayISO() allerede har levert riktig operativ dato — natt til lørdag før 04:00 er
+// fortsatt fredag her.
+function operativIsoUkedag(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if(!m) return 0;
+  const dow = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+  return dow === 0 ? 7 : dow;
+}
+function operativErDriftsdag(iso){
+  return !!(operativGrunnlag && operativGrunnlag.activeWeekdays.includes(operativIsoUkedag(iso)));
+}
+// «vehicleId|dato»-nøkler for alle kontroller. Å telle NØKLER (ikke rader) er det som gjør at
+// flere kontroller på samme bil samme dag bare teller én gang. Kontrollene på biler utenfor
+// grunnlaget lagres normalt, men slås aldri opp — de påvirker verken teller eller nevner.
+function operativKontrollNokler(){
+  const s = new Set();
+  kontroller.forEach(k => { if(k.vehicleId && k.dato) s.add(k.vehicleId + '|' + k.dato); });
+  return s;
+}
+// Aldri 100 % uten at ALLE er kontrollert (avrunding av f.eks. 199/200), og aldri over 100.
+function operativProsent(teller, nevner){
+  if(nevner <= 0) return 0;
+  let p = Math.round((teller / nevner) * 100);
+  if(teller < nevner && p >= 100) p = 99;
+  return Math.min(100, p);
+}
+function operativBilSortert(liste){
+  return liste.slice().sort((a, b) => vehicleLabel(a).localeCompare(vehicleLabel(b), 'nb', {numeric:true}));
+}
+// Dagens status. Tre utfall: {ok:false, arsak} (ingen prosent), {ok:true, driftsdag:false}
+// («Ingen planlagt kontroll i dag» — aldri 0 %) eller full status med bil-lister.
+function operativKontrollStatusIdag(){
+  const t = operativGrunnlagTilstand();
+  if(!t.ok) return {ok:false, arsak:t.arsak};
+  const idag = todayISO();
+  if(!operativErDriftsdag(idag)) return {ok:true, driftsdag:false};
+  const nokler = operativKontrollNokler();
+  const kontrollerteBiler = [], manglerBiler = [];
+  t.biler.forEach(v => (nokler.has(v.id + '|' + idag) ? kontrollerteBiler : manglerBiler).push(v));
+  const totalt = t.biler.length;
+  return {
+    ok:true, driftsdag:true, kontrollert:kontrollerteBiler.length, totalt,
+    prosent: operativProsent(kontrollerteBiler.length, totalt),
+    kontrollerteBiler: operativBilSortert(kontrollerteBiler),
+    manglerBiler: operativBilSortert(manglerBiler)
+  };
+}
+// «Kontroll siste 7 driftsdager»: de syv SISTE datoene (regnet bakover fra i dag, i dag
+// inkludert når det er en driftsdag) hvis ukedag er valgt som driftsdag — helger hoppes
+// altså over når kun man–fre er valgt. Formel: unike kontrollerte kjøretøy-dager / forventede
+// kjøretøy-dager (antall valgte biler × 7). Samme bilsett brukes for alle sju dagene —
+// bevisst forenkling (ingen historisk rekonstruksjon av hvilke biler som var valgt), presist
+// nok som trendtall, ikke som revisjonsgrunnlag.
+function kontrollrateSyvDriftsdager(){
+  const t = operativGrunnlagTilstand();
+  if(!t.ok) return {ok:false, arsak:t.arsak};
+  const nokler = operativKontrollNokler();
+  const dager = [];
+  let iso = todayISO();
+  // Øvre grense er ren sikkerhet: minst én gyldig ukedag garanterer treff innen 7 dager.
+  for(let i = 0; i < 60 && dager.length < 7; i++, iso = isoDateOffset(iso, -1)){
+    if(operativErDriftsdag(iso)) dager.push(iso);
+  }
+  let utfort = 0;
+  dager.forEach(d => t.biler.forEach(v => { if(nokler.has(v.id + '|' + d)) utfort++; }));
+  const forventet = t.biler.length * dager.length;
+  return {ok:true, prosent: operativProsent(utfort, forventet), utfort, forventet, dager};
+}
+// Kalles etter at bakgrunnssynken har funnet et ENDRET grunnlag. Et åpent redigeringsskjema
+// overskrives aldri stille: har brukeren ulagrede endringer, blir de stående og skjemaet
+// får et varsel; ellers byttes skjemaet umerket over til det nye grunnlaget.
+function operativGrunnlagEtterEksternLasting(){
+  const d = operativGrunnlagDraft;
+  if(!d) return;
+  const naa = operativGrunnlag ? operativGrunnlag.updatedAt : '';
+  if(d.baseUpdatedAt === naa) return;
+  if(operativGrunnlagDraftErEndret()){
+    operativGrunnlagEksternEndring = true;
+    const varsel = document.getElementById('og-ekstern-varsel');
+    if(varsel) varsel.hidden = false;
+  } else {
+    const sok = d.sok;
+    operativGrunnlagDraft = operativGrunnlagNyttDraft();
+    operativGrunnlagDraft.sok = sok;
+    operativGrunnlagEksternEndring = false;
+  }
+}
+function operativGrunnlagNoekkel(vehicleIds, activeWeekdays){
+  return JSON.stringify([Array.from(vehicleIds).sort(), Array.from(activeWeekdays).sort((a, b) => a - b)]);
+}
+function operativGrunnlagNyttDraft(){
+  const g = operativGrunnlag;
+  const vehicleIds = g ? g.vehicleIds : [];
+  const activeWeekdays = g ? g.activeWeekdays : OPERATIV_STANDARD_UKEDAGER;
+  return {
+    vehicleIds: new Set(vehicleIds),
+    activeWeekdays: new Set(activeWeekdays),
+    sok: '',
+    baseUpdatedAt: g ? g.updatedAt : '',
+    // Utkastet er «endret» når det avviker fra DET GRUNNLAGET DET BLE BYGGET FRA — ikke fra
+    // det som ligger lagret nå. Ellers ville et urørt skjema bli regnet som ulagret arbeid i
+    // det øyeblikket noen andre lagrer, og aldri få det nye grunnlaget stille.
+    baseNoekkel: operativGrunnlagNoekkel(vehicleIds, activeWeekdays)
+  };
+}
+function operativGrunnlagDraftErEndret(){
+  const d = operativGrunnlagDraft;
+  return !!d && operativGrunnlagNoekkel(d.vehicleIds, d.activeWeekdays) !== d.baseNoekkel;
+}
+function operativGrunnlagVisMelding(melding){
+  operativGrunnlagMelding = melding;
+  const m = document.getElementById('og-melding');
+  if(m){ m.textContent = melding ? melding.tekst : ''; m.className = 'og-melding ' + (melding ? melding.type : ''); m.hidden = !melding; }
+}
+// Lagring: valider → lås knappen → skriv gjennom det eksisterende storage-laget → først ETTER
+// bekreftet skriving byttes det aktive grunnlaget og Dashboard beregnes på nytt. Ved feil
+// står forrige gyldige grunnlag urørt, og de nye valgene vises ikke som lagret (de blir
+// stående i skjemaet som ulagret, slik at brukeren kan prøve igjen).
+async function lagreOperativGrunnlag(){
+  if(operativGrunnlagLagrer) return;
+  const d = operativGrunnlagDraft;
+  if(!d) return;
+  if(operativGrunnlagStatus === 'lesefeil'){
+    operativGrunnlagVisMelding({type:'feil', tekst:'Kan ikke lagre før det eksisterende grunnlaget er lest. Last siden på nytt og prøv igjen.'});
+    return;
+  }
+  const finnes = new Set(vehicles.map(v => v.id));
+  const vehicleIds = Array.from(d.vehicleIds).filter(id => finnes.has(id));
+  const activeWeekdays = Array.from(d.activeWeekdays).sort((a, b) => a - b);
+  if(vehicleIds.length === 0){ operativGrunnlagVisMelding({type:'feil', tekst:'Velg minst ett kjøretøy.'}); return; }
+  if(activeWeekdays.length === 0){ operativGrunnlagVisMelding({type:'feil', tekst:'Velg minst én driftsdag.'}); return; }
+  if(operativGrunnlagEksternEndring && !confirm('Operativt kontrollgrunnlag er endret av en annen bruker siden du åpnet skjemaet.\n\nLagre likevel og overskrive deres endringer?')) return;
+  const ny = {version:1, vehicleIds, activeWeekdays, updatedAt: new Date().toISOString(), updatedBy: loggedInRole || 'administrator'};
+  operativGrunnlagLagrer = true;
+  operativGrunnlagVisMelding(null);
+  const knapp = document.getElementById('og-lagre');
+  if(knapp){ knapp.disabled = true; knapp.textContent = 'Lagrer …'; }
+  try{
+    await window.storage.set(OPERATIV_GRUNNLAG_KEY, JSON.stringify(ny), true);
+    operativGrunnlag = ny;
+    operativGrunnlagStatus = 'ok';
+    const sok = d.sok;
+    operativGrunnlagDraft = operativGrunnlagNyttDraft();
+    operativGrunnlagDraft.sok = sok;
+    operativGrunnlagEksternEndring = false;
+    operativGrunnlagMelding = {type:'ok', tekst:'Operativt kontrollgrunnlag er lagret.'};
+  }catch(e){
+    console.error('[lagreOperativGrunnlag] Feilet', e);
+    operativGrunnlagMelding = {type:'feil', tekst:'Kunne ikke lagre. Forrige innstilling er fortsatt aktiv.'};
+  }finally{
+    operativGrunnlagLagrer = false;
+    render();   // Dashboard-tallene beregnes på nytt fra det (bekreftet lagrede) grunnlaget
+  }
+}
+function nullstillOperativGrunnlagSkjema(){
+  const sok = operativGrunnlagDraft ? operativGrunnlagDraft.sok : '';
+  operativGrunnlagDraft = operativGrunnlagNyttDraft();
+  operativGrunnlagDraft.sok = sok;
+  operativGrunnlagEksternEndring = false;
+  operativGrunnlagMelding = null;
+  render();
 }
 // Prioritet 50, kjent begrensning: Dashboard/Mobil Hjem bruker i dag kun d.hDriftCount og
 // d.sakFaseAntall fra denne funksjonens returverdi (banneret og Hurtigoversikt). Flere av
@@ -9523,25 +9785,67 @@ function dashboardBeregning(){
 // alltid viser identisk innhold (akseptansekriterium 14) uten noen parallell versjon.
 function dashOperativBannerHtml(d){
   const opIdag = operativKontrollStatusIdag();
-  const opUke = kontrollrateUke();
-  // Prioritet 52, Del 2: banneret er komprimert til to linjer (dato/klokkeslett/vær, deretter
-  // «33% i dag • 38% siste 7 dager • 🚚 1 aktiv» + «Se hvilke →» på SAMME rad). Samme tre tall,
-  // samme kilder og samme klikkmål som før — ingen nye KPI-er. Overskriften «Operativ kontroll»
-  // er tatt bort fra selve kortet: sidetittelen ligger i den delte toppstripen (desktop)
-  // hhv. .p41-head (mobil), og «X av Y operative biler» ligger nå i title-tooltip.
+  const meta = `<div class="dash-banner-meta">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>`;
+  const skille = '<span class="skille" aria-hidden="true">•</span>';
+  const aktiveTekst = `${luc('truck')} <b>${d.hDriftCount}</b> ${d.hDriftCount === 1 ? 'aktiv' : 'aktive'}`;
+  const aktiveFilterKnapp = '<button type="button" class="p38-lenke" data-goto-biloversikt-filter="har-aktiv-sjafor">Se hvilke →</button>';
+  // Prioritet 53: uten et gyldig grunnlag vises ALDRI en prosent — verken 0 % eller et
+  // beregnet tall. Banneret ber i stedet om konfigurering (mangler/ugyldig/ingen gyldige biler)
+  // eller om nytt leseforsøk (lesefeil), i stedet for å gjette.
+  if(!opIdag.ok){
+    const lesefeil = opIdag.arsak === 'lesefeil' || opIdag.arsak === 'ikke-lastet';
+    const tekst = lesefeil ? 'Kunne ikke lese operativt kontrollgrunnlag'
+      : opIdag.arsak === 'korrupt' ? 'Operativt kontrollgrunnlag er ugyldig og må konfigureres på nytt'
+      : opIdag.arsak === 'ingen-kjoretoy' ? 'Ingen av de valgte kjøretøyene finnes lenger — operativ kontroll må konfigureres på nytt'
+      : 'Operativ kontroll må konfigureres';
+    return `
+    <div class="panel dash-banner">
+      ${meta}
+      <div class="dash-banner-rad">
+        <span class="dash-banner-mangler">${luc('triangle-alert', 'ic-yellow')} ${tekst}</span>
+        ${lesefeil
+          ? '<button type="button" class="btn small" data-operativ-last-pa-nytt>Prøv igjen</button>'
+          : '<button type="button" class="btn small" data-operativ-konfigurer>Konfigurer</button>'}
+      </div>
+    </div>`;
+  }
+  const opUke = kontrollrateSyvDriftsdager();
+  const ukeHtml = `<span><b>${opUke.prosent}&nbsp;%</b> siste 7 driftsdager</span>`;
+  // Fridag: ingen «i dag»-prosent (ikke 0 %). «Se hvilke →» hører her til aktive biler,
+  // siden det ikke finnes noen kontrollstatus å utdype.
+  if(!opIdag.driftsdag){
+    return `
+    <div class="panel dash-banner">
+      ${meta}
+      <div class="dash-banner-maal"><span><b>Ingen planlagt kontroll i dag</b></span>${skille}${ukeHtml}</div>
+      <div class="dash-banner-linje2">
+        <span class="dash-banner-aktive">${aktiveTekst}</span>
+        ${aktiveFilterKnapp}
+      </div>
+    </div>`;
+  }
+  // Driftsdag: «Se hvilke →» på kontrolltelleren åpner listen Kontrollert/Mangler kontroll.
+  // «N aktive» er samtidig selv en snarvei til Biloversikt → Har aktiv sjåfør, slik at den
+  // eksisterende klikkfunksjonen fra Prioritet 50 ikke går tapt.
+  const lister = kontrollListeHtml => `<div class="dash-kontroll-liste" id="dash-kontroll-liste"${dashKontrollListeApen ? '' : ' hidden'}>${kontrollListeHtml}</div>`;
+  const bilKnapp = v => `<li><button type="button" class="dash-kl-bil" data-goto-bilkort="${esc(v.id)}">${esc(vehicleLabel(v))}</button></li>`;
+  const kolonne = (tittel, biler, tom) => `
+    <div>
+      <div class="dash-kl-tittel">${tittel} (${biler.length})</div>
+      ${biler.length ? `<ul>${biler.map(bilKnapp).join('')}</ul>` : `<div class="dash-kl-tom">${tom}</div>`}
+    </div>`;
   return `
     <div class="panel dash-banner">
-      <div class="dash-banner-meta">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>
-      <div class="dash-banner-rad">
-        <div class="dash-banner-maal">
-          <span title="${opIdag.kontrollert} av ${opIdag.totalt} operative biler kontrollert i dag"><b>${opIdag.prosent}%</b> i dag</span>
-          <span class="skille" aria-hidden="true">•</span>
-          <span><b>${opUke.prosent}%</b> siste 7 dager</span>
-          <span class="skille" aria-hidden="true">•</span>
-          <span class="dash-banner-aktive">${luc('truck')} <b>${d.hDriftCount}</b> ${d.hDriftCount === 1 ? 'aktiv' : 'aktive'}</span>
-        </div>
-        <button type="button" class="p38-lenke" data-goto-biloversikt-filter="har-aktiv-sjafor">Se hvilke →</button>
+      ${meta}
+      <div class="dash-banner-maal">
+        <span><b>${opIdag.prosent}&nbsp;%</b> i dag</span>${skille}${ukeHtml}${skille}
+        <button type="button" class="dash-banner-aktive dash-banner-aktive-knapp" data-goto-biloversikt-filter="har-aktiv-sjafor" title="Vis biler med aktiv sjåfør">${aktiveTekst}</button>
       </div>
+      <div class="dash-banner-linje2">
+        <span class="dash-banner-teller">${opIdag.kontrollert}/${opIdag.totalt} kontrollert</span>
+        <button type="button" class="p38-lenke" id="dash-kontroll-liste-btn" aria-expanded="${dashKontrollListeApen ? 'true' : 'false'}" aria-controls="dash-kontroll-liste">Se hvilke →</button>
+      </div>
+      ${lister(kolonne('Kontrollert', opIdag.kontrollerteBiler, 'Ingen kontrollert ennå') + kolonne('Mangler kontroll', opIdag.manglerBiler, 'Alle er kontrollert'))}
     </div>`;
 }
 // Prioritet 52, Del 3: «Bestill tjenester» som seksjon (overskrift + luft + subtil skiller),
@@ -9807,6 +10111,28 @@ function attachDashboardListeners(){
   document.querySelectorAll('[data-goto-register-kategori]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     goToRegisterKategori(el.dataset.gotoRegisterKategori);
+  }));
+  // Prioritet 53: operativt kontrollgrunnlag i banneret. «Se hvilke» bytter kun synligheten
+  // på listen (ingen render() — samme begrunnelse som Hurtigoversikt-fanene, Prioritet 52),
+  // og husker valget i dashKontrollListeApen slik at en bakgrunnsoppfriskning ikke lukker den.
+  const kontrollListeBtn = document.getElementById('dash-kontroll-liste-btn');
+  if(kontrollListeBtn) kontrollListeBtn.addEventListener('click', () => {
+    dashKontrollListeApen = !dashKontrollListeApen;
+    const liste = document.getElementById('dash-kontroll-liste');
+    if(liste) liste.hidden = !dashKontrollListeApen;
+    kontrollListeBtn.setAttribute('aria-expanded', dashKontrollListeApen ? 'true' : 'false');
+  });
+  document.querySelectorAll('[data-operativ-konfigurer]').forEach(el => el.addEventListener('click', () => {
+    // «Operativ kontrollgrunnlag» ligger NESTET i «⚙️ Systeminnstillinger» — begge nivåer må
+    // åpnes (samme grunn som db-warning-banner over).
+    settingsOpenSections.add('system');
+    settingsOpenSections.add('operativgrunnlag');
+    goTo('innstillinger');
+  }));
+  document.querySelectorAll('[data-operativ-last-pa-nytt]').forEach(el => el.addEventListener('click', async () => {
+    el.disabled = true;
+    await lastOperativGrunnlag().catch(() => false);
+    render();
   }));
   document.querySelectorAll('[data-stat-nav]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -15289,6 +15615,11 @@ function attachAnalyseListeners(){
 function toggleSettingsSection(key){
   if(settingsOpenSections.has(key)) settingsOpenSections.delete(key);
   else settingsOpenSections.add(key);
+  // Prioritet 53: å lukke «Operativ kontrollgrunnlag» forkaster ulagrede valg (skjemaet
+  // bygges på nytt fra det lagrede grunnlaget neste gang seksjonen åpnes).
+  if(key === 'operativgrunnlag' && !settingsOpenSections.has(key)){
+    operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false;
+  }
   render();
 }
 function settingsAccordionRow(key, title, count, bodyHtml){
@@ -15305,6 +15636,150 @@ function settingsAccordionRow(key, title, count, bodyHtml){
       ${open ? `<div class="acc-body">${bodyHtml}</div>` : ''}
     </div>
   `;
+}
+// ================= Prioritet 53: Operativ kontrollgrunnlag (Innstillinger) =================
+// Skjemaet er bygget fra operativGrunnlagDraft (en kopi), og ALL interaksjon inne i det
+// (avkrysning, søk, Velg alle/Fjern alle) skjer direkte i DOM + draft uten render() — en
+// full render() ville flyttet fokus/scroll midt i utvelgelsen. Fordi malen alltid bygges fra
+// draft, mister heller ikke en bakgrunnsrender noen valg. Kun Lagre/Nullstill kaller render().
+function operativGrunnlagGrupper(){
+  const grupper = new Map();
+  vehicles.forEach(v => {
+    const navn = (v.driftslag || '').trim() || 'Uten driftslag';
+    if(!grupper.has(navn)) grupper.set(navn, []);
+    grupper.get(navn).push(v);
+  });
+  const ukjente = Array.from(grupper.keys()).filter(n => !DRIFTSLAG_ORDER.includes(n) && n !== 'Uten driftslag').sort((a, b) => a.localeCompare(b, 'nb'));
+  const rekkefolge = DRIFTSLAG_ORDER.filter(n => grupper.has(n)).concat(ukjente, grupper.has('Uten driftslag') ? ['Uten driftslag'] : []);
+  return rekkefolge.map(navn => ({navn, biler: operativBilSortert(grupper.get(navn))}));
+}
+function operativGrunnlagBodyHtml(){
+  if(!operativGrunnlagDraft) operativGrunnlagDraft = operativGrunnlagNyttDraft();
+  const d = operativGrunnlagDraft;
+  const finnes = new Set(vehicles.map(v => v.id));
+  const valgt = Array.from(d.vehicleIds).filter(id => finnes.has(id)).length;
+  const foreldede = d.vehicleIds.size - valgt;
+  const grupper = operativGrunnlagGrupper();
+  const g = operativGrunnlag;
+  let sistLagret = '';
+  if(g && g.updatedAt){
+    try{
+      sistLagret = new Date(g.updatedAt).toLocaleString('nb-NO', {timeZone: APP_TIMEZONE, dateStyle:'short', timeStyle:'short'});
+    }catch(e){ sistLagret = g.updatedAt; }
+  }
+  const statusVarsel = operativGrunnlagStatus === 'mangler'
+    ? 'Operativ kontroll er ikke konfigurert ennå. Dashboard viser ingen kontrollprosent før grunnlaget er lagret.'
+    : operativGrunnlagStatus === 'korrupt'
+    ? 'Det lagrede grunnlaget er ugyldig og brukes ikke. Dashboard viser ingen kontrollprosent før nye valg er lagret.'
+    : operativGrunnlagStatus === 'lesefeil'
+    ? 'Det lagrede grunnlaget kunne ikke leses. Lagring er stoppet for å unngå å overskrive det. Last siden på nytt.'
+    : '';
+  const gruppeHtml = grupper.map((gr, i) => {
+    const av = gr.biler.filter(v => d.vehicleIds.has(v.id)).length;
+    return `
+      <div class="og-gruppe" data-og-gruppe="${i}">
+        <div class="og-gruppe-hode">
+          <span class="og-gruppe-navn">${DRIFTSLAG_IKON[gr.navn] || ''} ${esc(gr.navn)} <span class="og-gruppe-teller">${av}/${gr.biler.length}</span></span>
+          <span class="og-gruppe-knapper">
+            <button type="button" class="btn secondary small" data-og-gruppe-alle="${i}">Velg alle</button>
+            <button type="button" class="btn secondary small" data-og-gruppe-ingen="${i}">Fjern alle</button>
+          </span>
+        </div>
+        ${gr.biler.map(v => `
+          <label class="og-rad" data-og-tekst="${esc([vehicleLabel(v), v.merke, v.modell, v.regnr].filter(Boolean).join(' ').toLowerCase())}">
+            <input type="checkbox" data-og-bil="${esc(v.id)}"${d.vehicleIds.has(v.id) ? ' checked' : ''}>
+            <span>${esc(vehicleLabel(v))}</span>
+            ${v.uteAvDrift ? '<span class="og-tag">Ute av drift</span>' : v.kategori === 'reserve' ? '<span class="og-tag">Reserve</span>' : ''}
+          </label>`).join('')}
+      </div>`;
+  }).join('');
+  return `
+    <div class="og-rot" id="og-rot">
+      ${statusVarsel ? `<div class="og-melding feil">${statusVarsel}</div>` : ''}
+      <div class="og-melding feil" id="og-ekstern-varsel"${operativGrunnlagEksternEndring ? '' : ' hidden'}>
+        Grunnlaget er endret av en annen bruker mens skjemaet har vært åpent. Dine ulagrede valg er beholdt.
+        <button type="button" class="btn secondary small" id="og-last-siste">Last inn siste</button>
+      </div>
+      <div>
+        <div class="og-antall" id="og-antall">${valgt} kjøretøy valgt</div>
+        ${foreldede > 0 ? `<div class="og-hjelp">${foreldede} tidligere valgt${foreldede === 1 ? '' : 'e'} kjøretøy finnes ikke lenger og fjernes ved lagring.</div>` : ''}
+        ${sistLagret ? `<div class="og-hjelp">Sist lagret ${esc(sistLagret)}${g.updatedBy ? ' av ' + esc(g.updatedBy) : ''}</div>` : ''}
+      </div>
+      <div class="field" style="margin-bottom:0;"><input type="search" id="og-sok" placeholder="Søk etter kjøretøy" value="${esc(d.sok)}" autocomplete="off"></div>
+      <div class="og-globale-knapper">
+        <button type="button" class="btn secondary small" id="og-alle">Velg alle</button>
+        <button type="button" class="btn secondary small" id="og-ingen">Fjern alle</button>
+      </div>
+      ${gruppeHtml || '<div class="og-hjelp">Ingen kjøretøy er registrert.</div>'}
+      <div>
+        <div class="og-gruppe-navn" style="margin-bottom:6px;">Driftsdager</div>
+        <div class="og-dager">
+          ${[1,2,3,4,5,6,7].map(n => `
+            <label class="og-rad"><input type="checkbox" data-og-dag="${n}"${d.activeWeekdays.has(n) ? ' checked' : ''}><span>${OPERATIV_UKEDAG_NAVN[n]}</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="og-melding ${operativGrunnlagMelding ? operativGrunnlagMelding.type : ''}" id="og-melding" role="status"${operativGrunnlagMelding ? '' : ' hidden'}>${operativGrunnlagMelding ? esc(operativGrunnlagMelding.tekst) : ''}</div>
+      <div class="og-handlinger">
+        <button type="button" class="btn secondary" id="og-nullstill">Nullstill</button>
+        <button type="button" class="btn" id="og-lagre"${operativGrunnlagLagrer || operativGrunnlagStatus === 'lesefeil' ? ' disabled' : ''}>Lagre</button>
+      </div>
+    </div>`;
+}
+function attachOperativGrunnlagListeners(){
+  const rot = document.getElementById('og-rot');
+  const d = operativGrunnlagDraft;
+  if(!rot || !d) return;
+  const finnes = new Set(vehicles.map(v => v.id));
+  const oppdaterTellere = () => {
+    const n = Array.from(d.vehicleIds).filter(id => finnes.has(id)).length;
+    const antall = document.getElementById('og-antall');
+    if(antall) antall.textContent = n + ' kjøretøy valgt';
+    rot.querySelectorAll('.og-gruppe').forEach(gr => {
+      const bokser = Array.from(gr.querySelectorAll('input[data-og-bil]'));
+      const teller = gr.querySelector('.og-gruppe-teller');
+      if(teller) teller.textContent = bokser.filter(b => b.checked).length + '/' + bokser.length;
+    });
+  };
+  // Søket skjuler rader/grupper i DOM (aldri i draft) — «Velg alle»/«Fjern alle» virker derfor
+  // kun på det som er synlig.
+  const filtrer = () => {
+    const q = d.sok.trim().toLowerCase();
+    rot.querySelectorAll('.og-gruppe').forEach(gr => {
+      let synlige = 0;
+      gr.querySelectorAll('.og-rad').forEach(rad => {
+        const vis = !q || (rad.dataset.ogTekst || '').includes(q);
+        rad.hidden = !vis;
+        if(vis) synlige++;
+      });
+      gr.hidden = synlige === 0;
+    });
+  };
+  const endret = () => { operativGrunnlagVisMelding(null); oppdaterTellere(); };
+  const settSynlige = (omraade, verdi) => {
+    omraade.querySelectorAll('.og-rad:not([hidden]) input[data-og-bil]').forEach(b => {
+      b.checked = verdi;
+      if(verdi) d.vehicleIds.add(b.dataset.ogBil); else d.vehicleIds.delete(b.dataset.ogBil);
+    });
+    endret();
+  };
+  rot.querySelectorAll('input[data-og-bil]').forEach(b => b.addEventListener('change', () => {
+    if(b.checked) d.vehicleIds.add(b.dataset.ogBil); else d.vehicleIds.delete(b.dataset.ogBil);
+    endret();
+  }));
+  rot.querySelectorAll('input[data-og-dag]').forEach(b => b.addEventListener('change', () => {
+    const n = Number(b.dataset.ogDag);
+    if(b.checked) d.activeWeekdays.add(n); else d.activeWeekdays.delete(n);
+    operativGrunnlagVisMelding(null);
+  }));
+  rot.querySelectorAll('[data-og-gruppe-alle]').forEach(el => el.addEventListener('click', () => settSynlige(el.closest('.og-gruppe'), true)));
+  rot.querySelectorAll('[data-og-gruppe-ingen]').forEach(el => el.addEventListener('click', () => settSynlige(el.closest('.og-gruppe'), false)));
+  document.getElementById('og-alle').addEventListener('click', () => settSynlige(rot, true));
+  document.getElementById('og-ingen').addEventListener('click', () => settSynlige(rot, false));
+  document.getElementById('og-sok').addEventListener('input', (e) => { d.sok = e.target.value; filtrer(); });
+  document.getElementById('og-nullstill').addEventListener('click', nullstillOperativGrunnlagSkjema);
+  document.getElementById('og-last-siste').addEventListener('click', nullstillOperativGrunnlagSkjema);
+  document.getElementById('og-lagre').addEventListener('click', lagreOperativGrunnlag);
+  filtrer();
 }
 // ================= Prioritet 71.3: Ringeliste-innstillinger =================
 // Home Delivery/Veihjelp — ett fast kontaktkort hver (navn/undertekst/telefon), samme
@@ -15946,8 +16421,13 @@ function renderInnstillinger(){
   // app, Database status, Administratorbrukere, Informasjonsveileder, Nullstill bilparkdata,
   // pluss enhetsvisning-bryteren (tidligere to separate menypunkter, se
   // attachDeviceOverrideToggleListener()).
+  // Prioritet 53: 🎯 Operativ kontrollgrunnlag. Innholdet bygges kun når seksjonen er åpen
+  // (bodyHtml evalueres ellers eagerly av settingsAccordionRow, og skjemaets kopi ville blitt
+  // opprettet for ingenting).
+  const operativGrunnlagBody = settingsOpenSections.has('operativgrunnlag') ? operativGrunnlagBodyHtml() : '';
   const systemBody = `
     ${settingsAccordionRow('oppdater', '🔄 Oppdater app', null, oppdaterAppBody)}
+    ${settingsAccordionRow('operativgrunnlag', '🎯 Operativ kontrollgrunnlag', operativGrunnlagStatus === 'ok' ? operativGrunnlagBiler().length : null, operativGrunnlagBody)}
     ${settingsAccordionRow('database', '📡 Database status', null, databaseBody)}
     ${settingsAccordionRow('admin', '👤 Administratorbrukere', adminUsers.length, adminBody)}
     ${settingsAccordionRow('veileder', '📘 Informasjonsveileder', null, veilederBody)}
@@ -15999,6 +16479,7 @@ async function hardRefreshApp(){
 function attachInnstillingerListeners(){
   document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
+  attachOperativGrunnlagListeners();
   // ---- Prioritet 66.9: manuell seeding (eneste vei til DEFAULT_FLEET) ----
   // Kun administrator, kun når en VELLYKKET lesing har bekreftet null rader, aldri ved
   // lesefeil, aldri som del av oppstart, og bare etter at bekreftelsesteksten er skrevet.

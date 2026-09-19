@@ -1,6 +1,14 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-18 (Prioritet 52 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 53 —
+**Konfigurerbart grunnlag for operativ kontroll.** (Brukerens EGEN betegnelse «Prioritet 53» —
+det finnes fra før en helt annen, tidligere «Prioritet 53 — Dashboard 5.0» lenger ned; navne-
+sammenfallet er tilfeldig.) Administrator velger selv hvilke kjøretøy (lagret på Vehicle-ID) og
+hvilke ukedager (ISO 1–7) som utgjør operativ kontroll, i Innstillinger → Systeminnstillinger →
+🎯 Operativ kontrollgrunnlag. Én Settings-blob `operativ-kontrollgrunnlag`; `storage.airtable.js`
+er IKKE endret. Erstatter den hardkodede kjernepopulasjonen fra Prioritet 50 og «7 kalenderdager».
+**Uten gyldig grunnlag vises aldri en prosent.** Se egen seksjon «Prioritet 53 (2026-09-19)»
+nederst. Før det: 2026-09-18 (Prioritet 52 —
 **Dashboard UX Polish** (ren opprydding, ingen ny funksjonalitet): permanent scrollbarspor
 og fanebytte i Hurtigoversikt uten full `render()` (ingen layout shift), Operativ kontroll-
 banneret komprimert til to linjer, Bestill tjenester/Hurtigoversikt som seksjoner med
@@ -5009,6 +5017,10 @@ Det finnes derfor ikke noe sidepanel å visuelt koble sammen med noe på mobil.
 
 ### Del 2 — Dashboard-innhold: banner + Hurtigoversikt
 
+**⚠️ AVLØST av Prioritet 53 (2026-09-19):** `operativeKjerneBiler()` og `kontrollrateUke()`
+finnes ikke lenger — grunnlaget er nå administrator-konfigurert (se «Prioritet 53 (2026-09-19)»
+nederst). Teksten under er bevart som historikk.
+
 **Ny kjernepopulasjon for "Operativ kontroll" (Del 3 i ticket):** `operativeKjerneBiler()`
 — KUN kjøretøy med `v.driftslag` lik nøyaktig `'Lag 2'`, `'Montering'` eller `'Lastebil'`
 (eksakte strenger fra `DRIFTSLAG_ORDER`), i tillegg ekskludert dersom `v.uteAvDrift`,
@@ -5350,3 +5362,127 @@ kortrekke og faner identisk før/etter alle fanebytter, også ved scroll til bun
 mobilenhet/touch, og at Hurtigoversikt-handlingsknappene i Varsler-fanen (Godta/Avslå km, Merk
 som løst) fortsatt fungerer etter fanebytte — lytterne festes på nytt, men handlingene ble ikke
 utløst mot ekte data (skriving var bevisst avslått).
+
+---
+
+## Prioritet 53 (2026-09-19) — Konfigurerbart grunnlag for operativ kontroll
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 53 — Dashboard 5.0»
+lenger opp. Nummeret følger brukerens backlog, ikke denne filens rekkefølge.)
+
+**Varig regel: hva som er «operativ kontroll» bestemmes av administrator, ikke av appen.**
+Dagens Dashboard-tall (kontrollprosent i dag og siste 7 driftsdager) regnes UTELUKKENDE fra to
+lagrede valg: en liste kjøretøy og en liste ukedager. Appen gjetter ikke, filtrerer ikke og
+har ingen fallback. Dagens behov er 13 kjøretøy og man–fre; lørdag/søndag kan aktiveres senere
+uten kodeendring.
+
+**Datamodell.** ÉN JSON-blob i den eksisterende Settings-tabellen, nøkkel
+`operativ-kontrollgrunnlag` (`OPERATIV_GRUNNLAG_KEY`), lest/skrevet med
+`window.storage.get/set(nøkkel, verdi, true)` — samme mønster som `standardverksted`/
+`varselSett`/`ringeliste-ekstra`. Ingen ny Airtable-tabell, ingen nye felt på `Vehicles`,
+ingen `LIST_TABLES`-registrering, **`storage.airtable.js` er uendret** (uendret `versjon`/`?v=`):
+
+    {"version":1, "vehicleIds":["<Vehicle-ID>",…], "activeWeekdays":[1,2,3,4,5],
+     "updatedAt":"ISO", "updatedBy":"<innlogget rolle>"}
+
+Ukedager er ISO (1 = mandag … 7 = søndag). **Kjøretøy lagres med `v.id`, aldri navn eller
+gruppe** — omdøping av bil og flytting mellom driftslag/kategori fjerner derfor aldri valget
+(verifisert). En lagret id som ikke lenger finnes i `vehicles` (slettet bil) ignoreres i
+beregningen (den kan ikke kontrolleres, og ville gjort 100 % umulig), vises som «N tidligere
+valgte kjøretøy finnes ikke lenger» i skjemaet og fjernes ved neste lagring. `deleteVehicle()`
+skriver bevisst ikke om grunnlaget.
+
+**Funksjoner (alle i `index.html`, samlet der `operativeKjerneBiler()` sto):**
+`validerOperativGrunnlag()` (streng validering: version 1, ≥ 1 id, ≥ 1 ukedag 1–7, ellers `null`),
+`lastOperativGrunnlag()`, `operativGrunnlagTilstand()`, `operativErDriftsdag()`,
+`operativKontrollStatusIdag()`, `kontrollrateSyvDriftsdager()`, `lagreOperativGrunnlag()`,
+`operativGrunnlagBodyHtml()`/`attachOperativGrunnlagListeners()`. Tilstand:
+`operativGrunnlag` (validert konfigurasjon eller `null`) + `operativGrunnlagStatus`
+(`'ok'`/`'mangler'`/`'korrupt'`/`'lesefeil'`/`'ikke-lastet'`).
+
+**Beregning.**
+- Den lagrede listen er eneste grunnlag for teller OG nevner. INGEN filtrering på reserve, ute av
+  drift, verkstedstatus, aktiv sjåfør eller gruppe — en valgt bil på verksted teller som «mangler».
+- Hver bil teller maks én gang per dag (teller `vehicleId|dato`-nøkler, ikke kontrollrader).
+  Kontroll på en ikke-valgt bil lagres normalt, men påvirker verken teller eller nevner.
+- **«I dag» = `todayISO()`** (operativt døgn, dagskille 04:00) og ukedagen avledes av DEN datoen
+  (`operativIsoUkedag()`), så natt til lørdag før 04:00 er fortsatt fredag. Ingen ny «i dag»-
+  definisjon er innført (jf. Prioritet 66).
+- Fridag (ukedag ikke valgt): «Ingen planlagt kontroll i dag» — **aldri 0 %**.
+- **Siste 7 driftsdager** = de syv siste datoene, regnet bakover fra og MED i dag (når i dag er
+  en driftsdag — samme oppførsel som forrige «7 dager»), hvis ukedag er valgt; helger hoppes over
+  når kun man–fre er valgt. Formel: unike kontrollerte kjøretøy-dager / (valgte biler × 7).
+  Bevisst forenkling: dagens valgte bilsett brukes for alle sju dagene (ingen historikk over
+  hvilke biler som var valgt), egnet som trendtall, ikke som revisjonsgrunnlag. Prosent avrundes,
+  men er aldri 100 % uten at alt er kontrollert (`operativProsent()`) og aldri over 100.
+- Dette er fortsatt en ANNEN populasjon enn `kontrollstatusKpiHtml()`-tidens
+  `aktiveVehicles − reserveUnntatt`, som gjelder uendret for Biloversikt-filteret «Ikke
+  kontrollert» — to tall, to spørsmål; ikke sett dem side om side som om de var samme ting.
+
+**Ingen prosent uten gyldig grunnlag (viktigste regel).** `operativGrunnlagTilstand()` er eneste
+port; alle beregninger og bannere går gjennom den. Tilstandene holdes bevisst adskilt:
+`mangler` (raden finnes ikke) → «Operativ kontroll må konfigureres» [Konfigurer]; `korrupt`
+(finnes, men ugyldig JSON/format) og `ingen-kjoretoy` (ingen av de valgte finnes lenger) →
+«må konfigureres på nytt»; `lesefeil` (Airtable svarte ikke) → «Kunne ikke lese …» [Prøv igjen].
+**En lesefeil er ikke et tomt/ugyldig grunnlag:** en tidligere gyldig konfigurasjon beholdes
+urørt ved lesefeil (samme prinsipp som `vehiclesLoadStatus`, Prioritet 66.9), og lagring er
+sperret mens status er `lesefeil` slik at et uleselig grunnlag ikke kan overskrives blindt.
+
+**Banner** (`dashOperativBannerHtml()`, delt av desktop og mobil): driftsdag →
+`23 % i dag • 96 % siste 7 driftsdager • N aktive` + `3/13 kontrollert` / «Se hvilke →»
+(åpner Kontrollert/Mangler kontroll med klikkbare biler; `dashKontrollListeApen`, ren
+visningstilstand, byttes uten `render()` og nullstilles av `goTo()` bort fra Dashboard).
+Fridag → `Ingen planlagt kontroll i dag • 96 % siste 7 driftsdager` + `N aktive` / «Se hvilke →»
+(til aktive biler). På driftsdag er «N aktive» selv en snarvei til Biloversikt → Har aktiv sjåfør,
+slik at klikkfunksjonen fra Prioritet 50 ikke gikk tapt. Datolinjen (dato/klokkeslett/vær) er beholdt.
+
+**Innstillinger** (`settingsAccordionRow('operativgrunnlag', …)` nestet i Systeminnstillinger):
+alle kjøretøy gruppert på `v.driftslag` (`DRIFTSLAG_ORDER`, ukjente alfabetisk, «Uten
+driftslag» sist) — også ute av drift/reserve (merket, ikke skjult); søk, Velg alle/Fjern alle
+(gruppe og globalt, virker kun på synlige rader), alltid synlig «N kjøretøy valgt», syv
+driftsdager (standard man–fre), Nullstill (forkaster ulagrede valg → lagret grunnlag) og Lagre.
+Skjemaet arbeider mot en KOPI (`operativGrunnlagDraft`); all interaksjon skjer i DOM + kopi
+uten `render()` (fokus/scroll mistes ellers midt i utvelgelsen), og malen bygges alltid fra
+kopien slik at en bakgrunnsrender aldri mister valg. Kopien forkastes når seksjonen lukkes eller
+man forlater Innstillinger (`goTo()`).
+
+**Lagring:** valider → lås Lagre («Lagrer …») → `storage.set` → først ETTER bekreftet skriving
+byttes `operativGrunnlag` og `render()` beregner Dashboard på nytt → «Operativt kontrollgrunnlag
+er lagret.» Ved feil: forrige gyldige grunnlag urørt, «Kunne ikke lagre. Forrige innstilling er
+fortsatt aktiv.», og valgene står som ULAGRET i skjemaet (vises ikke som lagret).
+
+**Synk mellom enheter.** `subscribeLiveSync()` poller bare `LIST_TABLES`-nøkler, så grunnlaget
+leses eksplisitt i `_lagBatchetLiveSyncHandler()` hver runde (én ekstra Settings-lesing per
+45 s per klient) og av `loadAll()` ved oppstart. En lesing som startet før en pågående lagring
+kan ikke sette gammel verdi tilbake (`operativGrunnlagLagrer`-vakt). Åpent skjema overskrives
+aldri stille: urørt skjema bytter umerket til det nye grunnlaget; skjema med ulagrede valg
+beholdes med varsel og «Last inn siste», og Lagre krever `confirm()` før det overskriver en
+annen brukers endring. **«Skittent» måles mot baseline (`baseNoekkel`) utkastet ble bygget fra,
+ALDRI mot det som ligger lagret nå** — dette var en reell feil funnet i test (et urørt skjema ble
+regnet som ulagret arbeid da noen andre lagret).
+
+**Filer endret:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (`CACHE_VERSION`
+bilpark-v101 → v102), `version-check.js` (`APP_VERSION` 101 → 102), `version.json` (101 → 102),
+CLAUDE.md, ROADMAP.md, CHANGELOG.md. **Ikke `storage.airtable.js`/`AIRTABLE_MIGRATION.md`** —
+ingen Airtable-endring (Settings-raden opprettes av storage-laget ved første lagring).
+
+**Ikke rørt (som bestilt):** Sjåførkontroll (`submitKontroll()`), kilometerlogikk, Aktiv sjåfør,
+dagskille kl. 04:00 (`todayISO()`/`isoDateForOperationalDay()` kun LEST), saksmotoren, Biloversikt,
+reserve-/ute-av-drift-logikk utenfor denne beregningen.
+
+**Driftsforutsetning:** ved første bruk finnes ingen konfigurasjon — banneret viser «Operativ
+kontroll må konfigureres» til administrator har valgt kjøretøy og driftsdager. Det er bevisst
+(ingen automatisk seeding av «13 biler»; appen kan ikke vite hvilke 13).
+
+**Testet** i nettleser (Browser-pane) mot en kopi av appen med in-memory storage-mock (ingen
+kontakt med produksjons-Airtable; `node`/`python` finnes ikke i miljøet): 3/13 = 23 %, 13/13 =
+100 %, samme bil flere ganger, ikke-valgt bil, man–fre, lørdag/søndag som fridag, lørdag aktivert,
+dagskille 03:59/04:00 Oslo, omdøpt/flyttet/slettet bil, ute av drift/reserve valgt, lagringsfeil,
+sju varianter av korrupt konfigurasjon, lesefeil med/uten tidligere grunnlag, synk (urørt/skittent
+skjema, gjentatt poll, bekreftelse), validering (ingen kjøretøy/ingen driftsdag), banner og skjema
+på 1280 px og 375 px uten horisontal overflow. **Ikke testet:** mot ekte Airtable (bl.a. at
+Settings-raden faktisk opprettes ved første lagring — koden bruker det etablerte
+`writeSettingsRow`-mønsteret), på ekte mobil/touch, eller visuelt i detalj (skjermbilder i
+panelet var ustabile; layout er målt via DOM). Anbefalt før idriftsettelse: logg inn, åpne
+Innstillinger → Operativ kontrollgrunnlag, velg de 13 bilene, lagre, last siden på nytt og
+bekreft at valget overlever, og at en annen enhet ser det etter ≤ 45 s.

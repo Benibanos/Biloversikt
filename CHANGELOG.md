@@ -13,6 +13,54 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-19
+
+### Prioritet 53 — Konfigurerbart grunnlag for operativ kontroll
+
+(Brukerens egen nummerering — det finnes fra før en annen, tidligere «Prioritet 53 — Dashboard 5.0»
+i CLAUDE.md; navnesammenfallet er tilfeldig.) Full detalj i CLAUDE.md, «Prioritet 53 (2026-09-19)».
+
+1. **Ny innstilling** Innstillinger → ⚙️ Systeminnstillinger → 🎯 Operativ kontrollgrunnlag:
+   kjøretøy gruppert på `v.driftslag` (Velg alle/Fjern alle per gruppe og globalt, søk, alltid
+   synlig «N kjøretøy valgt») og driftsdager man–søn (standard man–fre). Minst ett kjøretøy og én
+   driftsdag kreves. Nullstill forkaster ulagrede valg.
+2. **Datamodell:** én Settings-blob `operativ-kontrollgrunnlag`
+   (`{version:1, vehicleIds, activeWeekdays (ISO 1–7), updatedAt, updatedBy}`). Ingen ny tabell,
+   ingen nye Vehicles-felt, **`storage.airtable.js` uendret**.
+3. **Beregning** (erstatter `operativeKjerneBiler()`/`kontrollrateUke()`): den lagrede listen er
+   eneste grunnlag — ingen filtrering på reserve/ute av drift/verksted/aktiv sjåfør/gruppe. Hver
+   bil teller maks én gang per dag. Fridag: «Ingen planlagt kontroll i dag» (aldri 0 %). «Siste
+   7 driftsdager» = de syv siste datoene med valgt ukedag; unike kontrollerte kjøretøy-dager /
+   (valgte biler × 7); aldri over 100 %.
+4. **Banner** (desktop og mobil, samme funksjon): `23 % i dag • 96 % siste 7 driftsdager • 3 aktive`
+   + `3/13 kontrollert` med «Se hvilke →» som åpner Kontrollert/Mangler kontroll (klikkbare
+   biler). «N aktive» er selv en snarvei til Biloversikt → Har aktiv sjåfør. Uten gyldig
+   grunnlag: «Operativ kontroll må konfigureres» [Konfigurer], ugyldig/korrupt, eller «Kunne ikke
+   lese …» [Prøv igjen]. Aldri en prosent uten grunnlag.
+5. **Lasting/synk/feil:** lastes i `loadAll()`; live-synk-handleren leser grunnlaget hver runde
+   (subscribeLiveSync poller bare LIST_TABLES). Lagring låser knappen, skriver via storage-laget,
+   og bytter først etter bekreftet skriving; ved feil beholdes forrige grunnlag og valgene vises
+   ikke som lagret. Et åpent skjema overskrives aldri: urørt skjema oppdateres stille, skittent
+   skjema beholdes med varsel + «Last inn siste», og Lagre ber om bekreftelse.
+6. Versjon 102 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert.
+
+**Rettet underveis (funnet i test, aldri levert):** skjemaets «er endret»-sjekk sammenlignet mot det
+nye grunnlaget i stedet for det utkastet ble bygget fra, slik at et urørt skjema ble regnet som
+ulagret arbeid da en annen bruker lagret. Løst med en baseline (`baseNoekkel`) i utkastet.
+
+**Verifisert** i nettleser (Browser-pane) mot en kopi av appen med en in-memory storage-mock —
+**ingen kontakt med produksjons-Airtable**, og ikke testet mot ekte Airtable: 3/13 = 23 %,
+13/13 = 100 %, samme bil flere ganger, ikke-valgt bil kontrollert, man–fre (helger hoppes over i
+7-dagersperioden, helgekontroller teller ikke), lørdag/søndag som fridag, lørdag aktivert senere,
+dagskille 03:59/04:00 Oslo, omdøpt/flyttet bil beholdes, slettet bil ignoreres, ute av
+drift/reserve teller når valgt, lagringsfeil (forrige grunnlag beholdt), sju varianter av korrupt
+konfigurasjon, lesefeil (forrige gyldige beholdes), synk mellom «enheter» (rent/skittent skjema,
+gjentatt poll, bekreftelse ved lagring), banner på 1280 px og 375 px (ingen horisontal overflow).
+Skjermbilder i panelet var ustabile — layout er målt via DOM (bounding boxes), ikke sett visuelt i
+detalj.
+
+---
+
 ## 2026-09-18
 
 ### Prioritet 52 — Dashboard UX Polish
