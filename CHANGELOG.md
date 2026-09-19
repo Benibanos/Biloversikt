@@ -15,6 +15,27 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-19
 
+### Prioritet 57 — Dashboard og Hurtigoversikt
+
+(Brukerens egen nummerering.) Full detalj i CLAUDE.md, «Prioritet 57 (2026-09-19)».
+
+1. **Varsler-fanen i Hurtigoversikt = samme design som de andre fanene.** Radene er nå `.p38-case`
+   (`dashHovVarselRadHtml()`): ikon-flis (kategoriikon, tonet), fet bil-linje, én tekstlinje og «→ Åpne»-lenke —
+   identisk struktur, høyde (56 px) og startposisjon som Aktive saker/Oppfølging/Verksted. Den egne
+   varsellayouten (`.vl-card` med store knapper: Åpne bilkort/sak, Merk som løst, Godta/Avslå km, Marker som sett)
+   er FJERNET herfra. Hele raden er klikkmålet: km-varsler og varsellamper åpner Varslingssenteret på riktig
+   kategori (der handlingene fortsatt ligger, uendret), resten går rett til bil/sak/kommentarer.
+2. **«Neste verkstedtime» flyttet inn i Dashboard-banneret**, til høyre for kontrollstatusen (desktop; stables
+   under på smal skjerm). Ett klikkbart felt (`data-apne-vt` → `apneVerkstedAvtale()`): tittel, bil, faktisk
+   dato · klokkeslett og verkstedets navn. Ingen kommende time → kun en dempet tekstlinje «Ingen planlagte
+   verkstedtimer» (ingen tom boks). Den gamle seksjonen nederst (`dashNesteVerkstedSekHtml()`) er fjernet.
+3. Versjon 105 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert. Airtable uendret.
+
+**Verifisert** i nettleser mot mock-storage (ingen ekte Airtable), 1200 px og 375 px: banner i to kolonner,
+klikk på indre tekst åpner avtalen, tom-tilstand, ingen VT-seksjon nederst, radstruktur/-høyde/-posisjon lik i alle
+faner, klikkmål for varsler (senter/sak/kommentarer), stabling og ingen horisontal overflow på mobil.
+**Ikke testet** mot ekte Airtable eller ekte telefon; skjermbildene i panelet er små, layout målt via DOM.
+
 ### Prioritet 56 — Moderniser hele sjåførmodus
 
 (Brukerens egen nummerering. Ticketen kom i to versjoner — den første ble avbrutt og var avkuttet etter

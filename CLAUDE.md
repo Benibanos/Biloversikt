@@ -1,6 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 56 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 57 —
+**Dashboard og Hurtigoversikt.** Varsler-fanen har samme radmønster som de andre fanene, og «Neste
+verkstedtime» ligger i Dashboard-banneret (høyre kolonne). Se «Prioritet 57 (2026-09-19)» nederst — den
+avløser Dashboard-plasseringen fra Prioritet 54 og Varsler-radene fra Prioritet 50. Før det: 2026-09-19
+(Prioritet 56 —
 **Moderniser hele sjåførmodus.** Ringeliste er referansedesignet for alle sjåførskjermer (delte
 `sj-*`-klasser), Min Bil har ETT bilkort (kontrollstatus · km · neste verkstedtime · løftebord), løftebord er
 steg 4 i kontrollflyten, og en sendt kontroll går rett til Min Bil med en kort bekreftelse. Se «Prioritet 56
@@ -5647,3 +5651,46 @@ sjåførskjermer, admin-kontroll uendret flyt, ingen JS-feil. **Ikke testet:** e
 «offlineflyt» (det finnes ingen offlinekø i koden — en feil håndteres som før), eller Ringeliste-fanen visuelt utover
 header-endringen. Anbefalt før idriftsettelse: kjør en kontroll fra sjåfør-URL-en på en ekte telefon og bekreft at
 du lander på Min Bil med bekreftelsen, og at «Smør løftebord» fungerer fra bilkortet.
+
+---
+
+## Prioritet 57 (2026-09-19) — Dashboard og Hurtigoversikt
+
+(Brukerens egen nummerering.) **Varig regel: alle Hurtigoversikt-faner er ÉN komponent — samme radmønster.**
+Aktive saker, Oppfølging, Verksted og Varsler bruker alle `.p38-case`: ikon-flis (`.flis.sm`, tonet), fet
+bil-linje, én tekstlinje og «→ Åpne …»-lenke, hele raden er klikkmålet. Ingen faner har egne knapper eller egen
+radtype. Ny fane/rad skal bygges som `.p38-case`, ikke som et eget layout.
+
+**Varsler-fanen** (`dashHovVarselRadHtml()`, tone per kategori i `DASH_VARSEL_TONE`, ikon fra
+`VARSLINGSSENTER_KATEGORI_IKON`): bil-linjen er bilens navn (varselets `tekst` starter med det, prefikset
+strippes og teksten kortes til 90 tegn). **Klikkmål:** km-varsler og varsellamper → Varslingssenteret på riktig
+kategori (`data-goto-varsel-senter` setter `varslingssenterAktivKategori`) — der ligger Godta/Avslå endring og
+Merk som løst; saker → `goToVarselSak()`; kommentarer → Kommentaroversikt; øvrige (service/EU) → bilkortet.
+**Endring i funksjon:** Godta/Avslå km, Merk som løst og Marker som sett er IKKE lenger tilgjengelige direkte fra
+Dashboard (kun i Varslingssenteret, uendret) — bevisst, som bestilt («fjern store handlingsknapper»).
+`varslingssenterRadHtml()` og skjermen Varslingssenter er uendret; lytterne for `data-kvitter`/`data-godta-km`/
+`data-avsla-km`/`data-marker-varsel-sett` er fjernet fra `attachHovInnholdListeners()` (ingen rad i Dashboard har dem).
+Tom fane: «Ingen varsler nå.» (samme `.empty-note` som de andre fanene).
+
+**«Neste verkstedtime» i banneret.** `dashOperativBannerHtml()` er nå en omslagsfunksjon: venstre kolonne =
+`dashOperativBannerVenstreHtml()` (kontrollstatus — innhold og logikk fra Prioritet 50/52/53 uendret, kun uten
+egen ramme), høyre kolonne = `dashBannerVerkstedHtml()`. Rutenett `.dash-banner-grid`
+(`minmax(0,1fr) auto`), stables under kontrollstatusen ≤ 720 px. Samme `nesteVerkstedtime()` (Prioritet 54): ÉN
+`<button data-apne-vt>` — hele feltet er klikkbart og åpner avtalen via `apneVerkstedAvtale()` (festet av
+`attachNesteVerkstedtimeListeners()`, som kalles fra `attachDashboardListeners()` for både desktop og mobil).
+Innhold: tittel, bil, faktisk `dato · klokkeslett` (samme `fmt()` som overalt) og verkstedets navn. **Ingen
+kommende time:** kun en dempet tekstlinje «Ingen planlagte verkstedtimer» — aldri en tom boks. Banneret har
+fortsatt datolinjen og alle tilstander (mangler/ugyldig/lesefeil, fridag, driftsdag med «Se hvilke»); VT-blokken
+vises i ALLE tilstander, uavhengig av kontrollgrunnlaget.
+**Fjernet:** `dashNesteVerkstedSekHtml()` (seksjonen nederst) og bruken av den i begge `komponentHtml.hurtigoversikt`.
+Dashboard inneholder igjen kun banner, Bestill tjenester og Hurtigoversikt. Dato og klokkeslett står på ÉN linje
+her (kompakt); de andre flatene (Prioritet 54) har dem på hver sin linje — samme data.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v104 → v105), `version-check.js` (104 → 105),
+`version.json` (104 → 105), CLAUDE.md/ROADMAP.md/CHANGELOG.md. `storage.airtable.js`/Airtable uendret.
+
+**Testet** i nettleser mot mock-storage (ingen ekte Airtable), 1200 px og 375 px: banner i to kolonner (VT høyre
+for kontrollstatus), klikk på indre tekst åpner avtalen, tom-tilstand uten boks, kun to seksjoner under banneret,
+lik radstruktur/høyde (56 px)/startposisjon og ingen knapper i alle fire faner, klikkmål for varsellampe/kommentar,
+stabling og ingen horisontal overflow på mobil. **Ikke testet:** ekte Airtable, ekte telefon, eller pikselsammenligning
+av banneret (skjermbildene i panelet er små; layout målt via DOM).

@@ -1,6 +1,9 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-19 (Prioritet 56 — Moderniser hele sjåførmodus: Ringeliste er referansedesign for
+Sist oppdatert: 2026-09-19 (Prioritet 57 — Dashboard og Hurtigoversikt: Varsler-fanen bruker samme radmønster
+som de andre Hurtigoversikt-fanene (ingen egne knapper/layout), og «Neste verkstedtime» ligger nå i
+Dashboard-banneret til høyre for kontrollstatusen — ett klikkbart felt — i stedet for nederst). Før det:
+2026-09-19 (Prioritet 56 — Moderniser hele sjåførmodus: Ringeliste er referansedesign for
 alle sjåførskjermer (delte `sj-*`-klasser); Min Bil har ETT bilkort (kontrollstatus, km, neste verkstedtime,
 løftebord); løftebord ligger som steg 4 i kontrollflyten; kontroll sender sjåføren rett til Min Bil med en kort
 bekreftelse (ingen mellomskjerm, heller ikke for allerede kontrollerte biler)). Før det: 2026-09-19
