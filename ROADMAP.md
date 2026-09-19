@@ -1,6 +1,11 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-19 (Prioritet 53 — Konfigurerbart grunnlag for operativ kontroll:
+Sist oppdatert: 2026-09-19 (Prioritet 54 — Neste verkstedtime som operativ informasjon:
+nærmeste kommende verkstedtime (én definisjon, `WorkshopAppointments`) vises nå på Dashboard
+(under Hurtigoversikt), øverst i Verkstedoversikten, på Kjøretøyprofil/Bilinformasjon og på Min Bil
+(sjåfør) — med faktisk avtaledato, klokkeslett og verksted, og «Ingen planlagte verkstedtimer»
+når det ikke finnes noen. Sjåførmodus får nå oppdatert Min Bil ved bakgrunnssynk). Før det:
+2026-09-19 (Prioritet 53 — Konfigurerbart grunnlag for operativ kontroll:
 administrator velger selv hvilke kjøretøy (lagret på Vehicle-ID) og hvilke ukedager
 (ISO 1–7) som utgjør operativ kontroll, i Innstillinger → Systeminnstillinger → Operativ
 kontrollgrunnlag. Én Settings-blob `operativ-kontrollgrunnlag` — ingen ny tabell, ingen
@@ -852,6 +857,10 @@ kontrollavvik (kun Skade, Varsellampe, Defekt lys, Manglende utstyr, Feil på
 kjøretøy og Slitte dekk oppretter nå saker) — se over.
 
 ## Verkstedflyt
+
+✅ **Prioritet 54 (2026-09-19) — Neste verkstedtime synlig overalt.** Se CHANGELOG.md/CLAUDE.md.
+Verifisert mot mock-storage, **ikke** mot ekte Airtable. Kjent: Verkstedoversiktens «Planlagt verksted»
+finnes fortsatt som saksfase-navn i Aktive saker/Hurtigoversikt (saksmotor, bevisst uendret).
 
 ✅ Implementert og verifisert — verkstedtimer (`WorkshopAppointments`),
 kobling til saker (`SakId`/`CaseId`), kontaktperson/telefon.

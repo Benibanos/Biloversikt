@@ -1229,6 +1229,19 @@
   .og-melding.feil{background:var(--red-soft);color:var(--red);}
   .og-handlinger{display:flex;gap:8px;justify-content:flex-end;}
   .og-rad[hidden],.og-gruppe[hidden],.og-melding[hidden],.dash-kontroll-liste[hidden]{display:none !important;}
+  /* Prioritet 54: «Neste verkstedtime» — ETT delt kort (nesteVerkstedtimeHtml) for Dashboard, Verkstedoversikt,
+     Kjøretøyprofil/Bilinformasjon og Min Bil. Dato og klokkeslett står på hver sin linje, som i bestillingen. */
+  .panel.nvt{padding:12px 16px;margin-bottom:16px;}
+  .dash-sek .panel.nvt{margin-bottom:0;}
+  .nvt-tittel{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink);margin-bottom:8px;}
+  .nvt-bil{font-size:15px;font-weight:700;color:var(--ink);}
+  .nvt-dato,.nvt-kl{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;line-height:1.2;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .nvt-dato{margin-top:6px;}
+  .nvt-verksted{margin-top:8px;font-size:14px;font-weight:600;color:var(--ink-2);}
+  .nvt-arsak{margin-top:4px;font-size:13px;color:var(--ink-2);overflow-wrap:anywhere;}
+  .nvt-arsak-etikett{font-weight:700;color:var(--muted);}
+  .nvt-handling{margin-top:10px;}
+  .nvt-tom-tekst{font-size:13.5px;color:var(--muted);}
   /* Del 3: seksjoner skilles med luft, overskrift og en subtil linje — ikke med flere bokser. */
   .dash-sek{margin-top:22px;}
   .dash-sek + .dash-sek{margin-top:26px;padding-top:22px;border-top:1px solid var(--line-soft);}
@@ -1971,7 +1984,12 @@ const OVERSIKT_SCREENS = ['register', 'kontrolloversikt', 'verksted', 'skader', 
 // redigering av skade, verkstedtime eller bilinfo, eller rett og slett har fokus i et
 // hvilket som helst tekstfelt/nedtrekksmeny akkurat nå.
 function formInProgress(){
-  if(screen === 'kontroll') return true;
+  // Prioritet 54: i sjåførmodus står `screen` ALLTID på 'kontroll' (se oppstarten), så dette
+  // var tidligere alltid «sant» der og bakgrunnssynken lastet data uten noen gang å tegne på
+  // nytt. Min Bil i hviletilstand (ingen åpent handlingspanel, se minBilAksjon) har ikke noe skjema
+  // å beskytte — der får synken tegne på nytt, slik at f.eks. en endret verkstedtime dukker opp
+  // uten at sjåføren må trykke seg videre. Alle andre sjåførskjermer er uendret beskyttet.
+  if(screen === 'kontroll' && !(driverMode && driverScreen === 'min-bil' && !minBilAksjon)) return true;
   if(showAddVehicleForm) return true;
   if(showAddSkade || editingDamageId) return true;
   if(showAddVT || editingVTId) return true;
@@ -5325,6 +5343,102 @@ function vehicleVT(vid){
   return verkstedtimer.filter(t => t.vehicleId === vid).sort((a,b) => (a.dato||'').localeCompare(b.dato||''));
 }
 function vtVehicle(t){ return vehicles.find(v => v.id === t.vehicleId); }
+
+// ================= Prioritet 54: Neste verkstedtime =================
+// ÉN definisjon og ÉN datakilde (verkstedtimer = WorkshopAppointments) for «neste
+// verkstedtime» — brukt av Dashboard, Verkstedoversikt, Kjøretøyprofil/Bilinformasjon og Min
+// Bil (sjåfør). Ingen av flatene har egen filtrering eller sortering, og ingenting kopieres
+// til andre felt: endres/slettes/fullføres en verkstedtime, endres alle fire visninger ved
+// neste tegning (sjåførmodus via bakgrunnssynken, som poller verkstedtimer).
+//
+// «Kommende» = ikke utført, har dato, og dato/tid ligger fremover i tid. Datamodellen har
+// ingen egen «kansellert»-status: en avlyst time slettes (deleteVT()), en gjennomført time er
+// `utfort` — begge faller derfor ut av «kommende» uten egen regel. Sammenligningen bruker
+// FAKTISK Oslo-kalenderdato og -klokkeslett (ikke det operative døgnet med dagskille kl.
+// 04:00), fordi spørsmålet er «har timen passert ennå?». En time uten klokkeslett regnes
+// som «hele dagen» og forblir kommende ut kalenderdagen.
+function vtOsloNaa(){
+  const p = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date());
+  const del = t => p.find(x => x.type === t).value;
+  return {dato: del('year') + '-' + del('month') + '-' + del('day'), tid: del('hour') + ':' + del('minute')};
+}
+function vtErKommende(t, naa){
+  if(!t || t.utfort || !t.dato) return false;
+  naa = naa || vtOsloNaa();
+  if(t.dato > naa.dato) return true;
+  if(t.dato < naa.dato) return false;
+  return !t.tidspunkt || t.tidspunkt >= naa.tid;
+}
+function kommendeVerkstedtimer(vehicleId){
+  const naa = vtOsloNaa();
+  return verkstedtimer
+    .filter(t => (!vehicleId || t.vehicleId === vehicleId) && vtErKommende(t, naa))
+    .sort((a, b) => (a.dato + (a.tidspunkt || '')).localeCompare(b.dato + (b.tidspunkt || '')));
+}
+// Tidligste kommende verkstedtime — i hele bilparken, eller for ett kjøretøy. null = ingen.
+function nesteVerkstedtime(vehicleId){
+  return kommendeVerkstedtimer(vehicleId)[0] || null;
+}
+// Delt kort. `o`: visBil (default true), visArsak (true = «beskrivelse» uten etikett,
+// 'merket' = «Årsak:» over), knapp (tekst på åpne-knappen, ingen knapp når utelatt),
+// utenTittel (tittelen står allerede i en seksjonsoverskrift), skjulTom (ingenting når det
+// ikke finnes noen time). Viser AVTALEN — t.dato/t.tidspunkt — aldri datoen saken/bestillingen
+// ble opprettet. Årsak = t.beskrivelse (for sak-bestilte timer er det saksbeskrivelsen).
+function nesteVerkstedtimeHtml(t, o){
+  o = o || {};
+  const tittel = o.utenTittel ? '' : `<div class="nvt-tittel">${luc('factory', 'ic-orange')} Neste verkstedtime</div>`;
+  if(!t){
+    if(o.skjulTom) return '';
+    return `<div class="panel nvt nvt-tom">${tittel}<div class="nvt-tom-tekst">Ingen planlagte verkstedtimer</div></div>`;
+  }
+  const v = vtVehicle(t);
+  const arsak = (t.beskrivelse || '').trim();
+  return `
+    <div class="panel nvt">
+      ${tittel}
+      ${o.visBil === false ? '' : `<div class="nvt-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>`}
+      <div class="nvt-dato">${fmt(t.dato)}</div>
+      ${t.tidspunkt ? `<div class="nvt-kl">${esc(t.tidspunkt)}</div>` : ''}
+      <div class="nvt-verksted">${esc(t.verksted || 'Verksted ikke satt')}</div>
+      ${o.visArsak && arsak ? (o.visArsak === 'merket'
+        ? `<div class="nvt-arsak"><span class="nvt-arsak-etikett">Årsak:</span> ${esc(arsak)}</div>`
+        : `<div class="nvt-arsak">${esc(arsak)}</div>`) : ''}
+      ${o.knapp ? `<div class="nvt-handling"><button type="button" class="btn small" data-apne-vt="${esc(t.id)}">${esc(o.knapp)}</button></div>` : ''}
+    </div>`;
+}
+// «Åpne avtale»: åpner selve avtalen (redigeringsboksen) i Verkstedoversikten. Nullstiller
+// filtrene som ellers kunne skjule den, åpner riktig bil i oversikten og ruller den til syne.
+function apneVerkstedAvtale(id){
+  const t = verkstedtimer.find(x => x.id === id);
+  if(!t) return;
+  vtFilterBil = ''; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
+  showVtFilterMeny = false; showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = '';
+  vtGrupperApen = true;
+  vtOversiktOpenVehicles = new Set([t.vehicleId]);
+  editingVTId = t.id;
+  goTo('verksted');
+  setTimeout(() => {
+    const el = document.querySelector('[data-toggle-vt="' + t.id + '"]');
+    if(el && el.scrollIntoView) el.scrollIntoView({block:'center'});
+  }, 60);
+}
+function attachNesteVerkstedtimeListeners(){
+  document.querySelectorAll('[data-apne-vt]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    apneVerkstedAvtale(el.dataset.apneVt);
+  }));
+}
+// Dashboard-widgeten: liten seksjon direkte under Hurtigoversikt (samme seksjonsmønster som
+// Bestill tjenester/Hurtigoversikt, Prioritet 52). Hele bilparken — ikke filtrert på noe.
+// Bevisst en del av samme komponent som Hurtigoversikt (ikke en egen Layout Editor-nøkkel), slik at
+// plasseringen «under Hurtigoversikt» alltid holder, uansett lagret layout.
+function dashNesteVerkstedSekHtml(){
+  return `
+    <section class="dash-sek">
+      <div class="dash-sek-tittel">${luc('factory', 'ic-orange')} Neste verkstedtime</div>
+      ${nesteVerkstedtimeHtml(nesteVerkstedtime(), {utenTittel:true, knapp:'Åpne'})}
+    </section>`;
+}
 function dmgVehicle(d){ return vehicles.find(v => v.id === d.vehicleId); }
 function skadeIsOpen(d){ return d.status !== 'utbedret'; }
 function ruteNumber(v){
@@ -8836,6 +8950,12 @@ function renderDriverMinBil(){
     </div>
     ${mbOverfort ? `<div class="required-hint" style="margin-bottom:16px;">Bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.</div>` : ''}
 
+    <!-- Prioritet 54: «🛠 Neste verkstedtime» for aktiv bil. BEVISST utenfor layoutFlateHtml()
+         (som løftebordkortet under): kortet skal ikke kunne skjules, og vises bare når bilen faktisk
+         har en kommende time (ingen tomtilstand på Min Bil). Ingen åpne-knapp — sjåføren har ikke
+         tilgang til Verksted. Samme nesteVerkstedtime() som Dashboard/Verkstedoversikt/bilprofil. -->
+    ${nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:'merket', skjulTom:true})}
+
     <!-- Prioritet 49, Del 2: «🛗 Løftebord»-kortet er BEVISST utenfor layoutFlateHtml()/
          komponentHtml — det skal alltid vises, med ingen «har løftebord»-konfigurasjon å
          skjule det bak (se CLAUDE.md, Prioritet 49 Del 8). Samme fargede venstrekant-mønster
@@ -9246,7 +9366,8 @@ function renderMobilHjem(){
   // kolonne-partisjonering slik Desktop Dashboard har (DESKTOP_LAYOUT_KOLONNER) — hele
   // rekkefølgen fra Layout Editor brukes direkte.
   const komponentHtml = {
-    hurtigoversikt: dashHurtigoversiktHtml(d),
+    // Prioritet 54: «Neste verkstedtime» følger med Hurtigoversikt (samme delte funksjon som desktop).
+    hurtigoversikt: dashHurtigoversiktHtml(d) + dashNesteVerkstedSekHtml(),
     bestill: dashBestillSekHtml()
   };
 
@@ -9608,9 +9729,9 @@ function dashboardBeregning(){
   const aktiveVehicles = vehicles.filter(v => !v.uteAvDrift);
 
   const today = todayISO();
-  const upcomingVT = verkstedtimer.filter(t => t.dato >= today).sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const nearestVT = upcomingVT[0] || null;
-  const nearestWithin7 = nearestVT ? vtWithinWeek(nearestVT.dato) : false;
+  // Prioritet 54: upcomingVT/nearestVT/nearestWithin7 er FJERNET herfra — de var en andre, avvikende
+  // definisjon av «neste verkstedtime» (kun dato, tok med utførte timer) uten noen leser. Eneste
+  // definisjon er nå nesteVerkstedtime()/kommendeVerkstedtimer().
 
   const kontrollertIdagCount = aktiveVehicles.filter(v => isKontrollertIdag(v.id)).length;
   // Optimalisering 14: reservebiler som ikke er tatt i bruk ennå i dag telles verken som
@@ -9765,7 +9886,7 @@ function dashboardBeregning(){
     oppfolging: aktiveSaker.filter(s => sakFase(s) === 'oppfolging').length,
     verksted: aktiveSaker.filter(s => sakFase(s) === 'verksted').length
   };
-  return {totalVehicles, aktiveVehicles, today, upcomingVT, nearestVT, kontrollertIdagCount,
+  return {totalVehicles, aktiveVehicles, today, kontrollertIdagCount,
     manglerKontrollCount, reserveUnntattCount, forfalteSakerAlle, uteAvDriftBiler, dashTotalSaker, dashTotalHandlinger,
     harHastesaker, dashKreverListe, dashKreverTop5, plan7, kommendeOppgaver,
     kommendeOppgaverTop, hbp, hDriftCount, biloversiktBiler, prioriterteBilerMap, prioriterteBilerListe,
@@ -10015,7 +10136,8 @@ function renderDashboard(){
     // Prioritet 50, Del 7-11: se dashHurtigoversiktHtml() — samlet, fanedelt erstatning
     // for de fire tidligere KPI-kortene (Aktive saker/Under oppfølging/Planlagt
     // verksted/Varsler), plassert direkte under Bestill tjenester.
-    hurtigoversikt: dashHurtigoversiktHtml(d)
+    // Prioritet 54: «Neste verkstedtime» (liten widget) direkte under Hurtigoversikt.
+    hurtigoversikt: dashHurtigoversiktHtml(d) + dashNesteVerkstedSekHtml()
   };
   const synligeDesktop = layoutFlateSynligeNokler('desktop');
   const fullHtml = synligeDesktop.filter(k => DESKTOP_LAYOUT_KOLONNER.full.includes(k)).map(k => komponentHtml[k]).join('');
@@ -10036,6 +10158,7 @@ function renderDashboard(){
 
 
 function attachDashboardListeners(){
+  attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne» på widgeten Neste verkstedtime
   // hurtigbestillingskortene og de nye "Kommende oppgaver"-radene bruker de
   // SAMME data-attributtene og navigasjonsfunksjonene som Planlegging allerede bruker.
   attachBestillListeners('');
@@ -11566,6 +11689,8 @@ function renderBilkort(){
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 10px;">Varsellampe-historikk (kvitterte)</h4>
     <div class="dmg-list">${vVarselHistorikk.map(w => varsellysCard(w)).join('')}</div>` : ''}
 
+    <div style="margin-top:20px;">${nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:true, knapp:'Åpne avtale'})}</div>
+
     <div class="toolbar" style="margin:20px 0 14px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0;">Verkstedhistorikk (${vVT.length})</h4>
       <button class="btn small" id="ny-vt-btn">+ Registrer verkstedtime</button>
@@ -11854,6 +11979,10 @@ function renderBilkort(){
       </div>
     </div>
 
+    <!-- Prioritet 54: neste verkstedtime for DENNE bilen, synlig uten å åpne noe. Når «Bilinformasjon»
+         er åpen står samme kort i stedet øverst i panelets verkstedseksjon (se infoBody) — aldri begge. -->
+    ${showBilinfoRediger ? '' : nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:true, knapp:'Åpne avtale'})}
+
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
     <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
@@ -11918,6 +12047,7 @@ function renderBilkort(){
   `;
 }
 function attachBilkortListeners(){
+  attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
   const v = vehicles.find(x => x.id === currentVehicleId);
   document.getElementById('back-to-register').addEventListener('click', () => goBack('register'));
   // faner, redigeringspanel og hurtigbestilling på Kjøretøyprofil.
@@ -13775,12 +13905,18 @@ async function fullforVerkstedbestilling(id){
 }
 function renderVerksted(){
   const visning = getFilteredVerkstedtimer();
-  const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', null);
+  // Prioritet 54: den nærmeste kommende verkstedtimen i HELE bilparken står øverst, uavhengig av
+  // filtrene under (samme nesteVerkstedtime() som Dashboard/Kjøretøyprofil/Min Bil), og er
+  // samme time som fremheves med blå ramme i listen (nextId).
+  const nesteVT = nesteVerkstedtime();
+  const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nesteVT ? nesteVT.id : null);
   const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length;
 
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
+
+    ${nesteVerkstedtimeHtml(nesteVT, {knapp:'Åpne avtale', visArsak:true})}
 
     <div class="panel" style="padding:0;overflow:hidden;margin-bottom:16px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;">
@@ -13971,6 +14107,7 @@ function vtCard(t, upcoming, isNext){
 }
 
 function attachVerkstedListeners(){
+  attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
   document.getElementById('vt-back').addEventListener('click', () => goBack());
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;

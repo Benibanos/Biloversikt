@@ -15,6 +15,36 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-19
 
+### Prioritet 54 — Neste verkstedtime som operativ informasjon
+
+(Brukerens egen nummerering.) Full detalj i CLAUDE.md, «Prioritet 54 (2026-09-19)».
+
+1. **Én definisjon, én datakilde** (`WorkshopAppointments` = `verkstedtimer`): `nesteVerkstedtime(vehicleId?)`/
+   `kommendeVerkstedtimer()`/`vtErKommende()`. Kommende = ikke `utfort`, har dato, og dato/tid ligger frem i
+   tid (faktisk Oslo-dato og -klokkeslett; time uten klokkeslett = hele dagen). Ingen «kansellert»-status
+   finnes — en avlyst time slettes. Viser avtalens `dato`/`tidspunkt`/`verksted`, aldri opprettelsesdato.
+2. **Fire flater, ett delt kort** (`nesteVerkstedtimeHtml()`): **Dashboard** (liten seksjon direkte under
+   Hurtigoversikt, desktop og mobil, knapp «Åpne»), **Verkstedoversikt** (øverst, knapp «Åpne avtale», samme
+   time fremheves i listen), **Kjøretøyprofil/Bilinformasjon** (under statusflisene; inne i «✏️ Bilinformasjon»
+   når panelet er åpent — aldri begge), **Min Bil** (kun når aktiv bil har kommende time; utenfor Layout
+   Editor, uten knapp, «Årsak:» fra timens beskrivelse). Ingen time: «Ingen planlagte verkstedtimer»
+   (unntatt Min Bil, som viser ingenting).
+3. **«Åpne avtale»** (`apneVerkstedAvtale()`): nullstiller filtre, åpner riktig bil og avtalens redigeringsboks
+   i Verkstedoversikten og ruller den til syne.
+4. **Fjernet:** `upcomingVT`/`nearestVT`/`nearestWithin7` i `dashboardBeregning()` — en andre, avvikende
+   definisjon (kun dato, tok med utførte) uten noen leser.
+5. **Sjåførmodus-fiks:** `formInProgress()` var alltid `true` i sjåførmodus (`screen==='kontroll'`), så
+   bakgrunnssynken lastet data uten å tegne på nytt. Min Bil i hviletilstand (ingen åpent panel) får nå tegne
+   på nytt, slik at en endret verkstedtime slår gjennom. Alle andre sjåførskjermer er uendret beskyttet.
+6. Versjon 103 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert.
+   `storage.airtable.js` og Airtable uendret.
+
+**Verifisert** i nettleser mot en kopi av appen med in-memory storage-mock (ingen kontakt med ekte Airtable):
+definisjonen (fortid/utført/i dag passert/i dag uten tid/sortering), alle fire flater viser samme dato,
+klokkeslett og verksted, endring via `saveVTEdit()` / sletting / utført oppdaterer alle visninger, «Åpne
+avtale», tom-tilstand, mobil admin (375 px, ingen overflow), sjåførmodus inkl. synk fra «annen enhet» og
+beskyttelse av åpent panel. **Ikke testet** mot ekte Airtable, på ekte mobil, eller visuelt i detalj.
+
 ### Prioritet 53 — Konfigurerbart grunnlag for operativ kontroll
 
 (Brukerens egen nummerering — det finnes fra før en annen, tidligere «Prioritet 53 — Dashboard 5.0»

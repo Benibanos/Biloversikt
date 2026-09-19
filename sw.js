@@ -9,7 +9,7 @@
 //
 // VIKTIG VED OPPDATERING: øk CACHE_VERSION når index.html eller andre filer i
 // APP_SHELL endres, ellers kan brukere sitte fast på en gammel, cachet versjon.
-const CACHE_VERSION = 'bilpark-v102';
+const CACHE_VERSION = 'bilpark-v103';
 const APP_SHELL = [
   './',
   './index.html',

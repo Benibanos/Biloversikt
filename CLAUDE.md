@@ -1,6 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 53 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 54 —
+**Neste verkstedtime som operativ informasjon.** Nærmeste kommende verkstedtime (én definisjon,
+`nesteVerkstedtime()`, kilde `WorkshopAppointments`) vises på Dashboard, Verkstedoversikt,
+Kjøretøyprofil/Bilinformasjon og Min Bil — via ETT delt kort, `nesteVerkstedtimeHtml()`. Se
+«Prioritet 54 (2026-09-19)» nederst. Før det: 2026-09-19 (Prioritet 53 —
 **Konfigurerbart grunnlag for operativ kontroll.** (Brukerens EGEN betegnelse «Prioritet 53» —
 det finnes fra før en helt annen, tidligere «Prioritet 53 — Dashboard 5.0» lenger ned; navne-
 sammenfallet er tilfeldig.) Administrator velger selv hvilke kjøretøy (lagret på Vehicle-ID) og
@@ -5486,3 +5490,70 @@ Settings-raden faktisk opprettes ved første lagring — koden bruker det etable
 panelet var ustabile; layout er målt via DOM). Anbefalt før idriftsettelse: logg inn, åpne
 Innstillinger → Operativ kontrollgrunnlag, velg de 13 bilene, lagre, last siden på nytt og
 bekreft at valget overlever, og at en annen enhet ser det etter ≤ 45 s.
+
+---
+
+## Prioritet 54 (2026-09-19) — Neste verkstedtime som operativ informasjon
+
+(Brukerens egen nummerering.) **Varig regel: en registrert verkstedtime skal være synlig der
+brukerne jobber — ikke bare i Kalender.** Fire flater viser samme time, fra samme kilde, uten
+egen filtrering, sortering eller kopiering:
+
+| Flate | Hva / hvor | Åpne-knapp |
+|---|---|---|
+| Dashboard (desktop + mobil) | Liten seksjon direkte under Hurtigoversikt, HELE bilparken (`dashNesteVerkstedSekHtml()`) | «Åpne» |
+| Verkstedoversikt | Øverst, uavhengig av filtrene; samme time fremheves i listen (`nextId`, blå ramme) | «Åpne avtale» |
+| Kjøretøyprofil / Bilinformasjon | Under statusflisene, for DENNE bilen. Når «✏️ Bilinformasjon» er åpen står kortet i stedet øverst i panelets verkstedseksjon — aldri begge | «Åpne avtale» |
+| Min Bil (sjåfør) | Kun når AKTIV bil har kommende time; «Årsak:» fra timens beskrivelse; utenfor Layout Editor (kan ikke skjules); ingen tomtilstand | ingen (sjåføren har ikke Verksted) |
+
+**Datakilde og definisjon (ÉN, `index.html` ved `vtVehicle()`):** `nesteVerkstedtime(vehicleId?)` →
+`kommendeVerkstedtimer()` → `vtErKommende()`. **Kommende** = ikke `utfort`, har `dato`, og dato/tid
+ligger frem i tid. Sortert på `dato + tidspunkt`, tidligste vinner.
+- **Ingen «kansellert»-status finnes i datamodellen** (ingen felt på `WorkshopAppointments`): en
+  avlyst time slettes (`deleteVT()`), en gjennomført er `utfort`. Begge faller ut av «kommende» uten egen
+  regel. Ikke innfør en kanselleringsstatus uten å oppdatere `vtErKommende()` samtidig.
+- **«I fremtiden» regnes mot FAKTISK Oslo-kalenderdato og -klokkeslett** (`vtOsloNaa()`), IKKE det
+  operative døgnet (dagskille 04:00). Spørsmålet er «har timen passert ennå?». Konsekvens (bevisst
+  tolkning av «dato/tid i fremtiden»): en time i dag kl. 07:30 forsvinner fra «Neste verkstedtime» kl.
+  07:31, selv om den ikke er markert utført. Timen ligger fortsatt i Verkstedoversikten (listen filtrerer
+  kun på `utfort`) til noen trykker «Utført arbeid». En time UTEN klokkeslett regnes som «hele dagen» og
+  forblir kommende ut kalenderdagen. (Resten av appen — Verksted-filteret «Kommende» — bruker
+  fortsatt `dato >= todayISO()`; de to er ikke identiske for timer som allerede har passert i dag.)
+- Kortet viser avtalens `dato`/`tidspunkt`/`verksted` — aldri datoen saken/bestillingen ble opprettet.
+  Datoformat er appens låste `fmt()` (DD/MM/ÅÅÅÅ), ikke punktum som i bestillingens eksempel.
+- **Fjernet:** `upcomingVT`/`nearestVT`/`nearestWithin7` i `dashboardBeregning()` — en andre,
+  avvikende definisjon (kun dato, inkluderte utførte timer) uten noen leser. Ikke gjeninnfør en
+  parallell «nærmeste time»-beregning; bruk `nesteVerkstedtime()`.
+
+**Delt kort:** `nesteVerkstedtimeHtml(t, {visBil, visArsak, knapp, utenTittel, skjulTom})`. Tom
+tilstand: «Ingen planlagte verkstedtimer» (`skjulTom` for Min Bil). «Åpne»/«Åpne avtale» =
+`apneVerkstedAvtale(id)` (nullstiller filtre, åpner riktig bil og avtalens redigeringsboks, ruller til
+den); lytter festes av `attachNesteVerkstedtimeListeners()` fra Dashboard/Verksted/Bilkort.
+Dashboard-widgeten er BEVISST del av samme Layout Editor-komponent som Hurtigoversikt (ikke en egen
+nøkkel), slik at «under Hurtigoversikt» holder uansett lagret layout — den kan bare skjules ved å
+skjule Hurtigoversikt. Dashboard viser fortsatt KUN banner, Bestill tjenester og Hurtigoversikt
+(med widgeten som følgesvenn); Kalender er uendret.
+
+**Endring i delt oppførsel — sjåførmodus og bakgrunnssynk:** `formInProgress()` var alltid `true` i
+sjåførmodus (`screen` står på `'kontroll'`), så `_lagBatchetLiveSyncHandler()` lastet ferske data
+men tegnet aldri på nytt. Uten en fiks ville en endret verkstedtime ikke dukket opp på Min Bil før
+sjåføren trykket seg videre. Nå tegnes Min Bil på nytt av synken når `driverScreen==='min-bil'` OG
+`minBilAksjon` er tom (ingen åpent handlingspanel). Alle andre sjåførskjermer (Velg bil, Kontroll,
+Kommentarer, Ringeliste, Mer) og Min Bil med åpent panel er uendret beskyttet (verifisert).
+
+**Filer endret:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (bilpark-v102 → v103),
+`version-check.js` (102 → 103), `version.json` (102 → 103), CLAUDE.md, ROADMAP.md, CHANGELOG.md.
+`storage.airtable.js`/Airtable uendret (ingen nye felt).
+
+**Ikke rørt:** saksmotoren (`sakFase()`/`sakTilVtType()`/«Planlagt verksted» som saksfase-navn i
+Aktive saker/Hurtigoversikt), `submitAddVT()`/`saveVTEdit()`/`deleteVT()`/`fullforVerkstedbestilling()`,
+Kalender, Verkstedhistorikk, sjåførkontroll/km/aktiv sjåfør.
+
+**Testet** i nettleser mot kopi av appen med in-memory storage-mock (`node`/`python` finnes ikke; ingen
+kontakt med ekte Airtable): fortid/utført/i dag passert/i dag frem i tid/i dag uten klokkeslett,
+sortering, samme dato/tid/verksted på alle fire flater, endring via `saveVTEdit()`/sletting/utført
+slår gjennom, «Åpne avtale», tom-tilstand, mobil admin (375 px uten overflow), sjåførmodus (kun aktiv
+bils time, ingen knapp/notater/bil-linje, ingen kort uten time), synk fra «annen enhet», beskyttelse av
+åpent panel. **Ikke testet:** mot ekte Airtable, ekte mobil/touch, eller visuelt i detalj (layout målt
+via DOM). Anbefalt før idriftsettelse: bestill en time, og bekreft at den dukker opp på Dashboard, i
+Verkstedoversikten, på bilprofilen og på Min Bil (sjåfør-URL) for den bilen.
