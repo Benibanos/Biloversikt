@@ -15,6 +15,45 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-19
 
+### Prioritet 56 — Moderniser hele sjåførmodus
+
+(Brukerens egen nummerering. Ticketen kom i to versjoner — den første ble avbrutt og var avkuttet etter
+akseptansekriterium 1; den andre, fullstendige versjonen er fulgt.) Full detalj i CLAUDE.md,
+«Prioritet 56 (2026-09-19)».
+
+1. **Ett designsystem, Ringeliste som referanse.** Nye `sj-*`-klasser (header, kort, rader, pillknapp,
+   statuspille, seksjonstittel) DELER verdier med `ringeliste-*` via grupperte selektorer. Alle sjåførskjermer
+   bruker det: Min Bil, Registrer kontroll, Velg bil, Kommentarer, Mer, Ny kommentar; handlingskortene
+   (Registrer skade/varsellampe/avvik/kontakt/Ny sjåfør/Sjekk ut) er restylet til samme kortspråk.
+   `renderDriverShell()` pakker innholdet i `.sj-app` (overstyringer av `.panel`/`.chip` gjelder kun der).
+2. **Bilkortet er hjertet i Min Bil** — ETT kort med rader: Kontrollstatus → Kilometerstand → Neste
+   verkstedtime → Løftebord (status, sist utført, dager siden, «Smør løftebord») → «● Operativ». Løftebord- og
+   verkstedtime-kortene er FLYTTET inn (ikke duplisert). Bilkortet er fast innhold og er tatt ut av Layout
+   Editor (løftebord skal alltid være synlig). Rekkefølge: Aktiv sjåfør (header) → bilkort → Handlinger (skade,
+   varsellampe, øvrige).
+3. **Kontrollflyten:** 1 Bil · 2 Sjåfør · 3 Kilometerstand · 4 **Løftebord** · 5 Varsellamper · 6 Kontrollavvik ·
+   7 Kommentar · 8 Nye skader. Løftebord-kortet viser status og løftebord-avviket (`kt-avvik-loftebord`, samme
+   `kontrollFormAvvik`/`submitKontroll()`), løftet ut av det lukkede Kontrollavvik-panelet. Skiltkortet i «Bil og
+   sjåfør» er fjernet (mindre scrolling).
+4. **Kontroll → Min Bil uten mellomskjerm:** lagring → ferske verkstedtimer/løftebord (maks 2,5 s) → Min Bil →
+   kort, ikke-blokkerende «✅ Kontroll registrert». En allerede kontrollert bil går rett til Min Bil (mellomskjermen
+   «Gå til Min Bil» er fjernet). Suksess-`alert()` på Min Bil (skade/varsellampe/avvik/løftebord) er byttet med
+   samme korte bekreftelse.
+5. **To eksisterende feil rettet underveis:** (a) en `*/` inne i CSS-kommentaren over Ringeliste-reglene lukket
+   kommentaren for tidlig og slukte `.ringeliste-header`-regelen — ikonet lå over tittelen; nå ved siden av,
+   som koden var skrevet for. (b) `submitKontroll()` sin `rullTilbake()` satte feilmeldingen og kalte deretter
+   `render()`, som slettet den — sjåføren så et skjema uten forklaring ved lagringsfeil. Meldingen settes nå på
+   det nye elementet.
+6. Versjon 104 (`sw.js`, `version-check.js`, `version.json`); `kontroll.html` synkronisert.
+   `storage.airtable.js`/Airtable uendret.
+
+**Verifisert** i nettleser mot kopi av appen med in-memory storage-mock (ingen ekte Airtable), på 375×812:
+bilkortets rader/rekkefølge, smøring fra bilkortet, kontrollskjemaets rekkefølge, løftebord-avvik i samme
+`kontrollFormAvvik`, lagringsfeil (blir på siden, melding synlig, data beholdt), retry → Min Bil (117 ms mot
+mock) med oppdatert kontrollstatus/km/aktiv sjåfør/ny verkstedtime, allerede kontrollert bil, alle sjåførskjermer
+uten horisontal overflow, admin-kontrollskjemaet uendret flyt. **Ikke testet:** ekte Airtable, ekte mobil/touch,
+og «offlineflyt» (koden har ingen offlinekø — feilen håndteres som før: blir på skjemaet med melding).
+
 ### Prioritet 54 — Neste verkstedtime som operativ informasjon
 
 (Brukerens egen nummerering.) Full detalj i CLAUDE.md, «Prioritet 54 (2026-09-19)».

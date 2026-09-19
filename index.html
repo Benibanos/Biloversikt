@@ -1562,14 +1562,18 @@
     #app.oppstart-inn{animation:none;}
   }
   /* Prioritet 71.3: ny sjåfør-Ringeliste. Egen, scoped stil (ringeliste-*) fremfor å
-     gjenbruke .dmg-*/.acc-* klasser — designet (fargede grupper, kort-rader med ikonflate)
+     gjenbruke dmg-/acc-klassene — designet (fargede grupper, kort-rader med ikonflate)
      matcher ikke noe eksisterende mønster godt nok til at gjenbruk ville vært riktig. Bruker
      kun eksisterende design-tokens (farger/radius/skygger), ingen nye farger. Mobil først —
      dette er en ren sjåførskjerm, aldri desktop. */
-  .ringeliste-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;}
-  .ringeliste-header-icon{width:44px;height:44px;border-radius:14px;background:var(--red-soft);color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .ringeliste-header-text{flex:1;min-width:0;}
-  .ringeliste-header-text h2{font-size:19px;margin-bottom:2px;}
+  /* Prioritet 56: Ringeliste er REFERANSEDESIGN for hele sjåførmodus. Reglene under deles med de
+     generelle sj-*-klassene (samme selektorliste = samme verdier, ett sted) — se blokken
+     «Sjåførmodus-designsystem» sist i stilarket. Ringeliste ser uendret ut: --tint/--tone har
+     rød standardverdi, akkurat som før. */
+  .ringeliste-header,.sj-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;}
+  .ringeliste-header-icon,.sj-header-icon{width:44px;height:44px;border-radius:14px;background:var(--tint,var(--red-soft));color:var(--tone,var(--red));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .ringeliste-header-text,.sj-header-text{flex:1;min-width:0;}
+  .ringeliste-header-text h2,.sj-header-text h2{font-size:19px;margin-bottom:2px;}
   /* Prioritet 71.7: ekstra bunnplass under den scrollbare gruppelisten, slik at siste
      gruppe aldri havner skjult bak den faste bunnseksjonen (.ringeliste-fixed-quick) +
      sjåførens bunnmeny (.p41-bunn). Rikelig, ikke pikselnøyaktig tilmålt — litt for mye
@@ -1586,17 +1590,17 @@
     background:var(--surface);border-top:1px solid var(--line);
     box-shadow:0 -6px 18px rgba(0,0,0,.18);
   }
-  .ringeliste-group{background:var(--surface);border:1.5px solid var(--line);border-left:4px solid var(--accent,var(--line));border-radius:var(--radius);overflow:hidden;margin-bottom:14px;}
-  .ringeliste-group-head{padding:13px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;}
-  .ringeliste-group-title{flex:1;font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--accent,var(--ink));}
-  .ringeliste-group-body{border-top:1px solid var(--line-soft);}
-  .ringeliste-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line-soft);}
-  .ringeliste-row:first-child{border-top:none;}
-  .ringeliste-row-icon{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);}
-  .ringeliste-row-text{flex:1;min-width:0;}
-  .ringeliste-row-main{font-weight:600;font-size:14.5px;}
-  .ringeliste-row-sub{font-size:12.5px;color:var(--muted);margin-top:1px;display:flex;align-items:center;gap:4px;}
-  .ringeliste-ring-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:100px;background:var(--red-soft);color:var(--red);font-weight:600;font-size:13px;text-decoration:none;flex-shrink:0;border:1.5px solid transparent;}
+  .ringeliste-group,.sj-card{background:var(--surface);border:1.5px solid var(--line);border-left:4px solid var(--accent,var(--line));border-radius:var(--radius);overflow:hidden;margin-bottom:14px;}
+  .ringeliste-group-head,.sj-card-head{padding:13px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .ringeliste-group-title,.sj-card-title{flex:1;font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--accent,var(--ink));}
+  .ringeliste-group-body,.sj-card-body{border-top:1px solid var(--line-soft);}
+  .ringeliste-row,.sj-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line-soft);}
+  .ringeliste-row:first-child,.sj-row:first-child{border-top:none;}
+  .ringeliste-row-icon,.sj-row-icon{width:34px;height:34px;border-radius:10px;background:var(--tint,var(--surface-2));display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--tone,var(--muted));}
+  .ringeliste-row-text,.sj-row-text{flex:1;min-width:0;}
+  .ringeliste-row-main,.sj-row-main{font-weight:600;font-size:14.5px;}
+  .ringeliste-row-sub,.sj-row-sub{font-size:12.5px;color:var(--muted);margin-top:1px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .ringeliste-ring-btn,.sj-pill-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:100px;background:var(--tint,var(--red-soft));color:var(--tone,var(--red));font-weight:600;font-size:13px;text-decoration:none;flex-shrink:0;border:1.5px solid transparent;}
   .ringeliste-ring-muted{font-size:12px;color:var(--muted);flex-shrink:0;}
   .ringeliste-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
   .ringeliste-quick-card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;gap:8px;}
@@ -1606,6 +1610,66 @@
   .ringeliste-quick-sub{font-size:11.5px;color:var(--muted);}
   .ringeliste-quick-card .ringeliste-ring-btn{justify-content:center;width:100%;}
   @media (max-width:360px){.ringeliste-quick-grid{grid-template-columns:1fr;}}
+
+  /* ---- Prioritet 56: Sjåførmodus-designsystem (Ringeliste = referanse) ----
+     Header, kort (.sj-card), rader (.sj-row), pille-knapp og seksjonstittel deler VERDIER med
+     Ringeliste-klassene over (grupperte selektorer), og de eldre handlingskortene (.p48-action-*,
+     .p48-checkout-*) er restylet til samme kortspråk: 1,5px ramme, 4px fargeaksent til venstre,
+     samme radius, 34px ikonflater (radius 10) og samme typografi. Ingen nye farger — kun
+     eksisterende tokens. .sj-app-omslaget (renderDriverShell) gjør at overstyringene av de
+     delte .panel-/.chip-komponentene kun gjelder sjåførmodus. */
+  .sj-section-title{font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:20px 0 10px;}
+  .sj-card-head.klikk{cursor:pointer;}
+  .sj-card-head:not(.klikk){cursor:default;}
+  .sj-card-body{padding:14px;}
+  .sj-card-body.flush{padding:0;}
+  .sj-card-meta{font-size:12px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .sj-hint{font-size:12.5px;color:var(--muted);margin-top:8px;}
+  button.sj-pill-btn{font-family:inherit;cursor:pointer;min-height:36px;}
+  button.sj-pill-btn:active,.sj-tap:active{transform:scale(.98);}
+  .sj-pill-btn[disabled]{opacity:.5;cursor:not-allowed;}
+  /* Statuspiller — samme form som .p48-pill (kontrollstatus), fire toner. */
+  .sj-pill{border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;}
+  .sj-pill.gronn{background:var(--green-soft);color:var(--green-ink);}
+  .sj-pill.gul{background:var(--amber-soft);color:var(--amber);}
+  .sj-pill.rod{background:var(--red-soft);color:var(--red);}
+  .sj-pill.noytral{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-soft);}
+  /* Bilkortet på Min Bil: hovedkortet. Plate/tittel øverst, deretter rader med ikonflate. */
+  .sj-bilkort-topp{display:flex;align-items:center;gap:12px;padding:14px;flex-wrap:wrap;}
+  .sj-bilkort-topp .tittel{flex:1;min-width:0;}
+  .sj-bilkort-tittel{font-weight:700;font-size:17px;font-family:'Space Grotesk',sans-serif;color:var(--ink);}
+  .sj-bilkort-modell{font-size:12.5px;color:var(--muted);margin-top:1px;}
+  .sj-bilkort-fot{border-top:1px solid var(--line-soft);padding:11px 14px;display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px;color:var(--ink);flex-wrap:wrap;}
+  .sj-bilkort-fot .muted{color:var(--muted);font-weight:500;}
+  .sj-bilkort-panel{border-top:1px solid var(--line-soft);padding:14px;background:var(--bg);}
+  /* Kort for hver handling (Registrer skade/varsellampe/…): samme kort som resten. */
+  .p48-action-card,.p48-checkout-card{border:1.5px solid var(--line);border-left:4px solid var(--accent,var(--line));border-radius:var(--radius);min-height:60px;padding:12px 14px;}
+  .p48-action-card:has(.p48-action-icon.purple){--accent:var(--purple);}
+  .p48-action-card:has(.p48-action-icon.orange){--accent:var(--orange);}
+  .p48-action-card:has(.p48-action-icon.blue){--accent:var(--blue);}
+  .p48-checkout-card{--accent:var(--red);border-color:var(--line);}
+  .p48-action-icon,.p48-checkout-icon{width:34px;height:34px;border-radius:10px;font-size:16px;}
+  .p48-action-card:active,.p48-checkout-card:active{transform:scale(.99);}
+  button.sj-row{width:100%;background:none;border:none;border-top:1px solid var(--line-soft);text-align:left;font-family:inherit;color:inherit;cursor:pointer;}
+  button.sj-row:first-child{border-top:none;}
+  button.sj-row:active{background:var(--surface-2);}
+  .sj-card .kt-vehicle-card{border:none;padding:14px 0 0;margin-bottom:0;}
+  .sj-card .active-lamp-list{margin-bottom:0;}
+  .sj-card-body .row2{margin-bottom:0;}
+  .sj-card .chip-yn label{padding:13px;}
+  .sj-app .panel{border-radius:var(--radius);border:1.5px solid var(--line);box-shadow:none;}
+  .sj-app .chip{border-radius:10px;}
+  .sj-app h2{font-size:19px;}
+  /* Kort bekreftelse (ingen knapp, forsvinner av seg selv) — «✅ Kontroll registrert». */
+  .sj-toast{position:fixed;left:50%;bottom:calc(71px + env(safe-area-inset-bottom, 0px) + 14px);transform:translate(-50%,12px);opacity:0;pointer-events:none;z-index:200;
+    display:flex;align-items:center;gap:8px;max-width:calc(100vw - 32px);padding:11px 18px;border-radius:999px;background:var(--surface);color:var(--ink);
+    border:1.5px solid var(--green);font-weight:700;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.22);transition:opacity .2s ease, transform .2s ease;}
+  .sj-toast.vis{opacity:1;transform:translate(-50%,0);}
+  .sj-toast .lucide-ic{color:var(--green-ink);width:18px;height:18px;}
+  @media (prefers-reduced-motion: reduce){
+    .sj-toast{transition:none;}
+    button.sj-pill-btn:active,.sj-tap:active,.p48-action-card:active,.p48-checkout-card:active{transform:none;}
+  }
 </style>
 </head>
 <body>
@@ -1847,8 +1911,16 @@ function velgKontrollBil(vehicleId){
   if(kontrollFormVehicleId) syncKontrollAnnetFromActive(kontrollFormVehicleId);
   saveKontrollDraft();
   if(driverMode && kontrollFormVehicleId && isKontrollertIdag(kontrollFormVehicleId)){
-    driverVelgBilId = kontrollFormVehicleId;
-    driverScreen = 'allerede-kontrollert';
+    // Prioritet 56: ingen «allerede kontrollert»-mellomskjerm med «Gå til Min Bil»-knapp lenger —
+    // sjåføren går rett til Min Bil. Uten kjent sjåførnavn (skal ikke skje i normal flyt) beholdes
+    // skjemaet i stedet for å starte en biløkt uten sjåfør.
+    const navn = (driverNavn || kontrollFormSjaforNavn || '').trim();
+    if(navn){
+      const vid = kontrollFormVehicleId;
+      kontrollFormVehicleId = ''; clearKontrollDraft();
+      driverApneKontrollertBil(vid, navn);
+      return;
+    }
   }
   render();
 }
@@ -2739,7 +2811,7 @@ function driverLink(){
 // Dashboard fra hvilken som helst enhet. driverScreen/driverActiveVehicleId/driverNavn
 // er kun DENNE enhetens lokale posisjon i sjåførflyten, husket i localStorage slik at en
 // gjenåpnet PWA havner rett tilbake på riktig skjerm.
-let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'allerede-kontrollert' | 'min-bil' | 'ringeliste' | 'kommentarer' | 'mer' | 'ny-kommentar'
+let driverScreen = 'velg-bil'; // 'velg-bil' | 'kontroll' | 'min-bil' | 'ringeliste' | 'kommentarer' | 'mer' | 'ny-kommentar'
 let driverActiveVehicleId = '';
 let driverVelgBilId = '';
 let driverNavn = '';
@@ -2878,6 +2950,62 @@ async function startBilokt(vehicleId, navn){
   driverNavn = (navn || '').trim();
   saveDriverLocalSession();
   return utsjekketFra;
+}
+// ---- Prioritet 56: kort bekreftelse + navigasjon uten mellomskjermer i sjåførmodus ----
+// Kort, ikke-blokkerende bekreftelse («✅ Kontroll registrert»): ingen knapp, ingen alert(),
+// forsvinner av seg selv. Ligger på <body>, ikke i #app, så den overlever render() av
+// sjåførskallet (som skjer rett etter at den vises).
+let sjToastTimer = null;
+function visSjToast(tekst){
+  // Aldri kast herfra: kalles rett etter en vellykket lagring (inne i submitKontroll sin
+  // try-blokk), og en visningsfeil skal ikke kunne utløse rollback av en lagret kontroll.
+  try{
+    let el = document.getElementById('sj-toast');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'sj-toast'; el.className = 'sj-toast';
+      el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      document.body.appendChild(el);
+    }
+    el.innerHTML = luc('circle-check') + '<span></span>';
+    el.lastChild.textContent = tekst;
+    refreshLucideIcons();
+    el.classList.remove('vis'); void el.offsetWidth; el.classList.add('vis');
+    clearTimeout(sjToastTimer);
+    sjToastTimer = setTimeout(() => el.classList.remove('vis'), 2600);
+  }catch(e){ console.warn('[visSjToast] Kunne ikke vise bekreftelse', e); }
+}
+// Min Bil skal vise oppdaterte verdier FØR den vises. Kontrollstatus, kilometerstand og aktiv
+// sjåfør er allerede oppdatert lokalt av selve innsendingen; neste verkstedtime og løftebord
+// hentes på nytt (kan være endret av administrator siden appen ble lastet). Aldri blokkerende
+// utover et kort tak, og aldri en feil: en mislykket lesing lar de lokale verdiene stå
+// (reloadOne() svelger og logger feil selv), og bakgrunnssynken tar resten.
+async function sjFriskOppMinBilData(){
+  const frisk = Promise.all([reloadOne('verkstedtimer'), reloadOne('loftebordHistorikk')]).catch(() => {});
+  await Promise.race([frisk, new Promise(r => setTimeout(r, 2500))]);
+}
+// Valgt bil er ALLEREDE kontrollert i dag: ingen mellomskjerm og ingen «Gå til Min Bil»-knapp —
+// sjåføren blir aktiv sjåfør (samme startBilokt() som knappen tidligere kalte) og går rett til
+// Min Bil, der bilkortet viser kontrollstatus og klokkeslett. Returnerer false (og gjør
+// ingenting) når navn mangler, slik at kalleren beholder dagens skjema i stedet for å starte en
+// biløkt uten sjåfør.
+let sjApnerKontrollertBil = false;
+async function driverApneKontrollertBil(vehicleId, navn){
+  navn = (navn || '').trim();
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v || !navn) return false;
+  if(sjApnerKontrollertBil) return true;
+  sjApnerKontrollertBil = true;
+  try{
+    await startBilokt(vehicleId, navn);
+    driverVelgBilId = vehicleId;
+    driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
+    minBilAksjon = ''; minBilNySjaforMsg = '';
+    driverScreen = 'min-bil';
+    render();
+    visSjToast('Allerede kontrollert i dag');
+  } finally { sjApnerKontrollertBil = false; }
+  return true;
 }
 // en funksjon CLAUDE.md allerede beskrev, men som
 // aldri fantes i koden. Kalles fra submitKontroll() sin ADMINISTRASJONS-gren, slik at en
@@ -3423,8 +3551,11 @@ const DASHBOARD_LAYOUT_FLATER = {
     // herfra for å unngå dobbel plassering. getLayoutFlate() forkaster automatisk
     // 'ringeliste' fra enhver tidligere lagret Min Bil-layout (samme fremtidssikring som
     // håndterer enhver fjernet komponent) — ingen egen migrering nødvendig.
+    // Prioritet 56: «bilkort» er FJERNET fra denne listen. Bilkortet er hjertet i Min Bil og samler
+    // nå kontrollstatus, kilometerstand, neste verkstedtime og løftebord — og løftebord skal alltid
+    // være synlig for sjåføren (som før: utenfor Layout Editor, ingen bryter å skjule det bak).
+    // getLayoutFlate() forkaster stille 'bilkort' fra enhver tidligere lagret Min Bil-layout.
     komponenter: [
-      {key:'bilkort',     label:'Kjøretøystatus (skilt/nøkkeltall)'},
       {key:'skade',       label:'➕ Registrer skade'},
       {key:'varsel',      label:'➕ Registrer varsellampe'},
       {key:'avvik',       label:'➕ Registrer avvik'},
@@ -5386,6 +5517,22 @@ function nesteVerkstedtime(vehicleId){
 // ble opprettet. Årsak = t.beskrivelse (for sak-bestilte timer er det saksbeskrivelsen).
 function nesteVerkstedtimeHtml(t, o){
   o = o || {};
+  // Prioritet 56: `rad` = samme opplysninger som rad INNE I et annet kort (bilkortet på Min Bil,
+  // .sj-row) i stedet for et eget kort. Samme kilde, samme fmt(), samme felter — kun innpakningen
+  // er en annen. Ingen time → ingenting (Min Bil viser ikke tomtilstand).
+  if(o.rad){
+    if(!t) return '';
+    const radArsak = (t.beskrivelse || '').trim();
+    return `
+    <div class="sj-row">
+      <div class="sj-row-icon" style="--tint:var(--orange-soft);--tone:var(--orange);">${luc('factory')}</div>
+      <div class="sj-row-text">
+        <div class="sj-row-main">${fmt(t.dato)}${t.tidspunkt ? ' · ' + esc(t.tidspunkt) : ''}</div>
+        <div class="sj-row-sub">Neste verkstedtime · ${esc(t.verksted || 'Verksted ikke satt')}</div>
+        ${radArsak ? `<div class="sj-row-sub"><b>Årsak:</b> ${esc(radArsak)}</div>` : ''}
+      </div>
+    </div>`;
+  }
   const tittel = o.utenTittel ? '' : `<div class="nvt-tittel">${luc('factory', 'ic-orange')} Neste verkstedtime</div>`;
   if(!t){
     if(o.skjulTom) return '';
@@ -5840,8 +5987,11 @@ async function submitMinBilSkade(){
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeAlvorlighet = 'middels'; pendingMinBilFoto = null;
-  alert(fotoLagretOk ? 'Skade registrert.' : 'Skade registrert, men bildet kunne ikke lagres (for stort eller nettverksfeil). Legg det til på nytt fra skadekortet.');
+  // Prioritet 56: vellykket registrering = kort bekreftelse (ingen knapp å trykke); en reell
+  // feil (bildet ble ikke lagret) varsles fortsatt med dialog.
+  if(!fotoLagretOk) alert('Skade registrert, men bildet kunne ikke lagres (for stort eller nettverksfeil). Legg det til på nytt fra skadekortet.');
   render();
+  if(fotoLagretOk) visSjToast('Skade registrert');
 }
 async function submitMinBilVarsel(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
@@ -5864,8 +6014,8 @@ async function submitMinBilVarsel(){
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilVarselType = ''; minBilVarselAnnetTekst = '';
-  alert('Varsellampe registrert.');
   render();
+  visSjToast('Varsellampe registrert');
 }
 async function submitMinBilAvvik(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
@@ -5886,8 +6036,8 @@ async function submitMinBilAvvik(){
   });
   await saveAktiveSaker();
   minBilAksjon = ''; minBilAvvikType = ''; minBilAvvikBeskrivelse = '';
-  alert('Avvik registrert.');
   render();
+  visSjToast('Avvik registrert');
 }
 // Prioritet 49, Del 3: sjåførens «🛢 Smør løftebord» — REN vedlikeholdsregistrering (smøring
 // med fettpresse), aldri en sak, aldri en kontroll. Knappen som kaller denne er allerede
@@ -5902,8 +6052,8 @@ async function submitMinBilLoftebordVedlikehold(){
   });
   await saveLoftebordHistorikk();
   minBilAksjon = ''; minBilLoftebordSmurt = false; minBilLoftebordKommentar = '';
-  alert('✅ Vedlikehold registrert.');
   render();
+  visSjToast('Vedlikehold registrert');
 }
 // Prioritet 49, Del 5: administratorens ett-klikks «✅ Utført løftebordkontroll» — ingen
 // ekstra skjema. Dato/utført av/gyldighet (365 dager) settes automatisk, samme mønster som
@@ -7361,19 +7511,27 @@ async function submitKontroll(ev){
     // 3. Brukeren blir stående i skjemaet med alle sine data i behold. Ingen
     //    «Kontroll registrert», ingen navigasjon, ingen tømming av utkastet.
     if(submitBtn) submitBtn.disabled = false;
+    let feilHtml;
     if(ikkeReversert.length === 0){
       // Ren rollback: ingenting ble liggende igjen, og det er trygt å prøve på nytt.
-      msgEl.innerHTML = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
+      feilHtml = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
         '<br>Kontrollen er IKKE registrert, og ingenting ble lagret. Skjemaet står som det var — sjekk nettforbindelsen og trykk Send inn på nytt.';
     } else {
       // Punkt 4 (Prioritet 66.2): den kompenserende skrivingen feilet også. Da KAN deler
       // av registreringen ligge i Airtable, og et nytt forsøk kan gi dubletter. Brukeren
       // skal derfor IKKE prøve på nytt før noen har sett på dataene.
-      msgEl.innerHTML = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
+      feilHtml = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
         '<br><b>MULIG DELVIS LAGRING:</b> ' + esc(ikkeReversert.join(', ')) + ' kunne heller ikke tilbakestilles i Airtable. Deler av registreringen kan derfor ligge lagret.' +
         '<br><b>Ikke send inn på nytt.</b> Et nytt forsøk kan gi dobbeltregistrering. Undersøk først Database status i Innstillinger, eller kontrollhistorikken på bilen, og kontakt administrator. Ta skjermbilde av denne meldingen.';
     }
+    msgEl.innerHTML = feilHtml;
     render();
+    // Prioritet 56: render() bygger skjemaet på nytt — og tok dermed feilmeldingen over med seg
+    // (msgEl pekte på det gamle, nå frakoblede elementet), slik at sjåføren så et skjema uten
+    // noen forklaring. Meldingen settes derfor på det NYE elementet. Skjemadata ligger i
+    // kontrollForm*-variablene og er intakte.
+    const nyMsgEl = document.getElementById('kt-msg');
+    if(nyMsgEl){ nyMsgEl.innerHTML = feilHtml; if(nyMsgEl.scrollIntoView) nyMsgEl.scrollIntoView({block:'center'}); }
   }
 
   try{
@@ -7543,10 +7701,17 @@ async function submitKontroll(ev){
     if(driverMode){
       // Kontrollen er unnagjort — start biløkten på denne bilen for denne sjåføren, og
       // send videre til Min Bil (sjåførens arbeidsflate resten av den operative dagen).
+      // Prioritet 56: INGEN mellomskjerm og ingen knapp — lagring → kort bekreftelse → Min Bil.
+      // Kontrollstatus/km/aktiv sjåfør er allerede oppdatert lokalt av steget over; neste
+      // verkstedtime og løftebord hentes på nytt FØR Min Bil vises (sjFriskOppMinBilData()).
+      // Ved LAGRINGSFEIL kommer vi aldri hit: rullTilbake() over har da stoppet funksjonen,
+      // sjåføren blir stående på kontrollsiden med feilmeldingen og kan prøve igjen.
       await startBilokt(vehicleId, sjafor);
+      await sjFriskOppMinBilData();
       driverScreen = 'min-bil';
       minBilAksjon = ''; minBilNySjaforMsg = '';
       render();
+      visSjToast('Kontroll registrert');
     } else {
       // en kontroll registrert fra administrasjonsdelen setter nå aktiv
       // sjåfør på nøyaktig samme måte som en kontroll registrert i sjåførmodus — samme
@@ -8566,7 +8731,6 @@ function attachKontrollSlettModalListeners(){
 function renderDriverShell(){
   let body = '';
   if(driverScreen === 'kontroll') body = renderKontroll();
-  else if(driverScreen === 'allerede-kontrollert') body = renderDriverAlleredeKontrollert();
   else if(driverScreen === 'min-bil') body = renderDriverMinBil();
   else if(driverScreen === 'ringeliste') body = renderDriverRingeliste();
   else if(driverScreen === 'kommentarer') body = renderDriverKommentarer();
@@ -8578,11 +8742,10 @@ function renderDriverShell(){
       ${brandBlockHtml()}
       <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span><span class="p48-status-dot"></span></div>
     </div>
-    ${body}
+    <div class="sj-app">${body}</div>
     ${renderDriverBunnmenyHtml()}
   `;
   if(driverScreen === 'kontroll') attachKontrollListeners();
-  else if(driverScreen === 'allerede-kontrollert') attachDriverAlleredeKontrollertListeners();
   else if(driverScreen === 'min-bil') attachDriverMinBilListeners();
   else if(driverScreen === 'ringeliste') attachDriverRingelisteListeners();
   else if(driverScreen === 'kommentarer') attachDriverKommentarerListeners();
@@ -8673,11 +8836,14 @@ function renderDriverVelgBil(){
   // Den dukker opp igjen først når sjåføren faktisk har en aktiv biløkt å returnere til.
   const kanGaTilbake = !!(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId));
   return `
-    <div class="p48-velgbil-heading">
-      ${kanGaTilbake ? `<button type="button" class="p48-back" id="db-tilbake-btn" aria-label="Tilbake til Min Bil">${sjaforIkonSvg('chevronLeft', 22)}</button>` : ''}
-      <h2 style="font-size:19px;">Velg bil</h2>
+    <div class="sj-header">
+      ${kanGaTilbake ? `<button type="button" class="p48-back" id="db-tilbake-btn" aria-label="Tilbake til Min Bil" style="align-self:center;">${sjaforIkonSvg('chevronLeft', 22)}</button>` : ''}
+      <div class="sj-header-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('truck')}</div>
+      <div class="sj-header-text">
+        <h2>Velg bil</h2>
+        <div class="required-hint">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag. Du skriver navnet ditt i neste steg.</div>
+      </div>
     </div>
-    <div class="required-hint" style="margin-bottom:16px;">Kontrollen tilhører bilen — velg kjøretøyet du kjører i dag. Du skriver navnet ditt i neste steg.</div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${renderDriftslagGruppertBilvalg('data-velg-bil')}
     </div>
@@ -8730,17 +8896,20 @@ function attachDriverVelgBilListeners(){
       return;
     }
     driverNavn = navn;
-    driverVelgBilId = driverNavnDialogBilId;
+    const valgtBilId = driverNavnDialogBilId;
+    // Prioritet 56: allerede kontrollert i dag → ingen mellomskjerm og ingen «Gå til Min Bil»-
+    // knapp; sjåføren går rett til Min Bil (se driverApneKontrollertBil()).
+    if(isKontrollertIdag(valgtBilId)){
+      driverApneKontrollertBil(valgtBilId, navn);
+      return;
+    }
+    driverVelgBilId = valgtBilId;
     driverNavnDialogBilId = '';
     driverNavnDialogMsg = '';
-    if(isKontrollertIdag(driverVelgBilId)){
-      driverScreen = 'allerede-kontrollert';
-    } else {
-      kontrollFormVehicleId = driverVelgBilId;
-      kontrollFormSjaforNavn = navn;
-      syncKontrollAnnetFromActive(kontrollFormVehicleId);
-      driverScreen = 'kontroll';
-    }
+    kontrollFormVehicleId = driverVelgBilId;
+    kontrollFormSjaforNavn = navn;
+    syncKontrollAnnetFromActive(kontrollFormVehicleId);
+    driverScreen = 'kontroll';
     render();
   });
   const avbrytBtn = document.getElementById('db-navn-avbryt-btn');
@@ -8755,40 +8924,8 @@ function attachDriverVelgBilListeners(){
 // kontrollskjemaet uendret (renderKontroll/submitKontroll) — se der for hvordan en
 // vellykket innsending i sjåførmodus starter biløkten og sender videre til Min Bil.
 
-// Steg 2b (kun hvis bilen ALLEREDE er kontrollert i dag): informerer i stedet for å be
-// om en ny, unødvendig kontroll.
-function renderDriverAlleredeKontrollert(){
-  const v = vehicles.find(x => x.id === driverVelgBilId);
-  if(!v){ driverScreen = 'velg-bil'; return renderDriverVelgBil(); }
-  const siste = lastKontrollForVehicle(v.id);
-  return `
-    <h2 style="font-size:19px;margin-bottom:14px;">${esc(vehicleLabel(v))}</h2>
-    <div class="panel" style="text-align:center;padding:30px 20px;margin-bottom:16px;">
-      <div style="font-size:40px;margin-bottom:12px;color:var(--green-ink);">${luc('circle-check')}</div>
-      <div style="font-weight:700;font-size:16.5px;margin-bottom:16px;">Denne bilen er allerede kontrollert i dag.</div>
-      <div class="ov-grid">
-        <div class="ov-item"><span class="ov-label">Kontroll utført</span><span class="ov-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</span></div>
-        <div class="ov-item"><span class="ov-label">Kontrollert av</span><span class="ov-value">${siste && siste.sjafor ? esc(siste.sjafor) : '–'}</span></div>
-      </div>
-      <div class="required-hint" style="margin-top:16px;">Ny kontroll er ikke nødvendig.</div>
-    </div>
-    <button class="btn" id="db-til-min-bil-btn" style="width:100%;min-height:52px;">Gå til Min Bil</button>
-    <button class="btn secondary small" id="db-bytt-bil-btn" style="width:100%;min-height:52px;margin-top:10px;">← Velg en annen bil</button>
-  `;
-}
-function attachDriverAlleredeKontrollertListeners(){
-  const tilMinBilBtn = document.getElementById('db-til-min-bil-btn');
-  if(tilMinBilBtn) tilMinBilBtn.addEventListener('click', async () => {
-    await startBilokt(driverVelgBilId, driverNavn);
-    driverScreen = 'min-bil';
-    render();
-  });
-  const byttBilBtn = document.getElementById('db-bytt-bil-btn');
-  if(byttBilBtn) byttBilBtn.addEventListener('click', () => {
-    driverVelgBilId = ''; driverNavnDialogBilId = ''; driverNavnDialogMsg = '';
-    driverScreen = 'velg-bil'; render();
-  });
-}
+// Prioritet 56: «allerede kontrollert i dag»-mellomskjermen (med «Gå til Min Bil»-knapp) er FJERNET.
+// En bil som allerede er kontrollert i dag åpnes rett i Min Bil, se driverApneKontrollertBil().
 
 // Steg 3: Min Bil — sjåførens arbeidsflate resten av den operative dagen.
 function renderDriverMinBil(){
@@ -8803,7 +8940,6 @@ function renderDriverMinBil(){
   // Prioritet 49, Del 2: løftebordkortets status — alltid beregnet, aldri konfigurert
   // (alle kjøretøy antas å ha løftebord, se CLAUDE.md Prioritet 49 Del 8).
   const lbStatus = loftebordVedlikeholdStatus(v.id);
-  const lbAccKlasse = lbStatus.status === 'gronn' ? 'ok' : (lbStatus.status === 'gul' ? 'oppfolging' : 'varsel');
   // overskriften viser BILENS aktive sjåfør (vehicleAktivSjafor — samme
   // kilde som Dashboard, Biler i drift, Biloversikt og Kjøretøyprofil), ikke bare navnet
   // som ligger i denne enhetens lokale sesjon. Er bilen overført til en ny sjåfør via
@@ -8819,22 +8955,11 @@ function renderDriverMinBil(){
   // brukt både for kontrollert-i-dag-pillen på kortet og for selve pillens
   // farge/tekst (samme kilde som "KONTROLLSTATUS" alltid har vist, kun ny presentasjon).
   const p48Kontrollert = isKontrollertIdag(v.id);
+  // Prioritet 56: bilkortet er ikke lenger en Layout Editor-komponent, men fast innhold (se
+  // bilkortHtml under) — det samler kontrollstatus, kilometerstand, neste verkstedtime og
+  // løftebord i ÉTT kort. «Ikke opprett nye kort»: løftebordkortet og verkstedtime-kortet er
+  // flyttet inn hit, ikke duplisert.
   const komponentHtml = {
-    bilkort: `
-    <div class="panel p48-vehicle-card" style="margin-bottom:16px;">
-      <div class="p48-vehicle-head">
-        <div class="plate p48-plate-lg"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-        <span class="p48-pill ${p48Kontrollert ? 'p48-pill-ok' : 'p48-pill-off'}">${p48Kontrollert ? luc('check') + ' Kontrollert i dag' : luc('circle-dashed') + ' Ikke kontrollert'}</span>
-      </div>
-      <div class="p48-vehicle-title">${esc(v.bilnummer)}</div>
-      <div class="p48-vehicle-model">${esc(v.merke)} ${esc(v.modell)}</div>
-      <div class="p48-stats-grid">
-        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('calendar', 18)}</span><div><div class="p48-stat-label">Kontroll utført</div><div class="p48-stat-value">${siste && siste.tidspunkt ? esc(siste.tidspunkt) : '–'}</div></div></div>
-        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('gauge', 18)}</span><div><div class="p48-stat-label">Kilometerstand</div><div class="p48-stat-value">${v.km !== '' && v.km != null ? Number(v.km).toLocaleString('nb-NO') + ' km' : '–'}</div></div></div>
-        <div class="p48-stat"><span class="p48-stat-icon">${sjaforIkonSvg('folder', 18)}</span><div><div class="p48-stat-label">Aktive saker</div><div class="p48-stat-value">${vAktiveSaker.length}</div></div></div>
-      </div>
-      <div class="p48-status-line">${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</div>
-    </div>`,
     skade: `
       <button type="button" class="p48-action-card" id="mb-skade-btn">
         <span class="p48-action-icon purple">${luc('triangle-alert')}</span>
@@ -8939,49 +9064,83 @@ function renderDriverMinBil(){
       </div>` : ''}`
   };
 
-  return `
-    <h2 style="font-size:19px;margin-bottom:16px;">Min Bil</h2>
-    <div class="p48-sjafor-row">
-      <div class="p48-sjafor-avatar">${luc('user-round')}</div>
-      <div>
-        <div class="p48-sjafor-name">${esc(mbAktivSjafor || driverNavn)}</div>
-        <div class="p48-sjafor-sub">Aktiv sjåfør</div>
-      </div>
-    </div>
-    ${mbOverfort ? `<div class="required-hint" style="margin-bottom:16px;">Bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.</div>` : ''}
-
-    <!-- Prioritet 54: «🛠 Neste verkstedtime» for aktiv bil. BEVISST utenfor layoutFlateHtml()
-         (som løftebordkortet under): kortet skal ikke kunne skjules, og vises bare når bilen faktisk
-         har en kommende time (ingen tomtilstand på Min Bil). Ingen åpne-knapp — sjåføren har ikke
-         tilgang til Verksted. Samme nesteVerkstedtime() som Dashboard/Verkstedoversikt/bilprofil. -->
-    ${nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:'merket', skjulTom:true})}
-
-    <!-- Prioritet 49, Del 2: «🛗 Løftebord»-kortet er BEVISST utenfor layoutFlateHtml()/
-         komponentHtml — det skal alltid vises, med ingen «har løftebord»-konfigurasjon å
-         skjule det bak (se CLAUDE.md, Prioritet 49 Del 8). Samme fargede venstrekant-mønster
-         som .acc-row.ok/.oppfolging/.varsel allerede bruker andre steder i appen (grønn/gul/
-         rød), ikke en ny statusfargekomponent. -->
-    <div class="acc-row loftebord-card ${lbAccKlasse}" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-        <div>
-          <div style="font-weight:700;font-size:14.5px;">🛗 Løftebord</div>
-          <div style="margin-top:4px;font-size:13px;">${lbStatus.ikon} ${lbStatus.tekst}</div>
-          <div style="margin-top:2px;font-size:12px;color:var(--muted);">${lbStatus.undertekst}</div>
+  // ---- Prioritet 56: BILKORTET — hjertet i Min Bil ----
+  // ÉTT kort, rader i denne rekkefølgen: Kontrollstatus → Kilometerstand → Neste verkstedtime →
+  // Løftebord, og til slutt hovedstatus («● Operativ»). Alt er FLYTTET hit fra egne kort/felt, ingen
+  // ny funksjonalitet: kontrollstatus/km fra det gamle bilkortet, verkstedtime fra Prioritet 54
+  // (samme nesteVerkstedtime(), rad-variant av det delte kortet), løftebord fra Prioritet 49
+  // (samme loftebordVedlikeholdStatus()/mb-loftebord-*-id-er og submitMinBilLoftebordVedlikehold()).
+  // Bevisst FAST innhold (ikke Layout Editor): løftebord skal alltid være synlig for sjåføren.
+  const bkStil = P38_STATUS_STIL[hovedstatus] || {tone:'var(--line)'};
+  const bkKmTekst = v.km !== '' && v.km != null && !isNaN(Number(v.km)) ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt';
+  const bkKontrollTid = p48Kontrollert && siste && siste.tidspunkt ? siste.tidspunkt : '';
+  const lbTone = {gronn:['var(--green-soft)','var(--green-ink)'], gul:['var(--amber-soft)','var(--amber)'], rod:['var(--red-soft)','var(--red)']}[lbStatus.status] || ['var(--surface-2)','var(--muted)'];
+  const lbSub = lbStatus.siste && lbStatus.dagerSiden !== null
+    ? `Sist utført ${fmt(lbStatus.siste.dato)} · ${lbStatus.dagerSiden === 0 ? 'i dag' : lbStatus.dagerSiden + ' dag' + (lbStatus.dagerSiden === 1 ? '' : 'er') + ' siden'}`
+    : 'Vedlikehold ikke registrert';
+  const bilkortHtml = `
+    <div class="sj-card" style="--accent:${bkStil.tone};">
+      <div class="sj-bilkort-topp">
+        <div class="plate p48-plate-lg"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
+        <div class="tittel">
+          <div class="sj-bilkort-tittel">${esc(v.bilnummer)}</div>
+          <div class="sj-bilkort-modell">${esc(v.merke)} ${esc(v.modell)}</div>
         </div>
       </div>
-      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn small" id="mb-loftebord-btn">🛢 Smør løftebord</button></div>
-      ${minBilAksjon === 'loftebord' ? `
-      <div class="panel" style="margin-top:10px;">
-        <div class="required-hint" style="margin-bottom:12px;">Bekreft at løftebordet er smurt med fettpresse.</div>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:12px;cursor:pointer;">
-          <input type="checkbox" id="mb-loftebord-smurt" style="width:auto;" ${minBilLoftebordSmurt ? 'checked' : ''}>
-          Løftebord er smurt
-        </label>
-        <div class="field" style="margin-bottom:10px;"><label>Kommentar (valgfritt)</label><textarea id="mb-loftebord-kommentar" placeholder="Valgfritt">${esc(minBilLoftebordKommentar)}</textarea></div>
-        <div class="panel-actions"><button type="button" class="btn" id="mb-loftebord-lagre-btn" ${minBilLoftebordSmurt ? '' : 'disabled'}>✅ Registrer vedlikehold</button></div>
-      </div>` : ''}
-    </div>
+      <div class="sj-card-body flush">
+        <div class="sj-row">
+          <div class="sj-row-icon" style="--tint:${p48Kontrollert ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${p48Kontrollert ? 'var(--green-ink)' : 'var(--amber)'};">${luc(p48Kontrollert ? 'clipboard-check' : 'clipboard-x')}</div>
+          <div class="sj-row-text">
+            <div class="sj-row-main">${p48Kontrollert ? 'Kontrollert i dag' : 'Ikke kontrollert i dag'}</div>
+            <div class="sj-row-sub">${bkKontrollTid ? 'Kontroll utført ' + esc(bkKontrollTid) : (siste ? 'Sist kontrollert ' + fmt(siste.dato) : 'Ingen kontroll registrert')}</div>
+          </div>
+        </div>
+        <div class="sj-row">
+          <div class="sj-row-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('gauge')}</div>
+          <div class="sj-row-text">
+            <div class="sj-row-main">${bkKmTekst}</div>
+            <div class="sj-row-sub">Kilometerstand</div>
+          </div>
+        </div>
+        ${nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {rad:true})}
+        <div class="sj-row">
+          <div class="sj-row-icon" style="--tint:${lbTone[0]};--tone:${lbTone[1]};">${luc('arrow-up-down')}</div>
+          <div class="sj-row-text">
+            <div class="sj-row-main">Løftebord · ${lbStatus.ikon} ${lbStatus.tekst}</div>
+            <div class="sj-row-sub">${lbSub}</div>
+            <button type="button" class="sj-pill-btn" id="mb-loftebord-btn" style="--tint:${lbTone[0]};--tone:${lbTone[1]};margin-top:8px;">${luc('droplets')} Smør løftebord</button>
+          </div>
+        </div>
+        ${minBilAksjon === 'loftebord' ? `
+        <div class="sj-bilkort-panel">
+          <div class="required-hint" style="margin:0 0 12px;">Bekreft at løftebordet er smurt med fettpresse.</div>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:12px;cursor:pointer;">
+            <input type="checkbox" id="mb-loftebord-smurt" style="width:auto;" ${minBilLoftebordSmurt ? 'checked' : ''}>
+            Løftebord er smurt
+          </label>
+          <div class="field" style="margin-bottom:10px;"><label>Kommentar (valgfritt)</label><textarea id="mb-loftebord-kommentar" placeholder="Valgfritt">${esc(minBilLoftebordKommentar)}</textarea></div>
+          <div class="panel-actions" style="margin-top:0;"><button type="button" class="btn" id="mb-loftebord-lagre-btn" ${minBilLoftebordSmurt ? '' : 'disabled'}>✅ Registrer vedlikehold</button></div>
+        </div>` : ''}
+      </div>
+      <div class="sj-bilkort-fot">
+        <span>${HOVEDSTATUS_IKON[hovedstatus]} ${HOVEDSTATUS_LABEL[hovedstatus]}</span>
+        ${vAktiveSaker.length > 0 ? `<span class="muted">· ${vAktiveSaker.length} aktiv${vAktiveSaker.length === 1 ? '' : 'e'} sak${vAktiveSaker.length === 1 ? '' : 'er'}</span>` : ''}
+      </div>
+    </div>`;
 
+  return `
+    <div class="sj-header">
+      <div class="sj-header-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('truck')}</div>
+      <div class="sj-header-text">
+        <h2>Min Bil</h2>
+        <div class="required-hint">${luc('user-round')} Aktiv sjåfør: <b>${esc(mbAktivSjafor || driverNavn)}</b></div>
+      </div>
+    </div>
+    ${mbOverfort ? `<div class="required-hint" style="margin:-8px 0 14px;">Bilen er overført til denne sjåføren. Du står ikke lenger som aktiv sjåfør.</div>` : ''}
+
+    ${bilkortHtml}
+
+    <div class="sj-section-title" style="margin-top:6px;">Handlinger</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
       ${layoutFlateHtml('minbil', komponentHtml)}
       <button type="button" class="p48-checkout-card" id="mb-sjekk-ut-btn">
@@ -9209,12 +9368,24 @@ function attachDriverRingelisteListeners(){
 // visMarkerSomLest=false: les-status er administrativ (se markerKommentarSomLest()).
 function renderDriverKommentarer(){
   const liste = nyeKommentarerListe(driverVelgBilId);
+  const kBil = vehicles.find(x => x.id === driverVelgBilId);
+  // Prioritet 56: Ringeliste-design — header med ikonflate + kort med tittelrad. Selve radene
+  // (nyeKommentarRadHtml) er uendret og delt med administrasjonens visninger.
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">${luc('message-square')} Kommentarer</h2>
-    <div class="panel">
-      ${liste.length === 0
-        ? `<div class="empty-note">Ingen kommentarer på denne bilen ennå.</div>`
-        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, false)).join('')}</div>`}
+    <div class="sj-header">
+      <div class="sj-header-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('message-square')}</div>
+      <div class="sj-header-text">
+        <h2>Kommentarer</h2>
+        <div class="required-hint">${kBil ? esc(vehicleLabel(kBil)) : 'Kommentarer på bilen du kjører.'}</div>
+      </div>
+    </div>
+    <div class="sj-card" style="--accent:var(--blue);">
+      <div class="sj-card-head"><span class="sj-card-title">Kommentarer (${liste.length})</span></div>
+      <div class="sj-card-body">
+        ${liste.length === 0
+          ? `<div class="empty-note" style="padding:0;">Ingen kommentarer på denne bilen ennå.</div>`
+          : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, false)).join('')}</div>`}
+      </div>
     </div>
   `;
 }
@@ -9231,11 +9402,29 @@ function attachDriverKommentarerListeners(){
 function renderDriverMer(){
   // «💬 Legg til kommentar» knyttes til driverVelgBilId (bilen sjåføren
   // faktisk kjører i denne sesjonen), IKKE til hele bilparken. Se renderDriverNyKommentar().
+  // Prioritet 56: Ringeliste-design — samme header, og hver handling er en rad med ikonflate
+  // (.sj-row) i ett kort. Samme to handlinger, samme id-er, uendrede lyttere.
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">${luc('more-horizontal')} Mer</h2>
-    <div class="panel">
-      <button type="button" class="btn secondary" id="dm-legg-til-kommentar-btn" style="width:100%;justify-content:flex-start;min-height:52px;margin-bottom:10px;">${luc('message-square')} Legg til kommentar</button>
-      <button type="button" class="btn secondary" id="dm-bytt-bil-btn" style="width:100%;justify-content:flex-start;min-height:52px;">${luc('refresh-cw')} Bytt bil</button>
+    <div class="sj-header">
+      <div class="sj-header-icon" style="--tint:var(--surface-2);--tone:var(--muted);">${luc('more-horizontal')}</div>
+      <div class="sj-header-text">
+        <h2>Mer</h2>
+        <div class="required-hint">Flere handlinger for bilen du kjører.</div>
+      </div>
+    </div>
+    <div class="sj-card" style="--accent:var(--muted);">
+      <div class="sj-card-body flush">
+        <button type="button" class="sj-row sj-tap" id="dm-legg-til-kommentar-btn">
+          <div class="sj-row-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('message-square')}</div>
+          <div class="sj-row-text"><div class="sj-row-main">Legg til kommentar</div><div class="sj-row-sub">Skriv en merknad om bilen</div></div>
+          <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+        </button>
+        <button type="button" class="sj-row sj-tap" id="dm-bytt-bil-btn">
+          <div class="sj-row-icon" style="--tint:var(--orange-soft);--tone:var(--orange);">${luc('refresh-cw')}</div>
+          <div class="sj-row-text"><div class="sj-row-main">Bytt bil</div><div class="sj-row-sub">Velg en annen bil</div></div>
+          <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
+        </button>
+      </div>
     </div>
   `;
 }
@@ -9262,15 +9451,22 @@ function attachDriverMerListeners(){
 function renderDriverNyKommentar(){
   const v = vehicles.find(x => x.id === driverVelgBilId);
   return `
-    <div class="backrow"><button class="backbtn" id="dnk-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:6px;">${luc('message-square')} Legg til kommentar</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
-    <div class="panel">
-      <div class="field" style="margin-bottom:14px;">
-        <label>Kommentar</label>
-        <textarea id="dnk-tekst" placeholder="F.eks. Ryggekamera hakker" style="min-height:100px;">${esc(driverNyKommentarTekst)}</textarea>
+    <div class="sj-header">
+      <button type="button" class="p48-back" id="dnk-back" aria-label="Tilbake til Mer" style="align-self:center;">${sjaforIkonSvg('chevronLeft', 22)}</button>
+      <div class="sj-header-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('message-square')}</div>
+      <div class="sj-header-text">
+        <h2>Legg til kommentar</h2>
+        <div class="required-hint">${v ? esc(vehicleLabel(v)) : 'Ukjent bil'}</div>
       </div>
-      <div class="panel-actions"><button type="button" class="btn" id="dnk-lagre-btn" style="width:100%;">Lagre kommentar</button></div>
+    </div>
+    <div class="sj-card" style="--accent:var(--blue);">
+      <div class="sj-card-head"><span class="sj-card-title">Kommentar</span></div>
+      <div class="sj-card-body">
+        <div class="field" style="margin-bottom:14px;">
+          <textarea id="dnk-tekst" aria-label="Kommentar" placeholder="F.eks. Ryggekamera hakker" style="min-height:100px;">${esc(driverNyKommentarTekst)}</textarea>
+        </div>
+        <button type="button" class="btn" id="dnk-lagre-btn" style="width:100%;min-height:52px;">Lagre kommentar</button>
+      </div>
     </div>
   `;
 }
@@ -16807,147 +17003,191 @@ function renderKontroll(){
     vlStatus = alleNylige ? 'amber' : 'red';
   }
   const vlStatusLabel = {red:'🔴 Aktive varsler', amber:'🟡 Nylig registrert', green:'🟢 Ingen aktive varsler'}[vlStatus];
+  // ---- Prioritet 56: kontrollflyten i Ringeliste-designet, med LØFTEBORD høyere opp ----
+  // Rekkefølge: 1 Bil · 2 Sjåfør · 3 Kilometerstand · 4 Løftebord · 5 Varsellamper ·
+  // 6 Kontrollavvik · 7 Kommentar · 8 Nye skader. Løftebord er det eneste løftebord-elementet som
+  // fantes i kontrollflyten (kontrollavviket 'loftebord', tidligere gjemt som siste chip i det lukkede
+  // «Kontrollavvik»-panelet). Det er nå løftet ut i eget kort (steg 4) sammen med løftebordets
+  // status — samme kontrollFormAvvik-liste, samme id-er og samme submitKontroll(): kun plasseringen
+  // er endret. «Kontrollavvik» viser de øvrige fire typene. Ingen ny funksjonalitet: smøring
+  // registreres fortsatt på Min Bil (sjåføren lander der automatisk etter innsending).
+  const lb = v ? loftebordVedlikeholdStatus(v.id) : null;
+  const lbAvvikAktiv = activeAvvikTypes.has('loftebord');
+  const lbAvvikValgt = kontrollFormAvvik.includes('loftebord');
+  const lbAvvikChecked = lbAvvikAktiv || lbAvvikValgt;
+  const lbAccent = lb ? ({gronn:'var(--green)', gul:'var(--amber)', rod:'var(--red)'}[lb.status] || 'var(--line)') : 'var(--line)';
+  const lbSub = lb ? (lb.siste && lb.dagerSiden !== null
+    ? `Sist utført ${fmt(lb.siste.dato)} · ${lb.dagerSiden === 0 ? 'i dag' : lb.dagerSiden + ' dag' + (lb.dagerSiden === 1 ? '' : 'er') + ' siden'}`
+    : 'Vedlikehold ikke registrert') : '';
+  const avvikTyper = KONTROLLAVVIK_ORDER.filter(k => k !== 'loftebord');
+  const antallAvvikValgt = kontrollFormAvvik.filter(k => k !== 'loftebord').length;
   return `
     ${driverMode ? `<div class="backrow"><button class="backbtn" id="kt-back">← Bytt bil</button></div>` : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
-    <h2 style="font-size:19px;margin-bottom:6px;">Registrer kontroll</h2>
-    <div class="required-hint" style="margin-bottom:16px;">Kilometerstand, varsellamper og eventuelle nye skader — tar under et minutt.</div>
-    ${kontrollDraftRestored ? `<div class="required-hint" style="margin-bottom:16px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
-    <form class="panel" id="kontroll-form">
-      ${kontrollFormVehicleId && v ? `
-      <div class="row2">
-        <div class="field" style="margin-bottom:0;">
-          <label>Kjøretøy</label>
-          <div class="kt-vehicle-chosen" id="kt-bytt-bil" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;min-height:44px;">
-            <span>${esc(vehicleLabel(v))}</span><span class="required-hint">Bytt bil ↺</span>
-          </div>
-        </div>
-        <div class="field" style="margin-bottom:0;">
-          <label>Sjåførnavn</label>
-          <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
-        </div>
+    <div class="sj-header">
+      <div class="sj-header-icon" style="--tint:var(--green-soft);--tone:var(--green-ink);">${luc('clipboard-check')}</div>
+      <div class="sj-header-text">
+        <h2>Registrer kontroll</h2>
+        <div class="required-hint">Kilometerstand, løftebord, varsellamper og eventuelle nye skader — tar under et minutt.</div>
       </div>
-      ` : `
-      <div class="field" style="margin-bottom:16px;">
-        <label>Velg bil — gruppert etter driftslag</label>
-        <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;">
-          ${renderDriftslagGruppertBilvalg('data-velg-kontroll-bil')}
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Sjåførnavn</label>
-        <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
-      </div>
-      `}
-      ${v ? `
-      <div class="kt-vehicle-card">
-        <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
-        <div>
-          <div class="model">${esc(v.bilnummer)}</div>
-          <div class="model-sub">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</div>
-        </div>
-      </div>
-      ${activeVarsellysList.length > 0 ? `
-      <div class="active-lamp-list">
-        <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan markere som løst:</div>
-        ${activeVarsellysList.map(w => `<div class="active-lamp-row">${luc('triangle-alert')} <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
-      </div>` : ''}` : ''}
+    </div>
+    ${kontrollDraftRestored ? `<div class="required-hint" style="margin:0 0 14px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
+    <form id="kontroll-form">
 
-      <div class="field" style="margin-top:14px;margin-bottom:0;">
-        <label>Kilometerstand</label>
-        <input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" value="${esc(kontrollFormKm)}" required>
-      </div>
-
-      <div class="field" style="margin:18px 0;">
-        <div class="acc-row ${kontrollVarsellamperOpen ? 'expanded' : ''}">
-          <div class="acc-head" data-toggle-kt-varsellamper>
-            <div class="acc-head-left">
-              <div class="flag-name">Varsellamper ${v ? `<span class="vl-status-badge ${vlStatus}">${vlStatusLabel}</span>` : ''}</div>
+      <!-- 1 Bil · 2 Sjåfør -->
+      <div class="sj-card" style="--accent:var(--blue);">
+        <div class="sj-card-head"><span class="sj-card-title">Bil og sjåfør</span></div>
+        <div class="sj-card-body">
+          ${kontrollFormVehicleId && v ? `
+          <div class="row2">
+            <div class="field" style="margin-bottom:0;">
+              <label>Kjøretøy</label>
+              <div class="kt-vehicle-chosen sj-tap" id="kt-bytt-bil" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;min-height:44px;">
+                <span>${esc(vehicleLabel(v))}${(v.merke || v.modell) ? ` <span class="required-hint" style="margin-left:6px;">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</span>` : ''}</span><span class="required-hint">Bytt bil ↺</span>
+              </div>
             </div>
-            <div class="acc-head-right">
-              ${kontrollFormVarsellamper.length > 0 ? `<span class="group-count">${kontrollFormVarsellamper.length} valgt</span>` : ''}
-              <span class="chevron">${luc('chevron-down')}</span>
+            <div class="field" style="margin-bottom:0;">
+              <label>Sjåførnavn</label>
+              <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
             </div>
           </div>
-          ${kontrollVarsellamperOpen ? `<div class="acc-body">
-            <div class="chip-grid">
-              ${VARSELLAMPE_ORDER.map(key => {
-                const isActive = activeTypes.has(key);
-                const isSelected = kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
-                const isChecked = isActive || isSelected;
-                return `
-                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}">
-                  <span class="chip-icon">${isActive ? luc('check') : VARSELLAMPE_ICON[key]}</span>
-                  <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
-                </button>
-              `;}).join('')}
+          ` : `
+          <div class="field" style="margin-bottom:16px;">
+            <label>Velg bil — gruppert etter driftslag</label>
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;">
+              ${renderDriftslagGruppertBilvalg('data-velg-kontroll-bil')}
             </div>
-            ${kontrollFormAnnet ? `
-            <div class="field" style="margin-top:10px;">
-              <label>Beskriv «Annet»</label>
-              <input id="kt-annet-tekst" type="text" placeholder="Beskriv varselet" value="${esc(kontrollFormAnnetTekst)}" ${activeTypes.has('annet') ? 'disabled' : ''}>
-            </div>` : ''}
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Sjåførnavn</label>
+            <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
+          </div>
+          `}
+          <!-- Prioritet 56: skiltkortet (.kt-vehicle-card) er tatt bort her — bil, regnr og modell står
+               allerede i kjøretøyraden over, og kortet kostet ca. 75 px scrolling før løftebord. -->
+        </div>
+      </div>
+
+      <!-- 3 Kilometerstand -->
+      <div class="sj-card" style="--accent:var(--blue);">
+        <div class="sj-card-head"><span class="sj-card-title">Kilometerstand</span></div>
+        <div class="sj-card-body">
+          <div class="field" style="margin:0;"><input id="kt-km" class="kt-km-input" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. 186532" aria-label="Kilometerstand" value="${esc(kontrollFormKm)}" required></div>
+        </div>
+      </div>
+
+      <!-- 4 Løftebord -->
+      <div class="sj-card" style="--accent:${lbAccent};">
+        <div class="sj-card-head">
+          <span class="sj-card-title">Løftebord</span>
+          ${lb ? `<span class="sj-pill ${lb.status}">${lb.ikon} ${lb.tekst}</span>` : ''}
+        </div>
+        <div class="sj-card-body">
+          ${lb ? `<div class="required-hint" style="margin:0 0 10px;">${lbSub}</div>` : ''}
+          <div class="chip-grid">
+            <button type="button" class="chip ${lbAvvikChecked ? 'checked' : ''} ${lbAvvikAktiv ? 'chip-active-lamp' : ''}" id="kt-avvik-loftebord" data-kt-avvik="loftebord">
+              <span class="chip-icon">${lbAvvikAktiv ? luc('check') : luc(KONTROLLAVVIK_LUCIDE['loftebord'] || 'clipboard-list')}</span>
+              <span class="chip-text">${KONTROLLAVVIK_LABEL['loftebord']} — meld feil eller skade${lbAvvikAktiv ? ' — Registrert og under oppfølging' : ''}${lbAvvikAktiv && lbAvvikValgt ? ' (bekreftet i dag)' : ''}</span>
+            </button>
+          </div>
+          <div class="sj-hint">Smøring av løftebordet registrerer du på Min Bil — du kommer dit automatisk etter at kontrollen er sendt inn.</div>
+        </div>
+      </div>
+
+      <!-- 5 Varsellamper -->
+      <div class="sj-card" style="--accent:var(--amber);">
+        <div class="sj-card-head klikk" data-toggle-kt-varsellamper>
+          <span class="sj-card-title">Varsellamper</span>
+          ${v ? `<span class="vl-status-badge ${vlStatus}" style="margin-left:0;">${vlStatusLabel}</span>` : ''}
+          ${kontrollFormVarsellamper.length > 0 ? `<span class="sj-card-meta">${kontrollFormVarsellamper.length} valgt</span>` : ''}
+          <span class="chevron">${luc(kontrollVarsellamperOpen ? 'chevron-up' : 'chevron-down')}</span>
+        </div>
+        ${activeVarsellysList.length > 0 ? `
+        <div class="sj-card-body">
+          <div class="active-lamp-list">
+            <div class="active-lamp-list-title">Aktive varsellamper på bilen — huket av automatisk, kun administrator kan markere som løst:</div>
+            ${activeVarsellysList.map(w => `<div class="active-lamp-row">${luc('triangle-alert')} <span class="chip-icon">${VARSELLAMPE_ICON[w.type]}</span> ${esc(varsellysLabel(w))}</div>`).join('')}
+          </div>
+        </div>` : ''}
+        ${kontrollVarsellamperOpen ? `<div class="sj-card-body">
+          <div class="chip-grid">
+            ${VARSELLAMPE_ORDER.map(key => {
+              const isActive = activeTypes.has(key);
+              const isSelected = kontrollFormVarsellamper.includes(key) || (key==='annet' && kontrollFormAnnet);
+              const isChecked = isActive || isSelected;
+              return `
+              <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-varsel-${key}" data-kt-varsel="${key}">
+                <span class="chip-icon">${isActive ? luc('check') : VARSELLAMPE_ICON[key]}</span>
+                <span class="chip-text">${VARSELLAMPE_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
+              </button>
+            `;}).join('')}
+          </div>
+          ${kontrollFormAnnet ? `
+          <div class="field" style="margin-top:10px;">
+            <label>Beskriv «Annet»</label>
+            <input id="kt-annet-tekst" type="text" placeholder="Beskriv varselet" value="${esc(kontrollFormAnnetTekst)}" ${activeTypes.has('annet') ? 'disabled' : ''}>
           </div>` : ''}
-        </div>
+        </div>` : ''}
       </div>
 
-      <div class="field" style="margin:18px 0;">
-        <div class="acc-row ${kontrollAvvikOpen ? 'expanded' : ''}">
-          <div class="acc-head" data-toggle-kt-avvik>
-            <div class="acc-head-left">
-              <div class="flag-name">Kontrollavvik</div>
-            </div>
-            <div class="acc-head-right">
-              ${kontrollFormAvvik.length > 0 ? `<span class="group-count">${kontrollFormAvvik.length} valgt</span>` : ''}
-              <span class="chevron">${luc('chevron-down')}</span>
-            </div>
-          </div>
-          ${kontrollAvvikOpen ? `<div class="acc-body">
-            <div class="chip-grid">
-              ${KONTROLLAVVIK_ORDER.map(key => {
-                const isActive = activeAvvikTypes.has(key);
-                const isSelected = kontrollFormAvvik.includes(key);
-                const isChecked = isActive || isSelected;
-                return `
-                <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-avvik-${key}" data-kt-avvik="${key}">
-                  <span class="chip-icon">${isActive ? luc('check') : luc(KONTROLLAVVIK_LUCIDE[key] || 'clipboard-list')}</span>
-                  <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
-                </button>
-              `;}).join('')}
-            </div>
-          </div>` : ''}
+      <!-- 6 Kontrollavvik (løftebord ligger i eget kort over) -->
+      <div class="sj-card" style="--accent:var(--orange);">
+        <div class="sj-card-head klikk" data-toggle-kt-avvik>
+          <span class="sj-card-title">Kontrollavvik</span>
+          ${antallAvvikValgt > 0 ? `<span class="sj-card-meta">${antallAvvikValgt} valgt</span>` : ''}
+          <span class="chevron">${luc(kontrollAvvikOpen ? 'chevron-up' : 'chevron-down')}</span>
         </div>
-      </div>
-
-      <div class="field" style="margin-bottom:0;">
-        <label>Kommentar fra sjåfør</label>
-        <textarea id="kt-kommentar" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea>
-      </div>
-
-      <div class="field" style="margin-bottom:6px;margin-top:18px;">
-        <label>Har du oppdaget nye skader?</label>
-        <div class="chip-yn">
-          <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
-          <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
-        </div>
-        ${kontrollFormHarSkader ? `
-        <div class="field" style="margin-top:12px;">
-          <label>Beskrivelse av skade</label>
-          <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
-        </div>
-        <div class="field" style="margin-top:10px;">
-          <label>Bilder</label>
-          <div class="photo-input-area">
-            <input type="file" accept="image/*" multiple id="kt-skade-foto">
-            <div class="required-hint">Du kan velge flere bilder samtidig.</div>
-            ${pendingKontrollPhotos.length > 0 ? `<div class="kt-photo-grid">${pendingKontrollPhotos.map((p,i) => `
-              <div class="kt-photo-thumb"><img src="${p}"><button type="button" data-remove-photo="${i}">×</button></div>
-            `).join('')}</div>` : ''}
+        ${kontrollAvvikOpen ? `<div class="sj-card-body">
+          <div class="chip-grid">
+            ${avvikTyper.map(key => {
+              const isActive = activeAvvikTypes.has(key);
+              const isSelected = kontrollFormAvvik.includes(key);
+              const isChecked = isActive || isSelected;
+              return `
+              <button type="button" class="chip ${isChecked ? 'checked' : ''} ${isActive ? 'chip-active-lamp' : ''}" id="kt-avvik-${key}" data-kt-avvik="${key}">
+                <span class="chip-icon">${isActive ? luc('check') : luc(KONTROLLAVVIK_LUCIDE[key] || 'clipboard-list')}</span>
+                <span class="chip-text">${KONTROLLAVVIK_LABEL[key]}${isActive ? ' — Registrert og under oppfølging' : ''}${isActive && isSelected ? ' (bekreftet i dag)' : ''}</span>
+              </button>
+            `;}).join('')}
           </div>
         </div>` : ''}
       </div>
 
+      <!-- 7 Kommentar -->
+      <div class="sj-card" style="--accent:var(--muted);">
+        <div class="sj-card-head"><span class="sj-card-title">Kommentar fra sjåfør</span></div>
+        <div class="sj-card-body">
+          <div class="field" style="margin:0;"><textarea id="kt-kommentar" aria-label="Kommentar fra sjåfør" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea></div>
+        </div>
+      </div>
+
+      <!-- 8 Nye skader -->
+      <div class="sj-card" style="--accent:var(--red);">
+        <div class="sj-card-head"><span class="sj-card-title">Har du oppdaget nye skader?</span></div>
+        <div class="sj-card-body">
+          <div class="chip-yn">
+            <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
+            <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
+          </div>
+          ${kontrollFormHarSkader ? `
+          <div class="field" style="margin-top:12px;">
+            <label>Beskrivelse av skade</label>
+            <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label>Bilder</label>
+            <div class="photo-input-area">
+              <input type="file" accept="image/*" multiple id="kt-skade-foto">
+              <div class="required-hint">Du kan velge flere bilder samtidig.</div>
+              ${pendingKontrollPhotos.length > 0 ? `<div class="kt-photo-grid">${pendingKontrollPhotos.map((p,i) => `
+                <div class="kt-photo-thumb"><img src="${p}"><button type="button" data-remove-photo="${i}">×</button></div>
+              `).join('')}</div>` : ''}
+            </div>
+          </div>` : ''}
+        </div>
+      </div>
+
       <div class="form-msg" id="kt-msg"></div>
-      <div class="panel-actions"><button class="btn" id="kt-submit-btn" type="submit">Send inn kontroll</button></div>
+      <div class="panel-actions"><button class="btn" id="kt-submit-btn" type="submit" style="width:100%;min-height:52px;">Send inn kontroll</button></div>
     </form>
   `;
 }

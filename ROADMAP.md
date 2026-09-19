@@ -1,6 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-19 (Prioritet 54 — Neste verkstedtime som operativ informasjon:
+Sist oppdatert: 2026-09-19 (Prioritet 56 — Moderniser hele sjåførmodus: Ringeliste er referansedesign for
+alle sjåførskjermer (delte `sj-*`-klasser); Min Bil har ETT bilkort (kontrollstatus, km, neste verkstedtime,
+løftebord); løftebord ligger som steg 4 i kontrollflyten; kontroll sender sjåføren rett til Min Bil med en kort
+bekreftelse (ingen mellomskjerm, heller ikke for allerede kontrollerte biler)). Før det: 2026-09-19
+(Prioritet 54 — Neste verkstedtime som operativ informasjon:
 nærmeste kommende verkstedtime (én definisjon, `WorkshopAppointments`) vises nå på Dashboard
 (under Hurtigoversikt), øverst i Verkstedoversikten, på Kjøretøyprofil/Bilinformasjon og på Min Bil
 (sjåfør) — med faktisk avtaledato, klokkeslett og verksted, og «Ingen planlagte verkstedtimer»
@@ -855,6 +859,15 @@ saker automatisk, bekreftet i kodeflyten fra `submitKontroll()`. **Endret i
 Prioritet 47, Del 1:** «Andre kontrollavvik» er fjernet fra valgbare
 kontrollavvik (kun Skade, Varsellampe, Defekt lys, Manglende utstyr, Feil på
 kjøretøy og Slitte dekk oppretter nå saker) — se over.
+
+## Sjåførmodus
+
+✅ **Prioritet 56 (2026-09-19) — samlet, moderne sjåførmodus.** Se CHANGELOG.md/CLAUDE.md. Verifisert mot
+mock-storage, **ikke** mot ekte Airtable eller ekte mobil. Gjenstår/kjent: (a) smøring av løftebord kan fortsatt
+KUN registreres på Min Bil — kontrollflyten viser status og løftebord-avviket, men registrerer ikke smøring;
+(b) det finnes ingen offlinekø i koden (feil = blir på skjemaet med melding); (c) Velg bil-gruppekortene
+(`renderDriftslagGruppertBilvalg`, delt med admin) har fått Ringeliste-header, men beholder sitt
+eksisterende kortinnhold.
 
 ## Verkstedflyt
 

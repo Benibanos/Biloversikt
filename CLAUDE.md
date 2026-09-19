@@ -1,6 +1,11 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 54 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-19 (Prioritet 56 —
+**Moderniser hele sjåførmodus.** Ringeliste er referansedesignet for alle sjåførskjermer (delte
+`sj-*`-klasser), Min Bil har ETT bilkort (kontrollstatus · km · neste verkstedtime · løftebord), løftebord er
+steg 4 i kontrollflyten, og en sendt kontroll går rett til Min Bil med en kort bekreftelse. Se «Prioritet 56
+(2026-09-19)» nederst — den avløser Min Bil-plasseringene i Prioritet 49 Del 2/54. Før det: 2026-09-19
+(Prioritet 54 —
 **Neste verkstedtime som operativ informasjon.** Nærmeste kommende verkstedtime (én definisjon,
 `nesteVerkstedtime()`, kilde `WorkshopAppointments`) vises på Dashboard, Verkstedoversikt,
 Kjøretøyprofil/Bilinformasjon og Min Bil — via ETT delt kort, `nesteVerkstedtimeHtml()`. Se
@@ -5557,3 +5562,88 @@ bils time, ingen knapp/notater/bil-linje, ingen kort uten time), synk fra «anne
 åpent panel. **Ikke testet:** mot ekte Airtable, ekte mobil/touch, eller visuelt i detalj (layout målt
 via DOM). Anbefalt før idriftsettelse: bestill en time, og bekreft at den dukker opp på Dashboard, i
 Verkstedoversikten, på bilprofilen og på Min Bil (sjåfør-URL) for den bilen.
+
+---
+
+## Prioritet 56 (2026-09-19) — Moderniser hele sjåførmodus
+
+(Brukerens egen nummerering. Ticketen ble sendt to ganger: den første ble avbrutt og var avkuttet etter
+akseptansekriterium 1; den andre, fullstendige versjonen er fulgt. Forskjell mellom dem: den første plasserte
+«Ny sjåfør» over bilkortet — den andre nevner den ikke, og den ligger nå blant «øvrige handlinger».)
+
+**Varig regel: Ringeliste er referansedesignet for hele sjåførmodus.** Ny sjåførskjerm/-komponent skal bruke
+`sj-*`-klassene, ikke en ny stil. Reglene DELES med `ringeliste-*` via grupperte selektorer (ett sted for
+verdiene): `.sj-header` (ikonflate 44 px + h2 + hint; `--tint`/`--tone` styrer fargen, standard rød),
+`.sj-card` (1,5 px ramme, 4 px aksent `--accent`, `--radius`) med `.sj-card-head`/`-title`/`-body` (`.flush` uten
+padding, `.klikk` for utfoldbar), `.sj-row` (34 px ikonflate + `-main`/`-sub`), `.sj-pill-btn`, `.sj-pill`
+(`gronn`/`gul`/`rod`/`noytral`), `.sj-section-title`, `.sj-toast`. De eldre handlingskortene (`.p48-action-*`,
+`.p48-checkout-*`) er restylet til samme kortspråk uten markupendring. `renderDriverShell()` pakker innholdet i
+`.sj-app`; overstyringer av delte komponenter (`.panel`, `.chip`) er scopet dit, så administrasjonen ikke
+endres. Ingen nye farger — kun eksisterende tokens.
+
+**⚠️ CSS-felle funnet (og rettet):** en `*/` inne i en CSS-kommentar (`.dmg-*/.acc-*`) lukket kommentaren
+for tidlig, og resten av teksten ble tolket som selektor og SLUKTE regelen som fulgte
+(`.ringeliste-header`). Ikonet lå derfor over tittelen på Ringeliste. Aldri skriv `*/`, heller ikke inne i
+et mønster som `xxx-*/yyy-*`, i en CSS-kommentar. Konsekvens: Ringeliste-headeren ser nå ut som koden var
+skrevet for (ikon ved siden av tittelen) — en synlig, tilsiktet endring.
+
+**Min Bil (`renderDriverMinBil()`).** Rekkefølge: header (ikon, «Min Bil», Aktiv sjåfør) → **bilkort** →
+«Handlinger» (Registrer skade, Registrer varsellampe, avvik, kontakt, Ny sjåfør — Layout Editor-styrt) → Sjekk
+ut bil. Bilkortet er ETT `.sj-card` med rader i denne rekkefølgen: **Kontrollstatus** («Kontrollert i dag» +
+«Kontroll utført HH:MM») → **Kilometerstand** → **Neste verkstedtime** (`nesteVerkstedtimeHtml(t, {rad:true})`,
+Prioritet 54 — samme `nesteVerkstedtime()`, ingen rad når bilen ikke har noen) → **Løftebord** (status,
+«Sist utført dd/mm/åååå · N dager siden», «Smør løftebord») → fot «● Operativ» (+ antall aktive saker).
+Løftebord- og verkstedtime-kortene er FLYTTET inn, ikke duplisert; `mb-loftebord-*`-id-ene,
+`loftebordVedlikeholdStatus()` og `submitMinBilLoftebordVedlikehold()` er uendret (smør-panelet åpnes inne i
+bilkortet). **`bilkort` er FJERNET fra Layout Editor** (`DASHBOARD_LAYOUT_FLATER.minbil`) — bilkortet er fast,
+slik at løftebord alltid er synlig for sjåføren; `getLayoutFlate()` forkaster stille en lagret `bilkort`-nøkkel.
+På 375×812 ligger bilkort, «Registrer skade» og «Registrer varsellampe» over bunnmenyen.
+
+**Registrer kontroll (`renderKontroll()`, delt med admin).** Kort i rekkefølgen 1 Bil og sjåfør (2 felt i ett
+kort) · 3 Kilometerstand · **4 Løftebord** · 5 Varsellamper · 6 Kontrollavvik · 7 Kommentar · 8 Nye skader.
+Det ENESTE løftebord-elementet som fantes i kontrollflyten var kontrollavviket `'loftebord'` (gjemt som siste
+chip i det lukkede Kontrollavvik-panelet). Steg 4 løfter det ut i eget kort sammen med løftebordets status
+(`sj-pill` + «Sist utført …»): samme `kt-avvik-loftebord`-id, samme `kontrollFormAvvik`, samme
+`submitKontroll()` — kun plasseringen er endret; «Kontrollavvik» viser de øvrige typene. **Smøring registreres
+fortsatt bare på Min Bil** (kortet sier det) — bevisst, siden «ikke ny funksjonalitet» og siden en
+vedlikeholdsregistrering i selve kontrollen ville dratt en ny skriving inn i `submitKontroll()` sin
+rollback-kjede. Skiltkortet (`.kt-vehicle-card`) er fjernet fra «Bil og sjåfør» (bil/regnr/modell står i
+kjøretøyraden; ca. 75 px mindre scrolling). Alle id-er og lyttere (`kt-*`) er uendret.
+
+**Kontroll fullført — ingen mellomskjerm.** Koden gikk allerede rett til Min Bil etter innsending (siden
+Prioritet 40); det som er nytt: (1) `submitKontroll()` sin sjåførgren kaller `sjFriskOppMinBilData()` FØR
+Min Bil vises — henter `verkstedtimer` og `loftebordHistorikk` på nytt (tak 2,5 s, aldri en feil; kontrollstatus,
+km og aktiv sjåfør er allerede oppdatert lokalt), og viser deretter `visSjToast('Kontroll registrert')` — en
+kort, ikke-blokkerende bekreftelse på `<body>` (overlever `render()`, forsvinner etter ca. 2,6 s, ingen knapp,
+`prefers-reduced-motion` respektert). (2) **«Allerede kontrollert»-mellomskjermen med «Gå til Min Bil»-knapp er
+FJERNET** (`driverScreen === 'allerede-kontrollert'` finnes ikke lenger). En bil som allerede er kontrollert i
+dag åpnes rett i Min Bil av `driverApneKontrollertBil()` (`startBilokt()` som knappen kalte før, + toast
+«Allerede kontrollert i dag»); kalles fra navnedialogen («Hvem kjører denne bilen?», der «Fortsett» står — navn
+kreves, så den dialogen er beholdt) og fra `velgKontrollBil()`. Uten kjent sjåførnavn beholdes skjemaet i stedet
+for å starte en biløkt uten sjåfør. (3) Suksess-`alert()` på Min Bil (skade/varsellampe/avvik/løftebord-
+vedlikehold) er byttet med samme toast; feil og advarsler (f.eks. bilde ikke lagret) beholder `alert()`.
+
+**⚠️ Lagringsfeil — eksisterende feil rettet.** `rullTilbake()` i `submitKontroll()` satte feilmeldingen på
+`#kt-msg` og kalte deretter `render()`, som bygger skjemaet på nytt og dermed slettet meldingen (`msgEl`
+pekte på det frakoblede elementet). Sjåføren så et skjema uten forklaring. Meldingen settes nå OGSÅ på det nye
+elementet etter `render()` (og rulles til syne). Ved lagringsfeil: ingen navigasjon, ingen toast, skjemadata
+beholdt (`kontrollForm*`), knappen aktiv, ærlig melding om ren rollback eller mulig delvis lagring (uendret tekst).
+
+**Ikke rørt:** `submitKontroll()` sin lagrings-/rollback-kjede (kun meldingsvisning og sjåførgrenens
+avslutning), km-/aktiv sjåfør-/dagskillelogikk, saksmotoren, løftebord-datamodellen (`LiftgateHistory`),
+Kommentarer 2.0-logikk, bunnmenyen (`DRIVER_BUNNMENY`), administrasjonens skjermer (kontrollskjemaet har ny
+rekkefølge/kortdesign også der — det er delt — men uendret flyt: `alert` + Kjøretøyprofil).
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v103 → v104), `version-check.js` (103 → 104),
+`version.json` (103 → 104), CLAUDE.md/ROADMAP.md/CHANGELOG.md. `storage.airtable.js`/Airtable uendret.
+
+**Testet** i nettleser mot kopi av appen med in-memory storage-mock (`node`/`python` finnes ikke; ingen ekte
+Airtable) på 375×812 og ca. 640 px: bilkortets rader og rekkefølge, smøring fra bilkortet (panel, avkrysning,
+lagring, oppdatert status, toast), kontrollskjemaets 7 kort i riktig rekkefølge, løftebord-avvik i samme
+`kontrollFormAvvik`, lagringsfeil (blir på siden, melding synlig, data beholdt, ingenting lagret), retry → Min
+Bil med oppdatert kontrollstatus/km/aktiv sjåfør og en verkstedtime som først fantes i «databasen» (hentet på nytt),
+allerede kontrollert bil (rett til Min Bil, ingen knapp), header-mønsteret og ingen horisontal overflow på alle
+sjåførskjermer, admin-kontroll uendret flyt, ingen JS-feil. **Ikke testet:** ekte Airtable, ekte mobil/touch,
+«offlineflyt» (det finnes ingen offlinekø i koden — en feil håndteres som før), eller Ringeliste-fanen visuelt utover
+header-endringen. Anbefalt før idriftsettelse: kjør en kontroll fra sjåfør-URL-en på en ekte telefon og bekreft at
+du lander på Min Bil med bekreftelsen, og at «Smør løftebord» fungerer fra bilkortet.
