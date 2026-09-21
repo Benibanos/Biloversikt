@@ -25,6 +25,8 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 4. Layout-komponenten `innstillinger.optimaliseringer` kan ikke skjules. Dyplenker (lesefeil, skjemabanner, oppstart) peker hit. `storage.airtable.js` uendret.
 5. `CACHE_VERSION`/`APP_VERSION`/`version.json` 112 → 113; `kontroll.html` eksakt kopi.
 
+**Testet** i nettleser mot ekte Airtable (admininnlogging): Innstillinger → Optimaliseringer viser Alle/App/Airtable/Sjåfører; Alle viser v113, siste synk og «8 av 8 kontrollert i dag» pluss «Oppdater og synkroniser alt»; App har «Oppdater app» og PWA; Airtable har «Synkroniser nå» og skjemastatus OK; Sjåfører-tabellen viser enheter, versjoner (112/113) og status. Fanebytte uten full omlasting. **Ikke klikket** «Oppdater og synkroniser alt» / «Synkroniser nå» mot produksjon (hard refresh logger ut; skjemasynk skriver til Airtable).
+
 ---
 
 ### Prioritet 63 — Dublettsikring og flerbilssaker
