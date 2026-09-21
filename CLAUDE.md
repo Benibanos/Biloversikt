@@ -1,6 +1,9 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-20 (Prioritet 59 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 56.1 —
+**Kompakt bilvalg.** Sjåførens Velg bil (og administrasjonens «Bytt bil»-fallback) bruker nå Ringeliste-gruppekortene
+(`.ringeliste-group`) med kompakte bilrader og en lavere toppseksjon. Se «Prioritet 56.1 (2026-09-21)» nederst — den
+avløser Velg bil-kortene fra Prioritet 48. Før det: 2026-09-20 (Prioritet 59 —
 **Forenkle Bilinformasjon og dekkskift for flere biler.** (Brukerens EGEN betegnelse «Prioritet 59» — det finnes fra
 før en helt annen, «Prioritet 59 (2026-09-13) — Prioritet er ikke lenger en sannhet»; navnesammenfallet er tilfeldig.)
 Kjøretøyprofilen har fått ny statusrad og én Historikk-seksjon med fem faner i stedet for de gamle fanene, og dekkskift
@@ -5988,3 +5991,41 @@ eldre dekkskift uten retning (kun VT utført), rollback ved lagringsfeil. Brace-
   (`v.dekk`) kan fortsatt ses og endres i «Rediger informasjon» og på den dedikerte Dekk-skjermen (`renderDekkSkjerm()`),
   dekkskift ligger i Verkstedhistorikk, og «Krever dekkskift» varsles fortsatt fra Dashboard/Varslingssenteret.
 - Ikke committet.
+
+
+---
+
+## Prioritet 56.1 (2026-09-21) — Kompakt bilvalg
+
+(Brukerens egen nummerering; bygger på Prioritet 56 «Moderniser hele sjåførmodus».)
+
+**Varig regel: bilvalget bruker Ringeliste-gruppekortene.** `renderDriftslagGruppertBilvalg(velgAttr)` — delt av sjåførens
+Velg bil (`data-velg-bil`) og administrasjonens «Bytt bil»-fallback i `renderKontroll()` (`data-velg-kontroll-bil`) — bygger
+`.ringeliste-group` (`--accent` = `p48DriftslagFarge()`), `-head` (fargeprikk `.p48-dot`, tittel «LAG 1 (2)» i versaler via
+CSS, Lucide `chevron-up`/`chevron-down`) og `-body`. Ikke gå tilbake til `.dash-group-card`/`.group-card-head` her — de er
+Biloversikt/Rapporter/Analyse sine egne, høyere kort, og gjør at ikke alle lag får plass. Gruppehode (46 px) og mellomrom
+(14 px) er målt identiske med Ringeliste; wrapperne rundt komponenten har derfor ingen egen `gap`, ellers dobles mellomrommet.
+
+**Bilrad** (`.ringeliste-row.sj-velg-rad`, ca. 52 px): `luc('truck')`-ikonflate, «Bilnummer · regnr», «Merke modell
+(· 👤 aktiv sjåfør)», liten kontrollpille (`.sj-pill gronn` med klokkeslett `✅ 07:10`, ellers `noytral` «Ikke kontrollert»)
+og chevron (`.sj-velg-chevron`). Skiltkomponenten (`.plate`) og «Kontrollert i dag»-pillen er tatt ut av raden. Linjene kortes
+med ellipsis. Bil «ute av drift» = samme rad med `.ute` (dempet, `sj-pill rod`, **ingen** `data-velg…`-attributt →
+fortsatt ikke klikkbar).
+
+**Toppseksjon** (`.sj-header.kompakt`): 36 px ikon, h2 17 px, én hinttekst «Velg kjøretøyet du kjører i dag.» — 41 px høy (målt)
+(målt; den gamle hadde 44 px ikon, en lang hinttekst over flere linjer og 18 px margin — ikke målt separat). Modifieren er scopet til Velg bil; øvrige sjåførskjermer bruker `.sj-header` uendret.
+
+**Åpne/lukke:** som før kun ÉN gruppe åpen om gangen (`kontrollApenDriftslag`, sist brukte lag huskes i `localStorage`).
+Dette avviker bevisst fra Ringeliste, der flere grupper kan stå åpne — ett åpent lag gir minst scrolling, og «sist brukte lag
+åpent» er en etablert regel (Prioritet 27.7). Toggling kaller `render()` (som Ringeliste).
+
+**Uendret:** navnedialogen («Hvem kjører denne bilen?»), `attachDriftslagGruppeListeners()`, `kontrollDriftslagGrupper()`,
+alle klikk-håndterere. Dødt CSS igjen (ikke fjernet): `.p48-velg-card` m.fl.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v107 → v108), `version-check.js` (107 → 108),
+`version.json` (107 → 108), CLAUDE.md/ROADMAP.md/CHANGELOG.md. `storage.airtable.js`/Airtable uendret.
+
+**Testet** i nettleser mot scratch-kopi med mock-storage (ingen ekte Airtable): åtte grupper (sju lag + ute av drift) under
+hverandre på ca. 625 px ved 390×844; gruppehode/mellomrom lik Ringeliste; åpne/lukke; bilklikk → navnedialog → «Velg en annen
+bil»; ute av drift-rad ikke klikkbar; 320 px uten horisontal overflow og med ellipsis på lange sjåførnavn; ingen JS-feil.
+**Ikke testet:** ekte telefon/touch, lys modus, administrasjonens «Bytt bil»-fallback visuelt (samme komponent).

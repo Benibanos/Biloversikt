@@ -1,6 +1,8 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-20 (Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler: Kjøretøyprofilen har
+Sist oppdatert: 2026-09-21 (Prioritet 56.1 — Kompakt bilvalg: sjåførens Velg bil bruker samme gruppekort som
+Ringeliste (`.ringeliste-group`, lik høyde og mellomrom), kompakte bilrader med kontrollpille og en lavere toppseksjon,
+slik at alle lag får plass uten scrolling; funksjon uendret). Før det: 2026-09-20 (Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler: Kjøretøyprofilen har
 «Rediger informasjon» kun i Kjøretøydetaljer, Mobilitetsgaranti kun i statusraden, «Neste verkstedtime» øverst til høyre
 og statusraden Kilometerstand · Siste service (med km igjen) · EU-kontroll · Mobilitetsgaranti · Løftebord; fanene
 Oversikt/Historikk/Dekk/Kostnader er erstattet av én Historikk-seksjon med fem faner (Kontroller, Skader, Varsellamper,

@@ -13,6 +13,34 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-21
+
+### Prioritet 56.1 — Kompakt bilvalg
+
+(Brukerens egen nummerering; bygger på Prioritet 56 «Moderniser hele sjåførmodus». Full detalj i CLAUDE.md,
+«Prioritet 56.1 (2026-09-21)».)
+
+1. **Velg bil bruker Ringeliste-gruppekortene.** `renderDriftslagGruppertBilvalg()` bygger nå `.ringeliste-group`/
+   `-head`/`-title`/`-body` (fargeprikk, «LAG 1 (2)», Lucide-chevron) i stedet for de høye `.dash-group-card`-kortene.
+   Målt: gruppehode 46 px og mellomrom 14 px — identisk med Ringeliste. Alle sju lag og «Biler ute av drift» ligger
+   under hverandre på ca. 625 px (390×844) med én gruppe åpen. Fortsatt kun én gruppe åpen om gangen (sist brukte lag
+   huskes som før).
+2. **Kompakte bilrader** (`.ringeliste-row.sj-velg-rad`, ca. 52 px): ikon, «Bil 3 · AB10003», merke/modell (+ aktiv
+   sjåfør) og en liten kontrollpille (`✅ 07:10` / `Ikke kontrollert`) med chevron. Skiltkomponenten og den store
+   pillen er tatt ut. Lange navn kortes med ellipsis; ingen horisontal overflow ved 320 px.
+3. **Lavere toppseksjon** (`.sj-header.kompakt`): 41 px høy (målt; tidligere 44 px ikon + lang hinttekst + 18 px margin), kun «Velg kjøretøyet du kjører i dag.»
+4. **Uendret funksjon:** samme `data-velg-bil`/`data-velg-kontroll-bil`-attributter og klikk-håndtering, navnedialogen,
+   «ute av drift»-rader er fortsatt ikke klikkbare. Administrasjonens «Bytt bil»-fallback i `renderKontroll()` bruker
+   samme delte komponent og får samme utseende.
+5. `CACHE_VERSION`/`APP_VERSION`/`version.json` 107 → 108; `kontroll.html` eksakt kopi. `storage.airtable.js`/Airtable
+   uendret.
+
+**Testet** i nettleser mot scratch-kopi med mock-storage (ingen ekte Airtable): høyde/mellomrom mot Ringeliste, åpne/lukke
+gruppe, bilklikk → navnedialog → avbryt, ute av drift-rad, 390 og 320 px. **Ikke testet:** ekte telefon, lys modus, admin-
+fallbacken visuelt.
+
+---
+
 ## 2026-09-20
 
 ### Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler
