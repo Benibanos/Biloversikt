@@ -1,0 +1,13 @@
+{
+  "name": "Bilpark",
+  "install": "node --check storage.airtable.js && node --check sw.js && node --check version-check.js && node --check airtable-config.js",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "python3 -m http.server 8000 --bind 0.0.0.0"
+    }
+  ],
+  "ports": [
+    8000
+  ]
+}
