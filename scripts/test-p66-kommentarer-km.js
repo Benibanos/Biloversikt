@@ -151,8 +151,8 @@ assert(kmBil4 && kmBil4.vKm === 31000 && kmBil4.kontrollKm === 37200 && kmBil4.d
   'AC1 shows previous, new, difference (highest control vs v.km)');
 const kmHtml = api.kmAvvikHendelseRadHtml(kmBil4, true, true);
 assert(kmHtml.includes('⚠ Kilometeravvik'), 'km title');
-assert(kmHtml.includes('Forrige km'), 'previous km label');
-assert(kmHtml.includes('Ny km'), 'new km label');
+assert(kmHtml.includes('Fra:'), 'previous km label');
+assert(kmHtml.includes('Til:'), 'new km label');
 assert(kmHtml.includes('Differanse'), 'difference label');
 assert(kmHtml.includes('Godkjenn'), 'approve button');
 assert(!kmHtml.includes('Venstre speil') && !kmHtml.includes('Bremser piper') && !kmHtml.includes('Fristilt'),
@@ -161,7 +161,7 @@ assert(!kmHtml.includes('Venstre speil') && !kmHtml.includes('Bremser piper') &&
 const komHtml = api.nyeKommentarRadHtml(adminAll.find(r => r.id === 'k1'), true, true);
 assert(komHtml.includes('💬 Sjåførkommentar'), 'comment title');
 assert(komHtml.includes('Venstre speil hakker i svinger.'), 'comment body only');
-assert(!komHtml.includes('Forrige km') && !komHtml.includes('Godkjenn') && !komHtml.includes(prefix),
+assert(!komHtml.includes('Fra:') && !komHtml.includes('Godkjenn') && !komHtml.includes(prefix),
   'comment event has no km fields');
 
 const outDir = '/opt/cursor/artifacts';

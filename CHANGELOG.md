@@ -15,6 +15,16 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 67 — Opprydding av Kjøretøyprofil
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 67 (2026-09-21)».)
+
+1. **Neste verkstedtime** vises til `utfort` (ikke klokke/dato). Ligger i bilkortet; klikk åpner avtalen.
+2. **Bilkort:** navn · regnr, modell, løyve│servicenr, mobilitetsikon, aktiv sjåfør, neste verkstedtime.
+3. **Statusrad:** Km · Sist service · EU · Dekk · Løftebord. Dekk åpner `renderDekkSkjerm()`.
+4. **Aktive saker** er historikkfane. Eget panel fjernet.
+5. **Servicenummer** (`Vehicles.Servicenummer`) — ny kolonne kreves. `storage.airtable.js` v2.24.0. Cache 114 → 115.
+
 ### Prioritet 66 — Skill kommentarer og kilometeravvik
 
 (Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 66 (2026-09-21)».)

@@ -191,7 +191,9 @@
       // dag. Registrert her SAMTIDIG som feltene tas i bruk i index.html (FELTREGELEN).
       aktivSjaforAutoReset: ['AktivSjaforAutoReset', 'bool'],
       aktivSjaforAutoResetTid: ['AktivSjaforAutoResetTid'],
-      aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato']
+      aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato'],
+      // Prioritet 67: servicenummer er verksted-/faktura-referanse — ikke serviceintervall.
+      servicenummer: ['Servicenummer']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
@@ -606,7 +608,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.23.0',
+    versjon: 'v2.24.0',
     bygget: '21.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
