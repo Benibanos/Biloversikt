@@ -15,6 +15,18 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 65 — Aktiv sjåfør følger kontrollhistorikken
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 65 (2026-09-21)».)
+
+1. **`vehicleAktivSjafor()`** leser siste gyldige kontroll i inneværende operative dag. Tomt `aktivSjafor`-felt etter reload viser likevel sjåføren.
+2. **Gjenoppretting** skriver feltene tilbake ved oppstart, synk, navigasjon og retur fra bakgrunn (`etterAktivSjaforInngang()` etter auto-reset).
+3. **Manuell nullstilling** (Settings `aktiv-sjafor-manuell-nullstilling`) er eneste unntak inntil en ny kontroll.
+4. Dashboard-bannerets «N aktive» telles på samme grunnlag som «X/Y kontrollert».
+5. `CACHE_VERSION`/`APP_VERSION`/`version.json` 113 → 114; `kontroll.html` eksakt kopi; `storage.airtable.js` uendret.
+
+---
+
 ### Prioritet 64 — Samle oppdatering og synkronisering
 
 (Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 64 (2026-09-21)».)
