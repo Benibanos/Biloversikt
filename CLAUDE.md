@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 63 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 64 —
+**Samle oppdatering og synkronisering.** Oppdater app, Database status og Systemkontroll sjåfører er samlet i Innstillinger → **Optimaliseringer** med Hurtigoversikt-faner (Alle / App / Airtable / Sjåfører) og «Oppdater og synkroniser alt». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 64 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 63 —
 **Dublettsikring og flerbilssaker.** Sjåførkontroll: «Registrerer...»-knapp og dublettsikring (samme bil + sjåfør + operative dag innen 10 min lagres kun én gang). Aktive saker: «➕ Legg til bil» —
 én sak for flere biler (én saksrad per bil knyttet med `sakGruppeId`), samlet Godta og én verkstedbestilling per bil. **Ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse.**
 Se «Prioritet 63 (2026-09-21)» nederst. `storage.airtable.js` v2.23.0. Før det: 2026-09-21 (Prioritet 62 —
@@ -6232,7 +6233,7 @@ trykke **«Oppdater og fortsett»**. Knappen vises ALLTID, også når ingen ny v
   ikke sjåføren; `remoteSynced=false` og den forsøkes på nytt ved neste åpning (og når et navn legges til).
 - `window.storage.list(prefix)` i `storage.airtable.js` (**v2.22.0**, `?v=2.22.0`) er nå en ekte implementasjon (var en tom stubb): én paginert
   lesing av Settings som returnerer `{keys, items:[{key,value}]}` for nøkler med prefikset. Bakoverkompatibel.
-- **Innstillinger → Systeminnstillinger → «🛡️ Systemkontroll sjåfører»** (`skAdminBodyHtml()`, laster ved åpning, «Oppdater»-knapp): tabell med
+- **Innstillinger → Optimaliseringer → Sjåfører** (`skAdminBodyHtml()`, laster ved åpning, «Oppdater»-knapp): tabell med
   **Sjåfør(er) · Enhet · Versjon · Sist systemkontroll · Status** (✅ I dag / ⚠️ Ikke i dag; ⚠️ ved versjon ≠ gjeldende), «N av M enheter kontrollert i dag».
   Enheter uten kontroll på over 60 dager skjules (med teller). «Enhet» er en lesbar tekst utledet av userAgent + de fire siste tegnene av enhets-id
   (f.eks. «Android · Chrome (installert app) · #a3f9»).
@@ -6347,7 +6348,7 @@ konsumenter av `s.vehicleId` (Dashboard, `vehicleHovedstatus()`, Varslingssenter
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `storage.airtable.js` (v2.22.0 → **v2.23.0**, nytt felt `sakGruppeId`), `sw.js` (`CACHE_VERSION` v111 → v112), `version-check.js` (`APP_VERSION` 111 → 112),
 `version.json` (111 → 112), CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md. **Krever en ny Airtable-kolonne før idriftsettelse:** `AktiveSaker.SakGruppeId` (enkel tekst) — alle `LIST_TABLES`-felt skrives ved hver skriving, så uten
-kolonnen feiler ALLE lagringer av aktive saker. Innstillinger → Database status → «Synkroniser Airtable» kan opprette den.
+kolonnen feiler ALLE lagringer av aktive saker. Innstillinger → Optimaliseringer → Airtable → «Synkroniser nå» kan opprette den.
 
 **Testet** i nettleser mot scratch-kopi med mock-storage (ingen ekte Airtable): dobbeltklikk/`requestSubmit` under en treg lagring (én kontroll, én skriving, «Registrerer...»); dublett fra `kontroller[]`, fra bare
 fingeravtrykket, utenfor vinduet, annen sjåfør/bil/dag, navnenormalisering, midnatt/dagskille, pågår-merke (nytt og utløpt), ende-til-ende (ingen `kontroller`-skriving, km uendret); skrivefeil → rollback → merket fjernet → nytt forsøk lykkes;
@@ -6358,3 +6359,30 @@ per-bil «Arbeid utført» og «Alle utført», per-bil status/historikk, tre fe
 **Kjente begrensninger:** (a) en flerbilssak har ett saksnummer per bil, ikke ett felles; (b) Dashboard, Varslingssenter og bilkort viser fortsatt hver bils sak for seg (bevisst — per kjøretøy);
 (c) «Ny sak»-skjemaet kan ikke velge flere biler ved opprettelse; (d) en bil som legges til får en kopi av kildens avvik og oppfølging på tidspunktet — senere endringer på kilden følger ikke med; (e) er «Planlagt verksted»-fanen skjult i
 Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
+
+---
+
+## Prioritet 64 (2026-09-21) — Samle oppdatering og synkronisering
+
+(Brukerens egen nummerering. Det finnes en tidligere, urelatert «Prioritet 64 (2026-09-14) — Bilkortet skal komprimeres» lenger opp. Nummeret følger brukerens backlog.)
+
+**Varig regel: Ett sted for appoppdatering, Airtable-synk og systemstatus.** Oppdater app, Database status og Systemkontroll sjåfører er ikke lenger egne trekkspillseksjoner. De ligger i Innstillinger → **🔄 Optimaliseringer**, med samme fanemønster som Hurtigoversikt (`.profil-tabs` / `byttOptimaliseringFane()` uten full `render()`).
+
+| Fane | Innhold | Handling |
+|---|---|---|
+| Alle | Appversjon, siste Airtable-synk, sjåfører kontrollert i dag | felles knappen under |
+| App | Appversjon, PWA-installasjon | Oppdater app (`hardRefreshApp`) |
+| Airtable | Siste synk, status, full diagnose (`databaseStatusHtml()`) | Synkroniser nå |
+| Sjåfører | Enheter, versjoner, sist systemkontroll, status (`skAdminBodyHtml()`) | Oppdater-listen |
+
+**Felles knapp «Oppdater og synkroniser alt»** (`oppdaterOgSynkroniserAlt()`), synlig under alle faner: (1) skjemasjekk/`autoFixAirtableSchema` via `runDatabaseSync()`, (2) last operative lister på nytt (`lastAirtableDataNaa()` / `AIRTABLE_LIVE_NOKLER`), (3) hent systemkontrollstatus (`skAdminLast()`), (4) `hardRefreshApp({bekreft:false})` — omlasting tvinger fersk appkode og Dashboard. Rekkefølgen er bevisst: synk FØR hard refresh, fordi refresh logger ut (innlogging er kun i minnet).
+
+**Layout:** `innstillinger.optimaliseringer` er registrert i Layout Engine 2.0 (`canHide:false`, `critical:true`). Akkordiontittelen bruker emoji (`🔄`), ikke Lucide — `settingsAccordionRow()` sender tittelen gjennom `esc()`. Systeminnstillinger inneholder nå Operativ kontrollgrunnlag, Administratorbrukere, Informasjonsveileder, Enhetsvisning og Nullstill.
+
+**Dyplenker** (lesefeil-panel, Dashboard-skjemabanner, stoppet oppstart) åpner Optimaliseringer → Airtable via `aapneOptimaliseringer('airtable')`.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (`CACHE_VERSION` v112 → v113), `version-check.js` (`APP_VERSION` 112 → 113), `version.json` (112 → 113), CLAUDE.md/ROADMAP.md/CHANGELOG.md/README.md/AIRTABLE_MIGRATION.md. **`storage.airtable.js` uendret** (v2.23.0) — ingen nye felt.
+
+**Ikke rørt:** sjåførens daglige Systemkontroll-sperre (Prioritet 61), saksmotor, kilometerlogikk, aktiv sjåfør, kontrollgrunnlaget, Layout Engine-mekanikken for øvrig.
+
+**Kjente begrensninger:** (a) hard refresh logger ut administrator (samme som «Oppdater app» alltid har gjort — innlogging ligger i minnet); Dashboard vises etter ny innlogging; (b) «Oppdater og synkroniser alt» kan ikke fullføre Airtable-synk etter omlastingen i samme økt — synken kjøres FØR refresh; (c) to ulike enheter som synker samtidig følger siste skriving, uendret.
