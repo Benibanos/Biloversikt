@@ -208,7 +208,14 @@
       // servicen skal forlenge kjøretøyets mobilitetsgaranti automatisk ved fullføring (se
       // fullforVerkstedbestilling()/vehicleMobilitetsgaranti() i index.html). Uavhengig av
       // det eldre, navnebaserte Mekonomen-signalet, som fortsatt gjelder som før.
-      mobilitetsgarantiAktivert: ['MobilitetsgarantiAktivert', 'bool']
+      mobilitetsgarantiAktivert: ['MobilitetsgarantiAktivert', 'bool'],
+      // Prioritet 59: dekkskift-bestillinger. `dekkRetning` er samme verdisett som
+      // TireChanges.Retning ('sommer-vinter' = til vinterdekk, 'vinter-sommer' = til sommerdekk) og
+      // leses ved fullføring (fullforVerkstedbestillinger()) for å oppdatere dekkstatus og dekkhistorikk
+      // per bil. `bestillingGruppeId` er felles for bestillingene som ble opprettet samlet for flere
+      // biler i ÉN handling («Velg flere biler») — ÉN rad per bil, aldri én rad med flere VehicleId —
+      // og lar «Alle utført» fullføre dem samlet. Tom for alle vanlige enkeltbestillinger.
+      dekkRetning: ['DekkRetning'], bestillingGruppeId: ['BestillingGruppeId']
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -587,8 +594,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.20.0',
-    bygget: '18.09.2026 00:00',
+    versjon: 'v2.21.0',
+    bygget: '19.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
     masseslettVakt: MASSESLETT_VAKT,

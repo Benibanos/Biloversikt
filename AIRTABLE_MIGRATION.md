@@ -1,6 +1,8 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-18 (Prioritet 49, Del 2 — ny tabell
+Sist oppdatert (feltendring): 2026-09-20 (Prioritet 59 — to nye felt
+`DekkRetning`/`BestillingGruppeId` på `WorkshopAppointments` for dekkskift på flere biler; kolonnene MÅ opprettes
+før versjon 107 tas i bruk, se tabellen for den tabellen under). Før det: 2026-09-18 (Prioritet 49, Del 2 — ny tabell
 `LiftgateHistory` (app-nøkkel `loftebordHistorikk`), se egen seksjon under.
 Ingen nye felt på `Vehicles` — løftebord er bevisst IKKE en
 kjøretøykonfigurasjon, alle kjøretøy antas å ha løftebord). Før det:
@@ -124,6 +126,13 @@ kategorier — ingen av dem er Airtable-kolonner.
 | utfort | Utfort | boolsk — angir om verkstedbestillingen er fullført og flyttet til Verkstedhistorikk (Prioritet 70) |
 | utfortDato | UtfortDato | tekst — dato (YYYY-MM-DD) for når arbeidet ble markert som utført (Prioritet 70) |
 | mobilitetsgarantiAktivert | MobilitetsgarantiAktivert | boolsk — **NYTT i Prioritet 71.5.** Krysses av på en verkstedtime av typen `'service'`; ved fullføring (`fullforVerkstedbestilling()`) videreføres flagget til den auto-opprettede `servicehistorikk`-oppføringen (samme navn), som `vehicleMobilitetsgaranti()` leser som et tredje, uavhengig signal for å forlenge garantien 12 måneder — se seksjon "servicehistorikk" under. **Krever en ny kolonne "MobilitetsgarantiAktivert" (checkbox) i WorkshopAppointments-tabellen i Airtable før denne versjonen tas i bruk** — uten den vil skrivinger til feltet feile/ignoreres av Airtable, samme regel som ved enhver ny `LIST_TABLES`-registrering. |
+| dekkRetning | DekkRetning | tekst — **NYTT i Prioritet 59 (2026-09-20).** Kun for `type = 'dekkskift'`: `'sommer-vinter'` (= til vinterdekk) eller `'vinter-sommer'` (= til sommerdekk), samme verdier som `TireChanges.retning`. Tom for alle andre typer og for eldre dekkskift. Ved fullføring oppdaterer den `v.dekk` og oppretter dekkhistorikk for akkurat den bilen. **Krever en ny kolonne «DekkRetning» (enkel tekst).** |
+| bestillingGruppeId | BestillingGruppeId | tekst — **NYTT i Prioritet 59 (2026-09-20).** Felles id for verkstedbestillinger opprettet i én «Dekkskift for flere biler»-bestilling. Hver bil har fortsatt sin EGEN rad; feltet brukes bare til å vise «Samlet bestilling · N biler» og «Alle N utført». Tom for alt annet. **Krever en ny kolonne «BestillingGruppeId» (enkel tekst).** |
+
+**Prioritet 59 — krav før idriftsettelse:** opprett de to kolonnene over i `WorkshopAppointments` FØR denne versjonen
+(`storage.airtable.js` v2.21.0, `?v=2.21.0`) tas i bruk. Alle `LIST_TABLES`-felt skrives ved hver skriving, så uten
+kolonnene vil HVER lagring av verkstedtimer feile (ikke bare dekkskift). Alternativ: Innstillinger → Systeminnstillinger →
+Database status → «Synkroniser Airtable» oppretter manglende kolonner automatisk.
 
 ### DriverChecks (app-nøkkel: `kontroller`)
 

@@ -13,6 +13,56 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-20
+
+### Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 59 (2026-09-13) — Prioritet er ikke lenger en
+sannhet». Full detalj i CLAUDE.md, «Prioritet 59 (2026-09-20)».)
+
+1. **Bilkort (`renderBilkort()`).** «Rediger informasjon» finnes kun i «Kjøretøydetaljer» (knappen øverst til høyre er
+   fjernet). Mobilitetsgaranti vises bare i statusraden (pillen ved Aktiv sjåfør er borte). Feltet øverst til høyre er
+   nå «Neste verkstedtime» for den bilen (`dashBannerVerkstedHtml(v.id)` — samme kort og `nesteVerkstedtime()` som
+   Dashboard; hele feltet åpner avtalen; «Ingen planlagte verkstedtimer» når det ikke finnes noen).
+2. **Statusrad** (`.profil-stat5`): Kilometerstand · Siste service · EU-kontroll · Mobilitetsgaranti · Løftebord.
+   Aktiv sjåfør er fjernet fra raden. «Siste service» viser «Sist service [dato / Ingen registrert]», en skillelinje og
+   «Kilometer igjen til service». Løftebord viser kontrollstatus (gyldig/utløper snart/utløpt), sist smurt og OK / Bør
+   gjøres / Må gjøres.
+3. **Faner fjernet, én Historikk-seksjon.** Oversikt/Historikk/Dekk/Kostnader (og den separate Verkstedhistorikk-fanen) er
+   borte. Nederst ligger «Historikk» med fem faner i Hurtigoversiktens stil: Kontroller · Skader · Varsellamper ·
+   Verkstedhistorikk · Kommentarer (`bilkortHistorikkSekHtml()`). Bare valgt fane rendres, nyeste først, antall vises i
+   fanen når det finnes data, kompakt tomtilstand. Fanebytte kaller ikke `render()` (`byttBilkortHistorikkFane()`): ingen
+   layout shift, scrollposisjonen beholdes. Radene åpner de eksisterende korta (`kontrollHistoryCard`/`damageCard`/
+   `varsellysCard`/`nyeKommentarRadHtml`). Ingen data er slettet: dekkhistorikk ligger nå under Verkstedhistorikk, og
+   kostnader ligger fortsatt på Kostnader-siden.
+4. **Dekkskift for flere biler.** «Bestill dekkskift» (Dashboard/Bestill tjenester/bilkort) har «Velg flere biler»
+   (standard: én bil), bilvelger med «Velg alle» og «N biler valgt», felles retning (Til sommerdekk/Til vinterdekk),
+   verksted, dato, klokkeslett og kommentar. Knappen heter «Bestill dekkskift for N biler» og gir en bekreftelse
+   («Du oppretter dekkskift for 13 biler hos BestDrive på valgt dato.»). Det opprettes **én egen verkstedbestilling per
+   bil** (unik id, riktig `vehicleId`, `type = 'dekkskift'`, felles verksted/dato/tid/retning/kommentar og en felles
+   `bestillingGruppeId`) — aldri én rad med flere biler.
+5. **Delvis feil uten duplikater.** Alle nye bestillinger skrives i ÉN skriving. Feiler den, leses Airtable-fasiten på nytt
+   og hver bil klassifiseres som lagret / feilet / ukjent; panelet lister hvem som er hva, og «Prøv de feilede på nytt»
+   gjenbruker samme id-er og leser fasiten først. Kan fasiten ikke leses, sendes ingenting på nytt (ukjent ≠ feilet).
+6. **Samlet fullføring per bil.** `fullforVerkstedbestillinger(ids)` oppdaterer `v.dekk` og oppretter dekkhistorikk
+   (deterministisk id `'dekk-'+vt.id`, idempotent) separat for hver bil, og ruller alt tilbake lokalt ved lagringsfeil.
+   `fullforVerkstedbestilling(id)` delegerer dit. Verkstedhistorikk viser ikke dekkskiftet to ganger; sletting fjerner
+   også den tilhørende dekkhistorikk-raden. Verkstedkortet viser retning og «👥 Samlet bestilling · N biler» /
+   «✅ Alle N utført».
+7. **Airtable / versjon.** To nye kolonner på `WorkshopAppointments`: `DekkRetning` og `BestillingGruppeId`
+   (`storage.airtable.js` v2.20.0 → v2.21.0, `?v=2.21.0`). **Kolonnene MÅ opprettes før idriftsettelse** — uten dem
+   feiler alle lagringer av verkstedtimer. `CACHE_VERSION`/`APP_VERSION`/`version.json` 106 → 107;
+   `kontroll.html` er eksakt kopi av `index.html`.
+
+**Verifisert** i nettleser mot en scratch-kopi med in-memory mock-storage (ingen kontakt med ekte Airtable; `node`/`python`
+finnes ikke): statusrad og faner (ingen gamle faner, innhold/rekkefølge, fanebytte uten geometriendring), enkeltbil-dekkskift
+uendret, flervalg og bekreftelsestekst, 13 separate bestillinger med delte verdier og én skriving, kalender/neste time per
+bil, samlet «utført» for 13 biler uten dobbeltføring, delvis feil 10/13 + retry uten duplikater, tapt respons (alle
+lagret), uleselig fasit (retry blokkert, deretter vellykket), enkeltfullføring, dobbel fullføring, eldre dekkskift uten
+retning, rollback ved lagringsfeil. **Ikke testet:** ekte Airtable, ekte mobil/touch. Ikke committet.
+
+---
+
 ## 2026-09-19
 
 ### Prioritet 58 — Dashboard Editor 1.0

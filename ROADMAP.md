@@ -1,6 +1,13 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-19 (Prioritet 58 — Dashboard Editor 1.0: administrator omorganiserer Desktop Dashboard
+Sist oppdatert: 2026-09-20 (Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler: Kjøretøyprofilen har
+«Rediger informasjon» kun i Kjøretøydetaljer, Mobilitetsgaranti kun i statusraden, «Neste verkstedtime» øverst til høyre
+og statusraden Kilometerstand · Siste service (med km igjen) · EU-kontroll · Mobilitetsgaranti · Løftebord; fanene
+Oversikt/Historikk/Dekk/Kostnader er erstattet av én Historikk-seksjon med fem faner (Kontroller, Skader, Varsellamper,
+Verkstedhistorikk, Kommentarer) uten layout shift. Dekkskift kan bestilles for flere biler samtidig — én egen
+verkstedbestilling per bil, samlet «utført» oppdaterer dekkstatus og historikk per bil, og delvis lagringsfeil vises per
+bil og kan prøves på nytt uten duplikater. To nye Airtable-kolonner på WorkshopAppointments (`DekkRetning`,
+`BestillingGruppeId`) må opprettes før idriftsettelse; `storage.airtable.js` v2.21.0). Før det: 2026-09-19 (Prioritet 58 — Dashboard Editor 1.0: administrator omorganiserer Desktop Dashboard
 selv i et 12-kolonners rutenett — dra kort, endre bredde/høyde, skjule/vise, legge til kort fra et bibliotek på ni
 kort, angre, forhåndsvise, lagre og tilbakestille — via Innstillinger → Layout Editor → Desktop Dashboard → «Rediger
 dashboard». Én versjonert Settings-blob `dashboard-layout-v1`, ingen `storage.airtable.js`-endring; kort kan aldri

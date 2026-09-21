@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.20.0"></script>
+<script src="storage.airtable.js?v=2.21.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1323,6 +1323,23 @@
   .dash-edit-mini{min-width:24px;height:24px;padding:0 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;margin-left:3px;}
   .dash-edit-mini:hover{border-color:var(--muted);}
   .dash-edit-resize{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 48%,var(--muted) 48%,var(--muted) 58%,transparent 58%,transparent 70%,var(--muted) 70%,var(--muted) 80%,transparent 80%);}
+  /* ---- Prioritet 59: Kjøretøyprofil ---- */
+  .profil-ident-hoyre{width:300px;max-width:100%;flex:0 0 auto;}
+  .profil-ident-hoyre .dash-banner-vt{max-width:none;width:100%;min-width:0;box-sizing:border-box;}
+  .profil-ident-hoyre .dash-banner-vt-tom{justify-content:center;padding:14px;border:1px dashed var(--line);border-radius:12px;}
+  @media (max-width:1199px){ .profil-ident-hoyre{width:100%;} }
+  /* Siste service-kortet har to verdier atskilt av en tynn linje. */
+  .profil-stat5 .stat-skille{display:block;height:1px;background:var(--line-soft);margin:9px 0 7px;}
+  /* Historikk: samme fane- og radstil som Hurtigoversikt. Innholdet har en fast minstehøyde (og ratchetes opp ved
+     fanebytte, se oppdaterBilkortHistorikkInnhold()), så siden under aldri flytter seg. */
+  .bilkort-hist-innhold{min-height:240px;}
+  .bilkort-hist .profil-tabs{margin-bottom:6px;}
+  .bilkort-hist-rad:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px;}
+  .bilkort-hist-detalj{padding:2px 0 14px 44px;}
+  .bilkort-hist-verktoy{margin:6px 0 4px;}
+  @media (max-width:640px){ .bilkort-hist-detalj{padding-left:0;} }
+  /* Dekkskift for flere biler: rullbar bilvalgliste (samme .og-rad-avkrysning som Operativ kontrollgrunnlag). */
+  .vt-flerbil-liste{max-height:260px;overflow-y:auto;border-top:1px solid var(--line-soft);margin-top:6px;padding-top:4px;}
   /* Skjematisk forhåndsvisning i Innstillinger */
   .dash-mini{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:8px;gap:3px;padding:10px;border:1.5px dashed var(--line);border-radius:10px;background:var(--surface-2);}
   .dash-mini-kort{grid-column:var(--gx) / span var(--gw);grid-row:var(--gy) / span var(--gh);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:0 6px;font-size:11px;font-weight:600;color:var(--ink-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:flex;align-items:center;}
@@ -2189,7 +2206,6 @@ let driverRingelisteVisUteAvDrift = false;
 // Bilkort: tre hovedseksjoner (Bilinformasjon/Kontrollhistorikk/Skadehistorikk), alle
 // lukket som standard. Nullstilles hver gang man åpner et (annet) kjøretøy, se goTo().
 let bilkortOpenSections = new Set(); // delmengde av: 'info' | 'kontroll' | 'skade'
-let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøstet under 'skade')
 // Kjøretøyhistorikk, Historiske nøkkeltall, Kontrollhistorikk og
 // Skadehistorikk var fire separate accordion-rader med overlappende formål (alle handler
 // om historikk på samme bil — vehicleHistorikkTidslinje() dekker faktisk allerede
@@ -2197,9 +2213,7 @@ let bilkortSkadeSubOpen = new Set(); // delmengde av: 'aktive' | 'fikset' (nøst
 // "🕐 Historikk"-rad med fire nøstede underseksjoner (samme mønster som
 // bilkortSkadeSubOpen over) — ingen av de fire underliggende visningene er endret eller
 // fjernet, kun samlet ett nivå dypere.
-let bilkortHistorikkSubOpen = new Set(); // delmengde av: 'kontroll' | 'skader' | 'kommentarer' | 'varsellamper'
 let showUteAvDriftForm = false; // Fase 7: viser "Marker ute av drift"/"Sett tilbake i drift"-skjema
-let bilkortHistorikkFilter = ''; // Fase 7: '' | 'kontroll' | 'skade' | 'varsellampe' | 'sak' | 'verksted' | 'dekk' | 'kostnad' | 'statusendring'
 // Historikk-hub: flåtebred variant av samme filter-konsept
 // som bilkortHistorikkFilter over, kun med et ekstra bil-filter siden denne ikke lenger
 // er bundet til én bil. Erstatter de fem tidligere separate oversiktssidene som
@@ -2211,16 +2225,6 @@ let historikkHubFilterDatoTil = '';
 function toggleBilkortSection(key){
   if(bilkortOpenSections.has(key)) bilkortOpenSections.delete(key);
   else bilkortOpenSections.add(key);
-  render();
-}
-function toggleBilkortSkadeSub(key){
-  if(bilkortSkadeSubOpen.has(key)) bilkortSkadeSubOpen.delete(key);
-  else bilkortSkadeSubOpen.add(key);
-  render();
-}
-function toggleBilkortHistorikkSub(key){
-  if(bilkortHistorikkSubOpen.has(key)) bilkortHistorikkSubOpen.delete(key);
-  else bilkortHistorikkSubOpen.add(key);
   render();
 }
 let showAddAdminUser = false;
@@ -2343,7 +2347,8 @@ let editingPlanlagtDekkskiftId = null;
 // ---- Kjøretøyprofil og Kalender ----
 // Kjøretøyprofilens faner erstatter de tidligere akkordion-radene. Ren UI-state,
 // ingen data — samme mønster som bilkortHistorikkSubOpen den erstatter.
-let bilkortAktivFane = 'oversikt'; // oversikt | historikk | skader | dekk | kostnader
+let bilkortAktivFane = 'kontroller'; // Prioritet 59: kontroller | skader | varsellamper | verkstedhistorikk | kommentarer (Historikk-seksjonen)
+let bilkortHistRadApen = new Set(); // Prioritet 59: åpne rader i Historikk (id-er fra bilkortHistorikkRader()), ren visningstilstand
 let showBilinfoRediger = false;    // "✏️ Rediger informasjon" på Kjøretøyprofil
 // Kalender: hvilken måned som vises (YYYY-MM) og hvilken dato som er valgt. Begge er
 // ren visningstilstand — kalenderen leser kun eksisterende planleggingsdata.
@@ -3368,6 +3373,7 @@ async function loginSubmit(ev){
   goTo('dashboard');
 }
 function logout(){
+  vtFlerBilResultat = null;   // Prioritet 59: resultatet av en samlet dekkskift-bestilling følger ikke med ut av innloggingen
   dashAvsluttRedigering();   // Prioritet 58: et åpent dashboardutkast følger aldri med ut av innloggingen
   loggedInRole = null;
   isAdmin = false;
@@ -6212,7 +6218,7 @@ function goTo(scr, vehicleId, _isBack){
   }
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
-  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortSkadeSubOpen = new Set(); bilkortHistorikkSubOpen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; serviceSaveConfirmedId = null; showAddService = false; showUteAvDriftForm = false; bilkortHistorikkFilter = ''; }
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = new Set(); bilkortHistRadApen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; serviceSaveConfirmedId = null; showAddService = false; showUteAvDriftForm = false; }
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
@@ -6237,7 +6243,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; showPlanleggDekkskift = false; dekkSaveConfirmedId = null; }
   // Kjøretøyprofilens faner og redigeringspanel nullstilles ved bytte av bil,
   // på nøyaktig samme måte som de tidligere akkordion-seksjonene gjorde (se bilkort-linjen over).
-  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortAktivFane = 'oversikt'; showBilinfoRediger = false; }
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortAktivFane = BILKORT_HIST_FANER[0]; showBilinfoRediger = false; }
   render();
   // Prioritet 65.2: en kjøretøyprofil skal alltid åpnes på toppen. Uten dette arver den
   // scrollposisjonen fra Biloversikt, slik at Bil 12 (langt nede i listen) åpnet midt på
@@ -7304,8 +7310,195 @@ async function submitFullforPlanlagtDekkskift(ev, id){
   fullforingPlanlagtDekkskiftId = null;
   render();
 }
+// ================= Prioritet 59: Dekkskift for flere biler =================
+// Én handling i «Ny verkstedtime» (type Dekkskift → «Velg flere biler») oppretter EN SEPARAT verkstedtime per
+// valgt bil — aldri én felles post med flere VehicleId-er — med unik id, riktig vehicleId, felles verksted/dato/
+// klokkeslett/kommentar, valgt dekkretning og type = 'dekkskift'. Hver bil får dermed helt vanlig kalenderoppføring,
+// planlagt verksted, Min Bil-visning, historikk og status etter fullføring (se fullforVerkstedbestillinger()).
+// Bestillingene deler en `bestillingGruppeId` (kun for «Alle utført»-snarveien — ingenting annet leser den).
+//
+// Dekkretning bruker samme verdisett som dekkhistorikk.retning: 'sommer-vinter' = TIL vinterdekk,
+// 'vinter-sommer' = TIL sommerdekk.
+const DEKK_RETNING_VALG = [
+  {id:'vinter-sommer', label:'Til sommerdekk'},
+  {id:'sommer-vinter', label:'Til vinterdekk'}
+];
+const DEKK_RETNING_TIL_LABEL = {'vinter-sommer':'Til sommerdekk', 'sommer-vinter':'Til vinterdekk'};
+// Forslag, aldri tvang: bilens montert-status (v.dekk) avgjør når den er kjent (sommerdekk på → til vinterdekk),
+// ellers sesongen (mars–august = til sommerdekk).
+function dekkRetningForslag(vehicleId){
+  const v = vehicleId ? vehicles.find(x => x.id === vehicleId) : null;
+  if(v && v.dekk === 'sommer') return 'sommer-vinter';
+  if(v && v.dekk === 'vinter') return 'vinter-sommer';
+  const mnd = Number(todayISO().slice(5, 7));
+  return (mnd >= 3 && mnd <= 8) ? 'vinter-sommer' : 'sommer-vinter';
+}
+// Resultatet av siste samlede bestilling — ren visningstilstand (aldri lagret), står til det lukkes:
+//   {gruppeId, verksted, dato, tidspunkt, retning, feil, poster:[{status:'lagret'|'feilet'|'ukjent', vt}]}
+// Postene holder selve verkstedtime-objektene (med sine ID-er), så et nytt forsøk gjenbruker NØYAKTIG samme id-er.
+let vtFlerBilResultat = null;
+function vtFlerbilAktiv(){
+  const p = document.getElementById('vt-flerbil-panel');
+  return !!p && p.style.display !== 'none';
+}
+function vtFlerbilValgte(){
+  return Array.from(document.querySelectorAll('[data-vt-flerbil]:checked')).map(c => c.dataset.vtFlerbil);
+}
+// Enkel bekreftelsesdialog uten render() (skjemaet bak er DOM-drevet, og en render() ville nullstilt alt brukeren har
+// fylt inn). Knappene: «Avbryt» og «Bekreft bestilling».
+function visBekreftDialog(o, onBekreft){
+  const gammel = document.getElementById('vt-bekreft-overlay');
+  if(gammel) gammel.remove();
+  const el = document.createElement('div');
+  el.className = 'modal-overlay open';
+  el.id = 'vt-bekreft-overlay';
+  el.innerHTML = `
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="vt-bekreft-tittel">
+      <div class="modal-title" id="vt-bekreft-tittel">${esc(o.tittel)}</div>
+      <p style="font-size:14.5px;line-height:1.5;margin-bottom:8px;">${esc(o.tekst)}</p>
+      <div class="required-hint" style="margin-bottom:16px;">${esc(o.detalj || '')}</div>
+      <div class="panel-actions" style="justify-content:flex-end;">
+        <button type="button" class="btn secondary" id="vt-bekreft-avbryt">Avbryt</button>
+        <button type="button" class="btn" id="vt-bekreft-ok">Bekreft bestilling</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  const lukk = () => { document.removeEventListener('keydown', esc_); el.remove(); };
+  const esc_ = (e) => { if(e.key === 'Escape') lukk(); };
+  document.addEventListener('keydown', esc_);
+  el.querySelector('#vt-bekreft-avbryt').addEventListener('click', lukk);
+  el.addEventListener('click', (e) => { if(e.target === el) lukk(); });
+  const ok = el.querySelector('#vt-bekreft-ok');
+  ok.addEventListener('click', async () => {
+    ok.disabled = true; ok.textContent = 'Bestiller …';
+    el.querySelector('#vt-bekreft-avbryt').disabled = true;
+    try{ await onBekreft(); } finally { lukk(); }
+  });
+  ok.focus();
+}
+// Kalles fra submitAddVT() når «Velg flere biler» er aktiv. Validerer, og ber om bekreftelse FØR noe lagres.
+function submitDekkskiftFlereBiler(){
+  const msgEl = document.getElementById('vt-msg');
+  const bilIder = vtFlerbilValgte();
+  const verksted = document.getElementById('vt-verksted').value;
+  const dato = readDateInput('vt-dato');
+  const tidspunkt = readTimeInput('vt-tid');
+  const beskrivelse = document.getElementById('vt-beskrivelse').value.trim();
+  const retningEl = document.querySelector('input[name="vt-dekkretning"]:checked');
+  if(bilIder.length === 0){ msgEl.textContent = 'Velg minst én bil.'; return; }
+  if(!retningEl){ msgEl.textContent = 'Velg retning (til sommerdekk eller til vinterdekk).'; return; }
+  if(!verksted || !dato || !beskrivelse){ msgEl.textContent = 'Fyll ut verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.'; return; }
+  msgEl.textContent = '';
+  const s = {
+    bilIder, verksted, dato, tidspunkt, beskrivelse, retning: retningEl.value,
+    notater: document.getElementById('vt-notater').value.trim(),
+    kontaktperson: (document.getElementById('vt-kontaktperson') || {value:''}).value.trim(),
+    telefon: (document.getElementById('vt-telefon') || {value:''}).value.trim()
+  };
+  const n = bilIder.length;
+  visBekreftDialog({
+    tittel: 'Bekreft dekkskift',
+    tekst: `Du oppretter dekkskift for ${n} ${n === 1 ? 'bil' : 'biler'} hos ${verksted} på valgt dato.`,
+    detalj: `${DEKK_RETNING_TIL_LABEL[s.retning]} · ${fmt(dato)}${tidspunkt ? ' kl. ' + tidspunkt : ''}. Det opprettes én egen verkstedbestilling per bil.`
+  }, () => opprettDekkskiftFlereBiler(s));
+}
+async function hentVerkstedtimerFasit(){
+  // Leser tabellen på nytt fra Airtable (og bygger samtidig om lagringslagets rad-id-cache), så vi vet NØYAKTIG
+  // hvilke rader som finnes — uavhengig av hva en mislykket skriving rakk å gjøre.
+  const raw = await window.storage.get('verkstedtimer', true);
+  return raw && raw.value ? JSON.parse(raw.value) : [];
+}
+// Lagrer postene i én skriving. Ved feil hentes fasiten fra Airtable og hver post får status 'lagret' (finnes der) eller
+// 'feilet' (finnes ikke) — lokal liste settes til det som faktisk er lagret, så Kalender/Verksted aldri viser noe som ikke ble
+// lagret. Kan fasiten ikke leses, står postene som 'ukjent' og sjekkes på nytt før neste forsøk.
+async function lagreDekkskiftPoster(poster){
+  const res = vtFlerBilResultat;
+  poster.forEach(p => { if(!verkstedtimer.some(t => t.id === p.vt.id)) verkstedtimer.push(p.vt); });
+  try{
+    await saveVerkstedtimerEllerKast();
+    poster.forEach(p => { p.status = 'lagret'; });
+    res.feil = '';
+  }catch(e){
+    console.error('[lagreDekkskiftPoster] Lagring feilet', e);
+    res.feil = (e && e.message) ? e.message : 'Ukjent feil';
+    try{
+      const fasit = await hentVerkstedtimerFasit();
+      const lagretIder = new Set(fasit.map(t => t.id));
+      poster.forEach(p => { p.status = lagretIder.has(p.vt.id) ? 'lagret' : 'feilet'; });
+      verkstedtimer.length = 0;
+      Array.prototype.push.apply(verkstedtimer, fasit);
+    }catch(e2){
+      console.error('[lagreDekkskiftPoster] Kunne ikke lese fasit', e2);
+      poster.forEach(p => {
+        p.status = 'ukjent';
+        const i = verkstedtimer.findIndex(t => t.id === p.vt.id);
+        if(i !== -1) verkstedtimer.splice(i, 1);
+      });
+    }
+  }
+}
+async function opprettDekkskiftFlereBiler(s){
+  const gruppeId = uid();
+  const poster = s.bilIder.map(vehicleId => ({status:'ny', vt:{
+    id: uid(), vehicleId, verksted: s.verksted, dato: s.dato, tidspunkt: s.tidspunkt, beskrivelse: s.beskrivelse,
+    pris: null, notater: s.notater, sakId: '', caseId: '', kontaktperson: s.kontaktperson, telefon: s.telefon,
+    type: 'dekkskift', mobilitetsgarantiAktivert: false, dekkRetning: s.retning, bestillingGruppeId: gruppeId
+  }}));
+  vtFlerBilResultat = {gruppeId, verksted: s.verksted, dato: s.dato, tidspunkt: s.tidspunkt, retning: s.retning, feil: '', poster};
+  await lagreDekkskiftPoster(poster);
+  showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false;
+  render();
+}
+// «Prøv de feilede på nytt»: leser ALLTID fasiten først (også for å bygge om rad-id-cachen), markerer det som faktisk finnes
+// som lagret, og lagrer kun resten — med samme id-er som før. Dermed kan et nytt forsøk aldri gi duplikatbestillinger, heller
+// ikke når en tidligere skriving lyktes i Airtable uten at svaret kom frem.
+async function proverDekkskiftPaNytt(){
+  const res = vtFlerBilResultat;
+  if(!res) return;
+  const ikkeLagret = res.poster.filter(p => p.status !== 'lagret');
+  if(ikkeLagret.length === 0) return;
+  let fasit;
+  try{ fasit = await hentVerkstedtimerFasit(); }
+  catch(e){
+    console.error('[proverDekkskiftPaNytt] Kunne ikke lese fasit', e);
+    res.feil = 'Kunne ikke kontrollere hva som allerede er lagret. Ingenting er sendt på nytt — prøv igjen når forbindelsen er tilbake.';
+    render();
+    return;
+  }
+  const lagretIder = new Set(fasit.map(t => t.id));
+  ikkeLagret.forEach(p => { if(lagretIder.has(p.vt.id)) p.status = 'lagret'; });
+  verkstedtimer.length = 0;
+  Array.prototype.push.apply(verkstedtimer, fasit);
+  const gjenstar = res.poster.filter(p => p.status !== 'lagret');
+  if(gjenstar.length > 0) await lagreDekkskiftPoster(gjenstar); else res.feil = '';
+  render();
+}
+function vtFlerBilResultatHtml(){
+  const r = vtFlerBilResultat;
+  if(!r) return '';
+  const grupper = {lagret: [], feilet: [], ukjent: []};
+  r.poster.forEach(p => (grupper[p.status] || grupper.feilet).push(p));
+  const navn = liste => liste.map(p => { const v = vehicles.find(x => x.id === p.vt.vehicleId); return esc(v ? vehicleLabel(v) : 'Ukjent bil'); }).join(', ');
+  const ok = grupper.feilet.length === 0 && grupper.ukjent.length === 0;
+  const igjen = grupper.feilet.length + grupper.ukjent.length;
+  return `
+    <div class="panel" id="vt-flerbil-resultat" style="margin-bottom:16px;border-color:${ok ? 'var(--green)' : 'var(--red)'};background:${ok ? 'var(--green-soft)' : 'var(--red-soft)'};">
+      <h3 style="margin-bottom:6px;">${ok ? `✅ Dekkskift bestilt for ${r.poster.length} ${r.poster.length === 1 ? 'bil' : 'biler'}` : '⚠️ Dekkskift ble bare delvis lagret'}</h3>
+      <div class="required-hint" style="margin-bottom:10px;">${esc(DEKK_RETNING_TIL_LABEL[r.retning] || '')} · ${esc(r.verksted)} · ${fmt(r.dato)}${r.tidspunkt ? ' kl. ' + esc(r.tidspunkt) : ''}</div>
+      ${grupper.lagret.length ? `<div style="margin-bottom:6px;"><b>✅ Lagret (${grupper.lagret.length}):</b> ${navn(grupper.lagret)}</div>` : ''}
+      ${grupper.feilet.length ? `<div style="margin-bottom:6px;color:var(--red);"><b>❌ Feilet (${grupper.feilet.length}):</b> ${navn(grupper.feilet)}</div>` : ''}
+      ${grupper.ukjent.length ? `<div style="margin-bottom:6px;color:var(--red);"><b>❔ Kunne ikke bekrefte (${grupper.ukjent.length}):</b> ${navn(grupper.ukjent)}</div>` : ''}
+      ${!ok && r.feil ? `<div class="required-hint" style="margin:6px 0 10px;">${esc(r.feil)}</div>` : ''}
+      <div class="panel-actions">
+        ${!ok ? `<button type="button" class="btn" id="vt-flerbil-prov-igjen">Prøv de feilede på nytt (${igjen})</button>` : ''}
+        <button type="button" class="btn secondary" id="vt-flerbil-lukk">Lukk</button>
+      </div>
+    </div>`;
+}
 async function submitAddVT(ev){
   ev.preventDefault();
+  // Prioritet 59: «Velg flere biler» er aktiv → egen flyt (bekreftelse, én bestilling per bil).
+  if(vtFlerbilAktiv()) return submitDekkskiftFlereBiler();
   const vehicleId = document.getElementById('vt-vehicle').value;
   const verksted = document.getElementById('vt-verksted').value;
   const dato = readDateInput('vt-dato');
@@ -7359,10 +7552,14 @@ async function submitAddVT(ev){
     const kandidater = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakFase(s) === 'oppfolging');
     if(kandidater.length === 1) sak = kandidater[0];
   }
+  // Prioritet 59: dekkretning lagres på selve dekkskift-bestillingen (også for én bil), slik at fullføring kan oppdatere
+  // dekkstatus og dekkhistorikk. Sak-koblede bestillinger har ingen retningsvelger — feltet er da tomt (uendret oppførsel).
+  const dekkRetningEl = document.querySelector('input[name="vt-dekkretning"]:checked');
+  const dekkRetning = (type === 'dekkskift' && dekkRetningEl) ? dekkRetningEl.value : '';
   verkstedtimer.push({
     id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
     sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type,
-    mobilitetsgarantiAktivert
+    mobilitetsgarantiAktivert, dekkRetning, bestillingGruppeId: ''
   });
   await saveVerkstedtimer();
   if(sak){
@@ -7516,8 +7713,23 @@ async function deleteDekkhistorikk(id){
 // poster fra tre ulike kilder side om side (se samletVerkstedHistorikkAlle()). Prefikset på
 // den sammensatte post-id-en ('vt:'/'service:'/'dekk:') avgjør hvilken av de tre eksisterende
 // slettefunksjonene som faktisk eier posten — ingen ny, parallell slettelogikk.
-function deleteVerkstedHistorikkPost(compositeId){
-  if(compositeId.startsWith('vt:')) return deleteVT(compositeId.slice(3));
+async function deleteVerkstedHistorikkPost(compositeId){
+  if(compositeId.startsWith('vt:')){
+    const vtId = compositeId.slice(3);
+    await deleteVT(vtId);
+    // Prioritet 59: slettes en fullført dekkskift-bestilling, slettes også dekkhistorikk-oppføringen den opprettet ved
+    // fullføring ('dekk-' + id) — ellers ville den dukket opp igjen som en egen post. v.dekk (montert nå) røres ikke.
+    if(!verkstedtimer.some(t => t.id === vtId) && dekkhistorikk.some(d => d.id === 'dekk-' + vtId)){
+      await mutasjonMedRollback(
+        dekkhistorikk,
+        () => { const i = dekkhistorikk.findIndex(d => d.id === 'dekk-' + vtId); if(i !== -1) dekkhistorikk.splice(i, 1); },
+        saveDekkhistorikk,
+        'Verkstedbesøket ble slettet, men dekkhistorikken det opprettet kunne ikke fjernes automatisk.'
+      );
+      render();
+    }
+    return;
+  }
   if(compositeId.startsWith('service:')) return deleteService(compositeId.slice(8));
   if(compositeId.startsWith('dekk:')) return deleteDekkhistorikk(compositeId.slice(5));
 }
@@ -10766,14 +10978,17 @@ function dashOperativBannerVenstreHtml(d){
 // (data-apne-vt → apneVerkstedAvtale(), festet av attachNesteVerkstedtimeListeners()) og viser
 // bil, faktisk avtaledato + klokkeslett og verkstedets navn. Finnes ingen kommende time, vises kun
 // en dempet tekstlinje — aldri en tom boks/widget.
-function dashBannerVerkstedHtml(){
-  const t = nesteVerkstedtime();
+// Prioritet 59: `vehicleId` gjør feltet gjenbrukbart som «Neste verkstedtime» i bilkortets høyre felt
+// (Kjøretøyprofil) — samme nesteVerkstedtime(vehicleId), samme markup, men uten bil-linjen siden
+// bilen allerede står i bilkortet. Uten argument = hele bilparken (Dashboard), som før.
+function dashBannerVerkstedHtml(vehicleId){
+  const t = nesteVerkstedtime(vehicleId);
   if(!t) return `<div class="dash-banner-vt-tom">${luc('factory', 'ic-orange')} Ingen planlagte verkstedtimer</div>`;
   const v = vtVehicle(t);
   return `
     <button type="button" class="dash-banner-vt" data-apne-vt="${esc(t.id)}" title="Åpne verkstedavtalen">
       <span class="dash-banner-vt-tittel">${luc('factory', 'ic-orange')} Neste verkstedtime</span>
-      <span class="dash-banner-vt-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</span>
+      ${vehicleId ? '' : `<span class="dash-banner-vt-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</span>`}
       <span class="dash-banner-vt-tid">${fmt(t.dato)}${t.tidspunkt ? ' · ' + esc(t.tidspunkt) : ''}</span>
       <span class="dash-banner-vt-verksted">${esc(t.verksted || 'Verksted ikke satt')}</span>
     </button>`;
@@ -12429,14 +12644,148 @@ function bilkortHistorikkItem(h){
     </li>
   `;
 }
+// ================= Prioritet 59: Historikk i Kjøretøyprofilen =================
+// ÉN seksjon «Historikk» nederst på profilen med fem horisontale faner — Kontroller, Skader, Varsellamper,
+// Verkstedhistorikk, Kommentarer — i samme faneløsning (.profil-tabs/.profil-tab) og radstil (.p38-case)
+// som Hurtigoversikt på Dashboard. Regler:
+//  • Bare valgt fane rendres (radene er «late»: detaljmarkupen bygges kun for åpne rader).
+//  • Nyeste element først i alle faner.
+//  • Fanebytte og åpne/lukke rad skjer UTEN render() (byttes kun .bilkort-hist-innhold, samme mønster som
+//    byttHurtigoversiktFane(), Prioritet 52) — så scrollposisjonen beholdes og ingenting flytter seg. Innholdets
+//    høyde «ratchetes» opp ved fanebytte og scrollbarsporet er permanent (html{scrollbar-gutter:stable}).
+//  • Antall vises i fanen kun når det finnes data; tom fane viser en kompakt tomtilstand.
+//  • Ingen funksjon er fjernet: en rad åpnes til det EKSISTERENDE kortet (kontrollHistoryCard/damageCard/
+//    varsellysCard/nyeKommentarRadHtml) med sine knapper (slett kontroll, marker som fikset/løst/lest …).
+// Dekkhistorikk ligger under Verkstedhistorikk (samletVerkstedHistorikkAlle()). Kostnader er ikke lenger en
+// fane her — de ligger uendret på Kostnader-siden.
+const BILKORT_HIST_FANER = ['kontroller', 'skader', 'varsellamper', 'verkstedhistorikk', 'kommentarer'];
+const BILKORT_HIST_LABEL = {kontroller:'Kontroller', skader:'Skader', varsellamper:'Varsellamper', verkstedhistorikk:'Verkstedhistorikk', kommentarer:'Kommentarer'};
+const BILKORT_HIST_IKON = {kontroller:'clipboard-check', skader:'octagon-alert', varsellamper:'triangle-alert', verkstedhistorikk:'factory', kommentarer:'message-square'};
+const BILKORT_HIST_TOM = {kontroller:'Ingen kontroller registrert.', skader:'Ingen skader registrert.', varsellamper:'Ingen varsellamper registrert.', verkstedhistorikk:'Ingen verkstedhistorikk registrert.', kommentarer:'Ingen kommentarer registrert.'};
+const BILKORT_HIST_VT_LABEL = {'eu-kontroll':'EU-kontroll', service:'Service', dekkskift:'Dekkskift', ruteskift:'Ruteskift', reparasjon:'Reparasjon', annet:'Annet'};
+const BILKORT_HIST_VT_IKON = {'eu-kontroll':'shield-check', service:'wrench', dekkskift:'circle-dot', ruteskift:'car-front', reparasjon:'factory', annet:'factory'};
+function bilkortHistorikkRader(v){
+  const TONE = {
+    gronn:['var(--green-soft)', 'var(--green-ink)'], gul:['var(--amber-soft)', 'var(--amber)'],
+    rod:['var(--red-soft)', 'var(--red)'], noytral:['var(--surface-3)', 'var(--muted)']
+  };
+  const kort = (t, n) => { t = (t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
+  const kontroller = vehicleKontroller(v.id).slice()
+    .sort((a, b) => ((b.dato || '') + (b.tidspunkt || '')).localeCompare((a.dato || '') + (a.tidspunkt || '')))
+    .map(k => {
+      const avvik = (k.varsellamper && k.varsellamper.length > 0) || k.harNyeSkader || (k.kommentar && k.kommentar.trim());
+      return {id:'k:' + k.id, ikon:'clipboard-check', tone:TONE[avvik ? 'gul' : 'gronn'],
+        tittel: fmt(k.dato) + (k.tidspunkt ? ' kl. ' + k.tidspunkt : ''),
+        linje2: Number(k.km || 0).toLocaleString('nb-NO') + ' km · ' + (k.sjafor || 'Ukjent') + ' · ' + (avvik ? 'Avvik/kommentar' : 'Ingen avvik'),
+        detalj: () => kontrollHistoryCard(k)};
+    });
+  const skader = vehicleDamages(v.id).map(d => ({
+    id:'s:' + d.id, ikon:'octagon-alert', tone:TONE[d.status === 'utbedret' ? 'gronn' : 'rod'],
+    tittel: d.beskrivelse || 'Skade',
+    linje2: fmt(d.dato) + ' · ' + (SKADE_STATUS_LABEL[d.status] || d.status) + (d.registrertAv ? ' · Meldt av ' + d.registrertAv : ''),
+    detalj: () => damageCard(d, false)
+  }));
+  const varsellamper = activeVarsellysForVehicle(v.id).concat(historikkVarsellysForVehicle(v.id))
+    .sort((a, b) => (b.registrertDato || '').localeCompare(a.registrertDato || ''))
+    .map(w => ({
+      id:'w:' + w.id, ikon:'triangle-alert', tone:TONE[w.status === 'aktiv' ? 'gul' : 'gronn'],
+      tittel: varsellysLabel(w),
+      linje2: fmt(w.registrertDato) + ' · ' + (w.status === 'aktiv' ? 'Aktiv' : 'Kvittert' + (w.kvittertDato ? ' ' + fmt(w.kvittertDato) : '')),
+      detalj: () => varsellysCard(w)
+    }));
+  const verkstedhistorikk = samletVerkstedHistorikkAlle().filter(p => p.vehicleId === v.id).map(p => ({
+    id:'h:' + p.id, ikon: BILKORT_HIST_VT_IKON[p.type] || 'factory', tone:TONE.noytral,
+    tittel: BILKORT_HIST_VT_LABEL[p.type] || p.type,
+    linje2: fmt(p.dato) + (p.verksted ? ' · ' + p.verksted : '') + (p.tekst ? ' · ' + kort(p.tekst, 90) : ''),
+    detalj: null
+  }));
+  const kommentarer = nyeKommentarerListe(v.id).map(k => ({
+    id:'c:' + k.kilde + ':' + k.id, ikon:'message-square', tone:TONE[k.lest ? 'noytral' : 'gul'],
+    tittel: fmt(k.dato) + ' · ' + k.sjafor + (k.lest ? '' : ' · Ny'),
+    linje2: kort(k.kommentar, 90),
+    detalj: () => nyeKommentarRadHtml(k, true, true)
+  }));
+  return {kontroller, skader, varsellamper, verkstedhistorikk, kommentarer};
+}
+function bilkortHistRadHtml(r){
+  const apen = !!r.detalj && bilkortHistRadApen.has(r.id);
+  return `
+    <div class="p38-case bilkort-hist-rad"${r.detalj ? ` data-hist-rad="${esc(r.id)}" role="button" tabindex="0" aria-expanded="${apen}"` : ' style="cursor:default;"'}>
+      <span class="flis sm" style="--tint:${r.tone[0]};color:${r.tone[1]};">${luc(r.ikon)}</span>
+      <span>
+        <b>${esc(r.tittel)}</b>
+        <span>${esc(r.linje2)}${r.detalj ? ` · <span style="color:${r.tone[1]};font-weight:600;">${luc(apen ? 'chevron-up' : 'arrow-right')} ${apen ? 'Skjul' : 'Åpne'}</span>` : ''}</span>
+      </span>
+    </div>
+    ${apen ? `<div class="bilkort-hist-detalj">${r.detalj()}</div>` : ''}`;
+}
+function bilkortHistorikkInnholdHtml(v, fane, rader){
+  const liste = (rader || bilkortHistorikkRader(v))[fane];
+  const verktoy = fane === 'skader' ? `<div class="bilkort-hist-verktoy"><button type="button" class="btn secondary small" id="ny-skade-btn">+ Registrer skade</button></div>` : '';
+  return verktoy + (liste.length ? liste.map(bilkortHistRadHtml).join('') : `<div class="empty-note">${BILKORT_HIST_TOM[fane]}</div>`);
+}
+function bilkortHistorikkSekHtml(v){
+  const rader = bilkortHistorikkRader(v);
+  const fane = BILKORT_HIST_FANER.includes(bilkortAktivFane) ? bilkortAktivFane : BILKORT_HIST_FANER[0];
+  return `
+    <section class="dash-sek bilkort-hist" id="bilkort-hist-sek">
+      <div class="dash-sek-tittel">${luc('history')} Historikk</div>
+      <div class="profil-tabs">
+        ${BILKORT_HIST_FANER.map(f => `<button type="button" class="profil-tab ${fane === f ? 'active' : ''}" data-profil-fane="${f}">${luc(BILKORT_HIST_IKON[f])} ${BILKORT_HIST_LABEL[f]}${rader[f].length ? ` (${rader[f].length})` : ''}</button>`).join('')}
+      </div>
+      <div class="bilkort-hist-innhold">${bilkortHistorikkInnholdHtml(v, fane, rader)}</div>
+    </section>`;
+}
+// Tegner om KUN historikkinnholdet (aldri hele siden). `ratchet` = fanebytte: innholdet får ikke krympe under
+// høyden det allerede har (bare vekst, nullstilles av neste full render()), så siden under ikke hopper.
+function oppdaterBilkortHistorikkInnhold(ratchet){
+  const v = vehicles.find(x => x.id === currentVehicleId);
+  const sek = document.getElementById('bilkort-hist-sek');
+  const innhold = sek ? sek.querySelector('.bilkort-hist-innhold') : null;
+  if(!v || !innhold){ render(); return; }
+  const fane = BILKORT_HIST_FANER.includes(bilkortAktivFane) ? bilkortAktivFane : BILKORT_HIST_FANER[0];
+  sek.querySelectorAll('[data-profil-fane]').forEach(b => b.classList.toggle('active', b.dataset.profilFane === fane));
+  if(ratchet){
+    const naaH = Math.ceil(innhold.getBoundingClientRect().height);
+    if(naaH > (parseFloat(getComputedStyle(innhold).minHeight) || 0)) innhold.style.minHeight = naaH + 'px';
+  }
+  innhold.innerHTML = bilkortHistorikkInnholdHtml(v, fane);
+  attachBilkortHistorikkListeners(innhold);
+  refreshLucideIcons();
+}
+function byttBilkortHistorikkFane(fane){
+  if(!BILKORT_HIST_FANER.includes(fane)) return;
+  bilkortAktivFane = fane;
+  oppdaterBilkortHistorikkInnhold(true);
+}
+// Lyttere for innholdet i Historikk-seksjonen (rader + de eksisterende kortenes knapper). Festes av
+// attachBilkortListeners() ved full render, og på nytt kun på det utskiftede innholdet ved fanebytte.
+function attachBilkortHistorikkListeners(root){
+  root.querySelectorAll('[data-hist-rad]').forEach(el => {
+    const bytt = () => {
+      const id = el.dataset.histRad;
+      if(bilkortHistRadApen.has(id)) bilkortHistRadApen.delete(id); else bilkortHistRadApen.add(id);
+      oppdaterBilkortHistorikkInnhold(false);
+    };
+    el.addEventListener('click', bytt);
+    el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); bytt(); } });
+  });
+  root.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
+  root.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  root.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
+    const [kilde, id] = el.dataset.markerLest.split(':');
+    markerKommentarSomLest(kilde, id);
+  }));
+  const skadeBtn = root.querySelector('#ny-skade-btn');
+  if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
+  attachDamageCardListeners(vehicleDamages(currentVehicleId));
+}
 function renderBilkort(){
   const v = vehicles.find(x => x.id === currentVehicleId);
   if(!v) return `<div class="empty"><h3>Fant ikke kjøretøyet</h3></div>`;
   const vDamages = vehicleDamages(v.id);
   const vDamagesAktive = vDamages.filter(d => d.status !== 'utbedret');
-  const vDamagesFikset = vDamages.filter(d => d.status === 'utbedret');
   const vVT = vehicleVT(v.id);
-  const vKontroller = vehicleKontroller(v.id);
   const vLastKontroll = lastKontrollForVehicle(v.id);
   const vKontrollertIdag = isKontrollertIdag(v.id);
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
@@ -12626,8 +12975,8 @@ function renderBilkort(){
     <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 10px;">Varsellampe-historikk (kvitterte)</h4>
     <div class="dmg-list">${vVarselHistorikk.map(w => varsellysCard(w)).join('')}</div>` : ''}
 
-    <div style="margin-top:20px;">${nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:true, knapp:'Åpne avtale'})}</div>
-
+    <!-- Prioritet 59: «Neste verkstedtime» står nå permanent i bilkortets høyre felt (øverst), så kortet
+         som tidligere lå her i redigeringspanelet er fjernet — samme opplysning vises ikke to steder. -->
     <div class="toolbar" style="margin:20px 0 14px;">
       <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0;">Verkstedhistorikk (${vVT.length})</h4>
       <button class="btn small" id="ny-vt-btn">+ Registrer verkstedtime</button>
@@ -12643,189 +12992,14 @@ function renderBilkort(){
     </ul>`}
   `;
 
-  const kontrollBody = `
-    <div class="ov-grid" style="margin-bottom:16px;">
-      <div class="ov-item"><span class="ov-label">Siste kontroll</span><span class="ov-value">${vLastKontroll ? fmtDateTime(vLastKontroll.dato, vLastKontroll.tidspunkt) : 'Ingen registrert'}</span></div>
-      <div class="ov-item"><span class="ov-label">Kontrollstatus</span><span class="ov-value">${vehicleErReserveUnntatt(v.id) ? '🚐 Reservebil — ikke i bruk i dag' : (vKontrollertIdag ? '✅ Kontrollert i dag' : '⚠️ Ikke kontrollert i dag')}</span></div>
-    </div>
-    ${vKontroller.length === 0 ? `<div class="empty-note">Ingen sjåførkontroller registrert på dette kjøretøyet ennå.</div>` : `
-    <div class="dmg-list">${vKontroller.map(k => kontrollHistoryCard(k)).join('')}</div>`}
-  `;
+  // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
+  // ÉN seksjon «Historikk» med fem horisontale faner (bilkortHistorikkSekHtml(), samme fane- og radstil
+  // som Hurtigoversikt). Den gamle Dekk-fanen og Kostnader-fanen er borte fra profilen — men ingen data er
+  // slettet: dekkhistorikk vises nå under Verkstedhistorikk (samletVerkstedHistorikkAlle()), og kostnader
+  // ligger fortsatt på Kostnader-siden (getKostnadsposter()/renderKostnadsoversikt(), urørt). Oversikt-
+  // fanens Service- og EU-rader er borte fordi de allerede vises i statusraden; km-avviket vises nå som
+  // et eget varsel under identitetsraden (se vKmAvvik).
 
-  const skadeAktiveBody = vDamagesAktive.length === 0
-    ? `<div class="empty-note">Ingen aktive skader på dette kjøretøyet.</div>`
-    : `<div class="dmg-list">${vDamagesAktive.map(d => damageCard(d, false)).join('')}</div>`;
-  const skadeFiksetBody = vDamagesFikset.length === 0
-    ? `<div class="empty-note">Ingen fiksede skader registrert ennå.</div>`
-    : `<div class="dmg-list">${vDamagesFikset.map(d => damageCard(d, false)).join('')}</div>`;
-  const skadeBody = `
-    <div class="panel-actions" style="margin-top:0;margin-bottom:16px;"><button class="btn" id="ny-skade-btn">+ Registrer skade</button></div>
-    <div class="acc-list">
-      ${(() => {
-        const openA = bilkortSkadeSubOpen.has('aktive');
-        return `<div class="acc-row ${openA?'expanded':''}">
-          <div class="acc-head" data-toggle-bilkort-skade="aktive">
-            <div class="acc-head-left"><div class="flag-name">Aktive skader</div></div>
-            <div class="acc-head-right"><span class="group-count">${vDamagesAktive.length}</span><span class="chevron">${luc('chevron-down')}</span></div>
-          </div>
-          ${openA ? `<div class="acc-body">${skadeAktiveBody}</div>` : ''}
-        </div>`;
-      })()}
-      ${(() => {
-        const openF = bilkortSkadeSubOpen.has('fikset');
-        return `<div class="acc-row ${openF?'expanded':''}">
-          <div class="acc-head" data-toggle-bilkort-skade="fikset">
-            <div class="acc-head-left"><div class="flag-name">Fiksede skader</div></div>
-            <div class="acc-head-right"><span class="group-count">${vDamagesFikset.length}</span><span class="chevron">${luc('chevron-down')}</span></div>
-          </div>
-          ${openF ? `<div class="acc-body">${skadeFiksetBody}</div>` : ''}
-        </div>`;
-      })()}
-    </div>
-  `;
-
-  // Prioritet 71.5: Historikk-fanen er omorganisert fra dropdown-strukturen Tidslinje/
-  // Nøkkeltall/Kontroller til fire OPERATIVE kategorier — Kontroller, Skader, Kommentarer,
-  // Varsellamper — slik at brukeren finner informasjonen uten å måtte tenke på hvilken
-  // "type" (tidslinje vs. nøkkeltall) den ligger under. skadeBody gjenbrukes UENDRET (samme
-  // aktive/fikset-sub-accordion som tidligere kun var nåbar via en død «Skader»-stat-flis
-  // (data-profil-fane="skader" pekte til en fane som ikke fantes i PROFIL_FANER). Flisen
-  // bruker nå data-goto-skader-fane, som åpner nettopp denne underseksjonen i stedet —
-  // se attachBilkortListeners()).
-  const kommentarerBody = (() => {
-    const liste = nyeKommentarerListe(v.id);
-    if(liste.length === 0) return `<div class="empty-note">Ingen kommentarer registrert på dette kjøretøyet.</div>`;
-    return `<div class="panel" style="padding:0 14px;">${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`;
-  })();
-  const varsellamperBody = (() => {
-    const alle = vAktiveVarsler.concat(vVarselHistorikk);
-    if(alle.length === 0) return `<div class="empty-note">Ingen varsellamper registrert på dette kjøretøyet.</div>`;
-    return `<div class="dmg-list">${alle.map(w => varsellysCard(w)).join('')}</div>`;
-  })();
-  const HISTORIKK_SUB_ORDER = ['kontroll', 'skader', 'kommentarer', 'varsellamper'];
-  const HISTORIKK_SUB_LABEL = {kontroll:'✅ Kontroller', skader:'⚠️ Skader', kommentarer:'💬 Kommentarer', varsellamper:'🚨 Varsellamper'};
-  const HISTORIKK_SUB_COUNT = {kontroll: vKontroller.length, skader: vDamages.length, kommentarer: nyeKommentarerListe(v.id).length, varsellamper: vAktiveVarsler.length + vVarselHistorikk.length};
-  const HISTORIKK_SUB_BODY = {kontroll: kontrollBody, skader: skadeBody, kommentarer: kommentarerBody, varsellamper: varsellamperBody};
-  const historikkSamletBody = `
-    <div class="acc-list">
-      ${HISTORIKK_SUB_ORDER.map(key => {
-        const open = bilkortHistorikkSubOpen.has(key);
-        const count = HISTORIKK_SUB_COUNT[key];
-        return `<div class="acc-row ${open?'expanded':''}">
-          <div class="acc-head" data-toggle-bilkort-historikk="${key}">
-            <div class="acc-head-left"><div class="flag-name">${HISTORIKK_SUB_LABEL[key]}</div></div>
-            <div class="acc-head-right">${count !== null ? `<span class="group-count">${count}</span>` : ''}<span class="chevron">${luc('chevron-down')}</span></div>
-          </div>
-          ${open ? `<div class="acc-body">${HISTORIKK_SUB_BODY[key]}</div>` : ''}
-        </div>`;
-      }).join('')}
-    </div>
-  `;
-
-
-  // ---- Kommende oppgaver for DENNE bilen ----
-  // Gjenbruker de samme statusfunksjonene resten av appen bruker (vehicleServiceStatus,
-  // dekkAlderStatus/planlagteDekkskift, vehicleEuKontrollStatus, neste verkstedtime).
-  // Ingen ny beregning, ingen ny datamodell.
-  const vPlanlagtService = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
-    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))[0] || null;
-  const vPlanlagtDekkskift = planlagteDekkskift.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
-    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')))[0] || null;
-  const vDekkSesong = v.dekk === 'vinter' ? 'vinter' : 'sommer';
-  const vDekkAlder = dekkAlderStatus(vDekkSesong === 'vinter' ? v.vinterdekkDot : v.sommerdekkDot);
-  // Prioritet 65.2: panelet "📋 Kommende oppgaver" er FJERNET fra Kjøretøyprofilen —
-  // det gjentok Service/Dekk/EU/Verksted, og blandet inn historikk ("sist service") som
-  // ikke er en kommende oppgave. Variablene over (vPlanlagtService/vPlanlagtDekkskift/
-  // vDekkAlder) er beholdt og gjenbrukes nå i Oversikt-fanen, som er eneste sted denne
-  // statusen vises på profilen.
-
-  // ---- Fane "🛞 Dekk": ren VISNING av eksisterende dekkdata for bilen. All registrering
-  // og redigering skjer fortsatt kun på den dedikerte Dekk-arbeidsflaten (renderDekkSkjerm) —
-  // knappen nederst åpner den med bilen forhåndsvalgt. Ingen parallell dekkmotor. ----
-  const vDekkHistorikkProfil = dekkhistorikk.filter(d => d.vehicleId === v.id).sort((a,b) => b.dato.localeCompare(a.dato));
-  const vPlanlagteDekkskiftAlle = planlagteDekkskift.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
-    .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-  const dekkFaneBody = `
-    <div class="ov-grid" style="margin-bottom:14px;">
-      <div class="ov-item"><span class="ov-label">Montert nå</span><span class="ov-value">${DEKK_LABEL[v.dekk] || 'Ikke satt'}</span></div>
-      <div class="ov-item"><span class="ov-label">☀️ Sommerdekk (DOT)</span><span class="ov-value">${v.sommerdekkDot ? esc(v.sommerdekkDot) + (dekkAlderStatus(v.sommerdekkDot) ? ' · ' + dekkAlderStatus(v.sommerdekkDot).ikon + ' ' + esc(dekkAlderStatus(v.sommerdekkDot).tekst) : '') : 'Ikke registrert'}</span></div>
-      <div class="ov-item"><span class="ov-label">❄️ Vinterdekk (DOT)</span><span class="ov-value">${v.vinterdekkDot ? esc(v.vinterdekkDot) + (dekkAlderStatus(v.vinterdekkDot) ? ' · ' + dekkAlderStatus(v.vinterdekkDot).ikon + ' ' + esc(dekkAlderStatus(v.vinterdekkDot).tekst) : '') : 'Ikke registrert'}</span></div>
-    </div>
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px;">Planlagte dekkskift (${vPlanlagteDekkskiftAlle.length})</h4>
-    ${vPlanlagteDekkskiftAlle.length === 0 ? `<div class="empty-note">Ingen planlagte dekkskifttimer.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vPlanlagteDekkskiftAlle.map(t => `<li><span class="dmg-simple-main">📅 ${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''} — ${esc(t.verksted || '')} · ${DEKK_RETNING_LABEL[t.retning] || esc(t.retning)}</span></li>`).join('')}
-    </ul>`}
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px;">Dekkhistorikk (${vDekkHistorikkProfil.length})</h4>
-    ${vDekkHistorikkProfil.length === 0 ? `<div class="empty-note">Ingen dekkskifter registrert på dette kjøretøyet.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vDekkHistorikkProfil.map(d => `<li><span class="dmg-simple-main">${fmt(d.dato)} · ${DEKK_RETNING_LABEL[d.retning] || esc(d.retning)}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</span></li>`).join('')}
-    </ul>`}
-    <div class="panel-actions" style="margin-top:14px;"><button type="button" class="btn secondary small" data-goto-dekk="${v.id}">🛞 Åpne dekk-arbeidsflaten →</button></div>
-  `;
-
-  // ---- Fane "📊 Kostnader": VISNING av eksisterende kostnadsdata for bilen. Bruker
-  // getKostnadsposter()/bestKostnad() — nøyaktig samme kostnadsmotor som Kostnadsoversikt
-  // og Kostnadsrapport allerede bruker (verkstedtimer, saker, dekkkostnader, skader).
-  // Ingen ny kostnadsberegning er innført. ----
-  const vKostnadsposter = getKostnadsposter().filter(k => k.vehicleId === v.id)
-    .sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
-  const vKostnadSum = vKostnadsposter.reduce((sum,k) => sum + bestKostnad(k), 0);
-  const KOSTKILDE_LABEL = {verksted:'🏭 Verksted', skade:'⚠️ Skade', dekk:'🛞 Dekk', annet:'📁 Annet'};
-  const vKostnadPerKilde = ['verksted','skade','dekk','annet'].map(kilde => ({
-    kilde, sum: vKostnadsposter.filter(k => k.kilde === kilde).reduce((sum,k) => sum + bestKostnad(k), 0)
-  })).filter(x => x.sum > 0);
-  const kostnadFaneBody = `
-    <div class="ov-grid" style="margin-bottom:14px;">
-      <div class="ov-item"><span class="ov-label">Totalt registrert</span><span class="ov-value">${fmtKr(vKostnadSum)}</span></div>
-      ${vKostnadPerKilde.map(x => `<div class="ov-item"><span class="ov-label">${KOSTKILDE_LABEL[x.kilde]}</span><span class="ov-value">${fmtKr(x.sum)}</span></div>`).join('')}
-    </div>
-    ${vKostnadsposter.length === 0 ? `<div class="empty-note">Ingen kostnader registrert på dette kjøretøyet ennå.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vKostnadsposter.map(k => `
-      <li${k.sakId ? ` style="cursor:pointer;" data-goto-sak="${k.sakId}"` : ''}>
-        <span class="dmg-simple-main">${KOSTKILDE_LABEL[k.kilde] || '📁'} ${esc(k.tittel)}${k.dato ? ' · ' + fmt(k.dato) : ''}<br>
-        ${k.faktisk !== null && k.faktisk !== undefined ? 'Faktisk: ' + fmtKr(k.faktisk) : (k.estimert !== null && k.estimert !== undefined ? 'Estimert: ' + fmtKr(k.estimert) + ' (ikke utført ennå)' : 'Ingen kostnad registrert')}${k.requiresProvision && k.provisionAmount ? ' · 📦 Avsetting ' + fmtKr(k.provisionAmount) + (k.provisionMonth ? ' (' + esc(k.provisionMonth) + ')' : '') : ''}</span>
-      </li>`).join('')}
-    </ul>`}
-    <div class="required-hint" style="margin-top:10px;">Samme kostnadsdata som Kostnadsoversikt og Kostnadsrapport — kun filtrert på dette kjøretøyet.</div>
-  `;
-
-  // ---- Fane "📋 Verkstedhistorikk" (Prioritet 71.5): egen fane for denne bilens
-  // fullførte verkstedbesøk, servicer og dekkskift — samme tre kilder som den frittstående
-  // Verkstedhistorikk-skjermen (samletVerkstedHistorikkAlle()), kun forhåndsfiltrert på
-  // vehicleId. Ingen parallell historikkmotor, ingen ny datamodell. ----
-  const vVerkstedHistorikkPoster = samletVerkstedHistorikkAlle().filter(p => p.vehicleId === v.id);
-  const verkstedhistorikkFaneBody = vVerkstedHistorikkPoster.length === 0 ? `<div class="empty-note">Ingen verkstedhistorikk registrert på dette kjøretøyet ennå.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vVerkstedHistorikkPoster.map(p => `<li><span class="dmg-simple-main">${fmt(p.dato)} · ${esc(HISTORIKK_TYPE_LABEL[p.type] || p.type)}${p.verksted ? ' · ' + esc(p.verksted) : ''}${p.tekst ? '<br>' + esc(p.tekst) : ''}</span></li>`).join('')}
-    </ul>
-  `;
-
-  // ---- Faner ----
-  const PROFIL_FANER = [
-    {key:'oversikt',  label:'📋 Oversikt',  antall:null},
-    {key:'historikk', label:'' + luc("clock") + 'Historikk', antall: null},
-    {key:'verkstedhistorikk', label:'' + luc("factory") + 'Verkstedhistorikk', antall: vVerkstedHistorikkPoster.length},
-    {key:'dekk',      label:'🛞 Dekk',      antall: vDekkHistorikkProfil.length},
-    {key:'kostnader', label:'📊 Kostnader', antall: vKostnadsposter.length}
-  ];
-  const aktivFane = PROFIL_FANER.some(f => f.key === bilkortAktivFane) ? bilkortAktivFane : 'oversikt';
-  const faneBody = {
-    oversikt: `
-      <ul class="dmg-simple-list kompakt">
-        <li style="cursor:pointer;" data-goto-service="${v.id}"><span class="dmg-simple-main">🔧 Service · <span style="color:${serviceStatusFarge};font-weight:600;">${vServiceStatus.ikon} ${esc(vServiceStatus.tekst)}</span>${vPlanlagtService ? '<br>📅 Planlagt ' + fmt(vPlanlagtService.dato) + (vPlanlagtService.tidspunkt ? ' kl. ' + esc(vPlanlagtService.tidspunkt) : '') + (vPlanlagtService.verksted ? ' — ' + esc(vPlanlagtService.verksted) : '') : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>
-        <li style="cursor:pointer;" data-goto-dekk="${v.id}"><span class="dmg-simple-main">🛞 Dekk · ${DEKK_LABEL[v.dekk] || 'Ikke satt'}${vDekkAlder ? ' · ' + vDekkAlder.ikon + ' ' + esc(vDekkAlder.tekst) : ''}${vPlanlagtDekkskift ? '<br>📅 Dekkskift ' + fmt(vPlanlagtDekkskift.dato) + (vPlanlagtDekkskift.tidspunkt ? ' kl. ' + esc(vPlanlagtDekkskift.tidspunkt) : '') : ''}</span><span class="dmg-simple-main" style="color:var(--muted);">→</span></li>
-        <li><span class="dmg-simple-main">🚦 EU-kontroll · <span style="color:${euKontrollFarge};font-weight:600;">${euKontrollStatus.ikon} ${v.euGodkjentTil ? 'godkjent til ' + fmt(v.euGodkjentTil) : 'Mangler registrering'}</span>${vehicleHarRegistrertEuTime(v.id) ? '<br>📅 EU-time registrert' : ''}</span></li>
-        ${vehicleHarRegistrertRuteskiftTime(v.id) ? `<li><span class="dmg-simple-main">💥 Ruteskift · 📅 Verkstedtime registrert</span></li>` : ''}
-        ${vNesteOppfolging && vNesteOppfolging.followUpDate ? `<li><span class="dmg-simple-main">⏰ Neste oppfølging · ${fmt(vNesteOppfolging.followUpDate)}${vNesteOppfolging.nextAction ? ' — ' + esc(vNesteOppfolging.nextAction) : ''}</span></li>` : ''}
-        ${vKmAvvik ? `<li><span class="dmg-simple-main" style="color:var(--amber);font-weight:600;">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, høyeste registrerte kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Godkjennes eller avslås i 🔔 Varslingssenteret.</span></li>` : ''}
-      </ul>`,
-    historikk: historikkSamletBody,
-    verkstedhistorikk: verkstedhistorikkFaneBody,
-    dekk: dekkFaneBody,
-    kostnader: kostnadFaneBody
-  }[aktivFane];
 
   const p38HovedStil = P38_STATUS_STIL[hovedstatus] || {tint:'var(--surface-3)', tone:'var(--muted)'};
   // Prioritet 66.2 punkt 5 — ÉN kilde til «aktiv sjåfør»: vehicleAktivSjafor(), som
@@ -12841,15 +13015,26 @@ function renderBilkort(){
   const vMobgaranti = vehicleMobilitetsgaranti(v);
   const mgPille = mobilitetsgarantiPille(v);
 
-  // Prioritet 71.5 — ny operativ toppseksjon (fem kort, «uten scrolling og uten ekstra
-  // klikk»): KM-stand, Sist service, EU-kontroll, Mobilitetsgaranti, Aktiv sjåfør. Ingen av
-  // de fem beregner noe nytt — alle leser eksisterende, allerede beregnede variabler over
-  // (vSisteService/vServiceStatus/euKontrollStatus/vMobgaranti/p38SjaforNa).
-  const vSisteServiceDagerSiden = vSisteService ? isoDateDiff(vSisteService.dato, todayISO()) : null;
+  // Prioritet 59 — statusraden i den nye rekkefølgen: Kilometerstand · Siste service · EU-kontroll ·
+  // Mobilitetsgaranti · Løftebordstatus. «Aktiv sjåfør» er FJERNET herfra (den står allerede i bilkortet),
+  // og Løftebordstatus overtar plassen. Ingen av kortene beregner noe nytt — alle leser eksisterende,
+  // allerede beregnede verdier (vSisteService/vServiceStatus/euKontrollStatus/vMobgaranti og
+  // loftebordKontrollStatus()/loftebordVedlikeholdStatus(), som Min Bil og Bilinformasjon bruker).
   const euDagerTekst = euKontrollStatus.gjenstaende === null || euKontrollStatus.gjenstaende === undefined ? '–'
     : euKontrollStatus.gjenstaende >= 0 ? `${euKontrollStatus.gjenstaende} dag${euKontrollStatus.gjenstaende===1?'':'er'} igjen`
     : `Forfalt for ${Math.abs(euKontrollStatus.gjenstaende)} dag${Math.abs(euKontrollStatus.gjenstaende)===1?'':'er'} siden`;
   const MOBGARANTI_STATUS_LABEL = {gyldig:'Aktiv', utlopt:'Utløpt', ukjent:'Registrert', ingen:'Ingen'};
+  // Kilometer igjen til service (samme vServiceStatus som resten av appen): negativ = forfalt.
+  const kmIgjenTekst = vServiceStatus.gjenstaende === undefined ? 'Ikke satt'
+    : vServiceStatus.gjenstaende >= 0 ? Number(vServiceStatus.gjenstaende).toLocaleString('nb-NO') + ' km'
+    : 'Forfalt · ' + Math.abs(vServiceStatus.gjenstaende).toLocaleString('nb-NO') + ' km over';
+  const vLbVedlikehold = loftebordVedlikeholdStatus(v.id);
+  const LB_KONTROLL_TEKST = {gronn:'Gyldig kontroll', gul:'Utløper snart'};
+  const LB_VEDL_TEKST = {gronn:'OK', gul:'Bør gjøres', rod:'Må gjøres'};
+  const lbVerst = [vLbKontrollStatus.status, vLbVedlikehold.status].includes('rod') ? 'rod'
+    : ([vLbKontrollStatus.status, vLbVedlikehold.status].includes('gul') ? 'gul' : 'gronn');
+  const lbTint = {gronn:'var(--green-soft)', gul:'var(--amber-soft)', rod:'var(--red-soft)'}[lbVerst];
+  const lbTone = {gronn:'var(--green-ink)', gul:'var(--amber)', rod:'var(--red)'}[lbVerst];
 
   return `
     <div class="backrow"><button class="backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>
@@ -12862,26 +13047,33 @@ function renderBilkort(){
           <div class="profil-ident-meta"><span>${esc([v.merke, v.modell].filter(Boolean).join(' ')) || 'Modell ikke satt'} • ${esc(v.regnr)}</span></div>
           <div class="profil-ident-meta"><span>${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '⚠️ Løyve mangler'} • ${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt'}</span></div>
           <div class="profil-ident-meta">
-            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!p38SjaforNa && p38SisteKontrollor ? `title="Sist kontrollert av ${esc(p38SisteKontrollor)}"` : ''}>${p38SjaforNa ? luc('user-round') + ' ' + esc(p38SjaforNa) : '⚪ Ingen aktiv sjåfør'}</span>
-            <span class="p38-pill" style="--tint:${mgPille.tint};--tone:${mgPille.tone};" title="${esc(vMobgaranti.kilde || 'Ingen mobilitetsgaranti registrert')}">${mgPille.tekst}</span>
+            <span class="p38-pill" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:${p38SjaforNa ? 'var(--blue)' : 'var(--muted)'};" ${!p38SjaforNa && p38SisteKontrollor ? `title="Sist kontrollert av ${esc(p38SisteKontrollor)}"` : ''}>${p38SjaforNa ? luc('user-round') + ' ' + esc(p38SjaforNa) + (tidFraIso(v.aktivSjaforSiden) ? ' · siden ' + tidFraIso(v.aktivSjaforSiden) : '') : '⚪ Ingen aktiv sjåfør'}</span>
           </div>
         </div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="btn secondary small" id="profil-rediger-btn">${showBilinfoRediger ? 'Lukk redigering' : '' + luc("pencil") + 'Rediger informasjon'}</button>
-      </div>
+      <!-- Prioritet 59: «Rediger informasjon» øverst til høyre er FJERNET (den finnes nå kun i
+           Kjøretøydetaljer). Plassen er overtatt av «Neste verkstedtime» — ett klikkbart felt som åpner
+           verkstedavtalen (data-apne-vt → apneVerkstedAvtale()). Mobilitetsgaranti-pillen som stod ved siden
+           av Aktiv sjåfør er også fjernet: mobilitetsgaranti vises kun i statusraden under. -->
+      <div class="profil-ident-hoyre">${dashBannerVerkstedHtml(v.id)}</div>
     </div>
 
     ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--red-soft);color:var(--red);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--red);">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
 
+    ${vKmAvvik ? `<div class="required-hint" style="margin:0 0 16px;background:var(--amber-soft);color:var(--ink);padding:12px 16px;border-radius:14px;font-weight:600;border:1px solid var(--amber);">⚠️ Km-avvik · bilen står med ${vKmAvvik.vKm.toLocaleString('nb-NO')} km, høyeste registrerte kontroll ${fmt(vKmAvvik.dato)} viser ${vKmAvvik.kontrollKm.toLocaleString('nb-NO')} km (${vKmAvvik.differanse.toLocaleString('nb-NO')} km differanse). Godkjennes eller avslås i 🔔 Varslingssenteret.</div>` : ''}
+
     <div class="profil-stat5">
       <div>
         <span class="flis" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('gauge')}</span>
-        <span><span class="l">Km-stand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
+        <span><span class="l">Kilometerstand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
       </div>
-      <div style="cursor:pointer;" data-goto-service="${v.id}">
+      <div style="cursor:pointer;" data-goto-service="${v.id}" title="Åpne service">
         <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};--tone:var(--green-ink);">${luc('wrench')}</span>
-        <span><span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span><span class="s">${vSisteServiceDagerSiden === null ? '–' : vSisteServiceDagerSiden + ' dag' + (vSisteServiceDagerSiden===1?'':'er') + ' siden'}</span></span>
+        <span>
+          <span class="l">Siste service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span>
+          <span class="stat-skille" aria-hidden="true"></span>
+          <span class="l">Kilometer igjen til service</span><span class="v" style="${vServiceStatus.status === 'forfalt' ? 'color:var(--red);' : ''}">${kmIgjenTekst}</span>
+        </span>
       </div>
       <div>
         <span class="flis" style="--tint:${euKontrollFarge==='var(--green)'?'var(--green-soft)':'var(--red-soft)'};--tone:var(--blue);">${luc('shield-check')}</span>
@@ -12892,8 +13084,12 @@ function renderBilkort(){
         <span><span class="l">Mobilitetsgaranti</span><span class="v">${MOBGARANTI_STATUS_LABEL[vMobgaranti.status]}</span><span class="s">${vMobgaranti.tilDato ? 'Gyldig til ' + fmt(vMobgaranti.tilDato) : '–'}</span></span>
       </div>
       <div>
-        <span class="flis" style="--tint:${p38SjaforNa ? 'var(--blue-soft)' : 'var(--surface-3)'};--tone:var(--purple);">${luc('user-round')}</span>
-        <span><span class="l">Aktiv sjåfør</span><span class="v">${p38SjaforNa ? esc(p38SjaforNa) : 'Ingen aktiv sjåfør'}</span><span class="s">${p38SjaforNa ? (tidFraIso(v.aktivSjaforSiden) ? 'Siden kl. ' + tidFraIso(v.aktivSjaforSiden) : 'Kjører nå') : (p38SisteKontrollor ? 'Sist kontrollert av ' + esc(p38SisteKontrollor) : '–')}</span></span>
+        <span class="flis" style="--tint:${lbTint};--tone:${lbTone};">${luc('arrow-up-down')}</span>
+        <span>
+          <span class="l">Løftebord</span><span class="v" style="font-size:14px;">${vLbKontrollStatus.ikon} ${LB_KONTROLL_TEKST[vLbKontrollStatus.status] || vLbKontrollStatus.tekst}</span>
+          <span class="s">Sist smurt: ${vLbVedlikehold.siste ? fmt(vLbVedlikehold.siste.dato) : 'Aldri'}</span>
+          <span class="s" style="font-weight:600;color:var(--ink-2);">${vLbVedlikehold.ikon} ${LB_VEDL_TEKST[vLbVedlikehold.status]}</span>
+        </span>
       </div>
     </div>
 
@@ -12916,10 +13112,6 @@ function renderBilkort(){
       </div>
     </div>
 
-    <!-- Prioritet 54: neste verkstedtime for DENNE bilen, synlig uten å åpne noe. Når «Bilinformasjon»
-         er åpen står samme kort i stedet øverst i panelets verkstedseksjon (se infoBody) — aldri begge. -->
-    ${showBilinfoRediger ? '' : nesteVerkstedtimeHtml(nesteVerkstedtime(v.id), {visBil:false, visArsak:true, knapp:'Åpne avtale'})}
-
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
     <div class="dash40-grid4-bestill">
       <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
@@ -12937,28 +13129,13 @@ function renderBilkort(){
     </div>
 
     ${showBilinfoRediger ? `
-    <div class="panel" style="margin-bottom:18px;">
+    <div class="panel" id="bilinfo-panel" style="margin-bottom:18px;">
       <div class="p38-panel-head"><div class="tittel">✏️ Bilinformasjon</div></div>
       ${infoBody}
     </div>` : ''}
 
     <div class="dash40-split">
       <div>
-        <div class="profil-tabs">
-          ${PROFIL_FANER.map(f => `<button type="button" class="profil-tab ${aktivFane===f.key?'active':''}" data-profil-fane="${f.key}">${f.label}${f.antall !== null ? ` (${f.antall})` : ''}</button>`).join('')}
-        </div>
-        <div class="panel" style="margin-bottom:16px;">
-          ${faneBody}
-        </div>
-      </div>
-
-      <div>
-        ${vAktiveSakerListe.length === 0 ? '' : `
-        <div class="panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head"><div class="tittel">🗂️ Aktive saker (${vAktiveSakerListe.length})</div></div>
-          ${aktiveSakerBody}
-        </div>`}
-
         ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
           <div class="detalj-grid">
             <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
@@ -12968,48 +13145,51 @@ function renderBilkort(){
             <div class="detalj-rad"><span class="dl">Årsmodell</span><span class="dv">${esc(v.arsmodell || '–')}</span></div>
             <div class="detalj-rad"><span class="dl">Telefon</span><span class="dv">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;">${esc(v.telefon)}</a>` : '–'}</span></div>
           </div>
-          <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
+          <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${showBilinfoRediger ? 'Lukk redigering' : luc("pencil") + ' Rediger informasjon'}</button></div>
+        `)}
+      </div>
+
+      <div>
+        ${vAktiveSakerListe.length === 0 ? '' : `
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="p38-panel-head"><div class="tittel">🗂️ Aktive saker (${vAktiveSakerListe.length})</div></div>
+          ${aktiveSakerBody}
+        </div>`}
+
+        ${bilkortAccordionRow('avansert', '⚙️ Avanserte handlinger', null, `
+          <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? 'Ute av drift er en driftskritisk markering.' : 'Marker ute av drift eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
+          <div style="margin-bottom:16px;">
+            ${uteAvDriftBody}
+          </div>
+          <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
+          <button class="btn danger" id="del-vehicle">🗑️ Slett bil</button>
         `)}
       </div>
     </div>
 
-    ${bilkortAccordionRow('avansert', '⚙️ Avanserte handlinger', null, `
-      <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? 'Ute av drift er en driftskritisk markering.' : 'Marker ute av drift eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
-      <div style="margin-bottom:16px;">
-        ${uteAvDriftBody}
-      </div>
-      <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
-      <button class="btn danger" id="del-vehicle">🗑️ Slett bil</button>
-    `)}
+    ${bilkortHistorikkSekHtml(v)}
   `;
 }
 function attachBilkortListeners(){
   attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
   const v = vehicles.find(x => x.id === currentVehicleId);
   document.getElementById('back-to-register').addEventListener('click', () => goBack('register'));
-  // faner, redigeringspanel og hurtigbestilling på Kjøretøyprofil.
-  document.querySelectorAll('[data-profil-fane]').forEach(el => el.addEventListener('click', () => {
-    bilkortAktivFane = el.dataset.profilFane; render();
-  }));
-  // Prioritet 71.5: «Skader»-flisen i den operative statusraden åpner nå Historikk-fanens
-  // «⚠️ Skader»-underseksjon direkte (skader har ikke lenger en egen toppnivå-fane — se
-  // HISTORIKK_SUB_ORDER i renderBilkort()).
+  // Prioritet 59: Historikk-fanene (Kontroller/Skader/Varsellamper/Verkstedhistorikk/Kommentarer) bytter
+  // KUN innholdet (byttBilkortHistorikkFane()), ikke hele profilen — scrollposisjonen beholdes og ingenting flytter seg.
+  document.querySelectorAll('[data-profil-fane]').forEach(el => el.addEventListener('click', () => byttBilkortHistorikkFane(el.dataset.profilFane)));
+  // «Skader»-flisen i statusraden åpner Skader-fanen i Historikk og ruller seksjonen til syne.
   const gotoSkaderFane = document.querySelector('[data-goto-skader-fane]');
   if(gotoSkaderFane) gotoSkaderFane.addEventListener('click', () => {
-    bilkortAktivFane = 'historikk';
-    bilkortHistorikkSubOpen.add('skader');
-    render();
+    byttBilkortHistorikkFane('skader');
+    const sek = document.getElementById('bilkort-hist-sek');
+    if(sek && sek.scrollIntoView) sek.scrollIntoView({block:'start', behavior:'smooth'});
   });
-  // Kommentarer-underseksjonen i Historikk (samme «✅ Marker som lest»-knapp/mønster som
-  // Kommentaroversikt — se nyeKommentarRadHtml()/markerKommentarSomLest()).
-  document.querySelectorAll('[data-marker-lest]').forEach(el => el.addEventListener('click', () => {
-    const [kilde, id] = el.dataset.markerLest.split(':');
-    markerKommentarSomLest(kilde, id);
-  }));
-  ['profil-rediger-btn','profil-rediger-btn-2'].forEach(id => {
-    const btn = document.getElementById(id);
-    if(btn) btn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; render(); });
-  });
+  // Rader og knapper INNE i Historikk (slett kontroll, marker som løst/lest, skadekort, «+ Registrer skade»).
+  const historikkSek = document.getElementById('bilkort-hist-sek');
+  if(historikkSek) attachBilkortHistorikkListeners(historikkSek);
+  // Prioritet 59: «Rediger informasjon» finnes nå KUN i Kjøretøydetaljer (profil-rediger-btn-2).
+  const redigerBtn = document.getElementById('profil-rediger-btn-2');
+  if(redigerBtn) redigerBtn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; render(); });
   attachBestillListeners(currentVehicleId);
   // Prioritet 72.1, KRITISK REGRESJONSFIKS: «del-vehicle»-knappen finnes i DOM-en KUN når
   // «⚙️ Avanserte handlinger»-akkordionen (Prioritet 71.9) er ÅPEN — men den er lukket som
@@ -13024,8 +13204,6 @@ function attachBilkortListeners(){
   const delVehicleBtn = document.getElementById('del-vehicle');
   if(delVehicleBtn) delVehicleBtn.addEventListener('click', () => deleteVehicle(currentVehicleId));
   document.querySelectorAll('[data-toggle-bilkort]').forEach(el => el.addEventListener('click', () => toggleBilkortSection(el.dataset.toggleBilkort)));
-  document.querySelectorAll('[data-toggle-bilkort-skade]').forEach(el => el.addEventListener('click', () => toggleBilkortSkadeSub(el.dataset.toggleBilkortSkade)));
-  document.querySelectorAll('[data-toggle-bilkort-historikk]').forEach(el => el.addEventListener('click', () => toggleBilkortHistorikkSub(el.dataset.toggleBilkortHistorikk)));
 
   // Prioritet 65.2: raden med ✅ Registrer kontroll / ⚠️ Registrer skade / 🗂️ Åpne aktive
   // saker er fjernet fra profilen — alle tre finnes på sine egne arbeidsflater, og raden
@@ -13045,9 +13223,7 @@ function attachBilkortListeners(){
   const uadTilbakeLagreBtn = document.getElementById('uad-tilbake-lagre-btn');
   if(uadTilbakeLagreBtn) uadTilbakeLagreBtn.addEventListener('click', () => settTilbakeIDrift(currentVehicleId));
 
-  // Fase 7 — Historikkfilter og sakskobling (aktive saker-seksjon + tidslinje)
-  const historikkFilterSelect = document.getElementById('bilkort-historikk-filter');
-  if(historikkFilterSelect) historikkFilterSelect.addEventListener('change', (e) => { bilkortHistorikkFilter = e.target.value; render(); });
+  // Fase 7 — sakskobling (aktive saker-seksjonen)
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
 
   const saveBtn = document.getElementById('save-vehicle');
@@ -13060,11 +13236,11 @@ function attachBilkortListeners(){
   // knappen finnes kun i DOM-en når Bilinformasjon er åpen OG bilen faktisk har en aktiv
   // sjåfør, derfor querySelectorAll.
   document.querySelectorAll('[data-nullstill-aktiv-sjafor]').forEach(el => el.addEventListener('click', beskyttKlikk('nullstillAktivSjaforManuelt:'+el.dataset.nullstillAktivSjafor, el, () => nullstillAktivSjaforManuelt(el.dataset.nullstillAktivSjafor))));
-  const skadeBtn = document.getElementById('ny-skade-btn');
-  if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
   const vtBtn = document.getElementById('ny-vt-btn');
   if(vtBtn) vtBtn.addEventListener('click', () => goToRegisterVT(currentVehicleId));
-  document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
+  // «Marker som løst» på varsellampene i Bilinformasjon-panelet (Historikk-seksjonens egne kort festes av
+  // attachBilkortHistorikkListeners(), så de ikke dobbeltfestes).
+  document.querySelectorAll('#bilinfo-panel [data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-goto-vt]').forEach(el => el.addEventListener('click', () => {
     vtFilterBil = el.dataset.gotoVt;
     goTo('verksted');
@@ -13074,18 +13250,14 @@ function attachBilkortListeners(){
   // dermed også lytterne som hørte til. Selve bildedataen (Photos-raden vehicle:{id}) og
   // feltet v.hasPhoto er URØRT i Airtable — ingenting er slettet.
 
-  attachDamageCardListeners(vehicleDamages(currentVehicleId));
+  // (Skadekortenes lyttere festes av attachBilkortHistorikkListeners() over.)
 
   // Funksjonsbasert navigasjon: Service/Dekk-statuslenkene i Operativ status åpner nå
   // samlet Verksted direkte med type og bil forhåndsvalgt.
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { bestillService(el.dataset.gotoService); }));
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { bestillDekkskift(el.dataset.gotoDekk); }));
-  // REGRESJONSFIKS (kontrollsletting): denne lyttermet var tidligere kun koblet opp i
-  // attachKontrolloversiktListeners() — som ikke lenger nås via noen meny etter at
-  // Historikk-huben erstattet de separate oversiktssidene. Slett-knappen i
-  // kontrollHistoryCard() (Kjøretøyprofil → Historikk → Kontroller) var derfor synlig, men
-  // uten virkning, siden ingen click-lytter noensinne ble registrert i denne konteksten.
-  document.querySelectorAll('[data-delete-kontroll]').forEach(el => el.addEventListener('click', () => deleteKontroll(el.dataset.deleteKontroll)));
+  // (Slett-knappen i kontrollHistoryCard() — regresjonsfiks fra tidligere — festes nå av
+  // attachBilkortHistorikkListeners(), både ved full render og etter fanebytte.)
 }
 
 // ================= scrService (funksjonsbasert navigasjon) =================
@@ -14739,7 +14911,11 @@ function samletVerkstedHistorikkAlle(){
     id:'service:'+s.id, vehicleId:s.vehicleId, dato:s.dato,
     type:'service', verksted:s.verksted || '', tekst:s.kommentar || '', kilde:'Service'
   }));
-  dekkhistorikk.forEach(d => poster.push({
+  // Prioritet 59: dekkhistorikk opprettet automatisk ved fullføring av en dekkskift-bestilling ('dekk-' + verkstedtime-id,
+  // se fullforVerkstedbestillinger()) hoppes over her så lenge selve verkstedtimen finnes — den er allerede representert via
+  // verkstedtimer-kilden over (samme prinsipp som fraVerkstedtimeId for service). Uten dette ville hvert dekkskift stått to ganger.
+  const utforteVtIder = new Set(verkstedtimer.filter(t => t.utfort).map(t => t.id));
+  dekkhistorikk.filter(d => !(typeof d.id === 'string' && d.id.startsWith('dekk-') && utforteVtIder.has(d.id.slice(5)))).forEach(d => poster.push({
     id:'dekk:'+d.id, vehicleId:d.vehicleId, dato:d.dato,
     type:'dekkskift', verksted:'', tekst:d.kommentar || '', kilde:'Dekkskift'
   }));
@@ -14798,45 +14974,87 @@ function attachVerkstedhistorikkListeners(){
 // servicehistorikk-oppføringen — vehicleMobilitetsgaranti() forlenger da garantien
 // automatisk 12 måneder fra denne datoen, som et tredje, uavhengig signal ved siden av det
 // eldre, navnebaserte Mekonomen-signalet og den manuelle fritekstdatoen.
+// Prioritet 59: felles inngang for én ELLER flere verkstedbestillinger (bl.a. «✅ Alle N utført» på et samlet
+// dekkskift). Hver bestilling behandles SEPARAT — egen servicehistorikk-/dekkhistorikk-oppføring, eget kjøretøy, egen
+// sak — men alt lagres samlet (én skriving per tabell), ikke N skrivinger av hele verkstedtabellen.
+//
+// Dekkskift med registrert retning (t.dekkRetning): på HVER bil opprettes én dekkhistorikk-oppføring og v.dekk settes
+// til det som nå er montert ('sommer-vinter' → vinter, 'vinter-sommer' → sommer). Oppføringens id er deterministisk
+// ('dekk-' + verkstedtimens id), så et nytt forsøk aldri gir duplikat, og Verkstedhistorikk kan skjule den ved siden av
+// selve verkstedtimen (se samletVerkstedHistorikkAlle()). Dekkskift uten retning (eldre bestillinger, sak-koblede)
+// oppfører seg som før: kun verkstedtimen merkes utført. v.km røres aldri.
+//
+// Rekkefølge og feil: dekkhistorikk og kjøretøy lagres FØR verkstedtimen (som er «commit»-steget). Feiler noe, rulles alle
+// lokale endringer tilbake; det som allerede rakk å bli lagret i Airtable er idempotent og rettes ved neste forsøk.
 async function fullforVerkstedbestilling(id){
-  const t = verkstedtimer.find(x => x.id === id);
-  if(!t || t.utfort) return;
-  const v = vehicles.find(x => x.id === t.vehicleId);
-  const erService = vtHarType(t, 'service');
+  return fullforVerkstedbestillinger([id]);
+}
+async function fullforVerkstedbestillinger(ids){
+  const timer = ids.map(id => verkstedtimer.find(x => x.id === id)).filter(t => t && !t.utfort);
+  if(timer.length === 0) return;
   const servicehistorikkSnapshot = JSON.parse(JSON.stringify(servicehistorikk));
-  t.utfort = true;
-  t.utfortDato = todayISO();
-  let nyServiceOppforing = null;
-  if(erService){
-    nyServiceOppforing = {
-      id: uid(), vehicleId: t.vehicleId, dato: t.utfortDato, km: v && v.km ? Number(v.km) : 0,
-      type: t.beskrivelse || 'Service', verksted: t.verksted || '', kommentar: t.notater || '',
-      createdAt: new Date().toISOString(), createdBy: loggedInRole || 'Ukjent',
-      fraVerkstedtimeId: t.id, mobilitetsgarantiAktivert: !!t.mobilitetsgarantiAktivert
-    };
-    servicehistorikk.push(nyServiceOppforing);
-  }
+  const dekkhistorikkSnapshot = JSON.parse(JSON.stringify(dekkhistorikk));
+  const dekkFoer = {};   // vehicleId → v.dekk FØR endringen (for rollback)
+  const idag = todayISO();
+  let nyeService = 0, nyeDekk = 0;
+  timer.forEach(t => {
+    const v = vehicles.find(x => x.id === t.vehicleId);
+    t.utfort = true;
+    t.utfortDato = idag;
+    if(vtHarType(t, 'service')){
+      servicehistorikk.push({
+        id: uid(), vehicleId: t.vehicleId, dato: t.utfortDato, km: v && v.km ? Number(v.km) : 0,
+        type: t.beskrivelse || 'Service', verksted: t.verksted || '', kommentar: t.notater || '',
+        createdAt: new Date().toISOString(), createdBy: loggedInRole || 'Ukjent',
+        fraVerkstedtimeId: t.id, mobilitetsgarantiAktivert: !!t.mobilitetsgarantiAktivert
+      });
+      nyeService++;
+    }
+    if(vtHarType(t, 'dekkskift') && (t.dekkRetning === 'sommer-vinter' || t.dekkRetning === 'vinter-sommer')){
+      const dekkId = 'dekk-' + t.id;
+      if(!dekkhistorikk.some(d => d.id === dekkId)){
+        dekkhistorikk.push({
+          id: dekkId, vehicleId: t.vehicleId, dato: t.utfortDato, retning: t.dekkRetning,
+          kommentar: [t.verksted ? 'Verksted: ' + t.verksted : '', t.notater].filter(Boolean).join(' · ')
+        });
+      }
+      if(v){
+        if(!(v.id in dekkFoer)) dekkFoer[v.id] = v.dekk;
+        v.dekk = t.dekkRetning === 'sommer-vinter' ? 'vinter' : 'sommer';
+      }
+      nyeDekk++;
+    }
+  });
   try{
+    if(nyeDekk > 0){
+      await window.storage.set('dekkhistorikk', JSON.stringify(dekkhistorikk), true);
+      await saveVehiclesOrThrow();
+    }
     await saveVerkstedtimerEllerKast();
-    if(nyServiceOppforing) await saveServicehistorikk();
-    const sak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
-    if(sak){
+    if(nyeService > 0) await saveServicehistorikk();
+    let sakerEndret = false;
+    timer.forEach(t => {
+      const sak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
+      if(!sak) return;
       sak.status = 'utfort';
       sak.resolvedAt = t.utfortDato;
       sak.completedAt = t.utfortDato;
       sak.resolvedBy = loggedInRole || 'Ukjent';
       sak.updatedAt = new Date().toISOString();
-      await saveAktiveSakerEllerKast();
-    }
+      sakerEndret = true;
+    });
+    if(sakerEndret) await saveAktiveSakerEllerKast();
     editingVTId = null;
     render();
   }catch(e){
-    t.utfort = false;
-    t.utfortDato = '';
+    timer.forEach(t => { t.utfort = false; t.utfortDato = ''; });
     servicehistorikk.length = 0;
     Array.prototype.push.apply(servicehistorikk, servicehistorikkSnapshot);
-    console.error('[fullforVerkstedbestilling] Feilet', e);
-    alert('Kunne ikke flytte verkstedbesøket til historikk. Endringen er tilbakestilt lokalt.');
+    dekkhistorikk.length = 0;
+    Array.prototype.push.apply(dekkhistorikk, dekkhistorikkSnapshot);
+    Object.keys(dekkFoer).forEach(vid => { const v = vehicles.find(x => x.id === vid); if(v) v.dekk = dekkFoer[vid]; });
+    console.error('[fullforVerkstedbestillinger] Feilet', e);
+    alert('Kunne ikke flytte ' + (timer.length === 1 ? 'verkstedbesøket' : 'verkstedbesøkene') + ' til historikk. Endringen er tilbakestilt lokalt.');
     render();
   }
 }
@@ -14852,6 +15070,8 @@ function renderVerksted(){
   return `
     <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
+
+    ${vtFlerBilResultatHtml()}
 
     ${nesteVerkstedtimeHtml(nesteVT, {knapp:'Åpne avtale', visArsak:true})}
 
@@ -14906,12 +15126,42 @@ function renderVerksted(){
           </label>`).join('')}
         </div>
       </div>
-      <div class="field"><label>Bil</label>
+      <div class="field" id="vt-bil-felt"><label>Bil</label>
         <select id="vt-vehicle" required>
           <option value="">Velg bil...</option>
           ${vehicleOptions(vtPrefillVehicleId, {ekskluderUteAvDrift:true})}
         </select>
       </div>
+      ${(() => {
+        // Prioritet 59: dekkskift — retning (Til sommerdekk/Til vinterdekk) og «Velg flere biler». Blokken ligger
+        // alltid i DOM-en (skjult når valgt type ikke er dekkskift), slik at type-velgeren kan vise/skjule den uten
+        // render() (som ville nullstilt resten av skjemaet). Standard er ÉN bil valgt: flervalget er skjult til
+        // «Velg flere biler» trykkes. Retning foreslås fra bilens montert-status (v.dekk) eller sesongen, og kan endres.
+        const retningStart = dekkRetningForslag(vtPrefillVehicleId);
+        const bilerFlervalg = sortedVehicles(vehicles).filter(v => !v.uteAvDrift);
+        return `
+      <div id="vt-dekk-wrap" style="${initialType === 'dekkskift' ? '' : 'display:none;'}">
+        <div class="field" style="margin-bottom:10px;">
+          <label>Retning</label>
+          <div class="vt-type-row" id="vt-dekkretning-row" data-std-default="${retningStart}">
+            ${DEKK_RETNING_VALG.map(o => `
+            <label class="vt-type-opt ${retningStart === o.id ? 'checked' : ''}">
+              <input type="radio" name="vt-dekkretning" value="${o.id}" ${retningStart === o.id ? 'checked' : ''}>
+              <span>${o.label}</span>
+            </label>`).join('')}
+          </div>
+        </div>
+        <div style="margin-bottom:10px;"><button type="button" class="btn secondary small" id="vt-flerbil-toggle">Velg flere biler</button></div>
+        <div class="panel" id="vt-flerbil-panel" style="display:none;margin-bottom:10px;">
+          <div class="ov-label" style="margin-bottom:6px;">Velg biler</div>
+          <label class="og-rad"><input type="checkbox" id="vt-flerbil-alle"> <b>Velg alle</b></label>
+          <div class="vt-flerbil-liste">
+            ${bilerFlervalg.map(v => `<label class="og-rad"><input type="checkbox" data-vt-flerbil="${v.id}"> ${esc(vehicleLabel(v))}</label>`).join('')}
+          </div>
+          <div class="required-hint" id="vt-flerbil-teller" style="margin-top:8px;font-weight:700;color:var(--ink);">0 biler valgt</div>
+        </div>
+      </div>`;
+      })()}
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." value="${esc(vtBeskrivelseForslag(initialType))}" data-std-default="${esc(vtBeskrivelseForslag(initialType))}" required></div>
       `}
       <div class="field"><label>Verksted</label>
@@ -14941,7 +15191,7 @@ function renderVerksted(){
         </div>
       </div>
       <div class="form-msg" id="vt-msg"></div>
-      <div class="panel-actions"><button class="btn" type="submit">✅ Bestill verkstedtime</button></div>
+      <div class="panel-actions"><button class="btn" type="submit" id="vt-submit-btn">✅ Bestill verkstedtime</button></div>
     </form>`;
     })() : ''}
 
@@ -14999,13 +15249,17 @@ function vtCard(t, upcoming, isNext){
   const editing = editingVTId === t.id;
   const within7 = upcoming && vtWithinWeek(t.dato);
   const linkedSak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
+  // Prioritet 59: dekkretning og samlet bestilling (kun for dekkskift bestilt for flere biler i én handling).
+  const gruppeAntall = t.bestillingGruppeId ? verkstedtimer.filter(x => x.bestillingGruppeId === t.bestillingGruppeId).length : 0;
+  const gruppeApne = t.bestillingGruppeId ? verkstedtimer.filter(x => x.bestillingGruppeId === t.bestillingGruppeId && !x.utfort).length : 0;
   return `
     <div class="vt-card ${isNext ? 'next-vt' : (upcoming ? (within7 ? 'soon' : 'ok') : 'unset')}">
       <div class="vt-top" data-toggle-vt="${t.id}">
         <div class="vt-main">
           <div class="vt-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
           <div class="vt-desc">${esc(t.beskrivelse)}${upcoming ? '' : ' (utført arbeid)'}</div>
-          <div class="dmg-meta">${esc(t.verksted)}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
+          <div class="dmg-meta">${esc(t.verksted)}${t.dekkRetning && DEKK_RETNING_TIL_LABEL[t.dekkRetning] ? ' · ' + DEKK_RETNING_TIL_LABEL[t.dekkRetning] : ''}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
+          ${gruppeAntall > 1 ? `<div class="dmg-meta">👥 Samlet bestilling · ${gruppeAntall} biler</div>` : ''}
           ${linkedSak ? `<div class="dmg-meta" data-goto-sak="${linkedSak.id}" style="cursor:pointer;text-decoration:underline;">🗂️ Aktiv sak: ${esc(linkedSak.title)}</div>` : ''}
         </div>
         <div class="vt-when">
@@ -15013,6 +15267,7 @@ function vtCard(t, upcoming, isNext){
           ${t.tidspunkt ? `<div class="vt-time">kl. ${esc(t.tidspunkt)}</div>` : ''}
           ${within7 && !isNext ? `<span class="badge soon">Innen 7 dager</span>` : ''}
           ${!t.utfort ? `<button type="button" class="btn small" data-fullfor-vt="${t.id}">✅ Utført arbeid</button>` : ''}
+          ${!t.utfort && gruppeApne > 1 ? `<button type="button" class="btn secondary small" style="margin-top:6px;" data-fullfor-vt-gruppe="${esc(t.bestillingGruppeId)}">✅ Alle ${gruppeApne} utført</button>` : ''}
         </div>
       </div>
       ${editing ? `
@@ -15104,9 +15359,81 @@ function attachVerkstedListeners(){
         vtMsgWrap.style.display = valgt === 'service' ? '' : 'none';
         if(valgt !== 'service'){ const cb = document.getElementById('vt-mobilitetsgaranti'); if(cb) cb.checked = false; }
       }
+      // Prioritet 59: retning + «Velg flere biler» hører kun til dekkskift. Forlates typen, avsluttes flervalget
+      // (tilbake til én bil) så en skjult, glemt flerbilvalgliste aldri kan styre innsendingen.
+      const dekkWrap = document.getElementById('vt-dekk-wrap');
+      if(dekkWrap){
+        dekkWrap.style.display = valgt === 'dekkskift' ? '' : 'none';
+        if(valgt !== 'dekkskift') settFlerbilModus(false);
+      }
     };
     vtTypeRadioer.forEach(radio => radio.addEventListener('change', () => oppdaterForslag(radio.value)));
   }
+  // ---- Prioritet 59: Velg flere biler (dekkskift) ----
+  // Alt skjer i DOM-en uten render(): en render() ville nullstilt dato/verksted/kommentar brukeren har fylt inn.
+  const flerToggle = document.getElementById('vt-flerbil-toggle');
+  const flerPanel = document.getElementById('vt-flerbil-panel');
+  const flerAlle = document.getElementById('vt-flerbil-alle');
+  const flerTeller = document.getElementById('vt-flerbil-teller');
+  const vtSubmitBtn = document.getElementById('vt-submit-btn');
+  const vtBilFelt = document.getElementById('vt-bil-felt');
+  const vtBilSelect = document.getElementById('vt-vehicle');
+  const oppdaterFlerbil = () => {
+    if(!flerPanel) return;
+    const totalt = flerPanel.querySelectorAll('[data-vt-flerbil]').length;
+    const n = vtFlerbilValgte().length;
+    if(flerTeller) flerTeller.textContent = n + (n === 1 ? ' bil valgt' : ' biler valgt');
+    if(flerAlle){ flerAlle.checked = totalt > 0 && n === totalt; flerAlle.indeterminate = n > 0 && n < totalt; }
+    if(vtSubmitBtn && vtFlerbilAktiv()) vtSubmitBtn.textContent = n > 0 ? `Bestill dekkskift for ${n} ${n === 1 ? 'bil' : 'biler'}` : 'Bestill dekkskift';
+  };
+  function settFlerbilModus(paa){
+    if(!flerPanel) return;
+    flerPanel.style.display = paa ? '' : 'none';
+    if(vtBilFelt) vtBilFelt.style.display = paa ? 'none' : '';
+    if(vtBilSelect) vtBilSelect.required = !paa;
+    if(flerToggle) flerToggle.textContent = paa ? 'Velg én bil' : 'Velg flere biler';
+    if(paa){
+      // Den bilen som allerede var valgt i nedtrekkslisten følger med inn i flervalget.
+      const valgt = vtBilSelect && vtBilSelect.value;
+      if(valgt){ const cb = flerPanel.querySelector('[data-vt-flerbil="' + valgt + '"]'); if(cb) cb.checked = true; }
+      oppdaterFlerbil();
+    } else if(vtSubmitBtn){
+      vtSubmitBtn.textContent = '✅ Bestill verkstedtime';
+    }
+  }
+  if(flerToggle) flerToggle.addEventListener('click', () => settFlerbilModus(!vtFlerbilAktiv()));
+  if(flerAlle) flerAlle.addEventListener('change', () => {
+    flerPanel.querySelectorAll('[data-vt-flerbil]').forEach(cb => { cb.checked = flerAlle.checked; });
+    oppdaterFlerbil();
+  });
+  document.querySelectorAll('[data-vt-flerbil]').forEach(cb => cb.addEventListener('change', oppdaterFlerbil));
+  // Retning: foreslås på nytt når bilen byttes, men kun så lenge brukeren ikke selv har endret den (samme forslagsregel som verksted/beskrivelse).
+  const retningRad = document.getElementById('vt-dekkretning-row');
+  if(retningRad){
+    retningRad.querySelectorAll('input[name="vt-dekkretning"]').forEach(r => r.addEventListener('change', () => {
+      retningRad.querySelectorAll('.vt-type-opt').forEach(el => el.classList.toggle('checked', !!el.querySelector('input:checked')));
+    }));
+    if(vtBilSelect) vtBilSelect.addEventListener('change', () => {
+      const naa = retningRad.querySelector('input:checked');
+      if(naa && naa.value === retningRad.dataset.stdDefault){
+        const nytt = dekkRetningForslag(vtBilSelect.value);
+        const mal = retningRad.querySelector('input[value="' + nytt + '"]');
+        if(mal){ mal.checked = true; retningRad.dataset.stdDefault = nytt; mal.dispatchEvent(new Event('change')); }
+      }
+    });
+  }
+  const flerbilLukk = document.getElementById('vt-flerbil-lukk');
+  if(flerbilLukk) flerbilLukk.addEventListener('click', () => { vtFlerBilResultat = null; render(); });
+  const flerbilProv = document.getElementById('vt-flerbil-prov-igjen');
+  if(flerbilProv) flerbilProv.addEventListener('click', beskyttKlikk('proverDekkskiftPaNytt', flerbilProv, () => proverDekkskiftPaNytt()));
+  document.querySelectorAll('[data-fullfor-vt-gruppe]').forEach(el => el.addEventListener('click', beskyttKlikk('fullforVTGruppe:' + el.dataset.fullforVtGruppe, el, (e) => {
+    e.stopPropagation();
+    const gid = el.dataset.fullforVtGruppe;
+    const ider = verkstedtimer.filter(t => t.bestillingGruppeId === gid && !t.utfort).map(t => t.id);
+    if(ider.length === 0) return;
+    if(!confirm('Marker dekkskift som utført på alle ' + ider.length + ' biler i denne bestillingen? Dekkstatus og historikk oppdateres separat på hver bil.')) return;
+    return fullforVerkstedbestillinger(ider);
+  })));
   document.getElementById('vt-filter-toggle-btn').addEventListener('click', () => {
     showVtFilterMeny = !showVtFilterMeny;
     render();
