@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 64 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 65 —
+**Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll (`AktivSjaforSiden` = kontrollens tidspunkt). Feltet gjenopprettes ved oppstart, synk, reload og cache-refresh når det mangler. Unntak: administratorens manuelle nullstilling inntil en ny kontroll. Dashboard-bannerets «N aktive» telles på samme kjøretøygrunnlag som «X/Y kontrollert». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
 **Samle oppdatering og synkronisering.** Oppdater app, Database status og Systemkontroll sjåfører er samlet i Innstillinger → **Optimaliseringer** med Hurtigoversikt-faner (Alle / App / Airtable / Sjåfører) og «Oppdater og synkroniser alt». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 64 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 63 —
 **Dublettsikring og flerbilssaker.** Sjåførkontroll: «Registrerer...»-knapp og dublettsikring (samme bil + sjåfør + operative dag innen 10 min lagres kun én gang). Aktive saker: «➕ Legg til bil» —
 én sak for flere biler (én saksrad per bil knyttet med `sakGruppeId`), samlet Godta og én verkstedbestilling per bil. **Ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse.**
@@ -6386,3 +6387,27 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 **Ikke rørt:** sjåførens daglige Systemkontroll-sperre (Prioritet 61), saksmotor, kilometerlogikk, aktiv sjåfør, kontrollgrunnlaget, Layout Engine-mekanikken for øvrig.
 
 **Kjente begrensninger:** (a) hard refresh logger ut administrator (samme som «Oppdater app» alltid har gjort — innlogging ligger i minnet); Dashboard vises etter ny innlogging; (b) «Oppdater og synkroniser alt» kan ikke fullføre Airtable-synk etter omlastingen i samme økt — synken kjøres FØR refresh; (c) to ulike enheter som synker samtidig følger siste skriving, uendret.
+
+---
+
+## Prioritet 65 (2026-09-21) — Aktiv sjåfør følger kontrollhistorikken
+
+(Brukerens egen nummerering. Det finnes en tidligere, urelatert «Prioritet 65 (2026-09-14) — Kjøretøyprofilen er en kontrollflate» lenger opp.)
+
+**Varig regel: aktiv sjåfør = siste person som gjennomførte gyldig kontroll på bilen i inneværende operative dag.** En bil med kontroll i dag skal aldri vises uten aktiv sjåfør, med mindre administrator har trykket «Nullstill aktiv sjåfør» etter den kontrollen. `AktivSjaforSiden` settes til kontrollens tidspunkt ved gjenoppretting.
+
+**Lesing (`vehicleAktivSjafor()`):** siste gyldige kontroll i dag (`sisteGyldigeKontrollIdag()` — navngitt sjåfør, ikke `kmGodkjenningStatus === 'avvist'`) vinner, med mindre (1) administrator har manuelt nullstilt etter den kontrollen, eller (2) kjøretøyfeltet er gyldig for i dag og nyere enn kontrollen (f.eks. «Ny sjåfør»). Tomt felt etter reload gir derfor likevel riktig visning.
+
+**Gjenoppretting (`gjenopprettAktiveSjaforerFraKontrollhistorikk()`):** skriver manglende/eldre felt tilbake til Airtable når `vehiclesSkrivingTillatt()`. Kjøres etter dagskille-opprydding i `loadAll()`, og via `etterAktivSjaforInngang()` (auto-reset FØR gjenoppretting) ved oppstart, synk (`_lagBatchetLiveSyncHandler` / `lastAirtableDataNaa`), `goTo()`, `visibilitychange` og `pageshow`. Snapshot/rollback ved lagringsfeil. Skriver ikke ved lesefeil.
+
+**Manuell nullstilling:** Settings-nøkkel `aktiv-sjafor-manuell-nullstilling` `{[vehicleId]:{dato, at}}`. Ny kontroll (eller «Ny sjåfør») fjerner unntaket. Gammel dag prunes ved lasting.
+
+**Dashboard:** «N aktive» i Operativ kontroll-banneret (`operativAktiveCount()`) telles på **samme kjøretøygrunnlag** som «X/Y kontrollert», slik at 7 kontrollert ikke kan vises som 0 aktive for de samme 13 bilene.
+
+**Dagskille 04:00** (`ryddOppBiloktDagskille()` / `todayISO()`) er uendret. Ny kontroll fra annen sjåfør overtar (siste kontroll i dag). Kryss-bil-utsjekking i `settAktivSjafor()` er fjernet — per-bil siste kontroll er sannheten.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v113 → v114), `version-check.js` / `version.json` (113 → 114), CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md. **`storage.airtable.js` uendret** (v2.23.0) — ingen nye Vehicles-felt.
+
+**Ikke rørt:** kilometerlogikk, saksmotor, kontrollgrunnlagets kjøretøy-/ukedagsvalg, Layout Engine.
+
+**Kjente begrensninger:** (a) «Sjekk ut bil» avslutter lokal sjåførsesjon, men Dashboard viser fortsatt siste kontrollsjåfør inntil manuell admin-nullstilling eller dagskille — dette er ticket-regelen, ikke en feil; (b) per-bil 14:50-autoreset tømmer feltet, men visning og gjenoppretting følger kontrollhistorikken samme dag; (c) to ulike enheter innen ~45 s før live-synk kan midlertidig divergere, som øvrig Settings/Vehicles-synk.

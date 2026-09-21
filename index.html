@@ -3060,11 +3060,25 @@ function clearDriverLocalSession(){
 // Kjøretøyprofil), ikke bare denne ene funksjonen.
 function vehicleAktivSjafor(vehicleId){
   const v = vehicles.find(x => x.id === vehicleId);
-  if(!v || !v.aktivSjafor || !v.aktivSjaforSiden) return null;
-  const sidenDato = new Date(v.aktivSjaforSiden);
-  if(isNaN(sidenDato.getTime())) return null;
-  if(isoDateForOperationalDay(sidenDato) !== todayISO()) return null;
-  return v.aktivSjafor;
+  if(!v) return null;
+  const siste = sisteGyldigeKontrollIdag(vehicleId);
+  const feltNavn = (v.aktivSjafor || '').trim();
+  const sidenDato = v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden) : null;
+  const feltGyldig = !!feltNavn && sidenDato && !isNaN(sidenDato.getTime()) && isoDateForOperationalDay(sidenDato) === todayISO();
+  const kontrollNavn = siste && (siste.sjafor || '').trim();
+  if(kontrollNavn){
+    if(aktivSjaforErManueltNullstilt(vehicleId, siste)){
+      if(feltGyldig && aktivSjaforFeltEtterNullstilling(vehicleId, sidenDato)) return feltNavn;
+      return null;
+    }
+    if(feltGyldig){
+      const kontrollMs = new Date(kontrollSidenIso(siste)).getTime();
+      if(!isNaN(kontrollMs) && sidenDato.getTime() >= kontrollMs) return feltNavn;
+    }
+    return kontrollNavn;
+  }
+  if(feltGyldig) return feltNavn;
+  return null;
 }
 // "Aktiv sjåfør" i Operativ status skal
 // vise sist kjente sjåfør basert på ENTEN aktiv biløkt ELLER siste gjennomførte kontroll i
@@ -3087,18 +3101,151 @@ function vehicleSisteSjafor(vehicleId){
   const siste = kontrollerIdag.slice().sort((a,b) => (b.tidspunkt||'').localeCompare(a.tidspunkt||''))[0];
   return siste.sjafor || null;
 }
+// ================= Prioritet 65: aktiv sjåfør følger kontrollhistorikken =================
+// Varig regel: en bil med gyldig kontroll i inneværende operative dag skal ha aktiv sjåfør
+// = sjåføren på siste slike kontroll. Feltet gjenopprettes ved oppstart/synk/reload når det
+// mangler. Unntak: administratorens manuelle nullstilling (inntil en NY kontroll).
+const AKTIV_SJAFOR_NULLSTILL_KEY = 'aktiv-sjafor-manuell-nullstilling';
+let aktivSjaforManuellNullstilling = {};
+let _gjenopprettAktiveSjaforerPagar = false;
+function kontrollSidenIso(k){
+  if(!k || !k.dato) return '';
+  const tid = /^\d{2}:\d{2}$/.test(k.tidspunkt || '') ? k.tidspunkt : '00:00';
+  let cal = k.dato;
+  const time = Number(tid.slice(0, 2));
+  if(!isNaN(time) && time < OPERATIONAL_DAY_START_HOUR) cal = isoDateOffset(k.dato, 1);
+  for(const off of ['+02:00', '+01:00']){
+    const d = new Date(`${cal}T${tid}:00${off}`);
+    if(isNaN(d.getTime())) continue;
+    const parts = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(d);
+    const ymd = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+    const hm = `${parts.find(p => p.type === 'hour').value}:${parts.find(p => p.type === 'minute').value}`;
+    if(ymd === cal && hm === tid) return d.toISOString();
+  }
+  const fallback = new Date(`${cal}T${tid}:00+01:00`);
+  return isNaN(fallback.getTime()) ? '' : fallback.toISOString();
+}
+function sisteGyldigeKontrollIdag(vehicleId){
+  const idag = todayISO();
+  const liste = (kontroller || []).filter(k =>
+    k && k.vehicleId === vehicleId && k.dato === idag &&
+    (k.sjafor || '').trim() && k.kmGodkjenningStatus !== 'avvist');
+  if(!liste.length) return null;
+  return liste.slice().sort((a,b) => {
+    const t = (b.tidspunkt || '').localeCompare(a.tidspunkt || '');
+    if(t) return t;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  })[0];
+}
+function aktivSjaforNullstillingFor(vehicleId){
+  const n = aktivSjaforManuellNullstilling && aktivSjaforManuellNullstilling[vehicleId];
+  if(!n || n.dato !== todayISO() || !n.at) return null;
+  return n;
+}
+function aktivSjaforErManueltNullstilt(vehicleId, kontroll){
+  const n = aktivSjaforNullstillingFor(vehicleId);
+  if(!n) return false;
+  const kontrollIso = kontrollSidenIso(kontroll);
+  const kontrollMs = kontrollIso ? new Date(kontrollIso).getTime() : NaN;
+  const nullMs = new Date(n.at).getTime();
+  if(isNaN(nullMs)) return true;
+  if(isNaN(kontrollMs)) return true;
+  return nullMs >= kontrollMs;
+}
+function aktivSjaforFeltEtterNullstilling(vehicleId, sidenDato){
+  const n = aktivSjaforNullstillingFor(vehicleId);
+  if(!n || !sidenDato) return false;
+  const nullMs = new Date(n.at).getTime();
+  if(isNaN(nullMs)) return false;
+  return sidenDato.getTime() >= nullMs;
+}
+async function lastAktivSjaforManuellNullstilling(){
+  try{
+    const raw = await window.storage.get(AKTIV_SJAFOR_NULLSTILL_KEY, true);
+    const parsed = raw && raw.value ? JSON.parse(raw.value) : {};
+    aktivSjaforManuellNullstilling = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    const idag = todayISO();
+    Object.keys(aktivSjaforManuellNullstilling).forEach(id => {
+      if(!aktivSjaforManuellNullstilling[id] || aktivSjaforManuellNullstilling[id].dato !== idag)
+        delete aktivSjaforManuellNullstilling[id];
+    });
+  }catch(e){
+    console.error('[lastAktivSjaforManuellNullstilling] Lesefeil', e);
+  }
+}
+async function saveAktivSjaforManuellNullstilling(){
+  try{
+    await window.storage.set(AKTIV_SJAFOR_NULLSTILL_KEY, JSON.stringify(aktivSjaforManuellNullstilling), true);
+  }catch(e){
+    console.error('[saveAktivSjaforManuellNullstilling] Lagring feilet', e);
+    throw e;
+  }
+}
+async function fjernAktivSjaforManuellNullstilling(vehicleId){
+  if(!vehicleId || !aktivSjaforManuellNullstilling[vehicleId]) return;
+  delete aktivSjaforManuellNullstilling[vehicleId];
+  try{ await saveAktivSjaforManuellNullstilling(); }
+  catch(e){ /* visningen følger kontrollhistorikken uansett */ }
+}
+async function gjenopprettAktiveSjaforerFraKontrollhistorikk(){
+  if(_gjenopprettAktiveSjaforerPagar) return false;
+  if(!Array.isArray(vehicles) || !Array.isArray(kontroller)) return false;
+  if(typeof vehiclesSkrivingTillatt === 'function' && !vehiclesSkrivingTillatt().ok) return false;
+  let endret = false;
+  const snapshot = JSON.parse(JSON.stringify(vehicles));
+  vehicles.forEach(v => {
+    const siste = sisteGyldigeKontrollIdag(v.id);
+    if(!siste || !(siste.sjafor || '').trim()) return;
+    if(aktivSjaforErManueltNullstilt(v.id, siste)) return;
+    const feltNavn = (v.aktivSjafor || '').trim();
+    const sidenDato = v.aktivSjaforSiden ? new Date(v.aktivSjaforSiden) : null;
+    const feltGyldig = !!feltNavn && sidenDato && !isNaN(sidenDato.getTime()) && isoDateForOperationalDay(sidenDato) === todayISO();
+    const kontrollIso = kontrollSidenIso(siste);
+    const kontrollMs = kontrollIso ? new Date(kontrollIso).getTime() : NaN;
+    if(feltGyldig && !isNaN(kontrollMs) && sidenDato.getTime() >= kontrollMs) return;
+    const navn = siste.sjafor.trim();
+    if(feltGyldig && feltNavn.toLowerCase() === navn.toLowerCase()) return;
+    v.aktivSjafor = navn;
+    v.aktivSjaforSiden = kontrollIso || new Date().toISOString();
+    endret = true;
+  });
+  if(!endret) return false;
+  _gjenopprettAktiveSjaforerPagar = true;
+  try{
+    await saveVehiclesOrThrow();
+    if(loaded && typeof formInProgress === 'function' && !formInProgress()) render();
+    return true;
+  }catch(e){
+    vehicles.length = 0; Array.prototype.push.apply(vehicles, snapshot);
+    console.error('[gjenopprettAktiveSjaforerFraKontrollhistorikk] Lagring feilet — ruller tilbake lokalt', e);
+    return false;
+  }finally{
+    _gjenopprettAktiveSjaforerPagar = false;
+  }
+}
+function kjorGjenopprettAktiveSjaforer(){
+  return gjenopprettAktiveSjaforerFraKontrollhistorikk().catch(e =>
+    console.error('[gjenopprettAktiveSjaforerFraKontrollhistorikk] Feilet', e));
+}
+// Auto-reset (14:50 per bil) må kjøre FØR gjenoppretting — ellers kan siste skriving
+// tømme feltet etter at kontrollhistorikken nettopp fylte det. Visningen leser uansett
+// siste kontroll live; dette holder Airtable i samsvar.
+function etterAktivSjaforInngang(){
+  return handhevAktivSjaforAutoReset()
+    .catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e))
+    .then(() => kjorGjenopprettAktiveSjaforer());
+}
 // ================= Aktiv sjåfør: ÉN skriver =================
 // `settAktivSjafor()` er nå det ENESTE stedet i appen som TILDELER v.aktivSjafor/
-// v.aktivSjaforSiden. Innholdet er FLYTTET UENDRET ut av startBilokt() — samme
-// kryss-bil-utsjekking («én sjåfør, én aktiv biløkt»), samme feltskriving, samme
-// saveVehicles(). De tre kallerne under legger kun til sitt eget, ekstra steg:
+// v.aktivSjaforSiden. Prioritet 65: kryss-bil-utsjekking er fjernet — aktiv sjåfør
+// følger siste kontroll per bil, så samme navn kan stå aktiv på flere biler samme dag.
+// De tre kallerne under legger kun til sitt eget, ekstra steg:
 //  startBilokt() → + lokal enhets-sesjon (sjåførmodus) = biløkt
 //  settAktivSjaforForKontroll() → ingenting ekstra (kontroll fra administrasjonen)
 //  overforAktivSjafor() → ingenting ekstra (👤 Ny sjåfør på Min Bil)
-// Nullstilling skjer fortsatt kun i avsluttBilokt(), ryddOppBiloktDagskille() og — nytt —
-// et manuelt admin-trykk (nullstillAktivSjaforManuelt(), Bilinformasjon).
-// Returnerer navnet på en ev. ANNEN bil samme sjåfør ble sjekket ut av, slik at
-// den som kaller kan gjøre kryss-bil-utsjekkingen synlig (uten blokkerende alert).
+// Nullstilling av visningen skjer ved operativt dagskille (ryddOppBiloktDagskille) og
+// administratorens manuelle trykk (nullstillAktivSjaforManuelt). Returnerer tom streng
+// (beholder kallernes gamle returverdi uten å tømme andre biler).
 //
 // KORRIGERT KRAV: aktivSjaforSiden skal beholde sitt OPPRINNELIGE tidsstempel når SAMME
 // sjåfør kontrollerer SAMME bil på nytt samme operative dag ("Ahmed kl. 07:12, igjen kl.
@@ -3108,13 +3255,6 @@ function vehicleSisteSjafor(vehicleId){
 // kontroll, uansett om sjåføren var uendret.
 async function settAktivSjafor(vehicleId, navn){
   const navnTrim = (navn || '').trim();
-  let utsjekketFra = '';
-  vehicles.forEach(v => {
-    if(v.id !== vehicleId && navnTrim && v.aktivSjafor && v.aktivSjafor.trim().toLowerCase() === navnTrim.toLowerCase()){
-      utsjekketFra = vehicleLabel(v);
-      v.aktivSjafor = ''; v.aktivSjaforSiden = '';
-    }
-  });
   const v = vehicles.find(x => x.id === vehicleId);
   if(v){
     // isNaN-vakt: se vehicleAktivSjafor() — samme krasjrisiko på en ugyldig lagret
@@ -3127,12 +3267,12 @@ async function settAktivSjafor(vehicleId, navn){
     if(!sammeSjaforSammeOperativeDag) v.aktivSjaforSiden = new Date().toISOString();
   }
   await saveVehicles();
-  return utsjekketFra;
+  if(navnTrim) await fjernAktivSjaforManuellNullstilling(vehicleId);
+  return '';
 }
-// Starter en biløkt for `navn` på `vehicleId`. Én sjåfør kan kun ha én aktiv biløkt —
-// en ev. annen aktiv biløkt samme sjåfør har på en annen bil avsluttes automatisk.
-// UENDRET oppførsel: tildelingen skjer nå via settAktivSjafor(), og denne funksjonen
-// står igjen med det som er unikt for sjåførmodus — den lokale enhets-sesjonen.
+// Starter en biløkt for `navn` på `vehicleId`. Tildelingen skjer via settAktivSjafor();
+// denne funksjonen står igjen med det som er unikt for sjåførmodus — den lokale
+// enhets-sesjonen. Én enhet peker fortsatt bare på én aktiv bil lokalt.
 async function startBilokt(vehicleId, navn){
   const utsjekketFra = await settAktivSjafor(vehicleId, navn);
   driverActiveVehicleId = vehicleId;
@@ -3235,13 +3375,18 @@ async function nullstillAktivSjaforManuelt(vehicleId){
   const v = vehicles.find(x => x.id === vehicleId);
   if(!v || !vehicleAktivSjafor(v.id)) return;
   if(!krevVehiclesSkriving('Å nullstille aktiv sjåfør')) return;
-  if(!confirm(`Nullstille aktiv sjåfør (${v.aktivSjafor}) på ${vehicleLabel(v)}?`)) return;
+  if(!confirm(`Nullstille aktiv sjåfør (${vehicleAktivSjafor(v.id)}) på ${vehicleLabel(v)}?`)) return;
   const forrigeSjafor = v.aktivSjafor; const forrigeSiden = v.aktivSjaforSiden;
+  const forrigeNullstilling = aktivSjaforManuellNullstilling[vehicleId];
   v.aktivSjafor = ''; v.aktivSjaforSiden = '';
+  aktivSjaforManuellNullstilling[vehicleId] = {dato: todayISO(), at: new Date().toISOString()};
   try{
     await saveVehiclesOrThrow();
+    await saveAktivSjaforManuellNullstilling();
   }catch(e){
     v.aktivSjafor = forrigeSjafor; v.aktivSjaforSiden = forrigeSiden;
+    if(forrigeNullstilling) aktivSjaforManuellNullstilling[vehicleId] = forrigeNullstilling;
+    else delete aktivSjaforManuellNullstilling[vehicleId];
     console.error('[nullstillAktivSjaforManuelt] Lagring feilet — rullet tilbake', e);
     if(!(e && (e.blokkertAvSperre || e.blokkertAvVakt))){
       alert('Kunne ikke nullstille aktiv sjåfør. Ingenting er endret — prøv igjen.');
@@ -3358,13 +3503,13 @@ document.addEventListener('visibilitychange', () => {
     handhevOperativtDogn({rerender:true});
     // Prioritet 72.1: samme inngangspunkt-mønster for stille km-avviksretting.
     if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
-    if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+    if(loaded) etterAktivSjaforInngang();
   }
 });
 window.addEventListener('pageshow', () => {
   handhevOperativtDogn({rerender:true});
   if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
-  if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+  if(loaded) etterAktivSjaforInngang();
 });
 
 // ================= Prioritet 61: Daglig systemkontroll (sjåfører) =================
@@ -3888,6 +4033,9 @@ function attachOptimaliseringListeners(){
 async function lastAirtableDataNaa(){
   await Promise.all(AIRTABLE_LIVE_NOKLER.map(k => reloadOne(k)));
   sisteVellykkedeSynkTidspunkt = new Date().toISOString();
+  await lastAktivSjaforManuellNullstilling();
+  await handhevOperativtDogn();
+  await etterAktivSjaforInngang();
 }
 async function synkroniserAirtableNaa(){
   if(optimaliseringOpptatt) return;
@@ -6103,7 +6251,7 @@ function oppstartApne(tilSkjerm){
     // Prioritet 72.1: rett ev. små, historiske km-avvik (< KM_HOPP_GRENSE) stille ved
     // oppstart — se synkroniserSmaKmAvvik().
     synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
-    handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+    etterAktivSjaforInngang();
     if(!redusert){
       app.classList.add('oppstart-inn');
       setTimeout(() => app.classList.remove('oppstart-inn'), 300);
@@ -6279,6 +6427,7 @@ async function loadAll(){
   // (oppstartApne() tegner først etter at loadAll() er ferdig). Feiler aldri oppstarten —
   // status ('mangler'/'korrupt'/'lesefeil') gjør at Dashboard i stedet ber om konfigurering.
   await lastOperativGrunnlag();
+  await lastAktivSjaforManuellNullstilling();
   try{
     const au = await window.storage.get('admin-users', true);
     adminUsers = au && au.value ? JSON.parse(au.value) : [];
@@ -6325,6 +6474,7 @@ async function loadAll(){
     // avgjør hvilken skjerm denne enheten skal starte på.
     sisteKjenteOperativeDag = todayISO();
     await ryddOppBiloktDagskille();
+    await gjenopprettAktiveSjaforerFraKontrollhistorikk();
     loadDriverLocalSession();
     if(driverActiveVehicleId && vehicleAktivSjafor(driverActiveVehicleId)){
       driverScreen = 'min-bil';
@@ -6337,7 +6487,8 @@ async function loadAll(){
     // opprydding her også, slik at biløkter fra en tidligere operativ dag ikke blir
     // stående i Airtable selv om ingen sjåfør åpner appen før driftskoordinator gjør det.
     sisteKjenteOperativeDag = todayISO();
-    ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
+    await ryddOppBiloktDagskille().catch(e => console.error('[ryddOppBiloktDagskille] Feilet', e));
+    await gjenopprettAktiveSjaforerFraKontrollhistorikk().catch(e => console.error('[gjenopprettAktiveSjaforerFraKontrollhistorikk] Feilet', e));
   }
   // Prioritet 69: loaded/subscribeLiveSync/render/runDatabaseCheck er flyttet uendret
   // inn i oppstartApne(), som kjøres først når oppstartsskjermen har godkjent åpning.
@@ -6428,7 +6579,8 @@ function _lagBatchetLiveSyncHandler(){
     // Prioritet 72.1: samme runde er også et naturlig sted å rette små km-avvik i
     // nyinnlest data — se synkroniserSmaKmAvvik().
     await synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
-    await handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+    await lastAktivSjaforManuellNullstilling();
+    await etterAktivSjaforInngang();
     if(formInProgress()) return;
     render();
   };
@@ -7642,7 +7794,7 @@ function goTo(scr, vehicleId, _isBack){
   if(loaded) handhevOperativtDogn().catch(e => console.error('[handhevOperativtDogn] Feilet', e));
   // Prioritet 72.1: samme inngangspunkt for stille km-avviksretting (se synkroniserSmaKmAvvik()).
   if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
-  if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
+  if(loaded) etterAktivSjaforInngang();
 }
 // Universell "← Tilbake": går til stedet brukeren faktisk kom fra. Faller tilbake til
 // Dashboard (eller en oppgitt fallback-skjerm) dersom historikken er tom, f.eks. ved
@@ -11737,9 +11889,8 @@ function attachDriverMinBilListeners(){
       render();
       return;
     }
-    const utsjekketFra = await overforAktivSjafor(driverActiveVehicleId, navn);
-    minBilNySjaforMsg = '✅ Bilen er overført til ' + navn + '.'
-      + (utsjekketFra ? ' ' + navn + ' var allerede aktiv sjåfør på ' + utsjekketFra + ' — den bilen er derfor sjekket ut (én sjåfør, én aktiv bil).' : '');
+    await overforAktivSjafor(driverActiveVehicleId, navn);
+    minBilNySjaforMsg = '✅ Bilen er overført til ' + navn + '.';
     render();
   }));
   const sjekkUtBtn = document.getElementById('mb-sjekk-ut-btn');
@@ -12668,11 +12819,17 @@ function dashboardBeregning(){
 // Prioritet 57: banneret er nå to kolonner — VENSTRE = kontrollstatus (denne funksjonen, uendret
 // innhold og logikk fra Prioritet 50/52/53, kun uten egen .panel-ramme) og HØYRE = «Neste
 // verkstedtime» (dashBannerVerkstedHtml()). Rammen bygges av dashOperativBannerHtml() under.
+function operativAktiveCount(){
+  const t = operativGrunnlagTilstand();
+  if(!t.ok) return vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
+  return t.biler.filter(v => !!vehicleAktivSjafor(v.id)).length;
+}
 function dashOperativBannerVenstreHtml(d){
   const opIdag = operativKontrollStatusIdag();
   const meta = `<div class="dash-banner-meta">${fmtDateTime(todayISO(), nowTimeOslo())}${weatherData ? ' · ' + weatherData.ikon + ' ' + weatherData.temp + '°C i Larvik' : ''}</div>`;
   const skille = '<span class="skille" aria-hidden="true">•</span>';
-  const aktiveTekst = `${luc('truck')} <b>${d.hDriftCount}</b> ${d.hDriftCount === 1 ? 'aktiv' : 'aktive'}`;
+  const aktiveN = operativAktiveCount();
+  const aktiveTekst = `${luc('truck')} <b>${aktiveN}</b> ${aktiveN === 1 ? 'aktiv' : 'aktive'}`;
   const aktiveFilterKnapp = '<button type="button" class="p38-lenke" data-goto-biloversikt-filter="har-aktiv-sjafor">Se hvilke →</button>';
   // Prioritet 53: uten et gyldig grunnlag vises ALDRI en prosent — verken 0 % eller et
   // beregnet tall. Banneret ber i stedet om konfigurering (mangler/ugyldig/ingen gyldige biler)
