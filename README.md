@@ -97,7 +97,7 @@ Prosjektet bruker ikke Android-app, APK, TWA, Netlify eller Vercel.
 5. Legg Base ID og token i `airtable-config.js`.
 6. Kontroller at appikonene ligger i `icons/` med filnavnene som brukes av manifestene og `sw.js`.
 7. Publiser prosjektet på GitHub Pages.
-8. Åpne **Innstillinger → Database status** og bekreft at filversjon, synkronisering og Airtable-skjema er godkjent.
+8. Åpne **Innstillinger → Optimaliseringer → Airtable** og bekreft at filversjon, synkronisering og Airtable-skjema er godkjent.
 
 ## Oppdatering
 
@@ -110,7 +110,7 @@ Ved endringer i filer som inngår i app-skallet:
 
 1. Øk `CACHE_VERSION` i `sw.js`.
 2. Publiser filene på nytt.
-3. Bruk **Oppdater app** under Systeminnstillinger for å hente en frisk versjon.
+3. Bruk **Oppdater app** under Innstillinger → Optimaliseringer → App for å hente en frisk versjon.
 
 Oppdater også relevant dokumentasjon etter endringen:
 

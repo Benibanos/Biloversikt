@@ -46,7 +46,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 - **Regel (permanent versjonsløsning, Prioritet 36):** øk BÅDE `?v=`-tallet
   på script-taggen i `index.html`/`kontroll.html` OG `versjon`-verdien i
   `storage.airtable.js` samtidig ved enhver fremtidig endring i filen.
-  Database status (Innstillinger → ⚙️ Systeminnstillinger, Prioritet 45)
+  Optimaliseringer → Airtable (Innstillinger, Prioritet 64; tidligere Database status)
   leser "forventet versjon" AUTOMATISK fra `?v=`-parameteren — det finnes
   ingen egen, tredje `FORVENTET_VERSJON`-konstant å huske å oppdatere. Se
   CLAUDE.md, "Versjonskontroll (permanent løsning)", for full detalj.
@@ -132,7 +132,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 **Prioritet 59 — krav før idriftsettelse:** opprett de to kolonnene over i `WorkshopAppointments` FØR denne versjonen
 (`storage.airtable.js` v2.21.0, `?v=2.21.0`) tas i bruk. Alle `LIST_TABLES`-felt skrives ved hver skriving, så uten
 kolonnene vil HVER lagring av verkstedtimer feile (ikke bare dekkskift). Alternativ: Innstillinger → Systeminnstillinger →
-Database status → «Synkroniser Airtable» oppretter manglende kolonner automatisk.
+Optimaliseringer → Airtable → «Synkroniser nå» oppretter manglende kolonner automatisk.
 
 ### DriverChecks (app-nøkkel: `kontroller`)
 
@@ -376,8 +376,8 @@ Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
 Registrert i `LIST_TABLES.vehicles` i `storage.airtable.js` SAMTIDIG som
 feltet tas i bruk i `index.html` (feltregelen). Opprettes automatisk i
-Airtable av «🔄 Synkroniser Airtable» i Innstillinger → ⚙️ Systeminnstillinger
-→ 📡 Database status (krever `schema.bases:write`). Eksisterende kjøretøy
+Airtable av «Synkroniser nå» i Innstillinger → Optimaliseringer → Airtable
+(krever `schema.bases:write`). Eksisterende kjøretøy
 får tom verdi inntil den fylles ut — ingen migrering nødvendig, ingen
 eksisterende felt endret eller fjernet.
 
@@ -433,12 +433,12 @@ stabiliseringsoppgavens omfang ("gjør minst mulig kodeendring for å oppnå
 målet") og er derfor ikke gjort her. Ingen kodeendring er utført for Del 11
 — kun denne avklaringen/dokumentasjonen.
 
-## 8. Database status — automatisk skjemasjekk (Innstillinger)
+## 8. Optimaliseringer → Airtable — automatisk skjemasjekk (Innstillinger)
 
 `EXPECTED_SCHEMA` bygges automatisk fra `LIST_TABLES` (pluss egne,
-hardkodede oppføringer for `Settings` og `Photos`). Database status —
-Innstillinger → ⚙️ Systeminnstillinger → 📡 Database status (nestet dropdown
-siden Prioritet 45; funksjonaliteten selv er UENDRET) — viser:
+hardkodede oppføringer for `Settings` og `Photos`). Fanen Airtable under
+Innstillinger → Optimaliseringer (Prioritet 64; tidligere Database status
+i Systeminnstillinger) viser:
 
 1. Versjonsmerke (`storageAirtableInfo.versjon` vs. forventet versjon i
    `index.html`)
@@ -478,7 +478,7 @@ runden (se CLAUDE.md, "Dataintegritet" og "Service"):
 - Trygg JSON-parsing med eksplisitt `{ok, value}`/`{ok, error}`-status
   (Del 4, `parseJsonTrygt()`) hindrer at korrupt JSON stille blir til et
   tomt array — datasettet flagges i stedet som korrupt, lagring blokkeres,
-  og brukeren varsles tydelig i Innstillinger → Database status og ved
+  og brukeren varsles tydelig i Innstillinger → Optimaliseringer → Airtable og ved
   oppstart.
 - Rollback ved lagringsfeil (Del 3, `mutasjonMedRollback()`) hindrer at
   lokal tilstand kan vise en endring som faktisk ikke ble lagret i
@@ -536,12 +536,12 @@ prosjektet gikk over fra Firebase til Airtable:
 2. Generer en Airtable Personal Access Token med minst `data.records:read`,
    `data.records:write` og `schema.bases:read`-scope for basen (legg til
    `schema.bases:write` dersom automatisk oppretting av manglende felt via
-   Database status skal brukes, se seksjon 8).
+   Optimaliseringer → Airtable skal brukes, se seksjon 8).
 3. Fyll inn din egen `baseId` og token i `airtable-config.js` — bruk ALDRI
    ekte verdier i en delt/offentlig kopi av prosjektet (se "Sikkerhet" i
    CLAUDE.md).
-4. Åpne appen og bekreft i Innstillinger → ⚙️ Systeminnstillinger → 📡
-   Database status at versjonsmerket og skjemasjekken er grønne.
+4. Åpne appen og bekreft i Innstillinger → Optimaliseringer → Airtable
+   at versjonsmerket og skjemasjekken er grønne.
 
 ## 11. Prioritet 39 (Mobil Design 4.1) — ingen databaseendring
 
@@ -690,7 +690,7 @@ skjules i administratorvisningen etter 60 dager uten kontroll — så gamle `sys
 **Handling kreves i Airtable FØR denne versjonen tas i bruk:** legg til kolonnen **`SakGruppeId`** (enkel tekst / singleLineText) i tabellen **`AktiveSaker`**.
 
 Alle felt i `LIST_TABLES` skrives ved hver lagring; uten kolonnen avvises skrivingen av Airtable, og dermed feiler ALLE lagringer av aktive saker (også godta/avslå/utført). Kolonnen kan
-opprettes automatisk: Innstillinger → Systeminnstillinger → Database status → «Synkroniser Airtable» (krever `schema.bases:write` på tokenet), eller manuelt.
+opprettes automatisk: Innstillinger → Optimaliseringer → Airtable → «Synkroniser nå» (krever `schema.bases:write` på tokenet), eller manuelt.
 
 Feltet (`sakGruppeId` i appen, `storage.airtable.js` v2.23.0) er tomt for vanlige saker. Flerbilssaker («➕ Legg til bil» i Aktive saker) har ÉN saksrad per bil, og radene som hører sammen deler samme verdi.
 Ingen migrering av eksisterende saker er nødvendig (tomt = ikke del av en flerbilssak). Ingen annen tabell/kolonne er endret.

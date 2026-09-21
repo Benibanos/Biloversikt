@@ -1321,6 +1321,16 @@
   /* Del 1: fast minimumshøyde på innholdet som byttes, så siden under aldri flytter seg. */
   .dash-hov-innhold{min-height:420px;}
   .dash-sek .profil-tabs{margin-bottom:6px;}
+  /* Prioritet 64: Optimaliseringer (Innstillinger) — samme fanemønster som Hurtigoversikt. */
+  .opt-innhold{min-height:280px;}
+  .opt-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+  .opt-stat{padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius);background:var(--surface-2);}
+  .opt-stat .ov-label{margin-bottom:4px;}
+  .opt-stat .ov-value{font-size:15px;font-weight:700;}
+  .opt-felles{margin-top:16px;padding-top:14px;border-top:1.5px solid var(--line-soft);display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+  @media (max-width:640px){
+    .opt-stat-grid{grid-template-columns:1fr;}
+  }
   /* Bestill tjenester på Dashboard er ÉN rad med fire kort som ikke bytter innhold (kortene
      navigerer videre), så den trenger ingen minimumshøyde — en slik ville bare gitt tomrom.
      Den dedikerte Bestill tjenester-skjermen (2×2) har fast 260 px, så listen under ikke
@@ -2271,8 +2281,15 @@ function formInProgress(){
 // 'register' (👆 gruppe) > 'kategorier' | 'verksted'
 // 'layout' (👆 gruppe, uendret)
 // 'sjaforside' (👆 gruppe, ny)
-// 'system' (👆 gruppe) > 'admin' | 'database' | 'veileder'
+// 'system' (👆 gruppe) > 'admin' | 'veileder' | 'operativgrunnlag' …
+// Prioritet 64: 'optimaliseringer' (👆 gruppe) samler Oppdater app / Airtable / Systemkontroll.
 let settingsOpenSections = new Set();
+const OPT_FANE_ORDER = ['alle','app','airtable','sjaforer'];
+const OPT_FANE_LABEL = {alle:'Alle', app:'App', airtable:'Airtable', sjaforer:'Sjåfører'};
+const OPT_FANE_IKON = {alle:'layout-list', app:'refresh-cw', airtable:'database', sjaforer:'user-round'};
+let optimaliseringAktivFane = 'alle';
+let optimaliseringOpptatt = false;
+const AIRTABLE_LIVE_NOKLER = ['vehicles','damages','verkstedtimer','verksteder','kontroller','varsellys','dekkhistorikk','dekkkostnader','loftebordHistorikk','aktiveSaker','servicehistorikk','planlagteservicer','planlagtedekkskift','kommentarer','admin-users'];
 // 📞 Ringeliste: inline rediger-tilstand for ett kjøretøys telefonnummer
 // om gangen, samme mønster som editingVerkstedId.
 let editingTelefonVehicleId = null;
@@ -3367,7 +3384,7 @@ window.addEventListener('pageshow', () => {
 // Portvakten kjører FØR loadAll() — ingen data lastes og ingenting tegnes før kontrollen er
 // fullført. Registrering: enhetens status lagres lokalt (localStorage) og som ÉN Settings-rad
 // per enhet (`systemkontroll:<enhetId>`) som administrator leser i Innstillinger →
-// Systeminnstillinger → «Systemkontroll sjåfører». Én rad per enhet (ikke én felles blob):
+// Optimaliseringer → Sjåfører. Én rad per enhet (ikke én felles blob):
 // mange sjåfører kontrollerer samtidig om morgenen, og en felles blob ville tapt oppdateringer
 // (lesing + skriving på tvers av enheter er ikke atomisk). Ren logging — Airtable-lagringen kan
 // feile uten at sjåføren stoppes; den forsøkes på nytt ved neste åpning.
@@ -3642,7 +3659,7 @@ async function skPortvakt(){
   const s = skStatus();
   if(s && !s.remoteSynced) skSynk().catch(() => {});
 }
-// ---- Administratorvisning: Innstillinger → Systeminnstillinger → «Systemkontroll sjåfører» ----
+// ---- Administratorvisning: Innstillinger → Optimaliseringer → Sjåfører ----
 let skAdminStatus = 'ikke-lastet';   // 'ikke-lastet' | 'laster' | 'ok' | 'feil'
 let skAdminRader = [];
 let skAdminFeil = '';
@@ -3651,7 +3668,7 @@ async function skAdminLast(){
   try{
     if(!window.storage || typeof window.storage.list !== 'function') throw new Error('Lagringslaget støtter ikke listing.');
     const res = await window.storage.list(SK_SETTINGS_PREFIX, true);
-    if(!res || !Array.isArray(res.items)) throw new Error('storage.airtable.js mangler støtte for listing — oppdater appen (Innstillinger → Oppdater app).');
+    if(!res || !Array.isArray(res.items)) throw new Error('storage.airtable.js mangler støtte for listing — oppdater appen (Innstillinger → Optimaliseringer → App).');
     const rader = [];
     res.items.forEach(it => { try{ const r = JSON.parse(it.value); if(r && typeof r === 'object') rader.push(r); }catch(e){ /* hopp over korrupt rad */ } });
     rader.sort((a, b) => String(b.tidspunkt || '').localeCompare(String(a.tidspunkt || '')));
@@ -3660,7 +3677,9 @@ async function skAdminLast(){
     console.error('[skAdminLast] Feilet', e);
     skAdminStatus = 'feil'; skAdminFeil = (e && e.message) ? e.message : String(e);
   }
-  if(screen === 'innstillinger' && settingsOpenSections.has('systemkontroll')) render();
+  if(screen === 'innstillinger' && settingsOpenSections.has('optimaliseringer')){
+    if(!oppdaterOptimaliseringInnhold()) render();
+  }
 }
 function skAdminBodyHtml(){
   const knapp = `<button type="button" class="btn secondary small" data-sk-admin-oppdater>🔄 Oppdater</button>`;
@@ -3690,6 +3709,215 @@ function skAdminBodyHtml(){
     <div class="required-hint" style="margin-bottom:10px;"><b>${iDag} av ${synlige.length}</b> enheter er kontrollert i dag (gjeldende versjon: v${esc(String(window.APP_VERSION))}).${skjulte > 0 ? ` ${skjulte} enhet${skjulte === 1 ? '' : 'er'} uten kontroll på over ${SK_SYNLIG_DAGER} dager er skjult.` : ''}</div>
     ${rapportTabellHtml(['Sjåfør', 'Enhet', 'Versjon', 'Sist systemkontroll', 'Status'], rader)}
     <div style="margin-top:10px;">${knapp}</div>`;
+}
+function skAdminOppsummering(){
+  if(skAdminStatus === 'laster' || skAdminStatus === 'ikke-lastet') return {tekst:'Laster …', iDag:null, totalt:null};
+  if(skAdminStatus === 'feil') return {tekst:'Kunne ikke hentes', iDag:null, totalt:null};
+  const idag = todayISO();
+  const grense = isoDateOffset(idag, -SK_SYNLIG_DAGER);
+  const synlige = skAdminRader.filter(r => String(r.dato || '') >= grense);
+  const iDag = synlige.filter(r => r.dato === idag).length;
+  return {tekst:`${iDag} av ${synlige.length} kontrollert i dag`, iDag, totalt:synlige.length};
+}
+function appVersjonTekst(){
+  const app = window.APP_VERSION != null ? 'v' + String(window.APP_VERSION) : 'Ukjent';
+  const st = window.storageAirtableInfo && window.storageAirtableInfo.versjon;
+  return st ? app + ' · storage ' + st : app;
+}
+function airtableSynkOppsummering(){
+  const harFeil = synkFeilLogg.length > 0 || vehiclesLoadStatus === 'lesefeil';
+  const status = (pagaendeSkrivinger > 0 || dbStatusSyncing) ? 'pagar' : (harFeil ? 'feil' : 'ok');
+  const tider = [sisteVellykkedeSynkTidspunkt, vehiclesSisteOkLesing, dbStatusReport && dbStatusReport.checkedAt].filter(Boolean);
+  tider.sort();
+  const siste = tider.length ? tider[tider.length - 1] : null;
+  let sisteTekst = 'Ingen synk registrert denne økten';
+  if(siste){
+    try{ sisteTekst = new Date(siste).toLocaleString('nb-NO'); }catch(e){ sisteTekst = String(siste); }
+  }
+  const statusTekst = {ok:'🟢 Synkronisert', pagar:'🟡 Synkronisering pågår', feil:'🔴 Manglende synkronisering'}[status];
+  return {status, statusTekst, siste, sisteTekst};
+}
+function aapneOptimaliseringer(fane){
+  settingsOpenSections.add('optimaliseringer');
+  if(OPT_FANE_ORDER.includes(fane)) optimaliseringAktivFane = fane;
+  if(fane === 'sjaforer' || fane === 'alle' || !fane) skAdminLast();
+  goTo('innstillinger');
+}
+function oppdaterAppBodyHtml(){
+  return `
+    <div class="required-hint" style="margin-bottom:12px;">
+      Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
+      app-lageret (Service Worker/PWA-cache) — tilsvarende Ctrl+F5 på PC. Nyttig på mobil,
+      der en slik hurtigtast ikke finnes. <strong>Rører ikke</strong> bilregister, skader,
+      verkstedtimer, sjåførkontroller eller varsellamper — de ligger uansett kun i Airtable,
+      ikke i denne cachen.
+    </div>
+    <div class="ov-grid" style="margin-bottom:12px;">
+      <div class="ov-item"><span class="ov-label">Appversjon</span><span class="ov-value">${esc(appVersjonTekst())}</span></div>
+    </div>
+    <button class="btn secondary small" id="hard-refresh-btn">${luc('refresh-cw')} Oppdater app</button>
+    <div style="border-top:1.5px solid var(--line);padding-top:16px;margin-top:16px;">
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📲 Installer app</h4>
+      <div class="required-hint" style="margin-bottom:12px;">
+        Installer Bilpark som en app på denne enheten, for raskere tilgang og bruk uten nett.
+      </div>
+      ${pwaInstallStatusHtml()}
+    </div>
+  `;
+}
+function optimaliseringFaneInnholdHtml(fane){
+  if(fane === 'app') return oppdaterAppBodyHtml();
+  if(fane === 'airtable'){
+    const synk = airtableSynkOppsummering();
+    return `
+      <div class="opt-stat-grid" style="margin-bottom:14px;">
+        <div class="opt-stat"><span class="ov-label">Siste synk</span><span class="ov-value">${esc(synk.sisteTekst)}</span></div>
+        <div class="opt-stat"><span class="ov-label">Status</span><span class="ov-value">${esc(synk.statusTekst)}</span></div>
+      </div>
+      ${databaseStatusHtml()}`;
+  }
+  if(fane === 'sjaforer') return skAdminBodyHtml();
+  const synk = airtableSynkOppsummering();
+  const sk = skAdminOppsummering();
+  return `
+    <div class="opt-stat-grid">
+      <div class="opt-stat"><span class="ov-label">Appversjon</span><span class="ov-value">${esc(appVersjonTekst())}</span></div>
+      <div class="opt-stat"><span class="ov-label">Siste Airtable synk</span><span class="ov-value">${esc(synk.sisteTekst)}</span></div>
+      <div class="opt-stat"><span class="ov-label">Sjåfører kontrollert i dag</span><span class="ov-value">${esc(sk.tekst)}</span></div>
+    </div>
+    <div class="required-hint" style="margin-top:10px;">${esc(synk.statusTekst)}</div>
+  `;
+}
+function optimaliseringerBodyHtml(){
+  const fane = OPT_FANE_ORDER.includes(optimaliseringAktivFane) ? optimaliseringAktivFane : 'alle';
+  const opptatt = optimaliseringOpptatt || dbStatusSyncing;
+  return `
+    <section class="opt-sek" id="opt-sek">
+      <div class="required-hint" style="margin-bottom:12px;">Ett sted for appoppdatering, Airtable-synk og systemstatus.</div>
+      <div class="profil-tabs">
+        ${OPT_FANE_ORDER.map(f => `<button type="button" class="profil-tab ${fane===f?'active':''}" data-opt-fane="${f}">${luc(OPT_FANE_IKON[f])} ${OPT_FANE_LABEL[f]}</button>`).join('')}
+      </div>
+      <div class="opt-innhold">${optimaliseringFaneInnholdHtml(fane)}</div>
+      <div class="opt-felles">
+        <button type="button" class="btn" id="opt-synk-alt-btn" ${opptatt ? 'disabled' : ''}>${opptatt ? 'Oppdaterer …' : luc('refresh-cw') + ' Oppdater og synkroniser alt'}</button>
+        <div class="required-hint">Oppdaterer appen, synkroniserer Airtable, henter systemkontrollstatus og laster Dashboard på nytt.</div>
+      </div>
+    </section>`;
+}
+function oppdaterOptimaliseringInnhold(){
+  const sek = document.getElementById('opt-sek');
+  const innhold = sek ? sek.querySelector('.opt-innhold') : null;
+  if(!sek || !innhold) return false;
+  const fane = OPT_FANE_ORDER.includes(optimaliseringAktivFane) ? optimaliseringAktivFane : 'alle';
+  sek.querySelectorAll('[data-opt-fane]').forEach(b => b.classList.toggle('active', b.dataset.optFane === fane));
+  innhold.innerHTML = optimaliseringFaneInnholdHtml(fane);
+  const altBtn = document.getElementById('opt-synk-alt-btn');
+  if(altBtn){
+    const opptatt = optimaliseringOpptatt || dbStatusSyncing;
+    altBtn.disabled = opptatt;
+    altBtn.innerHTML = opptatt ? 'Oppdaterer …' : luc('refresh-cw') + ' Oppdater og synkroniser alt';
+  }
+  attachOptimaliseringInnholdListeners(innhold);
+  refreshLucideIcons();
+  return true;
+}
+function byttOptimaliseringFane(fane){
+  if(!OPT_FANE_ORDER.includes(fane)) return;
+  optimaliseringAktivFane = fane;
+  if(!oppdaterOptimaliseringInnhold()) render();
+  if(fane === 'sjaforer' || fane === 'alle') skAdminLast();
+}
+function attachOptimaliseringInnholdListeners(root){
+  if(!root) return;
+  const dbCheckBtn = root.querySelector('#db-check-btn');
+  if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); synkroniserAirtableNaa(); });
+  const hardRefreshBtn = root.querySelector('#hard-refresh-btn');
+  if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', (e) => { e.stopPropagation(); hardRefreshApp(); });
+  const pwaSettingsInstallBtn = root.querySelector('#pwa-settings-install-btn');
+  if(pwaSettingsInstallBtn) pwaSettingsInstallBtn.addEventListener('click', (e) => { e.stopPropagation(); installPwaNow(); });
+  root.querySelectorAll('[data-sk-admin-oppdater]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); skAdminLast(); }));
+  const seedInput = root.querySelector('#seed-bekreft');
+  const seedBtn = root.querySelector('#seed-btn');
+  if(seedInput && seedBtn){
+    const FRASE = 'OPPRETT STANDARD BILPARK';
+    seedInput.addEventListener('input', () => { seedBtn.disabled = seedInput.value.trim().toUpperCase() !== FRASE; });
+    seedBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if(seedInput.value.trim().toUpperCase() !== FRASE) return;
+      if(vehiclesLoadStatus !== 'bekreftet-tom'){
+        alert('⛔ Stoppet. Standard bilpark kan kun opprettes når en vellykket Airtable-lesing har bekreftet at registeret er tomt. Nåværende status: ' + vehiclesLoadStatus + '.');
+        return;
+      }
+      if(vehicles.length > 0){ alert('⛔ Stoppet. Registeret er ikke tomt.'); return; }
+      if(!confirm('Oppretter ' + DEFAULT_FLEET.length + ' kjøretøy i et tomt register.\n\nIngen eksisterende rader slettes.\n\nFortsette?')) return;
+      seedBtn.disabled = true;
+      const nye = DEFAULT_FLEET.map(row => ({
+        id: uid(), bilnummer: row.bilnummer, regnr: row.regnr, merke: row.merke,
+        modell: '', arsmodell: '', kategori: row.kategori, status: 'ok',
+        dekk: '', km: '', loyvenummer: '', hasPhoto: false
+      }));
+      const forrige = vehicles;
+      vehicles = nye;
+      vehiclesAdminSeedingGodkjent = true;
+      try{
+        await saveVehiclesOrThrow();
+        vehiclesLoadStatus = 'lastet';
+        vehiclesSisteOkLesing = new Date().toISOString();
+        alert('✅ ' + nye.length + ' kjøretøy opprettet. Fyll inn km, løyvenummer og øvrige felt på hver bil.');
+      }catch(err){
+        vehicles = forrige;
+        console.error('[seeding] Feilet', err);
+        alert('⛔ Kunne ikke opprette standard bilpark: ' + (err && err.message ? err.message : 'ukjent feil') + '\n\nIngenting er skrevet.');
+      }finally{
+        vehiclesAdminSeedingGodkjent = false;
+        render();
+      }
+    });
+  }
+}
+function attachOptimaliseringListeners(){
+  document.querySelectorAll('[data-opt-fane]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    byttOptimaliseringFane(el.dataset.optFane);
+  }));
+  const altBtn = document.getElementById('opt-synk-alt-btn');
+  if(altBtn) altBtn.addEventListener('click', (e) => { e.stopPropagation(); oppdaterOgSynkroniserAlt(); });
+  const innhold = document.querySelector('#opt-sek .opt-innhold');
+  attachOptimaliseringInnholdListeners(innhold);
+}
+async function lastAirtableDataNaa(){
+  await Promise.all(AIRTABLE_LIVE_NOKLER.map(k => reloadOne(k)));
+  sisteVellykkedeSynkTidspunkt = new Date().toISOString();
+}
+async function synkroniserAirtableNaa(){
+  if(optimaliseringOpptatt) return;
+  optimaliseringOpptatt = true;
+  render();
+  try{
+    await runDatabaseSync();
+    await lastAirtableDataNaa();
+  }catch(e){
+    console.error('[synkroniserAirtableNaa] Feilet', e);
+    alert('Kunne ikke synkronisere Airtable: ' + ((e && e.message) ? e.message : String(e)));
+  }finally{
+    optimaliseringOpptatt = false;
+    render();
+  }
+}
+async function oppdaterOgSynkroniserAlt(){
+  if(optimaliseringOpptatt) return;
+  if(!confirm('Oppdaterer appen, synkroniserer Airtable og henter systemkontrollstatus. Appen lastes deretter på nytt. Fortsette?')) return;
+  optimaliseringOpptatt = true;
+  render();
+  try{
+    await runDatabaseSync();
+    await lastAirtableDataNaa();
+    await skAdminLast();
+  }catch(e){
+    console.error('[oppdaterOgSynkroniserAlt] Synk feilet', e);
+    alert('Synkronisering feilet: ' + ((e && e.message) ? e.message : String(e)) + '\n\nAppen oppdateres likevel.');
+  }
+  await hardRefreshApp({bekreft:false});
 }
 
 // ---- Værmelding (Larvik) ----
@@ -4247,7 +4475,8 @@ function layoutRegistrerAlle(){
   sd('innstillinger', 'register', {label:'Register', ikon:'package', collapsible:'settings', std:{collapsed:true}});
   sd('innstillinger', 'layout', {label:'Layout Editor', ikon:'layout-dashboard', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Layout Editor kan ikke skjules — her gjenoppretter du standardlayout.'});
   sd('innstillinger', 'sjaforside', {label:'Sjåførside', ikon:'user-round', collapsible:'settings', std:{collapsed:true}});
-  sd('innstillinger', 'system', {label:'Systeminnstillinger', ikon:'settings', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Systeminnstillinger (database, synkroniseringsfeil, brukere) kan ikke skjules.'});
+  sd('innstillinger', 'optimaliseringer', {label:'Optimaliseringer', ikon:'refresh-cw', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Optimaliseringer (appoppdatering, Airtable-synk og systemstatus) kan ikke skjules.'});
+  sd('innstillinger', 'system', {label:'Systeminnstillinger', ikon:'settings', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Systeminnstillinger (brukere, kontrollgrunnlag, nullstill) kan ikke skjules.'});
 
   layoutBygDefaults();
 }
@@ -5793,11 +6022,11 @@ function oppstartMeldingHtml(){
   }
   if(oppstartFase === 'stoppet'){
     const f = vehiclesSisteLesefeil || {};
-    const dbKnapp = driverMode ? '' : `<button type="button" class="btn secondary" data-oppstart="dbstatus">🗄️ Database status</button>`;
+    const dbKnapp = driverMode ? '' : `<button type="button" class="btn secondary" data-oppstart="dbstatus">🗄️ Optimaliseringer</button>`;
     return `<div class="oppstart-melding" role="alert">
       <p style="color:var(--red);font-weight:700;">⚠️ Kjøretøyregisteret kunne ikke lastes</p>
       <p>Bilpark har stoppet automatisk lagring for å beskytte dataene.</p>
-      <p>${driverMode ? 'Prøv på nytt om litt. Si fra til driftskoordinator hvis feilen står.' : 'Prøv på nytt eller sjekk Database status.'}</p>
+      <p>${driverMode ? 'Prøv på nytt om litt. Si fra til driftskoordinator hvis feilen står.' : 'Prøv på nytt eller sjekk Optimaliseringer → Airtable.'}</p>
       ${f.melding ? `<div class="teknisk">Teknisk årsak: ${esc(f.melding)}</div>` : ''}
       ${f.tidspunkt ? `<div class="teknisk">Tidspunkt: ${esc(new Date(f.tidspunkt).toLocaleString('nb-NO'))}</div>` : ''}
       <div class="oppstart-knapper">${reload}${dbKnapp}</div>
@@ -5842,7 +6071,11 @@ function renderOppstart(){
     const h = b.getAttribute('data-oppstart');
     if(h === 'reload'){ b.disabled = true; b.textContent = 'Laster…'; window.location.reload(); }
     else if(h === 'apne') oppstartApne();
-    else if(h === 'dbstatus') oppstartApne('innstillinger');
+    else if(h === 'dbstatus'){
+      settingsOpenSections.add('optimaliseringer');
+      optimaliseringAktivFane = 'airtable';
+      oppstartApne('innstillinger');
+    }
   }));
 }
 // Kalles én gang, helt til slutt i loadAll(). Avgjør om appen kan åpnes.
@@ -5878,7 +6111,7 @@ function oppstartApne(tilSkjerm){
     if(isAdmin){
       // Stille bakgrunnssjekk av Airtable-strukturen ved oppstart — varsler kun
       // (se banneret på Dashboard), oppretter ALDRI noe automatisk uten at en
-      // administrator selv trykker «🔄 Synkroniser Airtable» i Innstillinger.
+      // administrator selv trykker «Synkroniser nå» i Optimaliseringer → Airtable.
       runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
     }
   };
@@ -5979,7 +6212,7 @@ async function loadAll(){
   const korrupteVedOppstart = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
   if(korrupteVedOppstart.length > 0){
     const korrupteNavn = {servicehistorikk:'servicehistorikk', planlagteservicer:'planlagte servicer', planlagtedekkskift:'planlagte dekkskift', kommentarer:'kommentarer'};
-    alert('⚠️ Kunne ikke lese ' + korrupteVedOppstart.map(k => korrupteNavn[k] || k).join(' og ') + ' — dataene ser ut til å være korrupte.\n\nFor å unngå å slette eksisterende historikk er lagring til dette/disse datasettet(ene) blokkert. Se Innstillinger → Database status for detaljer, og ikke registrer mer service/dekkskift før dette er undersøkt.');
+    alert('⚠️ Kunne ikke lese ' + korrupteVedOppstart.map(k => korrupteNavn[k] || k).join(' og ') + ' — dataene ser ut til å være korrupte.\n\nFor å unngå å slette eksisterende historikk er lagring til dette/disse datasettet(ene) blokkert. Se Innstillinger → Optimaliseringer → Airtable for detaljer, og ikke registrer mer service/dekkskift før dette er undersøkt.');
   }
   oppstartMerk('aktiveSaker', 'laster');
   try{ const ak = await window.storage.get('aktiveSaker', true); aktiveSaker = ak && ak.value ? JSON.parse(ak.value) : []; oppstartMerk('aktiveSaker', 'lastet'); }
@@ -6338,13 +6571,13 @@ async function saveServicehistorikk(){
   // korrupt denne økten — se parseJsonTrygt()/loadAll(). Å likevel lagre ville skrevet
   // det (tomme) fallback-arrayet tilbake til Airtable og slettet historikken permanent.
   if(_korrupteDatasett.servicehistorikk){
-    throw new Error('Servicehistorikk kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere service før dette er undersøkt (se Database status i Innstillinger).');
+    throw new Error('Servicehistorikk kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere service før dette er undersøkt (se Optimaliseringer → Airtable i Innstillinger).');
   }
   await window.storage.set('servicehistorikk', JSON.stringify(servicehistorikk), true);
 }
 async function savePlanlagteServicer(){
   if(_korrupteDatasett.planlagteservicer){
-    throw new Error('Planlagte servicer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt service før dette er undersøkt (se Database status i Innstillinger).');
+    throw new Error('Planlagte servicer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt service før dette er undersøkt (se Optimaliseringer → Airtable i Innstillinger).');
   }
   await window.storage.set('planlagteservicer', JSON.stringify(planlagteServicer), true);
 }
@@ -6352,7 +6585,7 @@ async function savePlanlagteServicer(){
 // blokkering) som saveServicehistorikk()/savePlanlagteServicer() over.
 async function saveKommentarer(){
   if(_korrupteDatasett.kommentarer){
-    throw new Error('Kommentarer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å legge til kommentarer før dette er undersøkt (se Database status i Innstillinger).');
+    throw new Error('Kommentarer kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å legge til kommentarer før dette er undersøkt (se Optimaliseringer → Airtable i Innstillinger).');
   }
   await window.storage.set('kommentarer', JSON.stringify(kommentarer), true);
 }
@@ -6361,7 +6594,7 @@ async function saveKommentarer(){
 // ingen ny Airtable-tabell/LIST_TABLES-registrering nødvendig.
 async function savePlanlagteDekkskift(){
   if(_korrupteDatasett.planlagtedekkskift){
-    throw new Error('Planlagte dekkskift kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt dekkskift før dette er undersøkt (se Database status i Innstillinger).');
+    throw new Error('Planlagte dekkskift kunne ikke lagres: datasettet ble lastet inn som korrupt denne økten. Last siden på nytt (F5) — dersom problemet vedvarer, ikke fortsett å registrere planlagt dekkskift før dette er undersøkt (se Optimaliseringer → Airtable i Innstillinger).');
   }
   await window.storage.set('planlagtedekkskift', JSON.stringify(planlagteDekkskift), true);
 }
@@ -7382,7 +7615,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'rapporter'){ showRapportFilterMeny = false; }
   // Prioritet 53: ulagrede valg i Operativ kontrollgrunnlag følger ikke med ut av Innstillinger,
   // og «Se hvilke»-listen i Dashboard-banneret starter lukket ved neste besøk.
-  if(scr !== 'innstillinger'){ operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false; }
+  if(scr !== 'innstillinger'){ operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false; optimaliseringAktivFane = 'alle'; }
   if(scr !== 'dashboard'){ dashKontrollListeApen = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -9867,7 +10100,7 @@ async function submitKontroll(ev){
       // skal derfor IKKE prøve på nytt før noen har sett på dataene.
       feilHtml = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
         '<br><b>MULIG DELVIS LAGRING:</b> ' + esc(ikkeReversert.join(', ')) + ' kunne heller ikke tilbakestilles i Airtable. Deler av registreringen kan derfor ligge lagret.' +
-        '<br><b>Ikke send inn på nytt.</b> Et nytt forsøk kan gi dobbeltregistrering. Undersøk først Database status i Innstillinger, eller kontrollhistorikken på bilen, og kontakt administrator. Ta skjermbilde av denne meldingen.';
+        '<br><b>Ikke send inn på nytt.</b> Et nytt forsøk kan gi dobbeltregistrering. Undersøk først Optimaliseringer → Airtable i Innstillinger, eller kontrollhistorikken på bilen, og kontakt administrator. Ta skjermbilde av denne meldingen.';
     }
     msgEl.innerHTML = feilHtml;
     render();
@@ -10660,7 +10893,7 @@ function renderVehiclesLesefeilPanel(){
         ${f.tidspunkt ? `<div class="kt-history-meta" style="margin:0 0 16px;">Tidspunkt: ${esc(new Date(f.tidspunkt).toLocaleString('nb-NO'))}</div>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button type="button" class="btn" id="lesefeil-prov-igjen">🔄 Prøv å laste på nytt</button>
-          <button type="button" class="btn secondary" id="lesefeil-db-status">🗄️ Åpne Database status</button>
+          <button type="button" class="btn secondary" id="lesefeil-db-status">🗄️ Åpne Optimaliseringer</button>
         </div>
       </div>
     </div>`;
@@ -10676,7 +10909,7 @@ function render(){
       render();
     });
     const d = document.getElementById('lesefeil-db-status');
-    if(d) d.addEventListener('click', () => goTo('innstillinger'));
+    if(d) d.addEventListener('click', () => aapneOptimaliseringer('airtable'));
     return;
   }
   if(driverMode){ renderDriverShell(); return; }
@@ -12878,12 +13111,7 @@ function attachDashboardListeners(){
   }));
   const dbBanner = document.getElementById('db-warning-banner');
   if(dbBanner) dbBanner.addEventListener('click', () => {
-    // «Database status» ligger nå NESTET inne i «⚙️ Systeminnstillinger»
-    // (se renderInnstillinger()) — begge nivåer må åpnes, ellers ligger riktig innhold
-    // skjult bak en lukket ytre gruppe selv om 'database' i seg selv står som åpen.
-    settingsOpenSections.add('system');
-    settingsOpenSections.add('database');
-    goTo('innstillinger');
+    aapneOptimaliseringer('airtable');
   });
   // Bilparkhelse-chipsene i toppfeltet
   // (kun vist på Dashboard) rutet tidligere til en inline Biloversikt-akkordion på
@@ -18575,8 +18803,8 @@ function toggleSettingsSection(key){
   if(key === 'operativgrunnlag' && !settingsOpenSections.has(key)){
     operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false;
   }
-  // Prioritet 61: «Systemkontroll sjåfører» henter status fra Airtable hver gang seksjonen åpnes.
-  if(key === 'systemkontroll' && settingsOpenSections.has(key)) skAdminLast();
+  // Prioritet 64: Optimaliseringer henter sjåførkontroll-status når Alle/Sjåfører vises.
+  if(key === 'optimaliseringer' && settingsOpenSections.has(key)) skAdminLast();
   render();
 }
 function settingsAccordionRow(key, title, count, bodyHtml){
@@ -18848,6 +19076,180 @@ async function runDatabaseSync(){
   dbStatusSyncing = false;
   render();
 }
+function databaseStatusHtml(){
+    // Faktisk synkroniseringsstatus — NY (se instrumenterStorageForSynkStatus() over).
+    // Skiller seg bevisst fra skjema-sjekken under: dette er øyeblikksbilde av ekte
+    // lagringsforsøk (lyktes/feilet/pågår akkurat nå), ikke Airtable-strukturen.
+    const harFeil = synkFeilLogg.length > 0;
+    const status = pagaendeSkrivinger > 0 ? 'pagar' : (harFeil ? 'feil' : 'ok');
+    const statusHtml = {
+      ok: `<span style="color:var(--green);">🟢 Synkronisert</span>`,
+      pagar: `<span style="color:var(--amber);">🟡 Synkronisering pågår (${pagaendeSkrivinger})</span>`,
+      feil: `<span style="color:var(--red);">🔴 Manglende synkronisering</span>`
+    }[status];
+    // korrupte Settings-datasett (servicehistorikk/
+    // planlagteservicer) — vises ØVERST, over synk-status, siden dette er alvorligere:
+    // skriving til det aktuelle datasettet er aktivt blokkert (se saveServicehistorikk()/
+    // savePlanlagteServicer()) helt til siden lastes på nytt med gyldige data.
+    const korrupteNokler = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
+    const korruptStatusHtml = korrupteNokler.length > 0 ? `
+      <div class="panel" style="margin-bottom:16px;border-color:var(--red);background:var(--red-soft);">
+        <div class="ov-label" style="margin-bottom:8px;font-size:15px;color:var(--red);">🔴 Korrupt datasett — lagring blokkert</div>
+        <div class="required-hint" style="color:var(--red);font-weight:600;">${korrupteNokler.map(k => ({servicehistorikk:'Servicehistorikk', planlagteservicer:'Planlagte servicer', planlagtedekkskift:'Planlagte dekkskift'}[k] || k)).join(', ')} kunne ikke leses (ugyldig data i Airtable). For å unngå å slette eksisterende historikk er ALL lagring til dette datasettet blokkert inntil videre.</div>
+        <div class="required-hint" style="margin-top:8px;">Last siden på nytt (F5) og prøv igjen. Vedvarer problemet, må Settings-raden med denne nøkkelen undersøkes direkte i Airtable FØR noen registrerer mer service/dekkskift — ikke fortsett å bruke funksjonen i mellomtiden.</div>
+      </div>` : '';
+    const synkStatusHtml = `
+      <div class="panel" style="margin-bottom:16px;${status==='feil' ? 'border-color:var(--red);background:var(--red-soft);' : (status==='pagar' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+        <div class="ov-label" style="margin-bottom:8px;font-size:15px;">${statusHtml}</div>
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Feilede lagringer</span><span class="ov-value">${synkFeilLogg.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Sist synkronisert</span><span class="ov-value">${sisteVellykkedeSynkTidspunkt ? new Date(sisteVellykkedeSynkTidspunkt).toLocaleString('nb-NO') : 'Ingen vellykket lagring registrert ennå denne økten'}</span></div>
+        </div>
+        ${harFeil ? `
+        <div class="ov-label" style="margin:14px 0 8px;">Feilede lagringer (nyeste først)</div>
+        <ul class="dmg-simple-list">
+          ${synkFeilLogg.map(f => `<li><span class="dmg-simple-main">${new Date(f.tidspunkt).toLocaleString('nb-NO')} — ${esc(f.nokkel)}: ${esc(f.feilmelding)}</span></li>`).join('')}
+        </ul>
+        <div class="required-hint" style="margin-top:10px;">Dette er reelle, mislykkede lagringsforsøk — appen viste en feilmelding med én gang dette skjedde. Registreringen ble ikke lagret til Airtable og bør gjøres på nytt.</div>` : `<div class="required-hint" style="margin-top:10px;">Ingen mislykkede lagringsforsøk registrert denne økten.</div>`}
+      </div>
+    `;
+    // Filversjonssjekk — avslører DIREKTE om den kjørende storage.airtable.js faktisk
+    // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
+    // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
+    //
+    // RETTET (falsk versjonsfeil): FORVENTET_VERSJON var tidligere en TREDJE, manuelt
+    // vedlikeholdt konstant her — i tillegg til ?v=-parameteren på selve <script>-taggen
+    // og "versjon"-verdien i storage.airtable.js selv. Når de to sistnevnte ble oppdatert
+    // sammen (slik CLAUDE.md allerede krever, se "VED ENDRING I storage.airtable.js"),
+    // men denne tredje konstanten ble glemt, viste Database Status en FALSK rød
+    // versjonsfeil selv om riktig fil faktisk kjørte. Permanent løsning: les "forventet
+    // versjon" DIREKTE fra ?v=-parameteren på den faktiske <script>-taggen i DOM-en, i
+    // stedet for en egen konstant — den finnes allerede, oppdateres allerede av samme
+    // rutine, og kan dermed aldri komme ut av synk med seg selv igjen.
+    const lesForventetStorageVersjonFraScriptTag = () => {
+      const tag = document.querySelector('script[src*="storage.airtable.js"]');
+      const m = tag ? /[?&]v=([^&"']+)/.exec(tag.getAttribute('src') || '') : null;
+      if(!m) return null;
+      const raw = decodeURIComponent(m[1]);
+      // window.storageAirtableInfo.versjon rapporteres alltid med "v"-prefiks (f.eks.
+      // "v2.8.1"), mens ?v=-parameteren av historiske årsaker er uten (f.eks. "2.8.1") —
+      // normalisert likt her slik at sammenligningen under blir korrekt uansett.
+      return raw.startsWith('v') ? raw : 'v' + raw;
+    };
+    const FORVENTET_VERSJON = lesForventetStorageVersjonFraScriptTag();
+    const info = window.storageAirtableInfo;
+    const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
+    // Kan kun bekrefte faktisk match dersom BÅDE info og en lesbar ?v=-parameter finnes —
+    // manglende ?v=-parameter er en egen, distinkt feiltilstand (se "kanIkkeBekrefte" under),
+    // ikke en automatisk "feil versjon"-konklusjon (det ville vært en gjetning).
+    const kanIkkeBekrefte = !!(info && !FORVENTET_VERSJON);
+    const riktigVersjonKjorer = !!(info && FORVENTET_VERSJON && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
+    const visVersjonSomFeil = !!info && !kanIkkeBekrefte && !riktigVersjonKjorer;
+    const forventetVersjonVisning = FORVENTET_VERSJON || 'Ukjent (fant ingen ?v=-parameter på script-taggen)';
+    // ---- Prioritet 66.9 DEL 10 + manuell seeding ----
+    const vSkriv = vehiclesSkrivingTillatt();
+    const vaktLogg = window.storageVaktLogg || [];
+    const statusFarge = {lastet:'var(--green)', 'bekreftet-tom':'var(--amber)', lesefeil:'var(--red)',
+                         'ikke-startet':'var(--muted)', laster:'var(--muted)'}[vehiclesLoadStatus] || 'var(--muted)';
+    const kanSeede = vehiclesLoadStatus === 'bekreftet-tom';
+    const vehiclesStatusHtml = `
+      <div class="panel" style="margin-bottom:16px;${vehiclesLoadStatus === 'lesefeil' ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
+        <div class="ov-label" style="margin-bottom:8px;">Kjøretøyregister (Vehicles) — datasikring</div>
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Lastestatus</span><span class="ov-value" style="color:${statusFarge};font-weight:700;">${esc(vehiclesLoadStatus)}</span></div>
+          <div class="ov-item"><span class="ov-label">Antall rader</span><span class="ov-value">${vehicles.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste vellykkede lesing</span><span class="ov-value">${vehiclesSisteOkLesing ? esc(new Date(vehiclesSisteOkLesing).toLocaleString('nb-NO')) : '–'}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste lesefeil</span><span class="ov-value" style="${vehiclesSisteLesefeil ? 'color:var(--red);' : ''}">${vehiclesSisteLesefeil ? esc(new Date(vehiclesSisteLesefeil.tidspunkt).toLocaleString('nb-NO')) : 'Ingen'}</span></div>
+          <div class="ov-item"><span class="ov-label">Skriving tillatt</span><span class="ov-value" style="color:${vSkriv.ok ? 'var(--green)' : 'var(--red)'};font-weight:700;">${vSkriv.ok ? '🟢 Ja' : '🔴 Nei'}</span></div>
+          <div class="ov-item"><span class="ov-label">Masseslettingssperre</span><span class="ov-value" style="color:var(--green);font-weight:700;">🟢 Aktiv</span></div>
+          <div class="ov-item"><span class="ov-label">Blokkerte operasjoner (denne økten)</span><span class="ov-value">${vehiclesBlokkerteSlettinger + vaktLogg.length}</span></div>
+          <div class="ov-item"><span class="ov-label">Siste blokkerte operasjon</span><span class="ov-value" style="font-size:12.5px;">${vehiclesSisteBlokkering ? esc(vehiclesSisteBlokkering.arsak) : (vaktLogg[0] ? esc(vaktLogg[0].arsak) : 'Ingen')}</span></div>
+        </div>
+        ${!vSkriv.ok ? `<div class="required-hint" style="margin-top:10px;color:var(--red);font-weight:600;">${esc(vSkriv.arsak)}</div>` : ''}
+        ${vaktLogg.length ? `<div class="ov-label" style="margin:14px 0 6px;">Blokkert av masseslettingssperren</div>
+        <ul class="dmg-simple-list kompakt">${vaktLogg.slice(0,5).map(l => `<li><span class="dmg-simple-main">${esc(new Date(l.tidspunkt).toLocaleString('nb-NO'))} · ${esc(l.ressurs)}<br>${esc(l.arsak)}<br>Plan: ${l.plan.eksisterende} eksisterende → ${l.plan.opprettes} nye, ${l.plan.oppdateres} oppdatert, ${l.plan.slettes} slettet</span></li>`).join('')}</ul>` : ''}
+        ${kanSeede ? `
+        <div class="required-hint" style="margin-top:14px;background:var(--amber-soft);color:var(--ink);padding:12px 14px;border-radius:10px;">
+          <b>Kjøretøyregisteret er bekreftet tomt.</b><br>
+          Du kan opprette standard bilpark (${DEFAULT_FLEET.length} kjøretøy: ${esc(DEFAULT_FLEET.map(r => r.bilnummer).join(', '))}).
+          Ingen eksisterende rader slettes. Skriv bekreftelsesteksten nedenfor for å aktivere knappen.
+          <div class="field" style="margin-top:10px;"><label>Skriv: OPPRETT STANDARD BILPARK</label>
+            <input id="seed-bekreft" type="text" autocomplete="off" placeholder="OPPRETT STANDARD BILPARK"></div>
+          <button type="button" class="btn small" id="seed-btn" disabled>🚐 Opprett standard bilpark</button>
+        </div>` : ''}
+      </div>
+    `;
+    const versjonHtml = vehiclesStatusHtml + `
+      <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
+        <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage.airtable.js)</div>
+        ${!info ? `
+        <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 storage.airtable.js er ikke lastet eller rapporterer ikke versjon.</div>
+        <div class="ov-grid" style="margin-top:10px;">
+          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value">Ukjent (window.storageAirtableInfo mangler)</span></div>
+          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
+        </div>` : `
+        <div class="ov-grid">
+          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value" style="font-weight:700;">${esc(info.versjon)}</span></div>
+          <div class="ov-item"><span class="ov-label">Bygget</span><span class="ov-value">${esc(info.bygget || '–')}</span></div>
+          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
+          <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei'}</span></div>
+        </div>`}
+        ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage.airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter «Oppdater app» i Optimaliseringer for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
+        ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Kunne ikke lese forventet storage-versjon fra script-taggen. Sjekk at script-taggen har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
+      </div>
+    `;
+    if(!dbStatusReport){
+      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+        <div class="required-hint" style="margin-bottom:14px;">
+          Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
+          lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
+          trykker knappen under første gang (deretter sjekkes det også stille ved hver oppstart).
+        </div>
+        <button class="btn small" id="db-check-btn">${luc('refresh-cw')} Synkroniser nå</button>
+      `;
+    }
+    if(!dbStatusReport.ok){
+      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+        <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
+          ⚠️ ${esc(dbStatusReport.error)}
+        </div>
+        <button class="btn small" id="db-check-btn">${luc('refresh-cw')} Prøv igjen</button>
+      `;
+    }
+    const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
+    const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
+    const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
+    return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+      <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
+      <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
+        ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
+        &nbsp;·&nbsp;
+        ${totaltManglendeFelt === 0 ? '✅ Felt OK' : `⚠️ Mangler ${totaltManglendeFelt} felt`}
+        ${dbStatusReport.checkedAt ? `<br><span style="font-weight:400;">Sist sjekket: ${new Date(dbStatusReport.checkedAt).toLocaleString('nb-NO')}</span>` : ''}
+      </div>
+      ${altOk ? '' : `
+      <div class="dmg-list" style="margin-bottom:14px;">
+        ${dbStatusReport.tables.filter(t => !t.exists || t.missingFields.length > 0).map(t => `
+          <div class="dmg-item">
+            <div class="dmg-top">
+              <div class="dmg-text">
+                <div class="main">${t.exists ? '⚠️' : '❌'} ${esc(t.name)}${!t.exists ? ' (tabellen finnes ikke)' : ''}</div>
+                ${t.missingFields.length > 0 ? `<div class="desc">Mangler felt: ${t.missingFields.map(esc).join(', ')}</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`}
+      ${dbStatusSyncLog ? `
+      <div class="required-hint" style="margin-bottom:14px;">
+        <strong>Siste synkronisering:</strong><br>
+        ${dbStatusSyncLog.length === 0 ? 'Ingenting å opprette.' : dbStatusSyncLog.map(r => `${r.ok ? '✅' : '❌'} ${esc(r.table)}${r.field ? ' — ' + esc(r.field) : ''}${!r.ok ? ' (' + esc(r.error) + ')' : ''}`).join('<br>')}
+      </div>` : ''}
+      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : luc('refresh-cw') + ' Synkroniser nå'}</button>
+      ${!altOk ? `<div class="required-hint" style="margin-top:10px;">Krever at token har scopet «schema.bases:write» for å opprette manglende tabeller/felt automatisk — se AIRTABLE_MIGRATION.md. Uten det scopet vil du få en tydelig feilmelding per felt i stedet, og må opprette dem manuelt.</div>` : ''}
+    `;
+}
+
 function renderInnstillinger(){
   layoutInnstillingerStart();   // Prioritet 60: starttilstand (åpen/lukket) fra layouten, første gang siden vises
   const adminBody = `
@@ -19041,36 +19443,15 @@ function renderInnstillinger(){
 
   // Tema flyttet til 🎨 Layout Editor, «Lenke for sjåfører» flyttet (som
   // «✅ Sjåførkontroll») til 👤 Sjåførside, og «Om appen» flyttet inn i 📘 Informasjonsveileder
-  // under — se sjaforsideBody/veilederBody. systemBody inneholder nå kun de reelle
-  // systemhandlingene, pluss enhetsvisning-bryteren som tidligere lå som to separate
-  // menypunkter (se attachDeviceOverrideToggleListener()).
+  // under — se sjaforsideBody/veilederBody. Oppdater app / Database status / Systemkontroll
+  // ligger i Optimaliseringer (Prioritet 64). systemBody inneholder nå de øvrige
+  // systemhandlingene, pluss enhetsvisning-bryteren.
   const enhetsvisningBody = `
     <div class="required-hint" style="margin-bottom:12px;">
       Tving frem mobil- eller desktopvisningen uavhengig av skjermbredde — nyttig for å
       forhåndsvise den andre visningen på denne enheten. Gjelder kun denne enheten/nettleseren.
     </div>
     <button class="btn secondary small" id="settings-device-override-btn">${currentUiExperience()==='desktop' ? '' + luc("smartphone") + 'Bytt til Mobil-visning' : '' + luc("monitor") + 'Bytt til Desktop-visning'}</button>
-  `;
-  const oppdaterAppBody = `
-    <div class="required-hint" style="margin-bottom:12px;">
-      Tvinger appen til å hente nyeste versjon av alle sidefiler og tømmer det lokale
-      app-lageret (Service Worker/PWA-cache) — tilsvarende Ctrl+F5 på PC. Nyttig på mobil,
-      der en slik hurtigtast ikke finnes. <strong>Rører ikke</strong> bilregister, skader,
-      verkstedtimer, sjåførkontroller eller varsellamper — de ligger uansett kun i Airtable,
-      ikke i denne cachen.
-    </div>
-    <button class="btn secondary small" id="hard-refresh-btn">🔄 Oppdater app</button>
-    <!-- diskret installasjonsstatus/-knapp, se pwaInstallStatusHtml()/installPwaNow()
-         lenger ned i denne filen. Leser samme delte deferredInstallPrompt-variabel som
-         toppbanneret (#pwa-install-bar) bruker, slik at det finnes ETT sted å trykke "Installer"
-         selv om banneret er lukket/aldri vist. -->
-    <div style="border-top:1.5px solid var(--line);padding-top:16px;margin-top:16px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:10px;">📲 Installer app</h4>
-      <div class="required-hint" style="margin-bottom:12px;">
-        Installer Bilpark som en app på denne enheten, for raskere tilgang og bruk uten nett.
-      </div>
-      ${pwaInstallStatusHtml()}
-    </div>
   `;
   const nullstillBody = `
     <div class="required-hint" style="margin-bottom:12px;">
@@ -19104,179 +19485,6 @@ function renderInnstillinger(){
     </div>
   `;
 
-  const databaseBody = (() => {
-    // Faktisk synkroniseringsstatus — NY (se instrumenterStorageForSynkStatus() over).
-    // Skiller seg bevisst fra skjema-sjekken under: dette er øyeblikksbilde av ekte
-    // lagringsforsøk (lyktes/feilet/pågår akkurat nå), ikke Airtable-strukturen.
-    const harFeil = synkFeilLogg.length > 0;
-    const status = pagaendeSkrivinger > 0 ? 'pagar' : (harFeil ? 'feil' : 'ok');
-    const statusHtml = {
-      ok: `<span style="color:var(--green);">🟢 Synkronisert</span>`,
-      pagar: `<span style="color:var(--amber);">🟡 Synkronisering pågår (${pagaendeSkrivinger})</span>`,
-      feil: `<span style="color:var(--red);">🔴 Manglende synkronisering</span>`
-    }[status];
-    // korrupte Settings-datasett (servicehistorikk/
-    // planlagteservicer) — vises ØVERST, over synk-status, siden dette er alvorligere:
-    // skriving til det aktuelle datasettet er aktivt blokkert (se saveServicehistorikk()/
-    // savePlanlagteServicer()) helt til siden lastes på nytt med gyldige data.
-    const korrupteNokler = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
-    const korruptStatusHtml = korrupteNokler.length > 0 ? `
-      <div class="panel" style="margin-bottom:16px;border-color:var(--red);background:var(--red-soft);">
-        <div class="ov-label" style="margin-bottom:8px;font-size:15px;color:var(--red);">🔴 Korrupt datasett — lagring blokkert</div>
-        <div class="required-hint" style="color:var(--red);font-weight:600;">${korrupteNokler.map(k => ({servicehistorikk:'Servicehistorikk', planlagteservicer:'Planlagte servicer', planlagtedekkskift:'Planlagte dekkskift'}[k] || k)).join(', ')} kunne ikke leses (ugyldig data i Airtable). For å unngå å slette eksisterende historikk er ALL lagring til dette datasettet blokkert inntil videre.</div>
-        <div class="required-hint" style="margin-top:8px;">Last siden på nytt (F5) og prøv igjen. Vedvarer problemet, må Settings-raden med denne nøkkelen undersøkes direkte i Airtable FØR noen registrerer mer service/dekkskift — ikke fortsett å bruke funksjonen i mellomtiden.</div>
-      </div>` : '';
-    const synkStatusHtml = `
-      <div class="panel" style="margin-bottom:16px;${status==='feil' ? 'border-color:var(--red);background:var(--red-soft);' : (status==='pagar' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
-        <div class="ov-label" style="margin-bottom:8px;font-size:15px;">${statusHtml}</div>
-        <div class="ov-grid">
-          <div class="ov-item"><span class="ov-label">Feilede lagringer</span><span class="ov-value">${synkFeilLogg.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Sist synkronisert</span><span class="ov-value">${sisteVellykkedeSynkTidspunkt ? new Date(sisteVellykkedeSynkTidspunkt).toLocaleString('nb-NO') : 'Ingen vellykket lagring registrert ennå denne økten'}</span></div>
-        </div>
-        ${harFeil ? `
-        <div class="ov-label" style="margin:14px 0 8px;">Feilede lagringer (nyeste først)</div>
-        <ul class="dmg-simple-list">
-          ${synkFeilLogg.map(f => `<li><span class="dmg-simple-main">${new Date(f.tidspunkt).toLocaleString('nb-NO')} — ${esc(f.nokkel)}: ${esc(f.feilmelding)}</span></li>`).join('')}
-        </ul>
-        <div class="required-hint" style="margin-top:10px;">Dette er reelle, mislykkede lagringsforsøk — appen viste en feilmelding med én gang dette skjedde. Registreringen ble ikke lagret til Airtable og bør gjøres på nytt.</div>` : `<div class="required-hint" style="margin-top:10px;">Ingen mislykkede lagringsforsøk registrert denne økten.</div>`}
-      </div>
-    `;
-    // Filversjonssjekk — avslører DIREKTE om den kjørende storage.airtable.js faktisk
-    // er den oppdaterte versjonen (med driftslag-feltet i Vehicles-mappingen), i stedet
-    // for å måtte gjette om en opplasting/service worker-cache faktisk slo gjennom.
-    //
-    // RETTET (falsk versjonsfeil): FORVENTET_VERSJON var tidligere en TREDJE, manuelt
-    // vedlikeholdt konstant her — i tillegg til ?v=-parameteren på selve <script>-taggen
-    // og "versjon"-verdien i storage.airtable.js selv. Når de to sistnevnte ble oppdatert
-    // sammen (slik CLAUDE.md allerede krever, se "VED ENDRING I storage.airtable.js"),
-    // men denne tredje konstanten ble glemt, viste Database Status en FALSK rød
-    // versjonsfeil selv om riktig fil faktisk kjørte. Permanent løsning: les "forventet
-    // versjon" DIREKTE fra ?v=-parameteren på den faktiske <script>-taggen i DOM-en, i
-    // stedet for en egen konstant — den finnes allerede, oppdateres allerede av samme
-    // rutine, og kan dermed aldri komme ut av synk med seg selv igjen.
-    const lesForventetStorageVersjonFraScriptTag = () => {
-      const tag = document.querySelector('script[src*="storage.airtable.js"]');
-      const m = tag ? /[?&]v=([^&"']+)/.exec(tag.getAttribute('src') || '') : null;
-      if(!m) return null;
-      const raw = decodeURIComponent(m[1]);
-      // window.storageAirtableInfo.versjon rapporteres alltid med "v"-prefiks (f.eks.
-      // "v2.8.1"), mens ?v=-parameteren av historiske årsaker er uten (f.eks. "2.8.1") —
-      // normalisert likt her slik at sammenligningen under blir korrekt uansett.
-      return raw.startsWith('v') ? raw : 'v' + raw;
-    };
-    const FORVENTET_VERSJON = lesForventetStorageVersjonFraScriptTag();
-    const info = window.storageAirtableInfo;
-    const harDriftslagFelt = !!(info && info.vehiclesFelt && info.vehiclesFelt.includes('driftslag'));
-    // Kan kun bekrefte faktisk match dersom BÅDE info og en lesbar ?v=-parameter finnes —
-    // manglende ?v=-parameter er en egen, distinkt feiltilstand (se "kanIkkeBekrefte" under),
-    // ikke en automatisk "feil versjon"-konklusjon (det ville vært en gjetning).
-    const kanIkkeBekrefte = !!(info && !FORVENTET_VERSJON);
-    const riktigVersjonKjorer = !!(info && FORVENTET_VERSJON && info.versjon === FORVENTET_VERSJON && harDriftslagFelt);
-    const visVersjonSomFeil = !!info && !kanIkkeBekrefte && !riktigVersjonKjorer;
-    const forventetVersjonVisning = FORVENTET_VERSJON || 'Ukjent (fant ingen ?v=-parameter på script-taggen)';
-    // ---- Prioritet 66.9 DEL 10 + manuell seeding ----
-    const vSkriv = vehiclesSkrivingTillatt();
-    const vaktLogg = window.storageVaktLogg || [];
-    const statusFarge = {lastet:'var(--green)', 'bekreftet-tom':'var(--amber)', lesefeil:'var(--red)',
-                         'ikke-startet':'var(--muted)', laster:'var(--muted)'}[vehiclesLoadStatus] || 'var(--muted)';
-    const kanSeede = vehiclesLoadStatus === 'bekreftet-tom';
-    const vehiclesStatusHtml = `
-      <div class="panel" style="margin-bottom:16px;${vehiclesLoadStatus === 'lesefeil' ? 'border-color:var(--red);background:var(--red-soft);' : ''}">
-        <div class="ov-label" style="margin-bottom:8px;">Kjøretøyregister (Vehicles) — datasikring</div>
-        <div class="ov-grid">
-          <div class="ov-item"><span class="ov-label">Lastestatus</span><span class="ov-value" style="color:${statusFarge};font-weight:700;">${esc(vehiclesLoadStatus)}</span></div>
-          <div class="ov-item"><span class="ov-label">Antall rader</span><span class="ov-value">${vehicles.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Siste vellykkede lesing</span><span class="ov-value">${vehiclesSisteOkLesing ? esc(new Date(vehiclesSisteOkLesing).toLocaleString('nb-NO')) : '–'}</span></div>
-          <div class="ov-item"><span class="ov-label">Siste lesefeil</span><span class="ov-value" style="${vehiclesSisteLesefeil ? 'color:var(--red);' : ''}">${vehiclesSisteLesefeil ? esc(new Date(vehiclesSisteLesefeil.tidspunkt).toLocaleString('nb-NO')) : 'Ingen'}</span></div>
-          <div class="ov-item"><span class="ov-label">Skriving tillatt</span><span class="ov-value" style="color:${vSkriv.ok ? 'var(--green)' : 'var(--red)'};font-weight:700;">${vSkriv.ok ? '🟢 Ja' : '🔴 Nei'}</span></div>
-          <div class="ov-item"><span class="ov-label">Masseslettingssperre</span><span class="ov-value" style="color:var(--green);font-weight:700;">🟢 Aktiv</span></div>
-          <div class="ov-item"><span class="ov-label">Blokkerte operasjoner (denne økten)</span><span class="ov-value">${vehiclesBlokkerteSlettinger + vaktLogg.length}</span></div>
-          <div class="ov-item"><span class="ov-label">Siste blokkerte operasjon</span><span class="ov-value" style="font-size:12.5px;">${vehiclesSisteBlokkering ? esc(vehiclesSisteBlokkering.arsak) : (vaktLogg[0] ? esc(vaktLogg[0].arsak) : 'Ingen')}</span></div>
-        </div>
-        ${!vSkriv.ok ? `<div class="required-hint" style="margin-top:10px;color:var(--red);font-weight:600;">${esc(vSkriv.arsak)}</div>` : ''}
-        ${vaktLogg.length ? `<div class="ov-label" style="margin:14px 0 6px;">Blokkert av masseslettingssperren</div>
-        <ul class="dmg-simple-list kompakt">${vaktLogg.slice(0,5).map(l => `<li><span class="dmg-simple-main">${esc(new Date(l.tidspunkt).toLocaleString('nb-NO'))} · ${esc(l.ressurs)}<br>${esc(l.arsak)}<br>Plan: ${l.plan.eksisterende} eksisterende → ${l.plan.opprettes} nye, ${l.plan.oppdateres} oppdatert, ${l.plan.slettes} slettet</span></li>`).join('')}</ul>` : ''}
-        ${kanSeede ? `
-        <div class="required-hint" style="margin-top:14px;background:var(--amber-soft);color:var(--ink);padding:12px 14px;border-radius:10px;">
-          <b>Kjøretøyregisteret er bekreftet tomt.</b><br>
-          Du kan opprette standard bilpark (${DEFAULT_FLEET.length} kjøretøy: ${esc(DEFAULT_FLEET.map(r => r.bilnummer).join(', '))}).
-          Ingen eksisterende rader slettes. Skriv bekreftelsesteksten nedenfor for å aktivere knappen.
-          <div class="field" style="margin-top:10px;"><label>Skriv: OPPRETT STANDARD BILPARK</label>
-            <input id="seed-bekreft" type="text" autocomplete="off" placeholder="OPPRETT STANDARD BILPARK"></div>
-          <button type="button" class="btn small" id="seed-btn" disabled>🚐 Opprett standard bilpark</button>
-        </div>` : ''}
-      </div>
-    `;
-    const versjonHtml = vehiclesStatusHtml + `
-      <div class="panel" style="margin-bottom:16px;${visVersjonSomFeil ? 'border-color:var(--red);background:var(--red-soft);' : (kanIkkeBekrefte ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
-        <div class="ov-label" style="margin-bottom:8px;">Kjørende fil-versjon (storage.airtable.js)</div>
-        ${!info ? `
-        <div class="required-hint" style="color:var(--red);font-weight:600;">🔴 storage.airtable.js er ikke lastet eller rapporterer ikke versjon.</div>
-        <div class="ov-grid" style="margin-top:10px;">
-          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value">Ukjent (window.storageAirtableInfo mangler)</span></div>
-          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
-        </div>` : `
-        <div class="ov-grid">
-          <div class="ov-item"><span class="ov-label">Storage Airtable</span><span class="ov-value" style="font-weight:700;">${esc(info.versjon)}</span></div>
-          <div class="ov-item"><span class="ov-label">Bygget</span><span class="ov-value">${esc(info.bygget || '–')}</span></div>
-          <div class="ov-item"><span class="ov-label">Appen forventer</span><span class="ov-value">${esc(forventetVersjonVisning)}</span></div>
-          <div class="ov-item"><span class="ov-label">Driftslag-felt kjent av filen?</span><span class="ov-value" style="${harDriftslagFelt ? 'color:var(--green);' : 'color:var(--red);'}font-weight:700;">${harDriftslagFelt ? '🟢 Ja' : '🔴 Nei'}</span></div>
-        </div>`}
-        ${visVersjonSomFeil ? `<div class="required-hint" style="margin-top:10px;color:var(--red);">Dette bekrefter rotårsaken: appen kjører en annen versjon av storage.airtable.js enn den ${esc(forventetVersjonVisning)} som index.html forventer (lest direkte fra ?v=-parameteren på script-taggen). Last opp den nyeste filen på nytt, og bruk deretter "Oppdater app" i Systeminnstillinger for å tvinge fram en frisk kopi (en eventuell service worker-cache kan ellers fortsette å servere den gamle filen selv etter ny opplasting).</div>` : ''}
-        ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Kunne ikke lese forventet storage-versjon fra script-taggen. Sjekk at script-taggen har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
-      </div>
-    `;
-    if(!dbStatusReport){
-      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
-        <div class="required-hint" style="margin-bottom:14px;">
-          Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
-          lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
-          trykker knappen under første gang (deretter sjekkes det også stille ved hver oppstart).
-        </div>
-        <button class="btn small" id="db-check-btn">🔄 Synkroniser Airtable</button>
-      `;
-    }
-    if(!dbStatusReport.ok){
-      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
-        <div class="required-hint" style="margin-bottom:14px;background:var(--red-soft);padding:10px 12px;border-radius:10px;color:var(--red);">
-          ⚠️ ${esc(dbStatusReport.error)}
-        </div>
-        <button class="btn small" id="db-check-btn">🔄 Prøv igjen</button>
-      `;
-    }
-    const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
-    const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
-    const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
-    return versjonHtml + korruptStatusHtml + synkStatusHtml + `
-      <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
-      <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
-        ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
-        &nbsp;·&nbsp;
-        ${totaltManglendeFelt === 0 ? '✅ Felt OK' : `⚠️ Mangler ${totaltManglendeFelt} felt`}
-        ${dbStatusReport.checkedAt ? `<br><span style="font-weight:400;">Sist sjekket: ${new Date(dbStatusReport.checkedAt).toLocaleString('nb-NO')}</span>` : ''}
-      </div>
-      ${altOk ? '' : `
-      <div class="dmg-list" style="margin-bottom:14px;">
-        ${dbStatusReport.tables.filter(t => !t.exists || t.missingFields.length > 0).map(t => `
-          <div class="dmg-item">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">${t.exists ? '⚠️' : '❌'} ${esc(t.name)}${!t.exists ? ' (tabellen finnes ikke)' : ''}</div>
-                ${t.missingFields.length > 0 ? `<div class="desc">Mangler felt: ${t.missingFields.map(esc).join(', ')}</div>` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>`}
-      ${dbStatusSyncLog ? `
-      <div class="required-hint" style="margin-bottom:14px;">
-        <strong>Siste synkronisering:</strong><br>
-        ${dbStatusSyncLog.length === 0 ? 'Ingenting å opprette.' : dbStatusSyncLog.map(r => `${r.ok ? '✅' : '❌'} ${esc(r.table)}${r.field ? ' — ' + esc(r.field) : ''}${!r.ok ? ' (' + esc(r.error) + ')' : ''}`).join('<br>')}
-      </div>` : ''}
-      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : '' + luc("refresh-cw") + 'Synkroniser Airtable'}</button>
-      ${!altOk ? `<div class="required-hint" style="margin-top:10px;">Krever at token har scopet «schema.bases:write» for å opprette manglende tabeller/felt automatisk — se AIRTABLE_MIGRATION.md. Uten det scopet vil du få en tydelig feilmelding per felt i stedet, og må opprette dem manuelt.</div>` : ''}
-    `;
-  })();
 
   // 🎨 Layout Editor. Prioritet 60: Layout Engine 2.0 — se layoutInnstillingerHtml()
   // og renderLayoutEditor() lenger opp i denne filen. Kun plassering/synlighet/størrelse/starttilstand; komponentenes eget innhold er
@@ -19360,19 +19568,12 @@ function renderInnstillinger(){
     ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
   `;
 
-  // ⚙️ Systeminnstillinger: nestet dropdown-gruppe med Oppdater app/Installer
-  // app, Database status, Administratorbrukere, Informasjonsveileder, Nullstill bilparkdata,
-  // pluss enhetsvisning-bryteren (tidligere to separate menypunkter, se
-  // attachDeviceOverrideToggleListener()).
-  // Prioritet 53: 🎯 Operativ kontrollgrunnlag. Innholdet bygges kun når seksjonen er åpen
-  // (bodyHtml evalueres ellers eagerly av settingsAccordionRow, og skjemaets kopi ville blitt
-  // opprettet for ingenting).
+  // ⚙️ Systeminnstillinger (Prioritet 64): Oppdater app / Database status / Systemkontroll
+  // er flyttet til Optimaliseringer. Her gjenstår kontrollgrunnlag, brukere, veileder,
+  // enhetsvisning og nullstill.
   const operativGrunnlagBody = settingsOpenSections.has('operativgrunnlag') ? operativGrunnlagBodyHtml() : '';
   const systemBody = `
-    ${settingsAccordionRow('oppdater', '🔄 Oppdater app', null, oppdaterAppBody)}
     ${settingsAccordionRow('operativgrunnlag', '🎯 Operativ kontrollgrunnlag', operativGrunnlagStatus === 'ok' ? operativGrunnlagBiler().length : null, operativGrunnlagBody)}
-    ${settingsAccordionRow('database', '📡 Database status', null, databaseBody)}
-    ${settingsAccordionRow('systemkontroll', '🛡️ Systemkontroll sjåfører', null, settingsOpenSections.has('systemkontroll') ? skAdminBodyHtml() : '')}
     ${settingsAccordionRow('admin', '👤 Administratorbrukere', adminUsers.length, adminBody)}
     ${settingsAccordionRow('veileder', '📘 Informasjonsveileder', null, veilederBody)}
     ${settingsAccordionRow('enhetsvisning', '📱🖥️ Enhetsvisning', null, enhetsvisningBody)}
@@ -19386,6 +19587,7 @@ function renderInnstillinger(){
         'innstillinger.register': settingsAccordionRow('register', '📦 Register', null, registerBody),
         'innstillinger.layout': settingsAccordionRow('layout', '🎨 Layout Editor', null, layoutBody),
         'innstillinger.sjaforside': settingsAccordionRow('sjaforside', '👤 Sjåførside', null, sjaforsideBody),
+        'innstillinger.optimaliseringer': settingsAccordionRow('optimaliseringer', '🔄 Optimaliseringer', null, settingsOpenSections.has('optimaliseringer') ? optimaliseringerBodyHtml() : ''),
         'innstillinger.system': settingsAccordionRow('system', '⚙️ Systeminnstillinger', null, systemBody)
       }})}
     </div>
@@ -19397,8 +19599,11 @@ function renderInnstillinger(){
 // utelukkende i Airtable og påvirkes ikke i det hele tatt av dette. Nyttig fordi mobile
 // nettlesere ikke har noen Ctrl+F5-snarvei, og installerte PWA-er kan sitte fast på en gammel,
 // cachet versjon av index.html/storage.airtable.js selv etter at nye filer er lastet opp.
-async function hardRefreshApp(){
-  if(!confirm('Appen vil oppdatere og laste inn nyeste versjon. Fortsette?')) return;
+async function hardRefreshApp(opts){
+  opts = opts || {};
+  if(opts.bekreft !== false){
+    if(!confirm('Appen vil oppdatere og laste inn nyeste versjon. Fortsette?')) return;
+  }
   try{
     if('serviceWorker' in navigator){
       const regs = await navigator.serviceWorker.getRegistrations();
@@ -19425,51 +19630,8 @@ async function hardRefreshApp(){
 function attachInnstillingerListeners(){
   document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
-  document.querySelectorAll('[data-sk-admin-oppdater]').forEach(el => el.addEventListener('click', () => { skAdminLast(); render(); }));
+  attachOptimaliseringListeners();
   attachOperativGrunnlagListeners();
-  // ---- Prioritet 66.9: manuell seeding (eneste vei til DEFAULT_FLEET) ----
-  // Kun administrator, kun når en VELLYKKET lesing har bekreftet null rader, aldri ved
-  // lesefeil, aldri som del av oppstart, og bare etter at bekreftelsesteksten er skrevet.
-  const seedInput = document.getElementById('seed-bekreft');
-  const seedBtn = document.getElementById('seed-btn');
-  if(seedInput && seedBtn){
-    const FRASE = 'OPPRETT STANDARD BILPARK';
-    seedInput.addEventListener('input', () => { seedBtn.disabled = seedInput.value.trim().toUpperCase() !== FRASE; });
-    seedBtn.addEventListener('click', async () => {
-      if(seedInput.value.trim().toUpperCase() !== FRASE) return;
-      if(vehiclesLoadStatus !== 'bekreftet-tom'){
-        alert('⛔ Stoppet. Standard bilpark kan kun opprettes når en vellykket Airtable-lesing har bekreftet at registeret er tomt. Nåværende status: ' + vehiclesLoadStatus + '.');
-        return;
-      }
-      if(vehicles.length > 0){ alert('⛔ Stoppet. Registeret er ikke tomt.'); return; }
-      if(!confirm('Oppretter ' + DEFAULT_FLEET.length + ' kjøretøy i et tomt register.\n\nIngen eksisterende rader slettes.\n\nFortsette?')) return;
-      seedBtn.disabled = true;
-      const nye = DEFAULT_FLEET.map(row => ({
-        id: uid(), bilnummer: row.bilnummer, regnr: row.regnr, merke: row.merke,
-        modell: '', arsmodell: '', kategori: row.kategori, status: 'ok',
-        dekk: '', km: '', loyvenummer: '', hasPhoto: false
-      }));
-      const forrige = vehicles;
-      vehicles = nye;
-      vehiclesAdminSeedingGodkjent = true;   // eneste sted dette settes
-      try{
-        await saveVehiclesOrThrow();
-        vehiclesLoadStatus = 'lastet';
-        vehiclesSisteOkLesing = new Date().toISOString();
-        alert('✅ ' + nye.length + ' kjøretøy opprettet. Fyll inn km, løyvenummer og øvrige felt på hver bil.');
-      }catch(e){
-        vehicles = forrige;
-        console.error('[seeding] Feilet', e);
-        alert('⛔ Kunne ikke opprette standard bilpark: ' + (e && e.message ? e.message : 'ukjent feil') + '\n\nIngenting er skrevet.');
-      }finally{
-        vehiclesAdminSeedingGodkjent = false;
-        render();
-      }
-    });
-  }
-
-  const dbCheckBtn = document.getElementById('db-check-btn');
-  if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); runDatabaseSync(); });
   document.querySelectorAll('input[name="theme-pref"]').forEach(el => el.addEventListener('change', (e) => {
     e.stopPropagation();
     saveThemePreference(e.target.value);
@@ -19549,12 +19711,6 @@ function attachInnstillingerListeners(){
   });
   const resetBtn = document.getElementById('reset-fleet-data-btn');
   if(resetBtn) resetBtn.addEventListener('click', resetFleetData);
-  const hardRefreshBtn = document.getElementById('hard-refresh-btn');
-  if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', hardRefreshApp);
-  // "📲 Installer app". Knappen finnes kun i DOM-en når pwaInstallStatusHtml()
-  // faktisk har et installasjonstilbud å vise (se funksjonen over i filen).
-  const pwaSettingsInstallBtn = document.getElementById('pwa-settings-install-btn');
-  if(pwaSettingsInstallBtn) pwaSettingsInstallBtn.addEventListener('click', (e) => { e.stopPropagation(); installPwaNow(); });
 
   // 👤 Sjåførside: «🚐 Min bil»-forhåndsvisning åpner sjåførens faktiske
   // inngangslenke i en ny fane (samme driverLink() som «✅ Sjåførkontroll»-lenken under) —

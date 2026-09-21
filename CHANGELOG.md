@@ -15,6 +15,20 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 64 — Samle oppdatering og synkronisering
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 64 (2026-09-21)».)
+
+1. **Ny seksjon Optimaliseringer** i Innstillinger samler Oppdater app, Database status og Systemkontroll sjåfører. Faner som Hurtigoversikt: Alle / App / Airtable / Sjåfører. Fanebytte uten full `render()`.
+2. **Alle:** appversjon, siste Airtable-synk, sjåfører kontrollert i dag. **App:** versjon + Oppdater app + PWA. **Airtable:** siste synk, status og den eksisterende diagnosen; knappen heter «Synkroniser nå». **Sjåfører:** uendret enhetstabell.
+3. **«Oppdater og synkroniser alt»** kjører skjemasynk, laster operative lister, henter systemkontrollstatus og gjør hard refresh (Dashboard etter omlasting).
+4. Layout-komponenten `innstillinger.optimaliseringer` kan ikke skjules. Dyplenker (lesefeil, skjemabanner, oppstart) peker hit. `storage.airtable.js` uendret.
+5. `CACHE_VERSION`/`APP_VERSION`/`version.json` 112 → 113; `kontroll.html` eksakt kopi.
+
+**Testet** i nettleser mot ekte Airtable (admininnlogging): Innstillinger → Optimaliseringer viser Alle/App/Airtable/Sjåfører; Alle viser v113, siste synk og «8 av 8 kontrollert i dag» pluss «Oppdater og synkroniser alt»; App har «Oppdater app» og PWA; Airtable har «Synkroniser nå» og skjemastatus OK; Sjåfører-tabellen viser enheter, versjoner (112/113) og status. Fanebytte uten full omlasting. **Ikke klikket** «Oppdater og synkroniser alt» / «Synkroniser nå» mot produksjon (hard refresh logger ut; skjemasynk skriver til Airtable).
+
+---
+
 ### Prioritet 63 — Dublettsikring og flerbilssaker
 
 (Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 63 (2026-09-21)».)
