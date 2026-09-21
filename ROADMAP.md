@@ -1,6 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-21 (Prioritet 60 — Layout Engine 2.0: ÉN felles layoutmotor med ett komponentregister (`LAYOUT_COMPONENTS`) og én versjonert Settings-konfigurasjon (`bilpark-layout-config-v2`) for Desktop Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene; utkast → Publiser med konfliktvern, sikkerhetskopi og standardfallback; kritiske HMS-komponenter er låst synlige. Ingen Airtable-endring. Testet mot mock-storage, ikke mot ekte Airtable). Før det: 2026-09-21 (Prioritet 56.1 — Kompakt bilvalg: sjåførens Velg bil bruker samme gruppekort som
+Sist oppdatert: 2026-09-21 (Prioritet 61 — Daglig systemkontroll for sjåfører: sperrende «Systemkontroll» med «Oppdater og fortsett» første gang sjåførappen åpnes på en enhet hver operative dag (04:00), hard refresh og versjonskontroll, lastVerifiedVersion/Date registreres og vises for administrator i Innstillinger; `version-check.js` fikk felles `hardRefresh()` som bevarer `?sjafor=1`; `storage.airtable.js` v2.22.0; ingen Airtable-endring; testet mot mock, ikke mot ekte GitHub Pages/service worker). Før det: 2026-09-21 (Prioritet 60 — Layout Engine 2.0: ÉN felles layoutmotor med ett komponentregister (`LAYOUT_COMPONENTS`) og én versjonert Settings-konfigurasjon (`bilpark-layout-config-v2`) for Desktop Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene; utkast → Publiser med konfliktvern, sikkerhetskopi og standardfallback; kritiske HMS-komponenter er låst synlige. Ingen Airtable-endring. Testet mot mock-storage, ikke mot ekte Airtable). Før det: 2026-09-21 (Prioritet 56.1 — Kompakt bilvalg: sjåførens Velg bil bruker samme gruppekort som
 Ringeliste (`.ringeliste-group`, lik høyde og mellomrom), kompakte bilrader med kontrollpille og en lavere toppseksjon,
 slik at alle lag får plass uten scrolling; funksjon uendret). Før det: 2026-09-20 (Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler: Kjøretøyprofilen har
 «Rediger informasjon» kun i Kjøretøydetaljer, Mobilitetsgaranti kun i statusraden, «Neste verkstedtime» øverst til høyre
@@ -938,6 +938,12 @@ i dybden i denne gjennomgangen (ingen egen "Operativ Belastning"-indikator
 funnet — se merknad under Dashboard-optimaliseringer).
 
 ## Dashboard-optimaliseringer
+
+✅ **Prioritet 61 (2026-09-21) — Daglig systemkontroll for sjåfører.** Se CHANGELOG.md/CLAUDE.md. Verifisert i nettleser mot
+mock-storage (sperre, hard refresh, ✅, dagskille ved oppstart og midt i økten, ny versjon, feilstier, flere sjåfører per enhet,
+administratorvisning), **ikke** mot ekte GitHub Pages/CDN-cache, ekte service worker eller iOS/Android-PWA. Gjenstår/kjent:
+(a) kontrollen er klientside og kan omgås ved å rydde lagringen; (b) bruker enhetens klokke for operativ dag; (c) enhetsrader i
+Settings ryddes ikke automatisk; (d) første kjøring mot ekte Airtable (Settings-rader per enhet) er uprøvd.
 
 ✅ **Prioritet 60 (2026-09-21) — Layout Engine 2.0 for hele Bilpark.** Avløser Dashboard Editor 1.0 (under) som lagringsformat og
 editor: ÉN motor, ett komponentregister, én Settings-nøkkel (`bilpark-layout-config-v2`). Se CHANGELOG.md/CLAUDE.md.

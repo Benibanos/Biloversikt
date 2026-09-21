@@ -1,6 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 60 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 61 —
+**Daglig systemkontroll for sjåfører.** Første åpning av sjåførappen på en enhet hver operative dag (dagskille kl. 04:00) møter en
+sperrende «Systemkontroll» med knappen «Oppdater og fortsett» (hard refresh, cache tømmes, versjon kontrolleres, lastVerifiedVersion/Date
+registreres); status vises for administrator i Innstillinger. `version-check.js` fikk en felles `hardRefresh()` som bevarer `?sjafor=1`.
+Se «Prioritet 61 (2026-09-21)» nederst. `storage.airtable.js` v2.22.0 (ekte `list()`), ingen Airtable-endring. Før det: 2026-09-21 (Prioritet 60 —
 **Layout Engine 2.0 for hele Bilpark.** Dashboard Editor 1.0 er utviklet videre til ÉN felles layoutmotor med ett
 komponentregister (`LAYOUT_COMPONENTS`) og én versjonert Settings-konfigurasjon (`bilpark-layout-config-v2`) for Desktop
 Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene. Layout styrer
@@ -6172,3 +6176,96 @@ ikke en pikselnøyaktig kopi av den ekte siden; (e) utkast mistes ved omlasting 
 publisering vinner etter en eksplisitt konfliktmelding — ingen sammenslåing; (g) `dashboardBeregning()` beregnes også for
 skjulte kort (samme overflødige beregning som før); (h) Sjåførkontroll er bevisst nesten helt låst — kun løftebord og
 kommentar kan endres; (i) ikke committet.
+
+
+---
+
+## Prioritet 61 (2026-09-21) — Daglig systemkontroll for sjåfører
+
+(Brukeren ga ikke saken et nummer; «61» er tildelt her som neste i rekken etter Prioritet 60. Sak: «Sikre at alle sjåfører bruker siste versjon av DriverControl».)
+
+**Varig regel: en sjåførenhet skal aldri kunne bruke en gammel appversjon gjennom flere dager uten å bekrefte og hente siste versjon.**
+Første gang appen åpnes på en enhet hver OPERATIVE dag (`todayISO()`, dagskille kl. 04:00 — samme definisjon som overalt) møter sjåføren
+en sperrende skjerm, **Systemkontroll** («Dagens systemkontroll»), og kan ikke lukke den, hoppe over den eller gå videre uten å
+trykke **«Oppdater og fortsett»**. Knappen vises ALLTID, også når ingen ny versjon finnes. Gjelder kun sjåførmodus
+(`driverMode`); administrasjonen er ikke berørt.
+
+### Forløp (`skUtfor()` → `VERSION_CHECK.hardRefresh()` → `skFullfor()`)
+
+1. Trykk: `version.json` hentes uten cache (`VERSION_CHECK.fetchServerVersion()`). Feiler det: «Kunne ikke kontrollere versjon …» med
+   knappen aktiv (prøv igjen). Er serverversjonen ≠ `APP_VERSION`: «**Ny versjon funnet** / Oppdaterer ...».
+2. **Hard refresh** (`VERSION_CHECK.hardRefresh()` i `version-check.js`, ÉN felles rutine): service worker oppdateres
+   (`registration.update()`), **`bilpark-*`-cachene slettes** (ikke andre — GitHub Pages deler opprinnelse med andre repoer),
+   appressursene (siden selv, `version.json`, `version-check.js`, `index.html`, `kontroll.html`, alle `<script src>`/manifest/ikoner)
+   hentes på nytt med `fetch(..., {cache:'reload'})` (oppdaterer også nettleserens HTTP-cache), og siden lastes på nytt med ny
+   `_v`-parameter **og en engangs-token `_sk`**. Hvert steg er best effort; feiler ett, navigeres det likevel (versjonskontrollen
+   ved oppstart er fortsatt fail-secure).
+3. Den NYE koden fullfører kontrollen (`skPortvakt()` → `skFullfor()`): token i URL må være lik den lagrede (`bilpark_systemkontroll_pending_v1`,
+   maks 10 min gammel; en forfalsket `_sk` godtas ikke). Den registrerer **`lastVerifiedVersion`** (= `window.APP_VERSION`, altså versjonen som
+   FAKTISK kjører) og **`lastVerifiedDate`**, viser **«✅ Systemkontroll fullført»** i ~1 s og åpner appen. `_sk`/`_v` fjernes fra adressen
+   (`?sjafor=1` beholdes).
+4. Portvakten kjører **FØR `loadAll()`** (`VERSION_CHECK_READY.then(async …)`): ingen data lastes og ingenting tegnes før kontrollen er fullført.
+   En FEIL i selve portvakten åpner appen som før (feilen logges) — en bug skal ikke sperre alle sjåfører ute. Sperreskjermen setter `#app`
+   `inert`, har `role="dialog" aria-modal`, ingen lukkeknapp og lukker seg ikke ved klikk på bakgrunnen.
+
+### Daglig regel — «én gang per sjåfør og enhet per operativ dag»
+
+- Enhetens status (`localStorage['bilpark_systemkontroll_v1']`, reserve sessionStorage/minne): `{enhetId, lastVerifiedDate, lastVerifiedVersion,
+  lastVerifiedAt, drivers[], remoteSynced}`. `enhetId` (`bilpark_enhet_id_v1`) er en tilfeldig id laget første gang.
+- **Kreves når** `lastVerifiedDate !== todayISO()` (`skKreverKontroll()`) — ved oppstart OG når appen kommer tilbake fra bakgrunnen etter
+  04:00 (`skSjekkMidtIOkt()` kalles fra `handhevOperativtDogn()`, som allerede kjøres ved `visibilitychange`/`pageshow`). Ingen `setInterval`
+  (samme regel som dagskillet ellers).
+- **Per sjåfør:** når en sjåfør bekrefter navnet i «Hvem kjører denne bilen?» (`skNavnSjekk()`): et navn som allerede er registrert i dag →
+  ingen ny kontroll; en enhet uten registrert sjåfør ennå godtar første navn uten ny kontroll og registrerer det; et ANNET navn enn de som er
+  kontrollert på enheten i dag → systemkontrollen kreves på nytt (og navnet legges til). Sjåførnavn hentes ellers fra sjåførens lokale sesjon.
+
+### Registrering og administratorvisning
+
+- Én **Settings-rad per enhet**: nøkkel `systemkontroll:<enhetId>`, verdi JSON `{enhetId, enhet, sjafor, sjaforer[], versjon, dato, tidspunkt, oppdatert}`
+  (`skSynk()`). **Bevisst ikke én felles blob**: mange sjåfører kontrollerer samtidig om morgenen, og lesing + skriving på tvers av enheter er ikke
+  atomisk — en felles blob ville tapt oppdateringer. Ingen ny Airtable-tabell/kolonne, ingen `LIST_TABLES`-endring. Feiler Airtable-skrivingen stoppes
+  ikke sjåføren; `remoteSynced=false` og den forsøkes på nytt ved neste åpning (og når et navn legges til).
+- `window.storage.list(prefix)` i `storage.airtable.js` (**v2.22.0**, `?v=2.22.0`) er nå en ekte implementasjon (var en tom stubb): én paginert
+  lesing av Settings som returnerer `{keys, items:[{key,value}]}` for nøkler med prefikset. Bakoverkompatibel.
+- **Innstillinger → Systeminnstillinger → «🛡️ Systemkontroll sjåfører»** (`skAdminBodyHtml()`, laster ved åpning, «Oppdater»-knapp): tabell med
+  **Sjåfør(er) · Enhet · Versjon · Sist systemkontroll · Status** (✅ I dag / ⚠️ Ikke i dag; ⚠️ ved versjon ≠ gjeldende), «N av M enheter kontrollert i dag».
+  Enheter uten kontroll på over 60 dager skjules (med teller). «Enhet» er en lesbar tekst utledet av userAgent + de fire siste tegnene av enhets-id
+  (f.eks. «Android · Chrome (installert app) · #a3f9»).
+
+### Endringer i `version-check.js` (Prioritet 69.2-mekanismen)
+
+- **`performUpdate()` er skrevet om** til å bruke `hardRefresh()`. Den gamle tømte cachene uten å vente på dem, navigerte etter 500 ms uten å hente
+  ressursene utenom HTTP-cachen, og brukte `location.href.split('?')[0]`, som **fjernet `?sjafor=1`** fra en installert sjåførsnarvei
+  (`index.html?sjafor=1`) — sjåføren kunne havne på administratorinnloggingen. Søkeparametre beholdes nå.
+- **Sjåførmodus oppdaterer automatisk** når en utdatert klient oppdages ved oppstart («Ny versjon funnet» / «Oppdaterer ...»,
+  `tillatAutoOppdatering()`): maks to forsøk per fem minutter (sessionStorage), deretter står den manuelle knappen igjen — ellers kunne en CDN som
+  midlertidig serverer `version.json` og `index.html` i utakt gi en evig omlastingsløkke. Administrasjonen har uendret manuell knapp.
+
+### Regler videre
+
+1. Ikke la noe annet enn `skFullfor()` skrive `lastVerifiedDate`/`lastVerifiedVersion`, og aldri før versjonskontrollen har bestått.
+2. Ikke gjør `_sk`-token valgfri eller godta den uten at den finnes i lagringen (unntak: når localStorage er helt utilgjengelig — da godtas parameteren alene).
+3. Legger du en ny sjåfør-inngang til appen, må den gå gjennom `skPortvakt()` (oppstart) — eller kalle `skNavnSjekk()` når et navn bekreftes.
+4. `hardRefresh()` skal kun slette cacher som starter med `bilpark-`.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `version-check.js`, `storage.airtable.js` (v2.21.0 → v2.22.0), `sw.js` (`CACHE_VERSION` v109 → v110),
+`version.json` (109 → 110), `version-check.js` `APP_VERSION` (109 → 110), CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md.
+**Ikke endret:** Airtable-skjema, saksmotor, kilometerlogikk, aktiv sjåfør/dagskille-logikk, Layout Engine.
+
+**Testet** i nettleser mot scratch-kopi med mock-storage (ingen ekte Airtable, ingen ekte service worker/GitHub Pages; `node`/`python` finnes ikke):
+sperreskjermen ved første åpning (app ikke lastet, `#app` inert, knapp alltid synlig); trykk → hard refresh → ✅ → app åpnes, status og Settings-rad
+skrevet, `?sjafor=1` bevart og `_sk`/`_v` fjernet; ingen ny sperre senere samme dag; forfalsket `_sk` godtas ikke; dagskille både ved oppstart og midt i
+økten (`visibilitychange`); «Ny versjon funnet / Oppdaterer ...» (serverversjon endret) og automatisk oppdatering i version-check med løkkevern
+(to forsøk, deretter manuell knapp, `?sjafor=1` bevart); feilsti uten svar fra `version.json` (feilmelding, knappen aktiv); annen sjåfør samme enhet
+(ny kontroll og begge navn registrert), samme navn (ingen kontroll), første navn på tom enhet (registreres uten kontroll); Airtable-skriving feiler
+(sjåføren passerer, `remoteSynced=false`, retry lykkes); administratorvisning (2 av 3 kontrollert, eldre versjon merket, >60 dager skjult, korrupt rad
+hoppet over, feilmeldinger, ikke gjennom portvakten); 375 px uten horisontal overflow; brace-/backtick-balanse.
+**Ikke testet:** mot ekte GitHub Pages/CDN (bl.a. at `cache:'reload'` faktisk omgår HTTP-cachen og at ny `_v` treffer ferske filer), ekte service worker og
+`caches.delete()` i praksis, iOS-PWA (standalone) og Android-PWA, ekte samtidighet fra mange enheter, og at Settings-radene faktisk opprettes mot Airtable.
+
+**Kjente begrensninger:** (a) kontrollen er KLIENTSIDE og kan ikke håndheves av en server — en sjåfør som rydder lagring eller redigerer localStorage
+kan omgå den (samme klasse som resten av arkitekturen uten backend); (b) «operativ dag» bruker enhetens klokke — en enhet med feil klokke kan få feil
+dagskille; (c) en klient eldre enn Prioritet 69.2 har ingen versjonskontroll og ingen systemkontroll — den blir først dekket når den har hentet ny kode
+(nettverk-først i service worker gjør at dette skjer ved første åpning online); (d) er enheten offline, sperrer allerede versjonskontrollen (fail-secure) —
+systemkontrollen kan ikke fullføres uten nett; (e) enhetsrader slettes aldri automatisk (de skjules kun i visningen etter 60 dager); (f) `pwa-install-bar`
+ligger utenfor `#app` og er ikke gjort inert (skjult bak sperreskjermen); (g) ikke committet.

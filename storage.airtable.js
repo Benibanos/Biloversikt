@@ -581,8 +581,16 @@
     });
   }
   async function list(prefix, shared) {
-    // Brukes ikke aktivt av appen i dag — holdt for grensesnittkompatibilitet.
-    return { keys: [], prefix, shared: !!shared };
+    // Prioritet 61: leser alle Settings-rader hvis nøkkel starter med prefikset — i ÉN paginert
+    // lesing, med verdiene (`items`), slik at administrator kan vise systemkontrollen til alle
+    // sjåførenheter (én Settings-rad per enhet, `systemkontroll:<enhetId>`) uten ett kall per rad.
+    // Kun lesing; røres ikke av skrivekøen. `keys` beholdes for bakoverkompatibilitet.
+    const p = String(prefix || '');
+    const rader = await listAll('Settings');
+    const items = rader
+      .filter(r => typeof r.fields['Key'] === 'string' && r.fields['Key'].indexOf(p) === 0)
+      .map(r => ({ key: r.fields['Key'], value: r.fields['Value'] === undefined ? '' : r.fields['Value'] }));
+    return { keys: items.map(i => i.key), items, prefix: p, shared: !!shared };
   }
 
   window.storage = { get, set, delete: del, list };
@@ -594,8 +602,8 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.21.0',
-    bygget: '19.09.2026 00:00',
+    versjon: 'v2.22.0',
+    bygget: '21.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
     masseslettVakt: MASSESLETT_VAKT,

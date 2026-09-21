@@ -15,6 +15,31 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 61 — Daglig systemkontroll for sjåfører
+
+(Ikke nummerert av brukeren; «61» tildelt her. Full detalj i CLAUDE.md, «Prioritet 61 (2026-09-21)».)
+
+1. **Sperrende «Systemkontroll» første gang sjåførappen åpnes på en enhet hver operative dag** (dagskille kl. 04:00, `todayISO()`), også midt i økten
+   når appen kommer tilbake fra bakgrunnen etter 04:00. Knappen «Oppdater og fortsett» vises alltid; skjermen kan ikke lukkes eller hoppes over, og portvakten
+   kjører før `loadAll()` — ingen data lastes før kontrollen er fullført.
+2. **Forløp:** versjon hentes uten cache → hard refresh (service worker oppdateres, `bilpark-*`-cachene slettes, appressursene hentes med `cache:'reload'`) →
+   omlasting med engangs-token → den nye koden registrerer `lastVerifiedVersion`/`lastVerifiedDate`, viser «✅ Systemkontroll fullført» og åpner appen.
+   Gammel versjon gir «Ny versjon funnet / Oppdaterer ...». Én gang per enhet og operativ dag; en annen sjåfør på samme enhet krever ny kontroll.
+3. **Administratorvisning:** Innstillinger → Systeminnstillinger → «🛡️ Systemkontroll sjåfører» (sjåfør, enhet, versjon, sist systemkontroll, status).
+   Lagres som én Settings-rad per enhet (`systemkontroll:<enhetId>`) — ikke en felles blob, som ville tapt oppdateringer ved samtidige skrivinger.
+   `storage.airtable.js` **v2.22.0**: `list(prefix)` er nå en ekte implementasjon. Ingen Airtable-endring.
+4. **Rettet i `version-check.js`:** `performUpdate()` brukte `location.href.split('?')[0]` og **fjernet `?sjafor=1`** (en installert sjåførsnarvei havnet på
+   administratorinnloggingen), tømte cachene uten å vente og hentet ikke ressursene utenom HTTP-cachen. Erstattet av felles `hardRefresh()`. Sjåførmodus
+   oppdaterer nå automatisk ved utdatert versjon (maks to forsøk per fem minutter, deretter manuell knapp).
+5. `CACHE_VERSION`/`APP_VERSION`/`version.json` 109 → 110; `kontroll.html` eksakt kopi.
+
+**Testet** i nettleser mot mock-storage: sperre ved første åpning, hard refresh → ✅ → åpning, ingen ny sperre samme dag, forfalsket token avvist, dagskille
+ved oppstart og midt i økten, «Ny versjon funnet» og automatisk oppdatering med løkkevern, feilsti uten svar fra `version.json`, flere sjåfører på én enhet,
+Airtable-feil (sjåføren passerer, retry), administratorvisning, 375 px. **Ikke testet:** ekte GitHub Pages/CDN-cache, ekte service worker, iOS/Android-PWA,
+ekte samtidighet, Settings-rader mot ekte Airtable. Kontrollen er klientside og kan omgås av en som rydder lagringen.
+
+---
+
 ### Prioritet 60 — Layout Engine 2.0 for hele Bilpark
 
 (Brukerens egen nummerering. Bygger på Prioritet 58 «Dashboard Editor 1.0» — den ble utviklet videre til ÉN felles motor,

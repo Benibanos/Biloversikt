@@ -25,7 +25,7 @@
 
   // Må oppdateres samtidig med version.json. En klient som kjører en annen
   // versjon skal aldri få starte normal drift.
-  const APP_VERSION = 109;
+  const APP_VERSION = 110;
 
   const VERSION_CHECK = {
     // Appens versjon er bundet til koden, ikke hentet fra serveren.
@@ -55,6 +55,63 @@
             .catch(e => console.warn('[VERSION_CHECK] Cache clear failed:', e));
         });
       }
+    },
+
+    // Er dette sjåførmodus (?sjafor=1 eller kontroll.html)? Samme regel som detectDriverMode()
+    // i index.html — dupliseres her fordi denne filen kjører FØR hovedscriptet.
+    erSjaforModus: function() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('sjafor') === '1' || /\/kontroll\.html$/i.test(window.location.pathname || '');
+      } catch (e) { return false; }
+    },
+
+    // PRIORITET 61 — ÉN felles «hard refresh», brukt av både tvungen versjonsoppdatering og
+    // sjåførens daglige systemkontroll. Den gamle performUpdate() tømte cachene uten å vente på
+    // dem og navigerte etter 500 ms — uten å hente ressursene på nytt utenom nettleserens
+    // HTTP-cache (GitHub Pages har max-age på 10 minutter), og med `location.href.split('?')[0]`
+    // som FJERNET ?sjafor=1 fra en installert sjåførsnarvei (index.html?sjafor=1) slik at
+    // sjåføren havnet på administratorinnloggingen. Rekkefølge nå:
+    //   1. service worker: be om oppdatering
+    //   2. slett Bilpark-cachene (kun `bilpark-*` — GitHub Pages deler opprinnelse med andre repoer)
+    //   3. last appressursene på nytt med cache:'reload' (oppdaterer også HTTP-cachen)
+    //   4. naviger til samme adresse (søkeparametre bevart) med ny `_v`-parameter
+    // Hvert steg er best effort: feiler ett, navigerer vi likevel — versjonskontrollen ved
+    // oppstart er fortsatt fail-secure og sperrer hvis filene ikke ble fornyet.
+    hardRefresh: async function(opts) {
+      opts = opts || {};
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.update().catch(() => {})));
+        }
+      } catch (e) { console.warn('[VERSION_CHECK] SW update failed:', e); }
+      try {
+        if ('caches' in window) {
+          const names = await caches.keys();
+          await Promise.all(names.filter(n => n.indexOf('bilpark-') === 0).map(n => caches.delete(n)));
+        }
+      } catch (e) { console.warn('[VERSION_CHECK] Cache clear failed:', e); }
+      try {
+        const base = new URL('.', window.location.href);
+        const urler = new Set([
+          window.location.href,
+          new URL('version.json', base).href,
+          new URL('version-check.js', base).href,
+          new URL('index.html', base).href,
+          new URL('kontroll.html', base).href
+        ]);
+        document.querySelectorAll('script[src], link[rel="manifest"], link[rel="icon"], link[rel="apple-touch-icon"]').forEach(el => {
+          const href = el.src || el.href;
+          if (href && href.indexOf(window.location.origin) === 0) urler.add(href);
+        });
+        const hent = Array.from(urler).map(u => fetch(u, { cache: 'reload' }).catch(() => null));
+        await Promise.race([Promise.all(hent), new Promise(r => setTimeout(r, 8000))]);
+      } catch (e) { console.warn('[VERSION_CHECK] Resource refetch failed:', e); }
+      const url = new URL(window.location.href);
+      url.searchParams.set('_v', String(Date.now()));
+      Object.keys(opts.param || {}).forEach(k => url.searchParams.set(k, opts.param[k]));
+      window.location.replace(url.toString());
     },
 
     // Hent versjonsnummeret fra version.json (NO-CACHE)
@@ -106,7 +163,7 @@
         panel = document.createElement('div');
         panel.id = 'version-update-panel';
         panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:#080C0B;color:#E9F0EC;font:16px system-ui,sans-serif;text-align:center;';
-        panel.innerHTML = '<div style="width:min(100%,460px);padding:28px;text-align:center;border:1px solid #F0554F;border-radius:14px;background:#101614;box-shadow:0 18px 50px rgba(0,0,0,.35)"><img src="icons/bilpark-icon-192-v63.png" alt="Bilpark" style="width:72px;height:72px;display:block;margin:0 auto 20px;border-radius:16px"><div style="font-size:24px;font-weight:700;color:#F0554F;margin-bottom:16px">⚠️ Oppdatering kreves</div><p>Denne enheten kjører en eldre versjon av Bilpark.</p><p>For å sikre at kilometerstander, kontroller, skader og aktive saker behandles korrekt må sjåførkontrollen oppdateres før den kan brukes.</p><h2 style="font-size:16px;margin:20px 0 8px">Versjonsstatus</h2><p id="version-info" style="margin:0 0 18px;color:#C3CFC8"></p><p>Du kan ikke registrere:</p><ul style="display:inline-block;text-align:left"><li>Sjåførkontroller</li><li>Skader</li><li>Varsellamper</li><li>Avvik</li><li>Kommentarer</li></ul><p>før oppdateringen er fullført.</p><p>Trykk på knappen under for å laste ned siste versjon av Bilpark.</p><button id="version-update-btn" type="button" style="padding:10px 16px;border:0;border-radius:9px;background:#19A66B;color:#08100C;font-weight:700;cursor:pointer">🔄 Oppdater sjåførkontrollen</button><p style="margin:20px 0 0;color:#C3CFC8;font-size:13px">Hvis problemet vedvarer, kontakt driftskoordinator.</p></div>';
+        panel.innerHTML = '<div style="width:min(100%,460px);padding:28px;text-align:center;border:1px solid #F0554F;border-radius:14px;background:#101614;box-shadow:0 18px 50px rgba(0,0,0,.35)"><img src="icons/bilpark-icon-192-v63.png" alt="Bilpark" style="width:72px;height:72px;display:block;margin:0 auto 20px;border-radius:16px"><div id="version-title" style="font-size:24px;font-weight:700;color:#F0554F;margin-bottom:16px">⚠️ Oppdatering kreves</div><p>Denne enheten kjører en eldre versjon av Bilpark.</p><p>For å sikre at kilometerstander, kontroller, skader og aktive saker behandles korrekt må sjåførkontrollen oppdateres før den kan brukes.</p><h2 style="font-size:16px;margin:20px 0 8px">Versjonsstatus</h2><p id="version-info" style="margin:0 0 18px;color:#C3CFC8"></p><p>Du kan ikke registrere:</p><ul style="display:inline-block;text-align:left"><li>Sjåførkontroller</li><li>Skader</li><li>Varsellamper</li><li>Avvik</li><li>Kommentarer</li></ul><p>før oppdateringen er fullført.</p><p>Trykk på knappen under for å laste ned siste versjon av Bilpark.</p><button id="version-update-btn" type="button" style="padding:10px 16px;border:0;border-radius:9px;background:#19A66B;color:#08100C;font-weight:700;cursor:pointer">🔄 Oppdater sjåførkontrollen</button><p style="margin:20px 0 0;color:#C3CFC8;font-size:13px">Hvis problemet vedvarer, kontakt driftskoordinator.</p></div>';
         document.body.appendChild(panel);
         const updateButton = document.getElementById('version-update-btn');
         if (updateButton) updateButton.addEventListener('click', () => this.performUpdate());
@@ -130,6 +187,15 @@
       
       // Blokkér ALL interaksjon (sikkerhet — fail-secure)
       this.blockAllInteraction();
+
+      // Prioritet 61: sjåførmodus oppdaterer seg selv.
+      if (this.erSjaforModus() && this.tillatAutoOppdatering()) {
+        const tittel = document.getElementById('version-title');
+        if (tittel) tittel.textContent = 'Ny versjon funnet';
+        const knapp = document.getElementById('version-update-btn');
+        if (knapp) { knapp.textContent = 'Oppdaterer ...'; knapp.disabled = true; knapp.style.opacity = '.6'; }
+        setTimeout(() => this.performUpdate(), 400);
+      }
       
       console.error('[VERSION_CHECK] APPLICATION BLOCKED: VERSION_MISMATCH');
     },
@@ -201,21 +267,27 @@
       });
     },
 
-    // Utfør oppdatering ved trykk på knapp
+    // Utfør oppdatering ved trykk på knapp (Prioritet 61: felles hardRefresh(), bevarer ?sjafor=1)
     performUpdate: function() {
-      console.log('[VERSION_CHECK] User initiated update...');
-      
-      // 1. Oppdater service worker
-      this.updateServiceWorker();
-      
-      // 2. Tøm ALL cache
-      this.clearAllCache();
-      
-      // 3. Hard refresh
-      setTimeout(() => {
-        console.log('[VERSION_CHECK] Hard refresh...');
-        window.location.href = window.location.href.split('?')[0] + '?_v=' + Date.now();
-      }, 500);
+      console.log('[VERSION_CHECK] Update started...');
+      const knapp = document.getElementById('version-update-btn');
+      if (knapp) { knapp.disabled = true; knapp.style.opacity = '.6'; }
+      return this.hardRefresh();
+    },
+
+    // Sjåførmodus: en utdatert klient oppdateres AUTOMATISK («Ny versjon funnet — Oppdaterer …»),
+    // uten at sjåføren må finne og trykke en knapp. Maks to automatiske forsøk per fem minutter
+    // (sessionStorage) — ellers kunne en CDN som midlertidig serverer version.json og index.html
+    // i utakt gi en evig omlastingsløkke. Da står den manuelle knappen igjen.
+    tillatAutoOppdatering: function() {
+      try {
+        const nå = Date.now();
+        const s = JSON.parse(sessionStorage.getItem('bilpark_vc_auto') || 'null');
+        const n = (s && nå - s.t < 5 * 60 * 1000) ? s.n : 0;
+        if (n >= 2) return false;
+        sessionStorage.setItem('bilpark_vc_auto', JSON.stringify({ n: n + 1, t: (s && n > 0) ? s.t : nå }));
+        return true;
+      } catch (e) { return false; }
     },
 
     // Initialiser versjonskontroll

@@ -664,3 +664,21 @@ administratorsesjon), på samme måte som `verksteder`/`bilkategorier`/`operativ
 migrering og slettes aldri av appen. De kan fjernes manuelt i Airtable når du har bekreftet at den nye layouten ligger
 riktig. Er den nye nøkkelen korrupt eller har nyere `schemaVersion` enn appen forstår, brukes standardlayout og
 publisering blokkeres (nyere versjon) — ingenting overskrives.
+
+---
+
+## Prioritet 61 (2026-09-21) — Settings-rader per sjåførenhet (ingen migrering i Airtable)
+
+**Ingen handling kreves i Airtable.** Ingen ny tabell, ingen nye kolonner, ingen endring i `LIST_TABLES`.
+
+Sjåførenes daglige systemkontroll (Innstillinger → Systeminnstillinger → «Systemkontroll sjåfører») lagres som **én rad per enhet** i den
+eksisterende `Settings`-tabellen: `Key` = `systemkontroll:<enhetId>`, `Value` = JSON
+`{"enhetId","enhet","sjafor","sjaforer":[…],"versjon","dato","tidspunkt","oppdatert"}`. Radene opprettes av storage-laget første gang en
+enhet fullfører kontrollen. Ikke én felles blob: mange enheter skriver samtidig om morgenen, og lesing + skriving på tvers av enheter er ikke
+atomisk.
+
+Radene vokser med antall enheter som noen gang har åpnet sjåførappen (en ryddet nettleser gir en ny enhets-id). Appen sletter dem aldri — de
+skjules i administratorvisningen etter 60 dager uten kontroll — så gamle `systemkontroll:*`-rader kan slettes manuelt i Airtable ved behov.
+
+`storage.airtable.js` v2.22.0: `window.storage.list(prefix)` returnerer nå `{keys, items:[{key,value}], prefix}` for Settings-nøkler med prefikset
+(tidligere en tom stubb).

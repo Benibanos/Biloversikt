@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.21.0"></script>
+<script src="storage.airtable.js?v=2.22.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1827,6 +1827,21 @@
     .sj-toast{transition:none;}
     button.sj-pill-btn:active,.sj-tap:active,.p48-action-card:active,.p48-checkout-card:active{transform:none;}
   }
+  /* Prioritet 61: sjåførens daglige systemkontroll — sperreskjerm over hele appen (ingen lukkeknapp). */
+  body.sk-las{overflow:hidden;}
+  .sk-panel{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);color:var(--ink);overflow-y:auto;}
+  .sk-kort{width:min(100%,440px);padding:26px 22px;text-align:center;border:1.5px solid var(--line);border-top:4px solid var(--green);border-radius:var(--radius);background:var(--surface);box-shadow:0 18px 50px rgba(0,0,0,.28);}
+  .sk-logo{width:64px;height:64px;display:block;margin:0 auto 14px;border-radius:14px;}
+  .sk-merke{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  .sk-kort h1{margin:4px 0 16px;font-size:26px;}
+  .sk-kort p{margin:0 0 10px;color:var(--ink);line-height:1.45;}
+  .sk-liste{display:inline-block;text-align:left;margin:0 0 12px;padding-left:20px;line-height:1.7;font-weight:600;}
+  .sk-knapp{width:100%;min-height:54px;margin-top:8px;border:0;border-radius:11px;background:var(--green);color:#08100C;font-size:17px;font-weight:800;cursor:pointer;}
+  .sk-knapp:disabled{opacity:.55;cursor:default;}
+  .sk-knapp:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+  .sk-status{margin:6px 0 14px;padding:12px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface-2);font-size:16px;line-height:1.45;}
+  .sk-status.ok{border-color:var(--green);color:var(--green-ink);font-weight:800;font-size:19px;padding:20px 14px;}
+  .sk-status.feil{border-color:var(--red);color:var(--red);font-weight:600;}
 </style>
 </head>
 <body>
@@ -3271,6 +3286,8 @@ async function ryddOppBiloktDagskille(){
 let sisteKjenteOperativeDag = '';
 let dogngHandhevingPagar = false;
 async function handhevOperativtDogn({rerender = false} = {}){
+  // Prioritet 61: ny operativ dag mens sjåførappen står åpen → systemkontrollen kreves på nytt.
+  skSjekkMidtIOkt();
   // Prioritet 66.9 DEL 8: idempotent og billig. Kallet gjør INGENTING — ingen Airtable-
   // trafikk, ingen render — når døgnet ikke har skiftet og ingen bil har en foreldet
   // biløkt. Det er det normale tilfellet ved hvert skjermbytte.
@@ -3322,6 +3339,348 @@ window.addEventListener('pageshow', () => {
   if(loaded) synkroniserSmaKmAvvik().catch(e => console.error('[synkroniserSmaKmAvvik] Feilet', e));
   if(loaded) handhevAktivSjaforAutoReset().catch(e => console.error('[handhevAktivSjaforAutoReset] Feilet', e));
 });
+
+// ================= Prioritet 61: Daglig systemkontroll (sjåfører) =================
+// Mål: ingen sjåfør skal kunne bruke en gammel cachet DriverControl-versjon gjennom flere
+// dager. Første gang appen åpnes på en enhet hver OPERATIVE dag (dagskille kl. 04:00, samme
+// todayISO() som resten av appen) møter sjåføren en sperrende skjerm — «Systemkontroll» —
+// og kan ikke lukke, hoppe over eller gå videre uten å trykke «Oppdater og fortsett». Knappen
+// vises ALLTID, også når ingen ny versjon finnes.
+//
+// Forløp:  trykk → (1) versjon.json hentes uten cache → (2) hard refresh: service worker
+// oppdateres, `bilpark-*`-cachene slettes, appressursene hentes på nytt utenom HTTP-cachen →
+// (3) siden lastes på nytt med en engangs-token (`_sk`) → (4) DEN NYE koden fullfører kontrollen:
+// den registrerer lastVerifiedVersion/lastVerifiedDate (= versjonen som FAKTISK kjører nå),
+// viser «✅ Systemkontroll fullført» og åpner appen. Gammel versjon: «Ny versjon funnet /
+// Oppdaterer ...» vises under omlastingen (og version-check.js oppdaterer selv i sjåførmodus).
+//
+// Portvakten kjører FØR loadAll() — ingen data lastes og ingenting tegnes før kontrollen er
+// fullført. Registrering: enhetens status lagres lokalt (localStorage) og som ÉN Settings-rad
+// per enhet (`systemkontroll:<enhetId>`) som administrator leser i Innstillinger →
+// Systeminnstillinger → «Systemkontroll sjåfører». Én rad per enhet (ikke én felles blob):
+// mange sjåfører kontrollerer samtidig om morgenen, og en felles blob ville tapt oppdateringer
+// (lesing + skriving på tvers av enheter er ikke atomisk). Ren logging — Airtable-lagringen kan
+// feile uten at sjåføren stoppes; den forsøkes på nytt ved neste åpning.
+//
+// Kjente grenser (se CLAUDE.md): kontrollen er klientside og kan ikke håndheves av en server;
+// den bruker enhetens klokke for «operativ dag»; kravet gjelder kun sjåførmodus.
+const SK_ENHET_KEY = 'bilpark_enhet_id_v1';
+const SK_STATUS_KEY = 'bilpark_systemkontroll_v1';
+const SK_PENDING_KEY = 'bilpark_systemkontroll_pending_v1';
+const SK_URL_PARAM = '_sk';
+const SK_SETTINGS_PREFIX = 'systemkontroll:';
+const SK_PENDING_MAKS_MS = 10 * 60 * 1000;
+const SK_SYNLIG_DAGER = 60;   // administratorvisningen skjuler enheter som ikke er sett på 60 dager
+const skReserve = {};         // reserve når verken localStorage eller sessionStorage kan brukes
+function skLes(key){
+  try{ const r = window.localStorage.getItem(key); if(r !== null) return r; }catch(e){ /* ignorer */ }
+  try{ const r = window.sessionStorage.getItem(key); if(r !== null) return r; }catch(e){ /* ignorer */ }
+  return Object.prototype.hasOwnProperty.call(skReserve, key) ? skReserve[key] : null;
+}
+function skSkriv(key, verdi){
+  skReserve[key] = verdi;
+  try{ window.localStorage.setItem(key, verdi); }catch(e){ /* ignorer */ }
+  try{ window.sessionStorage.setItem(key, verdi); }catch(e){ /* ignorer */ }
+}
+function skSlett(key){
+  delete skReserve[key];
+  try{ window.localStorage.removeItem(key); }catch(e){ /* ignorer */ }
+  try{ window.sessionStorage.removeItem(key); }catch(e){ /* ignorer */ }
+}
+function skLagringVirker(){
+  try{ const k = '_sk_test'; window.localStorage.setItem(k, '1'); const ok = window.localStorage.getItem(k) === '1'; window.localStorage.removeItem(k); return ok; }
+  catch(e){ return false; }
+}
+function skSov(ms){ return new Promise(r => setTimeout(r, ms)); }
+function skTilfeldig(){
+  try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 20); }catch(e){ /* ignorer */ }
+  return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+}
+function skEnhetId(){
+  let id = skLes(SK_ENHET_KEY);
+  if(!id || !/^[A-Za-z0-9]+$/.test(id)){ id = skTilfeldig().slice(0, 16); skSkriv(SK_ENHET_KEY, id); }
+  return id;
+}
+// Lesbar enhetsbeskrivelse til administratorvisningen, f.eks. «Android · Chrome (installert app) · #a3f9».
+function skEnhetTekst(){
+  const ua = (navigator.userAgent || '');
+  const plattform = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+    : /Windows/.test(ua) ? 'Windows' : /Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Ukjent enhet';
+  const nettleser = /EdgA?\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Firefox|FxiOS/.test(ua) ? 'Firefox'
+    : /Chrome|CriOS/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'Nettleser';
+  let pwa = false;
+  try{ pwa = !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone); }catch(e){ /* ignorer */ }
+  return plattform + ' · ' + nettleser + (pwa ? ' (installert app)' : '') + ' · #' + skEnhetId().slice(-4);
+}
+function skStatus(){
+  try{ const raw = skLes(SK_STATUS_KEY); if(!raw) return null; const s = JSON.parse(raw); return (s && typeof s === 'object') ? s : null; }
+  catch(e){ return null; }
+}
+function skNavnNorm(n){ return String(n || '').trim().toLowerCase(); }
+// Kreves systemkontroll nå? Uten navn: er enheten kontrollert på inneværende operative dag?
+// Med navn: og er DENNE sjåføren en av dem som er kontrollert på enheten i dag? (En enhet uten
+// registrert sjåfør ennå aksepterer det første navnet uten ny kontroll.)
+function skKreverKontroll(navn){
+  if(!driverMode) return false;
+  const s = skStatus();
+  if(!s || s.lastVerifiedDate !== todayISO()) return true;
+  const n = skNavnNorm(navn);
+  if(!n) return false;
+  const kjente = (Array.isArray(s.drivers) ? s.drivers : []).map(skNavnNorm).filter(Boolean);
+  return kjente.length > 0 && !kjente.includes(n);
+}
+function skLesPending(){
+  try{
+    const p = JSON.parse(skLes(SK_PENDING_KEY) || 'null');
+    if(p && p.token && (Date.now() - Number(p.startet || 0)) < SK_PENDING_MAKS_MS) return p;
+  }catch(e){ /* ignorer */ }
+  return null;
+}
+function skLesSesjonsnavn(){
+  try{ const s = JSON.parse(window.localStorage.getItem(DRIVER_SESSION_KEY) || 'null'); return (s && s.navn) ? String(s.navn).trim() : ''; }
+  catch(e){ return ''; }
+}
+
+// ---- Sperreskjermen ----
+let skPanel = null;
+let skPagar = false;
+let skNavnForPanel = '';
+function skPanelAktivt(){ return !!(skPanel && document.body && document.body.contains(skPanel)); }
+function skSettAppInert(inert){
+  const app = document.getElementById('app');
+  if(app){
+    if(inert){ app.setAttribute('inert', ''); app.setAttribute('aria-hidden', 'true'); }
+    else { app.removeAttribute('inert'); app.removeAttribute('aria-hidden'); }
+  }
+  if(document.body) document.body.classList.toggle('sk-las', !!inert);
+}
+function skInnholdHtml(tilstand, melding){
+  const knapp = (disabled) => `<button type="button" class="sk-knapp" id="sk-knapp" ${disabled ? 'disabled' : ''}>Oppdater og fortsett</button>`;
+  if(tilstand === 'ferdig') return `<div class="sk-status ok" role="status">✅ Systemkontroll fullført</div>`;
+  if(tilstand === 'ny-versjon') return `<div class="sk-status" role="status"><b>Ny versjon funnet</b><br>Oppdaterer ...</div>${knapp(true)}`;
+  if(tilstand === 'kontrollerer') return `<div class="sk-status" role="status">Kontrollerer versjon ...</div>${knapp(true)}`;
+  const liste = `<ul class="sk-liste"><li>Aktiv sjåfør</li><li>Kontroller</li><li>Verkstedinformasjon</li><li>Varsler</li></ul>`;
+  return `
+    <p>For å sikre korrekt registrering av:</p>
+    ${liste}
+    <p>må appen bekrefte siste versjon.</p>
+    ${tilstand === 'feil' ? `<div class="sk-status feil" role="alert">${esc(melding || 'Kunne ikke kontrollere versjon. Prøv igjen.')}</div>` : ''}
+    ${knapp(false)}`;
+}
+function skSett(tilstand, melding){
+  if(!skPanelAktivt()) return;
+  const el = skPanel.querySelector('#sk-innhold');
+  if(el) el.innerHTML = skInnholdHtml(tilstand, melding);
+  const k = skPanel.querySelector('#sk-knapp');
+  if(k && !k.disabled) k.focus();
+}
+function skVisPanel(opts){
+  opts = opts || {};
+  skNavnForPanel = opts.navn || '';
+  if(skPanelAktivt()) return;
+  if(!document.body){ document.addEventListener('DOMContentLoaded', () => skVisPanel(opts), {once:true}); return; }
+  const p = document.createElement('div');
+  p.id = 'systemkontroll-panel';
+  p.className = 'sk-panel';
+  p.innerHTML = `
+    <div class="sk-kort" role="dialog" aria-modal="true" aria-labelledby="sk-tittel">
+      <img class="sk-logo" src="icons/bilpark-icon-192-v63.png" alt="Bilpark">
+      <div class="sk-merke">Dagens systemkontroll</div>
+      <h1 id="sk-tittel">Systemkontroll</h1>
+      <div id="sk-innhold"></div>
+    </div>`;
+  // Sperren kan ikke lukkes: ingen lukkeknapp, ingen klikk på bakgrunnen, og resten av appen er inert.
+  p.addEventListener('click', (e) => {
+    if(e.target && e.target.id === 'sk-knapp' && !e.target.disabled) skUtfor(skNavnForPanel);
+  });
+  document.body.appendChild(p);
+  skPanel = p;
+  skSettAppInert(true);
+  skSett('klar');
+}
+function skFjernPanel(){
+  if(skPanelAktivt()) skPanel.remove();
+  skPanel = null;
+  skSettAppInert(false);
+}
+// Trykk på «Oppdater og fortsett».
+async function skUtfor(navn){
+  if(skPagar) return;
+  skPagar = true;
+  try{
+    skSett('kontrollerer');
+    const vc = window.VERSION_CHECK;
+    const server = vc ? await vc.fetchServerVersion() : null;
+    if(server === null){
+      skSett('feil', 'Kunne ikke kontrollere versjon. Kontroller internettforbindelsen og prøv igjen.');
+      skPagar = false;
+      return;
+    }
+    const gammel = server !== window.APP_VERSION;
+    if(gammel) skSett('ny-versjon');
+    const token = skTilfeldig();
+    skSkriv(SK_PENDING_KEY, JSON.stringify({token, enhetId: skEnhetId(), navn: navn || '', startet: Date.now(), forventetVersjon: server, gammel}));
+    // Sikkerhetsnett: kommer ikke navigasjonen i gang, skal sjåføren kunne prøve igjen.
+    setTimeout(() => { if(skPanelAktivt() && skPagar){ skPagar = false; skSett('feil', 'Oppdateringen ble ikke fullført. Prøv igjen.'); } }, 45000);
+    await vc.hardRefresh({param: {[SK_URL_PARAM]: token}});
+  }catch(e){
+    console.error('[systemkontroll] Feilet', e);
+    skPagar = false;
+    skSett('feil', 'Systemkontrollen feilet. Prøv igjen.');
+  }
+}
+// Fullføres av den NYE koden etter hard refresh (versjonskontrollen har da allerede bestått).
+async function skFullfor(pending){
+  const idag = todayISO();
+  const gml = skStatus();
+  const drivers = (gml && gml.lastVerifiedDate === idag && Array.isArray(gml.drivers)) ? gml.drivers.slice() : [];
+  const leggTil = (n) => { n = String(n || '').trim(); if(n && !drivers.some(d => skNavnNorm(d) === skNavnNorm(n))) drivers.push(n); };
+  leggTil(pending && pending.navn);
+  leggTil(skLesSesjonsnavn());
+  skSkriv(SK_STATUS_KEY, JSON.stringify({
+    enhetId: skEnhetId(), lastVerifiedDate: idag, lastVerifiedVersion: window.APP_VERSION,
+    lastVerifiedAt: new Date().toISOString(), drivers, remoteSynced: false
+  }));
+  skSlett(SK_PENDING_KEY);
+  skVisPanel({});
+  skSett('ferdig');
+  await Promise.all([skSov(1000), Promise.race([skSynk().catch(() => false), skSov(4000)])]);
+  skFjernPanel();
+}
+// Lagrer enhetens rad i Settings (én rad per enhet). Feil stopper aldri sjåføren.
+let skSynkPagar = null;
+function skSynk(){
+  if(skSynkPagar) return skSynkPagar;
+  skSynkPagar = (async () => {
+    let erstatt = false;
+    try{
+      const s = skStatus();
+      if(!s || !s.lastVerifiedDate || !window.storage) return false;
+      const drivers = Array.isArray(s.drivers) ? s.drivers : [];
+      const rad = {
+        enhetId: s.enhetId || skEnhetId(), enhet: skEnhetTekst(),
+        sjafor: drivers.length ? drivers[drivers.length - 1] : '', sjaforer: drivers,
+        versjon: s.lastVerifiedVersion, dato: s.lastVerifiedDate, tidspunkt: s.lastVerifiedAt,
+        oppdatert: new Date().toISOString()
+      };
+      await window.storage.set(SK_SETTINGS_PREFIX + rad.enhetId, JSON.stringify(rad), true);
+      const na = skStatus();
+      if(na && na.lastVerifiedAt === s.lastVerifiedAt){
+        // Ble det lagt til en sjåfør mens skrivingen pågikk, må raden skrives på nytt.
+        if(JSON.stringify(na.drivers || []) === JSON.stringify(drivers)){ na.remoteSynced = true; skSkriv(SK_STATUS_KEY, JSON.stringify(na)); }
+        else erstatt = true;
+      }
+      return true;
+    }catch(e){
+      console.warn('[systemkontroll] Kunne ikke lagre kontrollen i Airtable (forsøkes igjen ved neste åpning)', e);
+      return false;
+    }finally{
+      skSynkPagar = null;
+      if(erstatt) skSynk().catch(() => {});
+    }
+  })();
+  return skSynkPagar;
+}
+// Legger en sjåfør til enhetens rad for i dag (uten ny kontroll — se skKreverKontroll()).
+function skRegistrerNavn(navn){
+  const n = String(navn || '').trim();
+  const s = skStatus();
+  if(!n || !s || s.lastVerifiedDate !== todayISO()) return;
+  const drivers = Array.isArray(s.drivers) ? s.drivers : [];
+  if(drivers.some(d => skNavnNorm(d) === skNavnNorm(n))) return;
+  drivers.push(n);
+  s.drivers = drivers; s.remoteSynced = false;
+  skSkriv(SK_STATUS_KEY, JSON.stringify(s));
+  skSynk().catch(() => {});
+}
+// Kalles når en sjåfør bekrefter navnet sitt (Velg bil). false = sperret; sperreskjermen er vist.
+function skNavnSjekk(navn){
+  if(!driverMode) return true;
+  if(skKreverKontroll(navn)){ skVisPanel({navn}); return false; }
+  skRegistrerNavn(navn);
+  return true;
+}
+// Ny operativ dag mens appen står åpen (PWA i bakgrunnen): kalles fra handhevOperativtDogn().
+function skSjekkMidtIOkt(){
+  if(!driverMode || !loaded || skPanelAktivt()) return;
+  if(skKreverKontroll('')) skVisPanel({});
+}
+function skRyddUrl(){
+  try{
+    const u = new URL(window.location.href);
+    let endret = false;
+    [SK_URL_PARAM, '_v', '_refresh'].forEach(k => { if(u.searchParams.has(k)){ u.searchParams.delete(k); endret = true; } });
+    if(endret) window.history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+  }catch(e){ /* ignorer */ }
+}
+// Portvakt ved oppstart — kjøres etter versjonskontrollen og FØR loadAll(). Returnerer først når
+// appen kan åpnes; ellers returnerer den aldri (siden lastes på nytt av «Oppdater og fortsett»).
+async function skPortvakt(){
+  if(!driverMode) return;
+  const token = new URLSearchParams(window.location.search).get(SK_URL_PARAM);
+  skRyddUrl();
+  const pending = skLesPending();
+  if(token && ((pending && pending.token === token) || (!pending && !skLagringVirker()))){
+    // Uten fungerende lagring finnes ingen token å sammenligne mot; da godtas parameteren alene.
+    await skFullfor(pending);
+    return;
+  }
+  if(skKreverKontroll('')){
+    skVisPanel({});
+    await new Promise(() => {});
+  }
+  const s = skStatus();
+  if(s && !s.remoteSynced) skSynk().catch(() => {});
+}
+// ---- Administratorvisning: Innstillinger → Systeminnstillinger → «Systemkontroll sjåfører» ----
+let skAdminStatus = 'ikke-lastet';   // 'ikke-lastet' | 'laster' | 'ok' | 'feil'
+let skAdminRader = [];
+let skAdminFeil = '';
+async function skAdminLast(){
+  skAdminStatus = 'laster'; skAdminFeil = '';
+  try{
+    if(!window.storage || typeof window.storage.list !== 'function') throw new Error('Lagringslaget støtter ikke listing.');
+    const res = await window.storage.list(SK_SETTINGS_PREFIX, true);
+    if(!res || !Array.isArray(res.items)) throw new Error('storage.airtable.js mangler støtte for listing — oppdater appen (Innstillinger → Oppdater app).');
+    const rader = [];
+    res.items.forEach(it => { try{ const r = JSON.parse(it.value); if(r && typeof r === 'object') rader.push(r); }catch(e){ /* hopp over korrupt rad */ } });
+    rader.sort((a, b) => String(b.tidspunkt || '').localeCompare(String(a.tidspunkt || '')));
+    skAdminRader = rader; skAdminStatus = 'ok';
+  }catch(e){
+    console.error('[skAdminLast] Feilet', e);
+    skAdminStatus = 'feil'; skAdminFeil = (e && e.message) ? e.message : String(e);
+  }
+  if(screen === 'innstillinger' && settingsOpenSections.has('systemkontroll')) render();
+}
+function skAdminBodyHtml(){
+  const knapp = `<button type="button" class="btn secondary small" data-sk-admin-oppdater>🔄 Oppdater</button>`;
+  const forklaring = `<div class="required-hint" style="margin-bottom:12px;">Sjåførene må gjennom en systemkontroll («Oppdater og fortsett») første gang appen åpnes på en enhet hver operative dag (dagskille kl. 04:00). Tabellen viser siste godkjente kontroll per enhet.</div>`;
+  if(skAdminStatus === 'laster' || skAdminStatus === 'ikke-lastet') return `${forklaring}<div class="empty-note">Laster ...</div>`;
+  if(skAdminStatus === 'feil') return `${forklaring}<div class="form-msg">Kunne ikke hente systemkontrollene: ${esc(skAdminFeil)}</div>${knapp}`;
+  const idag = todayISO();
+  const grense = isoDateOffset(idag, -SK_SYNLIG_DAGER);
+  const synlige = skAdminRader.filter(r => String(r.dato || '') >= grense);
+  const skjulte = skAdminRader.length - synlige.length;
+  const iDag = synlige.filter(r => r.dato === idag).length;
+  const rader = synlige.map(r => {
+    const iDagOk = r.dato === idag;
+    const gammel = Number(r.versjon) !== Number(window.APP_VERSION);
+    const sjaforer = Array.isArray(r.sjaforer) && r.sjaforer.length ? r.sjaforer.join(', ') : (r.sjafor || '—');
+    const tid = tidFraIso(r.tidspunkt);
+    return {cells: [
+      esc(sjaforer),
+      esc(r.enhet || r.enhetId || '—'),
+      `v${esc(String(r.versjon || '?'))}${gammel ? ' <span class="muted" title="Eldre enn gjeldende versjon">⚠️</span>' : ''}`,
+      esc(r.dato ? fmt(r.dato) + (tid ? ' kl. ' + tid : '') : '—'),
+      iDagOk ? '✅ I dag' : '⚠️ Ikke i dag'
+    ]};
+  });
+  return `
+    ${forklaring}
+    <div class="required-hint" style="margin-bottom:10px;"><b>${iDag} av ${synlige.length}</b> enheter er kontrollert i dag (gjeldende versjon: v${esc(String(window.APP_VERSION))}).${skjulte > 0 ? ` ${skjulte} enhet${skjulte === 1 ? '' : 'er'} uten kontroll på over ${SK_SYNLIG_DAGER} dager er skjult.` : ''}</div>
+    ${rapportTabellHtml(['Sjåfør', 'Enhet', 'Versjon', 'Sist systemkontroll', 'Status'], rader)}
+    <div style="margin-top:10px;">${knapp}</div>`;
+}
 
 // ---- Værmelding (Larvik) ----
 // Henter gjeldende temperatur/værtype fra Open-Meteo (gratis, ingen API-nøkkel).
@@ -10429,6 +10788,8 @@ function attachDriverVelgBilListeners(){
       if(el2) el2.focus();
       return;
     }
+    // Prioritet 61: en sjåfør som ikke er kontrollert på denne enheten i dag møter systemkontrollen først.
+    if(!skNavnSjekk(navn)) return;
     driverNavn = navn;
     const valgtBilId = driverNavnDialogBilId;
     // Prioritet 56: allerede kontrollert i dag → ingen mellomskjerm og ingen «Gå til Min Bil»-
@@ -17798,6 +18159,8 @@ function toggleSettingsSection(key){
   if(key === 'operativgrunnlag' && !settingsOpenSections.has(key)){
     operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false;
   }
+  // Prioritet 61: «Systemkontroll sjåfører» henter status fra Airtable hver gang seksjonen åpnes.
+  if(key === 'systemkontroll' && settingsOpenSections.has(key)) skAdminLast();
   render();
 }
 function settingsAccordionRow(key, title, count, bodyHtml){
@@ -18593,6 +18956,7 @@ function renderInnstillinger(){
     ${settingsAccordionRow('oppdater', '🔄 Oppdater app', null, oppdaterAppBody)}
     ${settingsAccordionRow('operativgrunnlag', '🎯 Operativ kontrollgrunnlag', operativGrunnlagStatus === 'ok' ? operativGrunnlagBiler().length : null, operativGrunnlagBody)}
     ${settingsAccordionRow('database', '📡 Database status', null, databaseBody)}
+    ${settingsAccordionRow('systemkontroll', '🛡️ Systemkontroll sjåfører', null, settingsOpenSections.has('systemkontroll') ? skAdminBodyHtml() : '')}
     ${settingsAccordionRow('admin', '👤 Administratorbrukere', adminUsers.length, adminBody)}
     ${settingsAccordionRow('veileder', '📘 Informasjonsveileder', null, veilederBody)}
     ${settingsAccordionRow('enhetsvisning', '📱🖥️ Enhetsvisning', null, enhetsvisningBody)}
@@ -18645,6 +19009,7 @@ async function hardRefreshApp(){
 function attachInnstillingerListeners(){
   document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
+  document.querySelectorAll('[data-sk-admin-oppdater]').forEach(el => el.addEventListener('click', () => { skAdminLast(); render(); }));
   attachOperativGrunnlagListeners();
   // ---- Prioritet 66.9: manuell seeding (eneste vei til DEFAULT_FLEET) ----
   // Kun administrator, kun når en VELLYKKET lesing har bekreftet null rader, aldri ved
@@ -19275,11 +19640,15 @@ if(driverMode){
 // Prioritet 69: en uventet feil i loadAll() skal aldri etterlate en stille, hengende
 // oppstartsskjerm — den vises som en ekte feil med «Last på nytt».
 hentOppstartVersjon();
-window.VERSION_CHECK_READY.then(() => {
+window.VERSION_CHECK_READY.then(async () => {
   if(!window.VERSION_CHECK || !window.VERSION_CHECK.versionCheckOk){
     console.error('[loadAll] Normal drift blokkert: VERSION_MISMATCH');
     return;
   }
+  // Prioritet 61: sjåførens daglige systemkontroll. Returnerer først når appen kan åpnes. En FEIL i selve
+  // portvakten skal aldri sperre alle sjåfører ute — da åpnes appen som før (feilen logges).
+  try{ await skPortvakt(); }
+  catch(e){ console.error('[systemkontroll] Portvakten feilet — åpner appen', e); skFjernPanel(); }
   loadAll().catch(e => {
     console.error('[loadAll] Oppstart feilet', e);
     oppstartKrasj = (e && e.message) ? e.message : String(e);
