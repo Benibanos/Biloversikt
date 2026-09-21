@@ -639,3 +639,28 @@ Raden opprettes automatisk i den eksisterende `Settings`-tabellen første gang e
 standardverksted lagres, på samme måte som `verksteder`, `bilkategorier` og
 `dashboard-layout`. `storage.airtable.js` ruter alle nøkler som ikke står i `LIST_TABLES`
 til `Settings` uten videre konfigurasjon.
+
+
+---
+
+## Prioritet 60 (2026-09-21) — én ny Settings-nøkkel (ingen migrering i Airtable)
+
+**Ingen handling kreves i Airtable.** Ingen ny tabell, ingen nye kolonner, ingen endring i `LIST_TABLES`.
+`storage.airtable.js` er uendret.
+
+Ny frittstående Settings-nøkkel:
+
+- `bilpark-layout-config-v2` — ÉN JSON-blob med all layout (Desktop Dashboard, Sidemeny, Bilinformasjon, Min Bil,
+  Sjåførkontroll, Mobil Dashboard og standardsidene):
+  `{"schemaVersion":2,"layouts":{"admin-dashboard":[…],"admin-sidebar":[…],"vehicle-profile":[…],"driver-min-bil":[…],
+  "driver-control":[…],"mobile-dashboard":[…],"admin-standard-pages:<side>":[…]},"options":{…},"updatedAt":"ISO",
+  "updatedBy":"…","backup":{…forrige publiserte layout…}}`. Kun presentasjonsdata (plassering, rekkefølge, synlighet,
+  størrelse, starttilstand, standardfane) — aldri forretningsdata.
+
+Raden opprettes automatisk i `Settings` første gang en administrator publiserer (eller når en eldre layout migreres i en
+administratorsesjon), på samme måte som `verksteder`/`bilkategorier`/`operativ-kontrollgrunnlag`.
+
+**Eldre nøkler beholdes:** `dashboard-layout-v1` (Prioritet 58) og `dashboard-layout` (Prioritet 44) leses kun for
+migrering og slettes aldri av appen. De kan fjernes manuelt i Airtable når du har bekreftet at den nye layouten ligger
+riktig. Er den nye nøkkelen korrupt eller har nyere `schemaVersion` enn appen forstår, brukes standardlayout og
+publisering blokkeres (nyere versjon) — ingenting overskrives.

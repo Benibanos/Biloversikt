@@ -1,6 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-21 (Prioritet 56.1 — Kompakt bilvalg: sjåførens Velg bil bruker samme gruppekort som
+Sist oppdatert: 2026-09-21 (Prioritet 60 — Layout Engine 2.0: ÉN felles layoutmotor med ett komponentregister (`LAYOUT_COMPONENTS`) og én versjonert Settings-konfigurasjon (`bilpark-layout-config-v2`) for Desktop Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene; utkast → Publiser med konfliktvern, sikkerhetskopi og standardfallback; kritiske HMS-komponenter er låst synlige. Ingen Airtable-endring. Testet mot mock-storage, ikke mot ekte Airtable). Før det: 2026-09-21 (Prioritet 56.1 — Kompakt bilvalg: sjåførens Velg bil bruker samme gruppekort som
 Ringeliste (`.ringeliste-group`, lik høyde og mellomrom), kompakte bilrader med kontrollpille og en lavere toppseksjon,
 slik at alle lag får plass uten scrolling; funksjon uendret). Før det: 2026-09-20 (Prioritet 59 — Forenkle Bilinformasjon og dekkskift for flere biler: Kjøretøyprofilen har
 «Rediger informasjon» kun i Kjøretøydetaljer, Mobilitetsgaranti kun i statusraden, «Neste verkstedtime» øverst til høyre
@@ -938,6 +938,16 @@ i dybden i denne gjennomgangen (ingen egen "Operativ Belastning"-indikator
 funnet — se merknad under Dashboard-optimaliseringer).
 
 ## Dashboard-optimaliseringer
+
+✅ **Prioritet 60 (2026-09-21) — Layout Engine 2.0 for hele Bilpark.** Avløser Dashboard Editor 1.0 (under) som lagringsformat og
+editor: ÉN motor, ett komponentregister, én Settings-nøkkel (`bilpark-layout-config-v2`). Se CHANGELOG.md/CLAUDE.md.
+Verifisert i nettleser mot mock-storage (migrering, publisering, skrivefeil, konflikt, korrupt/ukjent/nyere konfigurasjon,
+manipulert utkast, låste HMS-komponenter, tilbakestill, omlasting, mobil og desktop, ekte museforflytning), **ikke** mot
+ekte Airtable eller ekte berøringsskjerm. Gjenstår/kjent: (a) første publisering mot ekte Airtable er ikke prøvd;
+(b) forhåndsvisning for områdene utenom Dashboard er skjematiske (ikke de ekte sidene); (c) utkast mistes ved omlasting;
+(d) siste publisering vinner etter en eksplisitt konfliktmelding — ingen sammenslåing; (e) Sjåførkontroll er bevisst
+nesten helt låst (kun løftebord innenfor grensen og kommentar kan endres); (f) de gamle nøklene `dashboard-layout-v1` og
+`dashboard-layout` er beholdt i Airtable og kan ryddes bort manuelt senere; (g) sidemenyen styrer også mobil-drawer.
 
 ✅ **Prioritet 58 (2026-09-19) — Dashboard Editor 1.0 (kun Desktop Dashboard).** Se CHANGELOG.md/CLAUDE.md.
 Verifisert i nettleser mot mock-storage (inkl. ekte museforflytning), **ikke** mot ekte Airtable eller ekte

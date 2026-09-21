@@ -1,6 +1,12 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 56.1 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 60 —
+**Layout Engine 2.0 for hele Bilpark.** Dashboard Editor 1.0 er utviklet videre til ÉN felles layoutmotor med ett
+komponentregister (`LAYOUT_COMPONENTS`) og én versjonert Settings-konfigurasjon (`bilpark-layout-config-v2`) for Desktop
+Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene. Layout styrer
+kun plassering/synlighet/størrelse/starttilstand — aldri forretningslogikk. Se «Prioritet 60 (2026-09-21)» nederst — den
+avløser opp/ned-modellen fra Prioritet 44, lagringsformatet `dashboard-layout-v1` fra Prioritet 58 og de faste sidemenylistene.
+`storage.airtable.js`/Airtable er uendret. Før det: 2026-09-21 (Prioritet 56.1 —
 **Kompakt bilvalg.** Sjåførens Velg bil (og administrasjonens «Bytt bil»-fallback) bruker nå Ringeliste-gruppekortene
 (`.ringeliste-group`) med kompakte bilrader og en lavere toppseksjon. Se «Prioritet 56.1 (2026-09-21)» nederst — den
 avløser Velg bil-kortene fra Prioritet 48. Før det: 2026-09-20 (Prioritet 59 —
@@ -1438,6 +1444,9 @@ testresultater.
 ---
 
 ## Prioritet 44 (2026-09-10) — 🎨 Layout Editor under Innstillinger
+
+> ⚠️ **Helt avløst av Prioritet 60 (2026-09-21):** `DASHBOARD_LAYOUT_FLATER`/`getLayoutFlate()`/`dashboard-layout` finnes ikke lenger
+> som mekanisme (kun lest ved migrering). Dette avsnittet er historikk. Se «Prioritet 60 (2026-09-21)» nederst.
 
 > ⚠️ **Delvis avløst av Prioritet 58 (2026-09-19):** opp/ned-modellen gjelder nå KUN Mobil Dashboard og Min Bil.
 > Desktop Dashboard har egen rutenett-editor (`dashboard-layout-v1`); `DESKTOP_LAYOUT_KOLONNER`,
@@ -5729,6 +5738,11 @@ av banneret (skjermbildene i panelet er små; layout målt via DOM).
 
 ## Prioritet 58 (2026-09-19) — Dashboard Editor 1.0
 
+> ⚠️ **Avløst av Prioritet 60 (2026-09-21):** Dashboard Editor er nå ett av flere områder i Layout Engine 2.0
+> (`layouts['admin-dashboard']` i `bilpark-layout-config-v2`); `DASH_WIDGETER`/`dashEdit*` og skrivemålet
+> `dashboard-layout-v1` er fjernet. 12-kolonners reglene (ingen overlapp, minstehøyde, tyngdekraft) gjelder uendret via
+> `layoutGridPlaser()`. Resten av avsnittet er historikk.
+
 (Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 58 (2026-09-13) — Synlighetsdrevet
 Lucide-migrering» lenger opp. Nummeret følger brukerens backlog, ikke denne filens rekkefølge.)
 
@@ -6029,3 +6043,132 @@ alle klikk-håndterere. Dødt CSS igjen (ikke fjernet): `.p48-velg-card` m.fl.
 hverandre på ca. 625 px ved 390×844; gruppehode/mellomrom lik Ringeliste; åpne/lukke; bilklikk → navnedialog → «Velg en annen
 bil»; ute av drift-rad ikke klikkbar; 320 px uten horisontal overflow og med ellipsis på lange sjåførnavn; ingen JS-feil.
 **Ikke testet:** ekte telefon/touch, lys modus, administrasjonens «Bytt bil»-fallback visuelt (samme komponent).
+
+
+---
+
+## Prioritet 60 (2026-09-21) — Layout Engine 2.0 for hele Bilpark
+
+(Brukerens egen nummerering. Bygger på Dashboard Editor 1.0, Prioritet 58 — den er utviklet videre, ikke duplisert.)
+
+**Varig regel: utseendet på Bilpark er data, ikke kode — og det finnes ÉN motor for det.** Layout styrer kun
+plassering, rekkefølge, synlighet, kortstørrelse, seksjonsbredde, starttilstand og standardfane. Den styrer ALDRI
+forretningslogikk, datamodell, kontrollregler, saksmotor, verkstedlogikk, kilometerlogikk, lagringslogikk eller HMS-validering.
+Ikke bygg en egen editor, en egen widgetliste eller et eget lagringsformat for en enkelt flate — registrer komponenten i
+registeret og la motoren gjøre resten.
+
+### Register og konfigurasjon
+
+- **`LAYOUT_COMPONENTS`** er eneste sted en komponent defineres: `id` (widgetId, unik), `area`/`page`, `label`, `ikon`,
+  `renderer`, standardplassering (`std`), `canMove`/`canHide`/`canResize`, min/maks-størrelse, `critical`, `devices`, `roles`,
+  `parent` (barn — faner, bilkortrader), `tab`, `collapsible`, `maxIndex`, `lockReason`/`hideReason`. Registreres lazily i
+  `layoutRegistrerAlle()` via `layoutSikreRegister()` (noen registreringer leser konstanter deklarert lenger ned i filen —
+  aldri kall registeret ved skriptets toppnivå før hele filen er lastet). **Ny funksjon = én `layoutReg()`-linje.**
+- **Områder** (`LAYOUT_OMRADER`, modus): `admin-dashboard` (grid, 12 kolonner), `admin-sidebar` (sidebar), `vehicle-profile`
+  (seksjoner), `driver-min-bil`, `driver-control` (begrenset), `mobile-dashboard` (liste), og standardsidene
+  `admin-standard-pages:<side>` (`LAYOUT_STANDARDSIDER`: verksted, kalender, aktivesaker, varsler, rapporter, analyse,
+  innstillinger).
+- **Konfigurasjon:** ÉN JSON-blob i Settings, nøkkel **`bilpark-layout-config-v2`** (`LAYOUT_KEY`), lest/skrevet med
+  `window.storage.get/set(nøkkel, verdi, true)` — ingen direkte Airtable-kall, ingen `LIST_TABLES`-endring, **`storage.airtable.js`
+  uendret**: `{schemaVersion:2, layouts:{<gruppe>:[{widgetId, visible, order, width, height, x, y, collapsed, section}]},
+  options:{<gruppe>:{defaultTab}}, updatedAt, updatedBy, backup}`. (Ticketen skisserte `"admin-standard-pages":{}` som ett objekt;
+  implementert som én nøkkel per side, `admin-standard-pages:<side>`.) Kun presentasjonsdata.
+- **Standardlayout i kode** (`layoutStandardKonfig()` fra registerets `std`), bygget for hvert område — ikke hardkodet i den
+  lagrede blobben. En manglende/ugyldig gruppe gir automatisk standard; ingen side kan bli tom (`layoutSynligeTopp()` faller
+  tilbake til standard hvis ingenting er synlig).
+
+### Innlesing, migrering og normalisering
+
+- `lastLayoutConfig()` (kalles i `loadAll()` OG i bakgrunnssynkens handler) → `layoutStatus`: `ok` · `mangler` · `migrert` ·
+  `korrupt` · `ny-versjon` · `lesefeil` · `ikke-lastet`. **En lesefeil er ikke en tom layout:** en tidligere publisert layout
+  beholdes, og publisering sperres. **Nyere `schemaVersion` enn appen kjenner** gir standardlayout og BLOKKERT publisering (så
+  en eldre app aldri overskriver en nyere layout).
+- **`migrateLayoutConfig(config)`** + `LAYOUT_MIGRERINGER`: leser `schemaVersion`, migrerer stegvis, fjerner ukjente
+  widgetId-er/områder, legger til nye påkrevde komponenter fra standard. Fra legacy (`layoutLesLegacy()`, kun lesing):
+  `dashboard-layout-v1` → `admin-dashboard`, `dashboard-layout` → `mobile-dashboard`/`driver-min-bil` (skjult/rekkefølge
+  bevart). **De gamle nøklene slettes aldri.** Migreringen lagres (`layoutPersisterMigrering()`) kun i en administratorsesjon
+  og kun én gang — en sjåførenhet skriver aldri layout.
+- **`layoutNormaliserGruppe()`** kjøres ved HVER innlesing og HVER endring: fjerner ukjente og duplikater, legger til
+  manglende fra standard, **tvinger låste komponenter synlige**, fastholder `canMove:false` (Send kontroll, Sjekk ut bil m.fl.
+  står på sin plass) og `maxIndex` (løftebord i Sjåførkontroll), klemmer størrelser, og legger barn under sin forelder. Derfor
+  kan verken en manipulert lagret blob eller en manipulert `layoutDraft` skjule en låst komponent — `layoutValider()` avviser
+  i tillegg utkastet ved publisering.
+
+### Utkast, Angre og publisering
+
+- **Lokalt utkast** (`layoutDraft`, `layoutUndo`/`layoutRedo` maks 50, `layoutBaseUpdatedAt`) via ÉN inngang,
+  `layoutDraftEndre()`/`layoutDraftEndreGruppe()`. Alle operasjoner (`layoutOpSynlig/Flytt/FlyttTil/Bredde/Start/Seksjon/
+  Standardfane`, `layoutGridEndre/Skjul/Vis`) går gjennom den. Dashboard bruker `layoutGridPlaser()` (12 kolonner,
+  tyngdekraft, ingen overlapp, ingen pikselplassering — reglene fra Prioritet 58 gjelder uendret). Utkast leses aldri av
+  normalvisningen, og INGENTING skrives før «Publiser».
+- **`layoutPubliser()`:** valider (låste/påkrevde, duplikater, størrelser) → les lagret verdi på nytt og sammenlign
+  `updatedAt` mot utkastets utgangspunkt (ingen blind siste-skriving-vinner) → `storage.set` → VENT på bekreftet lagring →
+  først da byttes `layoutPub`; forrige publiserte layout legges i `backup` («Gjenopprett forrige» laster den INN I UTKASTET).
+  Feil: forrige layout urørt, utkastet vises ikke som lagret, «Layouten kunne ikke lagres. Forrige layout er fortsatt aktiv.»
+  Konflikt: «Layouten ble endret fra en annen enhet. Last inn nyeste versjon før du publiserer.» Dobbeltpublisering hindres av
+  `layoutLagrer`, og en lesing som startet før en pågående lagring kan ikke sette gammel verdi tilbake.
+- **Synk:** `layoutEtterEksternLasting()` oppdaterer publisert layout i bakgrunnen, men overskriver ALDRI et åpent utkast
+  (varsel + «Last inn nyeste»). `formInProgress()` er sann mens et utkast er åpent. `goTo()` bort fra editoren med ulagrede
+  endringer krever bekreftelse; utlogging avslutter utkastet.
+- **Kun administrator redigerer/publiserer** (`layoutKanRedigere()` = admin, ikke sjåførmodus). Sjåfører leser bare publisert
+  layout. Editoren for Desktop Dashboard-rutenettet krever desktopvisning (≥ 768 px); øvrige undersider kan redigeres på mobil.
+- «Tilbakestill denne siden» / «Tilbakestill hele appen» virker på utkastet (med bekreftelse) og kan angres.
+
+### Flatene
+
+| Flate | Motor-modus | Hva kan endres | Låst (kan ikke skjules) |
+|---|---|---|---|
+| Desktop Dashboard | grid | plassering, bredde, høyde, skjul/vis, legg til fra bibliotek | – (minst ett kort synlig) |
+| Sidemeny (desktop) + drawer (mobil) | sidebar | rekkefølge, skjul/vis, primær ↔ sekundær, dra og slipp | Hjem, Alle sider, Innstillinger |
+| Bilinformasjon | seksjoner | rekkefølge, skjul/vis, halv/full bredde, åpen/lukket start; Historikk-faner: rekkefølge, skjul/vis, standardfane | – (minst én fane synlig; skjult fane sletter aldri data) |
+| Min Bil (mobil) | liste | rekkefølge, skjul/vis, starttilstand (aldri bredde/høyde) | Bilkort (+ løftebord-raden), Registrer skade, Registrer varsellampe, Sjekk ut bil (låst nederst) |
+| Sjåførkontroll | begrenset | Løftebord kan flyttes (blant de fire første), Kommentar kan flyttes/skjules | Kjøretøy og sjåfør (øverst), Kilometerstand, Varsellamper, Kontrollavvik, Nye skader, Send kontroll (nederst) |
+| Mobil Dashboard | liste | rekkefølge, skjul/vis | – |
+| Standardsider | seksjoner | seksjonsrekkefølge, skjul/vis, starttilstand, standardfane | listen på Verksted, selve kalenderen, fanen «Aktiv sak», kritiske HMS-varselkategorier (varsellampe, skade), Layout Editor i Innstillinger |
+
+- **Sidemeny:** `renderDesktopSidebarHtml()`/`layoutDrawerNavHtml()` bygges fra registeret. Skjulte sider ligger fortsatt under
+  «Alle sider» (`renderAlleSider()`, screen `allesider`). Sidemenyen styrer også mobilens ☰-drawer.
+- **Bilinformasjon:** `renderBilkort()` lager HTML-biter (`bilDeler`, «parts»-mønsteret: `${(deler['id'] = ` + "`…`" + `, '')}`) som
+  `layoutFlowHtml()` setter sammen i et 12-kolonners `.lay-flow`. Når «Kjøretøydetaljer» er skjult vises en fallback-knapp
+  «Rediger informasjon» slik at redigering aldri blir utilgjengelig. Historikk-fanene bruker `bilkortHistFaner()`.
+- **Min Bil / Sjåførkontroll:** Bilkortets rader (Kontrollstatus, Kilometerstand, Neste verkstedtime, Løftebordstatus) er barn
+  av «Bilkort». Sjåførkontroll beholder ALL eksisterende logikk (`submitKontroll()` leser `kt-kommentar` null-sikkert, så et
+  skjult kommentarfelt ikke krasjer innsending); layout kan aldri endre validering, påkrevde felt, lagringsrekkefølge,
+  automatisk navigasjon til Min Bil, dagskille eller aktiv sjåfør.
+- **Komponenter registrert utover ticketens liste:** `vehicle.operativ-status`, `vehicle.aktive-saker`,
+  `vehicle.avanserte-handlinger`, Mobil Dashboard som eget område. «Kjøretøy og sjåfør» i Sjåførkontroll er ÉTT låst kort
+  (ikke to).
+
+### Regler videre
+
+1. Ny flate/komponent = `layoutReg()` i `layoutRegistrerAlle()` + tilsvarende del i sidens `…Deler`-objekt. Ikke lag en egen
+   editor eller lagringsnøkkel.
+2. Sett `canHide:false`/`critical:true` (med `lockReason`/`hideReason`) på alt som er HMS-kritisk eller nødvendig for å
+   kunne fullføre kontrollflyten. Layout skal aldri kunne skjule kritiske HMS-varsler, synkfeil, påkrevde kontrollfelt,
+   tilbakenavigasjon, muligheten til å gjenopprette standard eller admin-Innstillinger.
+3. Endres formatet: øk `LAYOUT_SCHEMA_VERSJON` og legg til et steg i `LAYOUT_MIGRERINGER`. Slett aldri eldre nøkler automatisk.
+4. Utkast leses aldri av normalvisning; ingen lagring før «Publiser»; ingen visning av utkast som lagret ved feil.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (`CACHE_VERSION` v108 → v109), `version-check.js`
+(`APP_VERSION` 108 → 109), `version.json` (108 → 109), CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md.
+**Ikke endret:** `storage.airtable.js`, Airtable, saksmotor, kilometerlogikk, aktiv sjåfør, dagskille, kontrollgrunnlag.
+
+**Testet** i nettleser (Browser-pane) mot en scratch-kopi med in-memory mock-storage — ingen kontakt med ekte Airtable
+(`node`/`python` finnes ikke): migrering fra `dashboard-layout-v1`/`dashboard-layout`; Dashboard dra (ekte museforflytning),
+skalere, skjule, vise, Angre/Gjør om; sidemeny (låser, skjul, seksjonsflytt, ekte museforflytning, drawer, Alle sider);
+Bilinformasjon (skjul/vis, bredde, starttilstand, faner, standardfane, siste fane kan ikke skjules, data urørt); Min Bil
+(rekkefølge, skjul, låste kort nekter skjuling, starttilstand, klikk åpner/lukker); Sjåførkontroll (alle låste kort nekter
+skjuling/flytting, løftebord-grense, skjult kommentar → kontroll sendes uten feil); standardsider (skjul, låste seksjoner,
+standardfane, starttilstand, skjult varselkategori-hint); manipulert lagret konfigurasjon (skjulte kritiske komponenter,
+ukjent widgetId/område, duplikat, ugyldig størrelse → normalisert), manipulert utkast (avvist, ingenting lagret); korrupt
+JSON (standard, ingen skriving, advarsel), nyere `schemaVersion` (publisering blokkert), lesefeil (layout beholdes),
+skrivefeil (forrige layout beholdes), endring fra annen enhet (bakgrunnssynk og stille konflikt), tilbakestill side/hele
+appen, Avbryt, publisering + omlasting (persistert), Mobil Dashboard, 375 px uten horisontal overflow og desktop.
+
+**Ikke testet / kjente begrensninger:** (a) mot ekte Airtable (bl.a. at Settings-raden faktisk opprettes ved første
+publisering) og ekte samtidig redigering fra to fysiske enheter; (b) på ekte telefon/berøringsskjerm (kun mus; `touch-action:none`
+er satt); (c) lys modus; (d) forhåndsvisningen for områdene utenom Dashboard er skjematisk (komponentnavn i rekkefølge),
+ikke en pikselnøyaktig kopi av den ekte siden; (e) utkast mistes ved omlasting (ingen `beforeunload`-vern); (f) siste
+publisering vinner etter en eksplisitt konfliktmelding — ingen sammenslåing; (g) `dashboardBeregning()` beregnes også for
+skjulte kort (samme overflødige beregning som før); (h) Sjåførkontroll er bevisst nesten helt låst — kun løftebord og
+kommentar kan endres; (i) ikke committet.

@@ -15,6 +15,56 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 60 — Layout Engine 2.0 for hele Bilpark
+
+(Brukerens egen nummerering. Bygger på Prioritet 58 «Dashboard Editor 1.0» — den ble utviklet videre til ÉN felles motor,
+ikke et parallelt system. Full detalj i CLAUDE.md, «Prioritet 60 (2026-09-21)».)
+
+1. **Én motor, ett register, én konfigurasjon.** `LAYOUT_COMPONENTS` er eneste sted en komponent registreres (widgetId,
+   område, etikett, renderer, standardplassering, canMove/canHide/canResize, min/maks-størrelse, critical, enheter, roller).
+   Alle flater leser samme publiserte konfigurasjon: Settings-nøkkelen **`bilpark-layout-config-v2`**
+   (`{schemaVersion:2, layouts:{…}, options:{…}, updatedAt, updatedBy, backup}`). Layout styrer kun plassering, rekkefølge,
+   synlighet, størrelse, seksjonsbredde, starttilstand og standardfane — aldri forretningslogikk, data eller HMS-validering.
+2. **Flater:** Desktop Dashboard (12 kolonner, som P58), Sidemeny (primær/sekundær, dra og slipp, «Alle sider»),
+   Bilinformasjon (seksjoner, halv/full bredde, åpen/lukket start, Historikk-faner med standardfane), Min Bil (mobil liste,
+   starttilstand), Sjåførkontroll (begrenset), Mobil Dashboard og standardsidene Verksted, Kalender, Aktive saker,
+   Varslingssenter, Rapporter, Analyse og Innstillinger (seksjonsrekkefølge, synlighet, standardfane, starttilstand).
+3. **Låste komponenter** (kan ikke skjules; håndheves både i editoren og ved innlesing/publisering): Hjem, Alle sider,
+   Innstillinger, Layout Editor, Bilkort, løftebord og Registrer skade/varsellampe/Sjekk ut bil på Min Bil, «Kjøretøy og
+   sjåfør»/Kilometerstand/Varsellamper/Kontrollavvik/Nye skader/Send kontroll i Sjåførkontroll (Send og Sjekk ut står låst nederst,
+   Løftebord kan flyttes men må ligge blant de fire første), kritiske HMS-varselkategorier, listen på Verksted, selve
+   kalenderen. Skjulte komponenter sletter aldri data; en skjult Varslingssenter-kategori vises som hint.
+4. **`migrateLayoutConfig()`** leser `schemaVersion`, migrerer stegvis, validerer, fjerner ukjente widgetId-er/områder og
+   duplikater, legger til nye påkrevde komponenter fra standard og faller tilbake til standardlayout. `dashboard-layout-v1`
+   og `dashboard-layout` leses (aldri slettes) og migreres til `layouts['admin-dashboard']`, `mobile-dashboard` og
+   `driver-min-bil`; migreringen lagres først når en administrator er innlogget, og kun én gang.
+5. **Utkast og publisering:** alt redigeres i et lokalt utkast (Angre/Gjør om, Forhåndsvis, Avbryt med bekreftelse).
+   «Publiser» validerer (låste/påkrevde, duplikater, størrelser), leser lagret sannhet på nytt (ingen blind siste-skriving-
+   vinner), lagrer gjennom eksisterende storage-lag, venter på bekreftet lagring og bytter først da aktiv layout; forrige
+   publiserte layout beholdes som `backup` («Gjenopprett forrige»). Feil gir «Layouten kunne ikke lagres. Forrige layout er
+   fortsatt aktiv.» og utkastet vises ikke som lagret. Konflikt: «Layouten ble endret fra en annen enhet. Last inn nyeste
+   versjon før du publiserer.» Bakgrunnssynk oppdaterer publisert layout, men overskriver aldri et åpent utkast.
+   «Tilbakestill denne siden» / «Tilbakestill hele appen» (utkast, med bekreftelse).
+6. **Fjernet:** P58 sitt eget `dashboard-layout-v1`-lagringsformat som skrivemål, `DASH_WIDGETER`/`dashEdit*`, den gamle
+   opp/ned-modellen (`DASHBOARD_LAYOUT_FLATER`/`getLayoutFlate()`), og de faste sidemenylistene (`DESKTOP_NAV_PRIMARY` m.fl.).
+7. `CACHE_VERSION`/`APP_VERSION`/`version.json` 108 → 109; `kontroll.html` eksakt kopi. **`storage.airtable.js` og Airtable er
+   uendret** (Settings-raden opprettes av storage-laget ved første publisering).
+
+**Testet** i nettleser mot scratch-kopi med in-memory mock-storage (ingen ekte Airtable; `node`/`python` finnes ikke):
+migrering fra `dashboard-layout-v1`/`dashboard-layout` (legacy-nøklene aldri slettet; utkast skriver ingenting før «Publiser»);
+Dashboard dra (ekte museforflytning)/skalere/skjule/vis/Angre/Gjør om; sidemeny (låser, skjul, seksjonsflytt, dra og slipp,
+mobil drawer, «Alle sider»); Bilinformasjon (skjul/vis, bredde, starttilstand, faner, standardfane, siste fane kan ikke
+skjules, data urørt); Min Bil (rekkefølge, skjul, låste kort, starttilstand, klikk åpner/lukker); Sjåførkontroll (alle låste
+kort nekter skjuling/flytting, løftebord-grense, skjult kommentar → kontroll sendes uten feil); standardsidene (skjul,
+låste seksjoner, standardfane, starttilstand); manipulert lagret konfigurasjon (skjulte kritiske komponenter, ukjent
+widgetId, duplikat, ugyldig størrelse → normalisert), manipulert utkast (blokkert ved publisering, ingenting lagret);
+korrupt JSON (standard, ingen skriving, advarsel), nyere `schemaVersion` (standard + publisering blokkert), lesefeil
+(tidligere layout beholdes), skrivefeil (forrige layout beholdes, utkast beholdes), endring fra annen enhet
+(bakgrunnssynk og stille konflikt), tilbakestill side/hele appen, Avbryt, publisering + omlasting, 375 px og desktop.
+**Ikke testet:** mot ekte Airtable, ekte telefon/touch, lys modus, samtidig redigering fra to fysiske enheter.
+
+---
+
 ### Prioritet 56.1 — Kompakt bilvalg
 
 (Brukerens egen nummerering; bygger på Prioritet 56 «Moderniser hele sjåførmodus». Full detalj i CLAUDE.md,
