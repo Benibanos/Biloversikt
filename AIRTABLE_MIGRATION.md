@@ -341,14 +341,17 @@ typen `'loftebord'` i `KONTROLLAVVIK_ORDER` (index.html).
   CLAUDE.md, Prioritet 50, for hvorfor (unngår å forurense
   `isKontrollertIdag()`/kilometerhistorikk). `{id, vehicleId, dato,
   tidspunkt, sjafor, tekst, lest}`.
+- `aktiv-sjafor-manuell-nullstilling` — **Prioritet 65:** kart `{ [vehicleId]: {dato, at} }` for administratorens manuelle «Nullstill aktiv sjåfør». Gjelder kun inneværende operative dag; en ny kontroll etter `at` gjenoppretter aktiv sjåfør fra kontrollhistorikken. Samme Settings-mønster som `operativ-kontrollgrunnlag` — ingen `LIST_TABLES`-felt.
 - Alle skadebilder (`photo:*`-nøkler i Photos-tabellen)
 
 ## 4. Live-beregnede verdier (IKKE Airtable-felt — beregnes i JavaScript)
 
 Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
-- `vehicleAktivSjafor()`, `vehicleSisteSjafor()` — beregnet fra
-  `aktivSjafor`/`aktivSjaforSiden` + dagens `kontroller`
+- `vehicleAktivSjafor()`, `vehicleSisteSjafor()` — **Prioritet 65:** aktiv sjåfør
+  leses live som sjåføren på siste gyldige kontroll i inneværende operative dag
+  (feltet `aktivSjafor` brukes når det er nyere, f.eks. «Ny sjåfør», eller når
+  administrator har nullstilt manuelt etter den kontrollen)
 - `vehicleServiceStatus()`, `vehicleNesteServiceKm()`,
   `vehicleSisteService()` — beregnet fra `servicehistorikk` + `v.km` +
   `serviceIntervallKm`
