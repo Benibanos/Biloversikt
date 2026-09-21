@@ -271,7 +271,11 @@
       // nøyaktig FELTREGEL-bruddet ("data forsvinner stille ved neste Airtable-synk").
       // Rettes nå. KREVER en ny kolonne "Avvik" (type: long text) i AktiveSaker-tabellen i
       // Airtable FØR denne filen tas i bruk — se leveransenotatet.
-      avvik: ['Avvik', 'json']
+      avvik: ['Avvik', 'json'],
+      // Prioritet 63: flerbilssak — saker som er ÉN sak for flere biler (én saksrad per bil, egen status/historikk/oppfølging
+      // per kjøretøy) deler samme verdi her; tom for vanlige saker. KREVER en ny kolonne «SakGruppeId» (enkel tekst) i AktiveSaker
+      // FØR denne filen tas i bruk — Database status → Synkroniser Airtable kan opprette den.
+      sakGruppeId: ['SakGruppeId']
     }},
     // Prioritet 49, Del 2: løftebordvedlikehold (smøring, sjåfør) og løftebordkontroll
     // (årlig, admin) — egen tabell, ALDRI blandet med aktiveSaker/kontroller. Ingen
@@ -602,7 +606,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.22.0',
+    versjon: 'v2.23.0',
     bygget: '21.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.

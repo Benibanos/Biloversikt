@@ -15,6 +15,38 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 63 — Dublettsikring og flerbilssaker
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 63 (2026-09-21)».)
+
+1. **Sjåførkontroll:** «Send inn kontroll» deaktiveres og viser «Registrerer...» umiddelbart (`beskyttSubmit(..., {opptattTekst})`); vellykket lagring viser «✅ Kontroll registrert» og går til Min Bil (uendret).
+2. **Dublettsikring:** samme bil + samme sjåfør + samme operative dag innen 10 minutter lagres kun én gang — sjekket mot `kontroller[]` og et localStorage-fingeravtrykk (også for pågående innsending i en annen fane) før noe skrives;
+   en dublett gir Min Bil («Kontrollen var allerede registrert») uten ny lagring. Rulles innsendingen tilbake, er nytt forsøk lov. Grense: to ulike enheter innen ~45 s kan begge lagre.
+3. **Rettet:** temporal dead zone på `submitBtn` i `submitKontroll()` (`ReferenceError` når kjøretøyregisteret ikke er sikkert lest), og `priority` (udefinert etter Prioritet 59) som fikk «+ Ny sak» til å kaste ved lagring.
+4. **Flerbilssaker:** «➕ Legg til bil» på åpne saker (ikke varsellampe/skade). Hver bil beholder sin egen saksrad (status, historikk, oppfølging, bilstatus) knyttet med felles `sakGruppeId`, og Aktive saker viser dem som ÉN sak med én rad
+   per bil. «Godta alle» og «Bestill verkstedtime for alle»: én verkstedbestilling per bil (idempotent, med rollback og fasit-lesing ved delvis feil, felles `bestillingGruppeId` for «Alle utført»).
+5. **`storage.airtable.js` v2.23.0 — ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse** (ellers feiler alle lagringer av aktive saker).
+6. `CACHE_VERSION`/`APP_VERSION`/`version.json` 111 → 112; `kontroll.html` eksakt kopi.
+
+**Testet** i nettleser mot mock-storage: dobbeltklikk under treg lagring, alle dublettlag og kanttilfeller, rollback/nytt forsøk, «Legg til bil»/Godta alle/samlet verkstedbestilling/per-bil fullføring og tre feilstier uten dubletter. **Ikke testet:** ekte Airtable, mobilvisning av flerbilspanelet, to samtidige enheter.
+
+---
+
+### Prioritet 62 — Dynamisk tekst for driftsdager
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 62 (2026-09-21)».)
+
+1. **«Siste N driftsdager» er ikke lenger hardkodet til 7.** N = `activeWeekdays.length` i Operativt kontrollgrunnlag: man–fre → «65 % siste 5 driftsdager»,
+   man–lør → 6, man–søn → 7, én dag → «siste driftsdag». Teksten leses fra grunnlaget hver render, så en endring i Innstillinger slår gjennom umiddelbart.
+2. **Beregningen bruker samme N** (`kontrollrateSyvDriftsdager()` → `kontrollrateSisteDriftsdager()`, nevner = valgte biler × N). Å endre bare teksten ville latt
+   prosenten være regnet over 7 driftsdager mens teksten sa 5. **Konsekvens:** tallet endrer seg for alle konfigurasjoner utenom man–søn.
+3. Layout Editor-beskrivelsen av «Operativ kontroll» er gjort generisk. Ingen andre «7 driftsdager» finnes på Dashboard (grep).
+4. `CACHE_VERSION`/`APP_VERSION`/`version.json` 110 → 111; `kontroll.html` eksakt kopi. `storage.airtable.js`/Airtable uendret.
+
+**Testet** i nettleser mot mock-storage: man–fre/man–lør/man–søn/én dag/fridag, og en ekte lagring via Innstillinger (Dashboard oppdatert uten omlasting).
+
+---
+
 ### Prioritet 61 — Daglig systemkontroll for sjåfører
 
 (Ikke nummerert av brukeren; «61» tildelt her. Full detalj i CLAUDE.md, «Prioritet 61 (2026-09-21)».)

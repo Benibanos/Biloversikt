@@ -1,6 +1,11 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 61 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 63 —
+**Dublettsikring og flerbilssaker.** Sjåførkontroll: «Registrerer...»-knapp og dublettsikring (samme bil + sjåfør + operative dag innen 10 min lagres kun én gang). Aktive saker: «➕ Legg til bil» —
+én sak for flere biler (én saksrad per bil knyttet med `sakGruppeId`), samlet Godta og én verkstedbestilling per bil. **Ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse.**
+Se «Prioritet 63 (2026-09-21)» nederst. `storage.airtable.js` v2.23.0. Før det: 2026-09-21 (Prioritet 62 —
+**Dynamisk tekst for driftsdager.** «Siste N driftsdager» på Dashboard følger valgt driftsdagskonfigurasjon (`activeWeekdays.length`), og prosenten regnes over samme N.
+Se «Prioritet 62 (2026-09-21)» nederst — den avløser «siste 7 driftsdager» fra Prioritet 53. Før det: 2026-09-21 (Prioritet 61 —
 **Daglig systemkontroll for sjåfører.** Første åpning av sjåførappen på en enhet hver operative dag (dagskille kl. 04:00) møter en
 sperrende «Systemkontroll» med knappen «Oppdater og fortsett» (hard refresh, cache tømmes, versjon kontrolleres, lastVerifiedVersion/Date
 registreres); status vises for administrator i Innstillinger. `version-check.js` fikk en felles `hardRefresh()` som bevarer `?sjafor=1`.
@@ -5465,7 +5470,7 @@ skriver bevisst ikke om grunnlaget.
   (`operativIsoUkedag()`), så natt til lørdag før 04:00 er fortsatt fredag. Ingen ny «i dag»-
   definisjon er innført (jf. Prioritet 66).
 - Fridag (ukedag ikke valgt): «Ingen planlagt kontroll i dag» — **aldri 0 %**.
-- **Siste 7 driftsdager** = de syv siste datoene, regnet bakover fra og MED i dag (når i dag er
+- **Siste 7 driftsdager** _(avløst av Prioritet 62: antallet er nå antall valgte driftsdager, `activeWeekdays.length`, i både tekst og beregning)_ = de syv siste datoene, regnet bakover fra og MED i dag (når i dag er
   en driftsdag — samme oppførsel som forrige «7 dager»), hvis ukedag er valgt; helger hoppes over
   når kun man–fre er valgt. Formel: unike kontrollerte kjøretøy-dager / (valgte biler × 7).
   Bevisst forenkling: dagens valgte bilsett brukes for alle sju dagene (ingen historikk over
@@ -6269,3 +6274,87 @@ dagskille; (c) en klient eldre enn Prioritet 69.2 har ingen versjonskontroll og 
 (nettverk-først i service worker gjør at dette skjer ved første åpning online); (d) er enheten offline, sperrer allerede versjonskontrollen (fail-secure) —
 systemkontrollen kan ikke fullføres uten nett; (e) enhetsrader slettes aldri automatisk (de skjules kun i visningen etter 60 dager); (f) `pwa-install-bar`
 ligger utenfor `#app` og er ikke gjort inert (skjult bak sperreskjermen); (g) ikke committet.
+
+
+---
+
+## Prioritet 62 (2026-09-21) — Dynamisk tekst for driftsdager
+
+(Brukerens egen nummerering.) **Varig regel: «siste N driftsdager» på Dashboard er aldri hardkodet.** N er antall valgte driftsdager i
+Operativt kontrollgrunnlag — `activeWeekdays.length` (`operativAntallDriftsdager()`, 1–7; `validerOperativGrunnlag()` garanterer unike heltall).
+Man–fre gir «siste 5 driftsdager», man–lør 6, man–søn 7, én dag «siste driftsdag» (`operativSisteDriftsdagerTekst()`).
+
+**Tekst OG beregning bruker samme N.** `kontrollrateSyvDriftsdager()` er omdøpt til `kontrollrateSisteDriftsdager()` og teller nå de N siste
+driftsdatoene (dager som ikke er valgt hoppes over) med nevner = valgte biler × N, og returnerer `antall`. Bare å endre teksten ville latt
+prosenten fortsatt være regnet over 7 driftsdager (1,4 uker ved man–fre) mens teksten sa 5 — like misvisende. **Konsekvens:** prosenten
+siste-driftsdager endrer verdi for alle konfigurasjoner utenom man–søn (den var før regnet over 7 driftsdager uansett).
+
+Teksten leses fra det lagrede grunnlaget hver render, så en endring i Innstillinger → Operativ kontrollgrunnlag slår gjennom med én gang (også via
+bakgrunnssynk fra en annen enhet). Samme banner (`dashOperativBannerVenstreHtml()`) brukes av desktop og mobil. Beskrivelsen av kortet «Operativ kontroll» i
+Layout Editor er gjort generisk. Ingen andre steder på Dashboard nevner «7 driftsdager» (grep-verifisert); «Siste 7 dager» i Kontrolloversikt/Verksted er
+kalenderfiltre, ikke driftsdager, og er urørt.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (`CACHE_VERSION` v110 → v111), `version-check.js` (`APP_VERSION` 110 → 111), `version.json` (110 → 111),
+CLAUDE.md/ROADMAP.md/CHANGELOG.md. `storage.airtable.js`/Airtable uendret.
+
+**Testet** i nettleser mot mock-storage: man–fre → «siste 5 driftsdager», man–lør → 6, man–søn → 7, én dag → «siste driftsdag», lør–søn og tirs/tors/lør på en
+fridag (teksten følger, antall dager i beregningen = N, nevner = biler × N), og en ekte lagring via Innstillinger (fjernet lør/søn → Dashboard viste «5 driftsdager»
+uten omlasting). **Ikke testet:** mobilvisning visuelt (samme funksjon), ekte Airtable.
+
+
+---
+
+## Prioritet 63 (2026-09-21) — Dublettsikring og flerbilssaker
+
+(Brukerens egen nummerering.) To uavhengige deler.
+
+### Del 1 — Sjåførkontroll: dublettsikring og knappetilstand
+
+- **Knappen:** «Send inn kontroll» deaktiveres og viser «Registrerer...» umiddelbart og kan ikke trykkes flere ganger.
+  `beskyttSubmit(nokkel, handler, {opptattTekst})` (delt mekanisme, Prioritet 29) fikk en valgfri `opptattTekst`; opprinnelig tekst gjenopprettes i
+  `finally` (kun hvis knappen fortsatt står i DOM-en). JS-låsen `_aktiveHandlingsLaser` er selve sperren — ikke bare `disabled`.
+- **Etter vellykket lagring:** uendret flyt — «✅ Kontroll registrert» (`visSjToast`, med `circle-check`-ikon) og rett til Min Bil (sjåførmodus).
+- **Dublett = samme bil + samme sjåfør (navn normalisert: trim, mellomrom, små bokstaver) + samme operative dag + innen `KONTROLL_DUBLETT_MINUTTER` (10)
+  minutter.** Kun den første lagres. `kontrollFinnDublett()` kjøres i `submitKontroll()` etter dagskille-håndhevingen og FØR km-validering/noe skrives, i tre lag:
+  (1) `kontroller[]` (lokal + live-synket); (2) et fingeravtrykk i localStorage (`bilpark_kontroll_sist_v1`: `{nokkel, ts, status:'pagar'|'ok'}`) som overlever omlasting
+  og at synken bytter ut listen, og som også markerer en PÅGÅENDE innsending (gyldig 90 s) slik at en andre fane ikke kan starte samtidig; (3) knapp + lås.
+  Tidsforskjellen regnes fra operativt dagskille (`kontrollMinutterIDogn()`), så 23:58 og 00:03 er 5 minutter fra hverandre.
+- **Når en dublett oppdages:** ingenting lagres (`kontroller` uendret, `v.km` uendret). Sjåførmodus → Min Bil med «Kontrollen var allerede registrert» (aktiv sjåfør bekreftes
+  idempotent via `startBilokt()`); admin → melding + bilkortet. Pågår en annen innsending: «Kontrollen registreres allerede — vent et øyeblikk.» og skjemaet beholdes.
+  Fingeravtrykket settes til `'pagar'` FØR første skriving og `'ok'` når alt er lagret; `rullTilbake()` fjerner det, så et nytt forsøk etter en mislykket innsending er lov.
+- **Ærlig grense:** to ULIKE enheter som sender samme kontroll innen ~45 s (før live-synk har hentet den første) kan fortsatt begge lagre — det finnes ingen server som kan avgjøre rekkefølgen.
+- **Latent feil rettet:** `submitKontroll()` leste `submitBtn` FØR `const submitBtn` var deklarert (temporal dead zone) i grenen der `krevVehiclesSkriving()` avviser — ville kastet `ReferenceError` i stedet for å vise meldingen. Deklarasjonen er flyttet til toppen.
+
+### Del 2 — Flerbilssaker («ett problem + flere biler = én sak»)
+
+**Datamodell (viktig valg):** hver bil beholder SIN EGEN saksrad (egen status, historikk, oppfølgingsdato/neste handling, verkstedbestilling, kjøretøyhistorikk og bilstatus), og radene som
+hører sammen knyttes med et felles **`sakGruppeId`** (`AktiveSaker.SakGruppeId`, ny kolonne — se AIRTABLE_MIGRATION.md). Aktive saker viser dem som ÉN sak: `sakGruppePanelerHtml(fase)` — ett panel per
+sak med én rad per bil (kun biler som står i valgt fane), og gruppen står ikke i per-bil-grupperingen under. Alternativet, én rad med `biler[]`, ville krevd per-bil status/oppfølging/verksted inne i én rad og at alle
+konsumenter av `s.vehicleId` (Dashboard, `vehicleHovedstatus()`, Varslingssenter, Historikk, Rapporter, sletting) lærte formatet. Konsekvens: «ett problem» er én sak i visningen, men i data flere saksnumre
+(SAK-0004, SAK-0005 …) — et bevisst kompromiss.
+
+- **➕ Legg til bil** (`sakLeggTilBil()`): på ethvert åpent sakskort og i flerbilspanelet. Lager en ny saksrad for bilen (samme sakstype/tittel/beskrivelse/avvik, neste handling og oppfølgingsdato kopieres,
+  ny bil starter i «Aktiv sak» hvis kilden gjør det, ellers i «Under oppfølging» — aldri direkte i «Planlagt verksted»), sporer koblingen i begge sakers historikk, og rulles tilbake ved lagringsfeil.
+  En bil kan ikke legges til to ganger i samme åpne sak.
+- **Unntak:** varsellampe- og skadesaker (`SAK_FLERBIL_UNNTATT`) kan ikke få flere biler — de er knyttet til ÉN bils egen `varsellys[]`/`damages[]`-registrering, og en kopi ville pekt på feil bils data.
+- **Godta alle** (`godtaSakGruppe()`): alle biler i «Aktiv sak» → «Under oppfølging» i én lagring med rollback.
+- **Verkstedbestilling per bil** (`visSakGruppeVtDialog()` → `opprettVerkstedForSakGruppe()`): «Bestill verkstedtime for alle (N)» åpner en dialog (biler kan velges bort, verksted foreslås fra standardverksted,
+  dato, tid, kommentar) og oppretter **én verkstedbestilling per bil** (`sakId`/`caseId` satt, felles `bestillingGruppeId` slik at «Alle N utført» i Verksted virker), kobler hver sak (`verksted-bestilt`,
+  `linkedVtId`, historikk). **Idempotent:** en bil som allerede har en ikke-utført time koblet til saken (fra et delvis forsøk) får den kobles på nytt i stedet for en ny. Feiler timelagringen leses fasiten fra Airtable —
+  det som faktisk ligger der beholdes og kobles, resten tilbakestilles; feiler sak-lagringen etter at timene ble lagret, tilbakestilles sakene og et nytt trykk adopterer timene uten dubletter.
+- Per-bil-handlingene (Godta, Avslå, Bestill verkstedtime, Utført uten verkstedbesøk, Arbeid utført) er de SAMME som før (`sakHandlingHtml()` er delt av sakskortet og bilradene) og virker per bil.
+- **`submitAddSak()`** («+ Ny sak») refererte en udefinert variabel `priority` (etterlatt av Prioritet 59) og kastet `ReferenceError` ved lagring — rettet. «Ny sak» oppretter fortsatt én bil; flere biler legges til etterpå.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `storage.airtable.js` (v2.22.0 → **v2.23.0**, nytt felt `sakGruppeId`), `sw.js` (`CACHE_VERSION` v111 → v112), `version-check.js` (`APP_VERSION` 111 → 112),
+`version.json` (111 → 112), CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md. **Krever en ny Airtable-kolonne før idriftsettelse:** `AktiveSaker.SakGruppeId` (enkel tekst) — alle `LIST_TABLES`-felt skrives ved hver skriving, så uten
+kolonnen feiler ALLE lagringer av aktive saker. Innstillinger → Database status → «Synkroniser Airtable» kan opprette den.
+
+**Testet** i nettleser mot scratch-kopi med mock-storage (ingen ekte Airtable): dobbeltklikk/`requestSubmit` under en treg lagring (én kontroll, én skriving, «Registrerer...»); dublett fra `kontroller[]`, fra bare
+fingeravtrykket, utenfor vinduet, annen sjåfør/bil/dag, navnenormalisering, midnatt/dagskille, pågår-merke (nytt og utløpt), ende-til-ende (ingen `kontroller`-skriving, km uendret); skrivefeil → rollback → merket fjernet → nytt forsøk lykkes;
+`krevVehiclesSkriving()`-grenen uten `ReferenceError`; «Legg til bil» (ekte klikk, bil 2 og 3, avvist dobbel, ingen knapp på skade/varsellampe), Godta alle, samlet verkstedbestilling (tre biler → tre timer, felles gruppe-id),
+per-bil «Arbeid utført» og «Alle utført», per-bil status/historikk, tre feilstier (timer feiler / saker feiler / retry uten dubletter), rollback ved «Legg til bil», ny bil i verksted-fase, øvrige skjermer uten JS-feil.
+**Ikke testet:** ekte Airtable (bl.a. at kolonnen `SakGruppeId` aksepteres), mobilvisning av flerbilspanelet, to samtidige enheter.
+
+**Kjente begrensninger:** (a) en flerbilssak har ett saksnummer per bil, ikke ett felles; (b) Dashboard, Varslingssenter og bilkort viser fortsatt hver bils sak for seg (bevisst — per kjøretøy);
+(c) «Ny sak»-skjemaet kan ikke velge flere biler ved opprettelse; (d) en bil som legges til får en kopi av kildens avvik og oppfølging på tidspunktet — senere endringer på kilden følger ikke med; (e) er «Planlagt verksted»-fanen skjult i
+Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.

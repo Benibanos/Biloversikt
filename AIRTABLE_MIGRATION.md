@@ -682,3 +682,15 @@ skjules i administratorvisningen etter 60 dager uten kontroll — så gamle `sys
 
 `storage.airtable.js` v2.22.0: `window.storage.list(prefix)` returnerer nå `{keys, items:[{key,value}], prefix}` for Settings-nøkler med prefikset
 (tidligere en tom stubb).
+
+---
+
+## Prioritet 63 (2026-09-21) — NY KOLONNE på AktiveSaker (krever handling)
+
+**Handling kreves i Airtable FØR denne versjonen tas i bruk:** legg til kolonnen **`SakGruppeId`** (enkel tekst / singleLineText) i tabellen **`AktiveSaker`**.
+
+Alle felt i `LIST_TABLES` skrives ved hver lagring; uten kolonnen avvises skrivingen av Airtable, og dermed feiler ALLE lagringer av aktive saker (også godta/avslå/utført). Kolonnen kan
+opprettes automatisk: Innstillinger → Systeminnstillinger → Database status → «Synkroniser Airtable» (krever `schema.bases:write` på tokenet), eller manuelt.
+
+Feltet (`sakGruppeId` i appen, `storage.airtable.js` v2.23.0) er tomt for vanlige saker. Flerbilssaker («➕ Legg til bil» i Aktive saker) har ÉN saksrad per bil, og radene som hører sammen deler samme verdi.
+Ingen migrering av eksisterende saker er nødvendig (tomt = ikke del av en flerbilssak). Ingen annen tabell/kolonne er endret.
