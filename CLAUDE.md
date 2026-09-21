@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 64 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 66 —
+**Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser (⚠ Kilometeravvik med forrige/ny/differanse og Godkjenn; 💬 Sjåførkommentar viser kun kommentaren). Sjåfør ser kun aktiv bil; administrator har kjøretøyfilter. Historisk `kontroller[].kommentar` slettes ikke. `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
 **Samle oppdatering og synkronisering.** Oppdater app, Database status og Systemkontroll sjåfører er samlet i Innstillinger → **Optimaliseringer** med Hurtigoversikt-faner (Alle / App / Airtable / Sjåfører) og «Oppdater og synkroniser alt». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 64 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 63 —
 **Dublettsikring og flerbilssaker.** Sjåførkontroll: «Registrerer...»-knapp og dublettsikring (samme bil + sjåfør + operative dag innen 10 min lagres kun én gang). Aktive saker: «➕ Legg til bil» —
 én sak for flere biler (én saksrad per bil knyttet med `sakGruppeId`), samlet Godta og én verkstedbestilling per bil. **Ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse.**
@@ -6386,3 +6387,19 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 **Ikke rørt:** sjåførens daglige Systemkontroll-sperre (Prioritet 61), saksmotor, kilometerlogikk, aktiv sjåfør, kontrollgrunnlaget, Layout Engine-mekanikken for øvrig.
 
 **Kjente begrensninger:** (a) hard refresh logger ut administrator (samme som «Oppdater app» alltid har gjort — innlogging ligger i minnet); Dashboard vises etter ny innlogging; (b) «Oppdater og synkroniser alt» kan ikke fullføre Airtable-synk etter omlastingen i samme økt — synken kjøres FØR refresh; (c) to ulike enheter som synker samtidig følger siste skriving, uendret.
+
+---
+
+## Prioritet 66 (2026-09-21) — Skill kommentarer og kilometeravvik
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 66 (2026-09-14) — Dataintegritet: operativt døgn og kilometerstand». Nummeret følger brukerens backlog.)
+
+**Varig regel: kilometeravvik og sjåførkommentarer er separate hendelser.** De skal aldri vises som én blandet tekstblokk i kommentarsenteret. Lagret `kontroller[].kommentar` (som fortsatt kan inneholde `KM_AVVIK_PREFIX`-linjen fra storthopp) slettes ikke — visningen splitter.
+
+- **Kilometeravvik** (`kmAvvikHendelserListe()`, `kmAvvikHendelseRadHtml()`): tittel «⚠ Kilometeravvik»; Forrige km, Ny km, Differanse; **Godkjenn** (`godtaKmEndring()`, samme som Varslingssenteret). Avslå beholdes som sekundær adminhandling.
+- **Sjåførkommentar** (`nyeKommentarerListe()` via `kontrollSjaforKommentarTekst()`): tittel «💬 Sjåførkommentar»; kun sjåførens tekst. Km-prefix-linjer telles ikke som kommentar og inngår ikke i ulest-telleren.
+- **Sjåfør** (Mer / bunnmeny Kommentarer): kun `driverActiveVehicleId`. Tom filter viser ikke flåten — «Ingen aktiv bil».
+- **Administrator** (Kommentaroversikt): Alle biler eller ett kjøretøy (`kommentaroversiktFilterBil`). To paneler: avvik og kommentarer.
+- Kontrollhistorikk viser også de to hendelsene hver for seg. Ingen Airtable-endring.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js`/`version-check.js`/`version.json` 113 → 114. `storage.airtable.js` uendret.

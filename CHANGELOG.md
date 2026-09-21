@@ -15,6 +15,17 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-21
 
+### Prioritet 66 — Skill kommentarer og kilometeravvik
+
+(Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 66 (2026-09-21)».)
+
+1. **Egne hendelser:** `kontrollSjaforKommentarTekst()` striper `KM_AVVIK_PREFIX`-linjer fra kommentarsenteret. `kmAvvikHendelserListe()` viser ventende storthopp som ⚠ Kilometeravvik (forrige/ny/differanse + Godkjenn). Historisk `kontroller[].kommentar` er urørt.
+2. **Sjåfør:** Kommentarer (bunnmeny / Mer) filtrerer på `driverActiveVehicleId`. Tom aktiv bil = tom liste, aldri hele flåten.
+3. **Admin:** Kommentaroversikt har fortsatt kjøretøyfilter (alle / én bil) og viser avvik og kommentarer i separate paneler.
+4. `CACHE_VERSION`/`APP_VERSION`/`version.json` 113 → 114; `kontroll.html` eksakt kopi; `storage.airtable.js` uendret.
+
+---
+
 ### Prioritet 64 — Samle oppdatering og synkronisering
 
 (Brukerens egen nummerering. Full detalj i CLAUDE.md, «Prioritet 64 (2026-09-21)».)

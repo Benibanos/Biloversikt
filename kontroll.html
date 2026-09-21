@@ -9668,8 +9668,22 @@ function kmAvvikMerknad(val, sjafor){
     val.gjeldende.toLocaleString('nb-NO') + ' km' + (kildeTekst ? ' [' + kildeTekst + ']' : '') + ' til ' + val.ny.toLocaleString('nb-NO') +
     ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + '). Kjøretøyets kilometerstand er IKKE endret automatisk — godkjennes via Rediger informasjon.';
 }
+function kontrollLinjeErKmAvvik(linje){
+  return typeof linje === 'string' && linje.trimStart().startsWith(KM_AVVIK_PREFIX);
+}
+// Prioritet 66 (2026-09-21): kilometeravvik og sjåførkommentar er TO hendelser.
+// Lagret streng på kontroller[].kommentar er uendret (historikk beholdes); visningen
+// splitter på KM_AVVIK_PREFIX-linjer. Ingen data slettes.
+function kontrollSjaforKommentarTekst(k){
+  const raw = (k && typeof k.kommentar === 'string') ? k.kommentar : '';
+  return raw.split('\n').filter(linje => linje.trim() && !kontrollLinjeErKmAvvik(linje)).join('\n').trim();
+}
+function kontrollKmAvvikTekst(k){
+  const raw = (k && typeof k.kommentar === 'string') ? k.kommentar : '';
+  return raw.split('\n').filter(kontrollLinjeErKmAvvik).join('\n').trim();
+}
 function kontrollHarKmAvvik(k){
-  return !!(k && typeof k.kommentar === 'string' && k.kommentar.startsWith(KM_AVVIK_PREFIX));
+  return !!kontrollKmAvvikTekst(k);
 }
 // Del 10: REN RAPPORTERING av eksisterende motstridende data. Korrigerer ingenting.
 // Returnerer bilene der siste registrerte kontroll har HØYERE km enn kjøretøyets
@@ -11926,24 +11940,25 @@ function attachDriverRingelisteListeners(){
 // kun kommentarer knyttet til bilen vedkommende faktisk kjører, aldri resten av flåten.
 // visMarkerSomLest=false: les-status er administrativ (se markerKommentarSomLest()).
 function renderDriverKommentarer(){
-  const liste = nyeKommentarerListe(driverVelgBilId);
-  const kBil = vehicles.find(x => x.id === driverVelgBilId);
-  // Prioritet 56: Ringeliste-design — header med ikonflate + kort med tittelrad. Selve radene
-  // (nyeKommentarRadHtml) er uendret og delt med administrasjonens visninger.
+  const bilId = driverKommentarVehicleId();
+  const liste = bilId ? nyeKommentarerListe(bilId) : [];
+  const kBil = vehicles.find(x => x.id === bilId);
   return `
     <div class="sj-header">
       <div class="sj-header-icon" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('message-square')}</div>
       <div class="sj-header-text">
         <h2>Kommentarer</h2>
-        <div class="required-hint">${kBil ? esc(vehicleLabel(kBil)) : 'Kommentarer på bilen du kjører.'}</div>
+        <div class="required-hint">${kBil ? esc(vehicleLabel(kBil)) : 'Kun kommentarer for aktiv bil.'}</div>
       </div>
     </div>
     <div class="sj-card" style="--accent:var(--blue);">
-      <div class="sj-card-head"><span class="sj-card-title">Kommentarer (${liste.length})</span></div>
+      <div class="sj-card-head"><span class="sj-card-title">Sjåførkommentarer (${liste.length})</span></div>
       <div class="sj-card-body">
-        ${liste.length === 0
-          ? `<div class="empty-note" style="padding:0;">Ingen kommentarer på denne bilen ennå.</div>`
-          : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, false)).join('')}</div>`}
+        ${!bilId
+          ? `<div class="empty-note" style="padding:0;">Ingen aktiv bil. Velg bil og gjennomfør kontroll før du ser kommentarer.</div>`
+          : (liste.length === 0
+            ? `<div class="empty-note" style="padding:0;">Ingen kommentarer på denne bilen ennå.</div>`
+            : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, false)).join('')}</div>`)}
       </div>
     </div>
   `;
@@ -12008,7 +12023,7 @@ function attachDriverMerListeners(){
 // (egen Settings-blob, se saveKommentarer()), IKKE i kontroller[] — rører aldri
 // Kontrollflyt, km-logikk eller "kontrollert i dag"-status (bevisst arkitekturvalg).
 function renderDriverNyKommentar(){
-  const v = vehicles.find(x => x.id === driverVelgBilId);
+  const v = vehicles.find(x => x.id === (driverKommentarVehicleId() || driverVelgBilId));
   return `
     <div class="sj-header">
       <button type="button" class="p48-back" id="dnk-back" aria-label="Tilbake til Mer" style="align-self:center;">${sjaforIkonSvg('chevronLeft', 22)}</button>
@@ -12032,9 +12047,10 @@ function renderDriverNyKommentar(){
 async function submitDriverNyKommentar(){
   const tekst = (document.getElementById('dnk-tekst').value || '').trim();
   if(!tekst){ alert('Skriv en kommentar først.'); return; }
-  if(!driverVelgBilId){ alert('Fant ikke aktiv bil. Velg bil på nytt.'); return; }
+  const vehicleId = driverKommentarVehicleId() || driverVelgBilId;
+  if(!vehicleId){ alert('Fant ikke aktiv bil. Velg bil på nytt.'); return; }
   kommentarer.push({
-    id: uid(), vehicleId: driverVelgBilId, dato: todayISO(), tidspunkt: nowTimeOslo(),
+    id: uid(), vehicleId, dato: todayISO(), tidspunkt: nowTimeOslo(),
     sjafor: driverNavn || 'Ukjent', tekst, lest: false
   });
   await saveKommentarer();
@@ -13614,7 +13630,8 @@ function kontrollHistorikkRow(k){
         <div class="ov-item"><span class="ov-label">Aktive varsellamper</span><span class="ov-value">${esc(varselTekst)}</span></div>
         <div class="ov-item"><span class="ov-label">Registrerte skader</span><span class="ov-value">${esc(skadeTekst)}</span></div>
       </div>
-      ${k.kommentar ? `<div class="kt-history-meta"${kontrollHarKmAvvik(k) ? ' style="color:var(--amber);font-weight:600;white-space:pre-line;"' : ' style="white-space:pre-line;"'}>Kommentar: ${esc(k.kommentar)}</div>` : ''}
+      ${kontrollHarKmAvvik(k) ? `<div class="kt-history-meta" style="color:var(--amber);font-weight:600;white-space:pre-line;">⚠ Kilometeravvik: ${esc(kontrollKmAvvikTekst(k))}</div>` : ''}
+      ${kontrollSjaforKommentarTekst(k) ? `<div class="kt-history-meta" style="white-space:pre-line;">💬 Sjåførkommentar: ${esc(kontrollSjaforKommentarTekst(k))}</div>` : ''}
       ${isAdmin ? `<div class="panel-actions" style="margin-top:12px;"><button class="btn danger-outline small" data-delete-kontroll="${k.id}">${luc('trash-2')} Slett kontroll</button></div>` : ''}
     </div>
   `;
@@ -13972,9 +13989,9 @@ async function markerAlleVarslerSett(idListe){
   render();
 }
 const VARSLINGSSENTER_KATEGORI_LABEL = {
-  kommentar:'Nye kommentarer', skade:'Nye skader', verksted:'Verkstedoppfølging',
+  kommentar:'Sjåførkommentarer', skade:'Nye skader', verksted:'Verkstedoppfølging',
   oppfolging:'Påminnelser', varsellampe:'Varsellamper', service:'Service nærmer seg',
-  eu:'EU-kontroll', km:'Uvanlige kilometerøkninger'
+  eu:'EU-kontroll', km:'Kilometeravvik'
 };
 const VARSLINGSSENTER_KATEGORI_IKON = {
   kommentar:'message-square', skade:'triangle-alert', verksted:'factory', oppfolging:'clock-3',
@@ -13988,7 +14005,7 @@ function beregnVarslingssenterListe(){
   const liste = [];
   nyeKommentarerListe().filter(k => !k.lest).forEach(k => {
     liste.push({id:'kommentar:'+k.kilde+':'+k.id, kategori:'kommentar', vehicleId:k.vehicleId,
-      tittel:'Ny kommentar', tekst: k.bilTekst + ' · ' + k.sjafor + ': «' + k.kommentar + '»',
+      tittel:'Sjåførkommentar', tekst: k.bilTekst + ' · ' + k.sjafor + ': «' + k.kommentar + '»',
       dato:k.dato, mal:'kommentaroversikt'});
   });
   vehicles.forEach(v => {
@@ -13996,9 +14013,9 @@ function beregnVarslingssenterListe(){
     if(kmA){
       // Prioritet 71.10: id bundet til kontroll-ID (duplikatvern) — samme kontroll kan
       // derfor aldri gi mer enn ett varsel, se godtaKmEndring()/avslaKmEndring().
-      liste.push({id:'km:'+(kmA.kontrollId || v.id), kategori:'km', vehicleId:v.id, tittel:'Uvanlig kilometerøkning',
-        tekst: vehicleLabel(v) + ' — tidligere ' + kmA.vKm.toLocaleString('nb-NO') + ' km, registrert ' + kmA.kontrollKm.toLocaleString('nb-NO') +
-          ' km (+' + kmA.differanse.toLocaleString('nb-NO') + ' km) av ' + (kmA.sjafor || 'ukjent sjåfør') + '. Venter på godkjenning.',
+      liste.push({id:'km:'+(kmA.kontrollId || v.id), kategori:'km', vehicleId:v.id, tittel:'Kilometeravvik',
+        tekst: vehicleLabel(v) + ' — Forrige km ' + kmA.vKm.toLocaleString('nb-NO') + ', ny km ' + kmA.kontrollKm.toLocaleString('nb-NO') +
+          ', differanse +' + kmA.differanse.toLocaleString('nb-NO') + ' km' + (kmA.sjafor ? ' · ' + kmA.sjafor : '') + '.',
         dato:kmA.dato || todayISO(), mal:'bilkort'});
     }
   });
@@ -14070,8 +14087,8 @@ function varslingssenterRadHtml(x){
   // Godta/Avslå er derfor de primære handlingene her, ved siden av (ikke i stedet for) den
   // generiske «Marker som sett».
   const kmKnapper = x.kategori === 'km' && isAdmin
-    ? `<button type="button" class="btn small" data-godta-km="${x.vehicleId}">✅ Godta endring</button>
-       <button type="button" class="btn small danger-outline" data-avsla-km="${x.vehicleId}">✖️ Avslå endring</button>` : '';
+    ? `<button type="button" class="btn small" data-godta-km="${x.vehicleId}">Godkjenn</button>
+       <button type="button" class="btn small danger-outline" data-avsla-km="${x.vehicleId}">✖️ Avslå</button>` : '';
   return `
     <div class="vl-card">
       <div class="vl-card-main">
@@ -16286,20 +16303,55 @@ function attachKalenderListeners(){
 // ser fortsatt hele bilparken, slik det alltid har gjort.
 function nyeKommentarerListe(vehicleId){
   const fraKontroller = kontroller
-    .filter(k => k.kommentar && k.kommentar.trim())
-    .map(k => ({
-      id: k.id, kilde: 'kontroll', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
-      bilTekst: (() => { const v = vehicles.find(x => x.id === k.vehicleId); return v ? vehicleLabel(v) : 'Ukjent bil'; })(),
-      sjafor: k.sjafor || 'Ukjent', kommentar: k.kommentar.trim(), lest: !!k.kommentarLest
-    }));
-  const fraFristilte = kommentarer.map(k => ({
-    id: k.id, kilde: 'fristilt', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
-    bilTekst: (() => { const v = vehicles.find(x => x.id === k.vehicleId); return v ? vehicleLabel(v) : 'Ukjent bil'; })(),
-    sjafor: k.sjafor || 'Ukjent', kommentar: (k.tekst || '').trim(), lest: !!k.lest
-  }));
-  let alle = fraKontroller.concat(fraFristilte).filter(k => k.kommentar);
+    .map(k => {
+      const tekst = kontrollSjaforKommentarTekst(k);
+      if(!tekst) return null;
+      const v = vehicles.find(x => x.id === k.vehicleId);
+      return {
+        type: 'kommentar',
+        id: k.id, kilde: 'kontroll', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
+        bilTekst: v ? vehicleLabel(v) : 'Ukjent bil',
+        sjafor: k.sjafor || 'Ukjent', kommentar: tekst, lest: !!k.kommentarLest
+      };
+    })
+    .filter(Boolean);
+  const fraFristilte = kommentarer.map(k => {
+    const tekst = (k.tekst || '').trim();
+    if(!tekst) return null;
+    const v = vehicles.find(x => x.id === k.vehicleId);
+    return {
+      type: 'kommentar',
+      id: k.id, kilde: 'fristilt', vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt || '',
+      bilTekst: v ? vehicleLabel(v) : 'Ukjent bil',
+      sjafor: k.sjafor || 'Ukjent', kommentar: tekst, lest: !!k.lest
+    };
+  }).filter(Boolean);
+  let alle = fraKontroller.concat(fraFristilte);
   if(vehicleId) alle = alle.filter(k => k.vehicleId === vehicleId);
   return alle.sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
+}
+function kmAvvikHendelserListe(vehicleId){
+  let alle = vehicles.map(v => {
+    const a = kmAvvikForVehicle(v);
+    if(!a) return null;
+    return {
+      type: 'km',
+      id: a.kontrollId || v.id,
+      vehicleId: v.id,
+      dato: a.dato || '',
+      tidspunkt: a.tidspunkt || '',
+      sjafor: a.sjafor || 'Ukjent',
+      bilTekst: vehicleLabel(v),
+      vKm: a.vKm,
+      kontrollKm: a.kontrollKm,
+      differanse: a.differanse
+    };
+  }).filter(Boolean);
+  if(vehicleId) alle = alle.filter(x => x.vehicleId === vehicleId);
+  return alle.sort((a, b) => (b.dato + b.tidspunkt).localeCompare(a.dato + a.tidspunkt));
+}
+function driverKommentarVehicleId(){
+  return driverActiveVehicleId || '';
 }
 // radmarkupen for én kommentar er delt ut i en egen
 // funksjon, slik at Aktive saker sin ekspanderbare seksjon, Kommentaroversikt (admin) og
@@ -16309,9 +16361,26 @@ function nyeKommentarerListe(vehicleId){
 function nyeKommentarRadHtml(k, isFirst, visMarkerSomLest){
   return `
     <div style="padding:10px 0;${isFirst ? '' : 'border-top:1px solid var(--line-soft);'}">
+      <div style="font-size:12.5px;font-weight:700;margin-bottom:4px;">💬 Sjåførkommentar</div>
       <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:3px;">${fmt(k.dato)} · ${esc(k.bilTekst)} · ${esc(k.sjafor)}${!k.lest ? ' · <span style="color:#b45309;">Ny</span>' : ''}</div>
       <div style="font-size:13.5px;">${esc(k.kommentar)}</div>
       ${visMarkerSomLest && !k.lest ? `<button type="button" class="btn secondary small" style="margin-top:8px;" data-marker-lest="${k.kilde}:${k.id}">✅ Marker som lest</button>` : ''}
+    </div>`;
+}
+function kmAvvikHendelseRadHtml(x, isFirst, visGodkjenn){
+  return `
+    <div style="padding:10px 0;${isFirst ? '' : 'border-top:1px solid var(--line-soft);'}">
+      <div style="font-size:12.5px;font-weight:700;color:var(--amber);margin-bottom:4px;">⚠ Kilometeravvik</div>
+      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;">${fmt(x.dato)} · ${esc(x.bilTekst)} · ${esc(x.sjafor)}</div>
+      <div style="font-size:13.5px;line-height:1.45;">
+        Forrige km: ${Number(x.vKm).toLocaleString('nb-NO')}<br>
+        Ny km: ${Number(x.kontrollKm).toLocaleString('nb-NO')}<br>
+        Differanse: +${Number(x.differanse).toLocaleString('nb-NO')} km
+      </div>
+      ${visGodkjenn ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" class="btn small" data-godta-km="${x.vehicleId}">Godkjenn</button>
+        <button type="button" class="btn small danger-outline" data-avsla-km="${x.vehicleId}">Avslå</button>
+      </div>` : ''}
     </div>`;
 }
 function nyeKommentarerSectionHtml(){
@@ -16357,8 +16426,10 @@ async function markerKommentarSomLest(kilde, id){
 // Verkstedoversikt (vehicleOptions() + «Alle biler»-standardvalg). Uten filter (standard)
 // er oppførselen helt uendret — hele flåten vises, som før.
 function renderKommentaroversikt(){
-  const liste = nyeKommentarerListe(kommentaroversiktFilterBil || undefined);
-  const uleste = liste.filter(k => !k.lest).length;
+  const filterBil = kommentaroversiktFilterBil || undefined;
+  const kommentarListe = nyeKommentarerListe(filterBil);
+  const kmListe = kmAvvikHendelserListe(filterBil);
+  const uleste = kommentarListe.filter(k => !k.lest).length;
   return `
     <div class="backrow"><button class="backbtn" id="kommentaroversikt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">💬 Kommentarer</h2>
@@ -16368,11 +16439,18 @@ function renderKommentaroversikt(){
         ${vehicleOptions(kommentaroversiktFilterBil)}
       </select>
     </div>
-    <div class="required-hint" style="margin-bottom:16px;">${liste.length} kommentar${liste.length === 1 ? '' : 'er'}${kommentaroversiktFilterBil ? '' : ' totalt'}${uleste > 0 ? ` · ${uleste} ulest${uleste === 1 ? '' : 'e'}` : ''}.</div>
+    <div class="required-hint" style="margin-bottom:16px;">${kommentarListe.length} sjåførkommentar${kommentarListe.length === 1 ? '' : 'er'}${kommentaroversiktFilterBil ? '' : ' totalt'}${uleste > 0 ? ` · ${uleste} ulest${uleste === 1 ? '' : 'e'}` : ''}${kmListe.length ? ` · ${kmListe.length} kilometeravvik` : ''}.</div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="p38-panel-head"><div class="tittel">⚠ Kilometeravvik${kmListe.length ? ` (${kmListe.length})` : ''}</div></div>
+      ${kmListe.length === 0
+        ? `<div class="empty-note">Ingen kilometeravvik som venter på godkjenning.</div>`
+        : `<div>${kmListe.map((x, i) => kmAvvikHendelseRadHtml(x, i === 0, true)).join('')}</div>`}
+    </div>
     <div class="panel">
-      ${liste.length === 0
+      <div class="p38-panel-head"><div class="tittel">💬 Sjåførkommentar${kommentarListe.length ? ` (${kommentarListe.length})` : ''}</div></div>
+      ${kommentarListe.length === 0
         ? `<div class="empty-note">${kommentaroversiktFilterBil ? 'Ingen kommentarer for dette kjøretøyet.' : 'Ingen kommentarer fra sjåfører ennå.'}</div>`
-        : `<div>${liste.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`}
+        : `<div>${kommentarListe.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`}
     </div>
   `;
 }
@@ -16384,6 +16462,8 @@ function attachKommentaroversiktListeners(){
     const [kilde, id] = el.dataset.markerLest.split(':');
     markerKommentarSomLest(kilde, id);
   }));
+  document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
+  document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
 }
 function renderAktiveSaker(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
