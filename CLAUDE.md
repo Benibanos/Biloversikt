@@ -1,5 +1,8 @@
 # CLAUDE.md — Bilpark Operativsystem
 
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 67 —
+**Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime (synlig til Utført, ikke klokke/dato). Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
+**Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser (⚠ Kilometeravvik med Fra/Til/differanse og Godkjenn; 💬 Sjåførkommentar viser kun kommentaren). Sjåfør ser kun aktiv bil; administrator har kjøretøyfilter. Historisk `kontroller[].kommentar` slettes ikke. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 65 —
 **Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll (`AktivSjaforSiden` = kontrollens tidspunkt). Feltet gjenopprettes ved oppstart, synk, reload og cache-refresh når det mangler. Unntak: administratorens manuelle nullstilling inntil en ny kontroll. Dashboard-bannerets «N aktive» telles på samme kjøretøygrunnlag som «X/Y kontrollert». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
 **Samle oppdatering og synkronisering.** Oppdater app, Database status og Systemkontroll sjåfører er samlet i Innstillinger → **Optimaliseringer** med Hurtigoversikt-faner (Alle / App / Airtable / Sjåfører) og «Oppdater og synkroniser alt». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 64 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 63 —
@@ -6390,6 +6393,39 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 
 ---
 
+## Prioritet 66 (2026-09-21) — Skill kommentarer og kilometeravvik
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 66 (2026-09-14) — Dataintegritet: operativt døgn og kilometerstand». Nummeret følger brukerens backlog.)
+
+**Varig regel: kilometeravvik og sjåførkommentarer er separate hendelser.** De skal aldri vises som én blandet tekstblokk i kommentarsenteret. Lagret `kontroller[].kommentar` (som fortsatt kan inneholde `KM_AVVIK_PREFIX`-linjen fra storthopp) slettes ikke — visningen splitter.
+
+- **Kilometeravvik** (`kmAvvikHendelserListe()`, `kmAvvikHendelseRadHtml()`): tittel «⚠ Kilometeravvik»; Fra, Til, Differanse; **Godkjenn** (`godtaKmEndring()`, samme som Varslingssenteret). Avslå beholdes som sekundær adminhandling.
+- **Sjåførkommentar** (`nyeKommentarerListe()` via `kontrollSjaforKommentarTekst()`): tittel «💬 Sjåførkommentar»; kun sjåførens tekst. Km-prefix-linjer telles ikke som kommentar og inngår ikke i ulest-telleren.
+- **Sjåfør** (Mer / bunnmeny Kommentarer): kun `driverActiveVehicleId`. Tom filter viser ikke flåten — «Ingen aktiv bil».
+- **Administrator** (Kommentaroversikt): Alle biler eller ett kjøretøy (`kommentaroversiktFilterBil`). To paneler: avvik og kommentarer.
+- Kontrollhistorikk viser også de to hendelsene hver for seg. Ingen Airtable-endring.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js`/`version-check.js`/`version.json` 113 → 114. `storage.airtable.js` uendret.
+
+---
+
+## Prioritet 67 (2026-09-21) — Opprydding av Kjøretøyprofil
+
+(Brukerens egen nummerering.) **Varig regel: Kjøretøyprofilen viser daglig operativ informasjon ett sted.** Duplikater (mobilitetsgaranti-felt, aktiv sjåfør i statusrad, eget Aktive saker-panel, neste verkstedtime som eget layoutkort) er fjernet fra visningen — dataene er urørt.
+
+**Neste verkstedtime.** `vtErKommende(t)` = ikke `utfort` og har `dato`. Klokkeslett eller dato som er passert skjuler ikke timen. Gjelder Dashboard, profil, Min Bil og Verkstedoversikt (samme `nesteVerkstedtime()`). Kortet viser 🛠 Neste verkstedtime, dato, klokkeslett og verksted; klikk åpner avtalen (`apneVerkstedAvtale()`). Ligger INNE i bilkortet (`dashBannerVerkstedHtml(v.id)`). Layoutnøkkelen `vehicle.neste-verkstedtime` er tom og skjult som standard.
+
+**Bilkort:** `Bilnummer · Regnr` / modell / `Løyve: … │ Servicenr: …` / aktiv sjåfør / neste verkstedtime / lite mobilitetsikon (🟢 Aktiv når `vehicleMobilitetsgaranti().status==='gyldig'`, ellers 🔴 Ikke aktiv). Ingen eget mobilitetsfelt.
+
+**Servicenummer** (`v.servicenummer` → `Vehicles.Servicenummer`) er verksted-/faktura-referanse — ingen kobling til serviceintervall eller km igjen. Rediger informasjon + Ny bil. **Krever Airtable-kolonne før idriftsettelse.**
+
+**Statusrad:** Kilometerstand · Sist service (dato + km igjen) · EU (Godkjent til + status) · Dekk (🔵 vinter / 🟢 sommer / helårs, `data-apne-dekk` → `goToBilDekk()` → `renderDekkSkjerm()`) · Løftebord. Aktiv sjåfør og mobilitetsgaranti er fjernet herfra.
+
+**Historikk:** sjette fane Aktive saker (`history.aktivesaker`). Eget Aktive saker-panel er tomt/skjult. Kommentarer og kilometeravvik forblir egne hendelsestyper (Prioritet 66); etikettene er Fra/Til.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `storage.airtable.js` v2.23.0 → **v2.24.0**, `sw.js`/`version-check.js`/`version.json` 114 → 115, CLAUDE.md/ROADMAP.md/CHANGELOG.md/AIRTABLE_MIGRATION.md.
+
+**Ikke rørt:** saksmotor, `submitKontroll()`/`v.km`-skriveregler, aktiv sjåfør-tildeling, Layout Engine-mekanikk (kun registertekst og standard synlighet).
 ## Prioritet 65 (2026-09-21) — Aktiv sjåfør følger kontrollhistorikken
 
 (Brukerens egen nummerering. Det finnes en tidligere, urelatert «Prioritet 65 (2026-09-14) — Kjøretøyprofilen er en kontrollflate» lenger opp.)

@@ -1,6 +1,8 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-20 (Prioritet 59 — to nye felt
+Sist oppdatert (feltendring): 2026-09-21 (Prioritet 67 — nytt felt
+`Servicenummer` på `Vehicles` for verksted-/faktura-referanse; kolonnen MÅ opprettes
+før versjon 115 / storage v2.24.0 tas i bruk. Før det: 2026-09-20 (Prioritet 59 — to nye felt
 `DekkRetning`/`BestillingGruppeId` på `WorkshopAppointments` for dekkskift på flere biler; kolonnene MÅ opprettes
 før versjon 107 tas i bruk, se tabellen for den tabellen under). Før det: 2026-09-18 (Prioritet 49, Del 2 — ny tabell
 `LiftgateHistory` (app-nøkkel `loftebordHistorikk`), se egen seksjon under.
@@ -68,6 +70,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 | dekk | Dekk | tekst |
 | km | KM | tall |
 | loyvenummer | Løyvenummer | tekst |
+| **servicenummer** | **Servicenummer** | **tekst — NYTT i Prioritet 67.** Verksted-/faktura-/kostnadsreferanse. Ingen kobling til serviceintervall eller km igjen til service. **Krever en ny kolonne «Servicenummer» (enkel tekst) i Vehicles-tabellen i Airtable før denne versjonen tas i bruk.** |
 | hasPhoto | HasPhoto | boolsk |
 | sommerdekkDot | SommerdekkDot | tekst |
 | sommerdekkKommentar | SommerdekkKommentar | tekst |
