@@ -182,6 +182,9 @@
       // (FELTREGELEN i CLAUDE.md) — uten dette ville det forsvunnet stille ved neste
       // Airtable-henting, nøyaktig samme feilmønster som rammet feltene over historisk.
       telefon: ['Telefon'],
+      // Separat verksted-/fakturareferanse. Må aldri blandes med serviceIntervallKm,
+      // som er kilometergrunnlaget for neste service og varsler.
+      servicenummer: ['Servicenummer'],
       // Prioritet 72.1: per-bil-innstilling for daglig, automatisk nullstilling av aktiv
       // sjåfør (se handhevAktivSjaforAutoReset() i index.html). aktivSjaforAutoReset er en
       // boolsk brukervalgt av/på-bryter (standard: kun Mercedes eSprinter er PÅ, alle andre
@@ -606,7 +609,7 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.23.0',
+    versjon: 'v2.24.0',
     bygget: '21.09.2026 00:00',
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.

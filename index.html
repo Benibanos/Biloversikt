@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.23.0"></script>
+<script src="storage.airtable.js?v=2.24.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1498,7 +1498,21 @@
   .detalj-rad:last-child, .detalj-grid > .detalj-rad:nth-last-child(2):nth-child(odd){border-bottom:none;}
   .detalj-rad .dl{color:var(--muted);font-size:12px;flex-shrink:0;}
   .detalj-rad .dv{font-weight:600;font-size:13px;text-align:right;overflow-wrap:anywhere;}
-  @media (max-width:640px){ .detalj-grid{grid-template-columns:1fr;} .profil-stat5{grid-template-columns:1fr 1fr;} }
+  /* Bilinformasjon redigeres på stedet i samme kompakte profilseksjon. Felt får aldri
+     full sidebredde på desktop når tre kolonner gir bedre oversikt. */
+  .bilinfo-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;}
+  .bilinfo-edit-grid .field{min-width:0;margin:0;}
+  .bilinfo-edit-grid .field.span2{grid-column:span 2;}
+  .bilinfo-edit-grid input,.bilinfo-edit-grid select{min-height:40px;padding:8px 10px;}
+  .bilinfo-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);}
+  .bilinfo-edit-sub{margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft);}
+  .lay-sek:has(.bilinfo-edit-grid){grid-column:span 12;}
+  @media (max-width:900px){ .bilinfo-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (max-width:640px){
+    .detalj-grid,.bilinfo-edit-grid{grid-template-columns:1fr;}
+    .bilinfo-edit-grid .field.span2{grid-column:auto;}
+    .profil-stat5{grid-template-columns:1fr 1fr;}
+  }
   @media (max-width:1199px){ .profil-stat5{grid-template-columns:repeat(3,1fr);} }
   .profil-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
   .profil-tab{
@@ -2262,6 +2276,7 @@ function formInProgress(){
   if(editingVerkstedId) return true;
   if(editingTelefonVehicleId) return true;
   if(editingLedelseId || showAddLedelse || editingKontaktType) return true;
+  if(showBilinfoRediger) return true;
   if(bilkortOpenSections && bilkortOpenSections.has('info')) return true;
   // Prioritet 71.9: Faresonen (nå «⚙️ Avanserte handlinger», kollapset som standard —
   // se bilkortAccordionRow('avansert', ...) i renderBilkort()) inneholder ekte
@@ -4412,7 +4427,7 @@ function layoutRegistrerAlle(){
   bil('statusrad', {label:'Statusrad', ikon:'gauge', beskrivelse:'Kilometerstand, siste service, EU-kontroll, mobilitetsgaranti og løftebord.', collapsible:'wrapper', std:{width:12}});
   bil('operativ-status', {label:'Operativ status', ikon:'clipboard-check', beskrivelse:'Kontrollstatus, varsellamper, skader og aktive saker.', collapsible:'wrapper', std:{width:12}});
   bil('bestill', {label:'Bestill tjenester', ikon:'plus', beskrivelse:'Service, EU-kontroll, dekkskift og ruteskift for denne bilen.', collapsible:'wrapper', std:{width:12}});
-  bil('kjoretoydetaljer', {label:'Kjøretøydetaljer', ikon:'car', beskrivelse:'Reg.nr, løyve, driftslag, drivstoff, årsmodell og «Rediger informasjon».', collapsible:'accordion', std:{width:6, collapsed:true}});
+  bil('kjoretoydetaljer', {label:'Kjøretøydetaljer', ikon:'car', beskrivelse:'Kompakt visning og direkte redigering av bilinformasjon, servicenummer og serviceintervall.', collapsible:'accordion', std:{width:6, collapsed:true}});
   bil('aktive-saker', {label:'Aktive saker', ikon:'folder-open', beskrivelse:'Åpne saker på denne bilen (vises kun når det finnes noen).', std:{width:6}});
   bil('avanserte-handlinger', {label:'Avanserte handlinger', ikon:'settings', beskrivelse:'Marker ute av drift og slett bil.', collapsible:'accordion', std:{width:6, collapsed:true}});
   bil('historikk', {label:'Historikk', ikon:'history', beskrivelse:'Kontroller, skader, varsellamper, verkstedhistorikk og kommentarer.', collapsible:'wrapper', std:{width:12}});
@@ -7803,6 +7818,7 @@ async function saveVehicleForm(id){
     );
     if(!bekreftetKmEndring) return; // Skjemaet forblir åpent og HELE kjøretøyet uendret.
   }
+  const snapshot = JSON.parse(JSON.stringify(v));
   v.bilnummer = document.getElementById('f-bilnummer').value.trim();
   v.regnr = document.getElementById('f-regnr').value.trim().toUpperCase();
   v.merke = document.getElementById('f-merke').value.trim();
@@ -7813,10 +7829,14 @@ async function saveVehicleForm(id){
   v.dekk = document.getElementById('f-dekk').value;
   v.km = nyKmRaw;
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
+  v.servicenummer = document.getElementById('f-servicenummer').value.trim();
+  const serviceIntervallRaw = document.getElementById('f-service-intervall').value;
+  v.serviceIntervallKm = serviceIntervallRaw === '' ? null : Number(serviceIntervallRaw);
   v.drivstoff = document.getElementById('f-drivstoff').value;
   v.mobilitetsgaranti = document.getElementById('f-mobilitetsgaranti').value.trim();
   v.euGodkjentTil = readDateInput('f-eu-godkjent-til') || null;
   v.driftslag = document.getElementById('f-driftslag').value.trim();
+  v.telefon = document.getElementById('f-telefon').value.trim();
   // Prioritet 72.1: per-bil-innstilling for daglig nullstilling av aktiv sjåfør.
   v.aktivSjaforAutoReset = document.getElementById('f-aktivsjafor-autoreset').checked;
   const autoResetTidRaw = document.getElementById('f-aktivsjafor-autoreset-tid').value.trim();
@@ -7826,14 +7846,20 @@ async function saveVehicleForm(id){
     await savePhoto('vehicle:'+v.id, pendingVehiclePhoto);
     pendingVehiclePhoto = null;
   }
-  await saveVehicles(); // DEL 6 (Prioritet 29): dobbelt saveVehicles()-kall fjernet — lagres kun én gang.
-  // Henter bilregisteret på nytt fra Airtable (ikke bare den lokale endringen) rett
-  // etter lagring, slik at bilkortet, Dashboard og resten av appen garantert viser
-  // nøyaktig det som faktisk står lagret — helt uten at brukeren må laste siden på
-  // nytt manuelt for å se endringen slå igjennom.
-  await reloadOne('vehicles');
-  vehicleSaveConfirmedId = id;
-  render();
+  try{
+    await saveVehiclesOrThrow();
+    // Henter bilregisteret på nytt fra Airtable (ikke bare den lokale endringen) rett
+    // etter lagring, slik at bilkortet, Dashboard og resten av appen viser fasiten.
+    await reloadOne('vehicles');
+    vehicleSaveConfirmedId = id;
+    render();
+  }catch(e){
+    Object.keys(v).forEach(k => delete v[k]);
+    Object.assign(v, snapshot);
+    console.error('[saveVehicleForm]', e);
+    alert('Kunne ikke lagre bilinformasjonen. Ingen lokale felt er endret. Prøv igjen.');
+    render();
+  }
 }
 let vehicleSaveConfirmedId = null;
 async function deleteVehicle(id){
@@ -14544,11 +14570,9 @@ function renderBilkort(){
   if(!v) return `<div class="empty"><h3>Fant ikke kjøretøyet</h3></div>`;
   const vDamages = vehicleDamages(v.id);
   const vDamagesAktive = vDamages.filter(d => d.status !== 'utbedret');
-  const vVT = vehicleVT(v.id);
   const vLastKontroll = lastKontrollForVehicle(v.id);
   const vKontrollertIdag = isKontrollertIdag(v.id);
   const vAktiveVarsler = activeVarsellysForVehicle(v.id);
-  const vVarselHistorikk = historikkVarsellysForVehicle(v.id);
   // Prioritet 49, Del 5/6/7: årlig løftebordkontroll + historikk — kun i Bilinformasjon,
   // ingen sjåførvarsler (se CLAUDE.md, Prioritet 49 Del 6).
   const vLbKontrollStatus = loftebordKontrollStatus(v.id);
@@ -14645,27 +14669,26 @@ function renderBilkort(){
     </div>
   `;
 
+  // Redigeringsmodus er samme Kjøretøydetaljer-seksjon som visningsmodus, ikke en egen
+  // side eller et separat databasepanel. Feltrekkefølgen danner et kompakt 3-kolonners
+  // rutenett på desktop. Servicenummer er referansen til verksted/fakturering, mens
+  // serviceIntervallKm fortsatt er beregningsgrunnlaget for neste service og varsler.
   const infoBody = `
-    <div class="row3">
+    <div class="bilinfo-edit-grid">
       <div class="field"><label>Bilnummer</label><input id="f-bilnummer" type="text" value="${esc(v.bilnummer)}"></div>
       <div class="field"><label>Registreringsnummer</label><input id="f-regnr" type="text" value="${esc(v.regnr)}"></div>
-      <div class="field"><label>Kategori</label>
-        <select id="f-kategori">${kategoriOptionsHtml(v.kategori, null)}</select>
-      </div>
-    </div>
-    <div class="row3">
+      <div class="field"><label>Kategori</label><select id="f-kategori">${kategoriOptionsHtml(v.kategori, null)}</select></div>
+
       <div class="field"><label>Merke</label><input id="f-merke" type="text" value="${esc(v.merke||'')}"></div>
       <div class="field"><label>Modell</label><input id="f-modell" type="text" value="${esc(v.modell||'')}"></div>
-      <div class="field"><label>Årsmodell</label><input id="f-arsmodell" type="text" value="${esc(v.arsmodell||'')}"></div>
-    </div>
-    <div class="row3">
-      <div class="field"><label>Status</label>
-        <select id="f-status">
-          <option value="ok" ${v.status==='ok'?'selected':''}>OK</option>
-          <option value="oppfolging" ${v.status==='oppfolging'?'selected':''}>Trenger oppfølging</option>
-          <option value="verksted" ${v.status==='verksted'?'selected':''}>På verksted</option>
-        </select>
-      </div>
+      <div class="field"><label>Årsmodell</label><input id="f-arsmodell" type="text" inputmode="numeric" value="${esc(v.arsmodell||'')}"></div>
+
+      <div class="field"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" placeholder="F.eks. NO-12345" value="${esc(v.loyvenummer||'')}"></div>
+      <div class="field"><label>Servicenummer</label><input id="f-servicenummer" type="text" placeholder="Verksted- eller fakturareferanse" value="${esc(v.servicenummer||'')}"></div>
+      <div class="field"><label>Drivstoff</label><select id="f-drivstoff">${drivstoffOptions(v.drivstoff||'')}</select></div>
+
+      <div class="field"><label>Serviceintervall (km)</label><input id="f-service-intervall" type="number" inputmode="numeric" min="0" step="500" placeholder="F.eks. 30000" value="${esc(String(v.serviceIntervallKm || ''))}"></div>
+      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(v.km||''))}"></div>
       <div class="field"><label>Dekk</label>
         <select id="f-dekk">
           <option value="" ${!v.dekk?'selected':''}>Ikke satt</option>
@@ -14674,81 +14697,56 @@ function renderBilkort(){
           <option value="helars" ${v.dekk==='helars'?'selected':''}>Helårsdekk</option>
         </select>
       </div>
-      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(v.km||''))}"></div>
-    </div>
-    <div class="row2">
-      <div class="field"><label>🪪 Løyvenummer</label><input id="f-loyvenummer" type="text" inputmode="numeric" placeholder="F.eks. 123456, NO-12345 eller BRING-001" value="${esc(v.loyvenummer||'')}"></div>
-      <div class="field"><label>⛽ Drivstoff</label><select id="f-drivstoff">${drivstoffOptions(v.drivstoff||'')}</select></div>
-    </div>
-    <div class="field" style="margin-bottom:10px;"><label>🛟 Mobilitetsgaranti</label><input id="f-mobilitetsgaranti" type="text" placeholder="F.eks. Mercedes Service24h – gyldig til 14/08/2027" value="${esc(v.mobilitetsgaranti||'')}"></div>
-    <div class="field" style="margin-bottom:10px;"><label>EU-godkjent til</label><input id="f-eu-godkjent-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${v.euGodkjentTil ? fmt(v.euGodkjentTil) : ''}"></div>
-    <div class="field" style="margin-bottom:10px;">
-      <label>Driftslag</label>
-      <input id="f-driftslag" type="text" placeholder="F.eks. Lag 1, Curbside, Montering, Lastebil..." value="${esc(v.driftslag||'')}" list="driftslag-forslag">
-      <datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
-      <div class="required-hint" style="margin-top:4px;">Styrer kun gruppering av bilvalg i Sjåførkontroll — påvirker ikke Biloversikt/Historikk/Rapporter/Planlegging.</div>
-    </div>
-    <div class="field" style="margin-bottom:10px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input id="f-aktivsjafor-autoreset" type="checkbox" ${v.aktivSjaforAutoReset ? 'checked' : ''}>
-        <span>🔁 Nullstill aktiv sjåfør automatisk</span>
-      </label>
-      <div class="required-hint" style="margin-top:4px;">Kl. ${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)} fjernes aktiv sjåfør på denne bilen automatisk, dersom noen fortsatt står aktiv. Neste sjåførkontroll setter ny aktiv sjåfør som vanlig.</div>
-      <input id="f-aktivsjafor-autoreset-tid" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)}" style="margin-top:8px;max-width:120px;">
-    </div>
-    <!-- Korrigert krav (Aktiv sjåfør/dagskille), Del 9: manuell nullstilling — en umiddelbar
-         handling (samme mønster som "✅ Utført løftebordkontroll", Prioritet 49 Del 2), IKKE
-         et skjemafelt knyttet til "Lagre"-knappen under. Fungerer uavhengig av den
-         automatiske 04:00-nullstillingen og den PER-BIL konfigurerbare autoreset-tiden over. -->
-    <div class="field" style="margin-bottom:10px;">
-      <label>👤 Aktiv sjåfør</label>
-      <div class="required-hint" style="margin-bottom:8px;">${(() => { const na = vehicleAktivSjafor(v.id); return na ? `${esc(na)} — siden kl. ${tidFraIso(v.aktivSjaforSiden) || '–'}` : 'Ingen aktiv sjåfør.'; })()}</div>
-      ${vehicleAktivSjafor(v.id) ? `<button type="button" class="btn secondary small" data-nullstill-aktiv-sjafor="${v.id}">🔁 Nullstill aktiv sjåfør</button>` : ''}
-    </div>
-    <div class="panel-actions"><button class="btn" id="save-vehicle">Lagre</button></div>
-    ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
 
-    <!-- bilbilde er fjernet fra Kjøretøyprofilen (ingen operativ verdi, jf.
-         bestillingen). INGEN data er slettet: feltet v.hasPhoto er urørt i Airtable, og
-         eventuelle eksisterende bilder ligger fortsatt i Photos-tabellen under nøkkelen
-         vehicle:{id}. Kun opplasting og visning er tatt bort fra grensesnittet. -->
+      <div class="field"><label>EU-godkjent til</label><input id="f-eu-godkjent-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${v.euGodkjentTil ? fmt(v.euGodkjentTil) : ''}"></div>
+      <div class="field"><label>Driftslag</label><input id="f-driftslag" type="text" placeholder="F.eks. Lag 1" value="${esc(v.driftslag||'')}" list="driftslag-forslag"><datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist></div>
+      <div class="field"><label>Telefon</label><input id="f-telefon" type="tel" inputmode="tel" value="${esc(v.telefon||'')}"></div>
 
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">🛗 Løftebord — Årlig kontroll</h4>
-    <div class="acc-row loftebord-card ${vLbKontrollAccKlasse}" style="margin-bottom:14px;">
-      <div class="ov-grid" style="margin-bottom:0;">
-        <div class="ov-item"><span class="ov-label">Sist utført</span><span class="ov-value">${vLbKontrollStatus.siste ? fmt(vLbKontrollStatus.siste.dato) : 'Ingen registrert'}</span></div>
-        <div class="ov-item"><span class="ov-label">Gyldig til</span><span class="ov-value">${vLbKontrollStatus.gyldigTil ? fmt(vLbKontrollStatus.gyldigTil) : '–'}</span></div>
+      <div class="field"><label>Status</label>
+        <select id="f-status">
+          <option value="ok" ${v.status==='ok'?'selected':''}>OK</option>
+          <option value="oppfolging" ${v.status==='oppfolging'?'selected':''}>Trenger oppfølging</option>
+          <option value="verksted" ${v.status==='verksted'?'selected':''}>På verksted</option>
+        </select>
       </div>
-      <div style="margin-top:10px;font-weight:600;">${vLbKontrollStatus.ikon} ${vLbKontrollStatus.tekst}</div>
-      <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn small" data-lb-kontroll="${v.id}">✅ Utført løftebordkontroll</button></div>
+      <div class="field span2"><label>Mobilitetsgaranti</label><input id="f-mobilitetsgaranti" type="text" placeholder="F.eks. gyldig til 14/08/2027" value="${esc(v.mobilitetsgaranti||'')}"></div>
     </div>
-    ${vLbHistorikk.length > 0 ? `
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px;">Løftebordhistorikk (${vLbHistorikk.length})</h4>
-    <ul class="dmg-simple-list" style="margin-bottom:20px;">${vLbHistorikk.map(l => loftebordHistorikkRadHtml(l)).join('')}</ul>` : ''}
 
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 10px;">Aktive varsellamper (${vAktiveVarsler.length})</h4>
-    ${vAktiveVarsler.length === 0
-      ? `<div class="required-hint" style="font-size:13px;">🟢 Ingen aktive varsellamper på dette kjøretøyet.</div>`
-      : `<div class="dmg-list">${vAktiveVarsler.map(w => varsellysCard(w)).join('')}</div>`}
-    ${vVarselHistorikk.length > 0 ? `
-    <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 10px;">Varsellampe-historikk (kvitterte)</h4>
-    <div class="dmg-list">${vVarselHistorikk.map(w => varsellysCard(w)).join('')}</div>` : ''}
+    <details class="bilinfo-edit-sub">
+      <summary>Avanserte driftsinnstillinger</summary>
+      <div class="field" style="margin-top:12px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input id="f-aktivsjafor-autoreset" type="checkbox" ${v.aktivSjaforAutoReset ? 'checked' : ''}>
+          <span>Nullstill aktiv sjåfør automatisk</span>
+        </label>
+        <div class="required-hint" style="margin-top:4px;">Aktiv sjåfør fjernes på denne bilen ved valgt klokkeslett.</div>
+        <input id="f-aktivsjafor-autoreset-tid" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)}" style="margin-top:8px;max-width:120px;">
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Aktiv sjåfør</label>
+        <div class="required-hint" style="margin-bottom:8px;">${(() => { const na = vehicleAktivSjafor(v.id); return na ? `${esc(na)} — siden kl. ${tidFraIso(v.aktivSjaforSiden) || '–'}` : 'Ingen aktiv sjåfør.'; })()}</div>
+        ${vehicleAktivSjafor(v.id) ? `<button type="button" class="btn secondary small" data-nullstill-aktiv-sjafor="${v.id}">Nullstill aktiv sjåfør</button>` : ''}
+      </div>
+    </details>
 
-    <!-- Prioritet 59: «Neste verkstedtime» står nå permanent i bilkortets høyre felt (øverst), så kortet
-         som tidligere lå her i redigeringspanelet er fjernet — samme opplysning vises ikke to steder. -->
-    <div class="toolbar" style="margin:20px 0 14px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0;">Verkstedhistorikk (${vVT.length})</h4>
-      <button class="btn small" id="ny-vt-btn">+ Registrer verkstedtime</button>
+    <details class="bilinfo-edit-sub">
+      <summary>Løftebordkontroll og historikk</summary>
+      <div class="acc-row loftebord-card ${vLbKontrollAccKlasse}" style="margin:12px 0 14px;">
+        <div class="ov-grid" style="margin-bottom:0;">
+          <div class="ov-item"><span class="ov-label">Sist utført</span><span class="ov-value">${vLbKontrollStatus.siste ? fmt(vLbKontrollStatus.siste.dato) : 'Ingen registrert'}</span></div>
+          <div class="ov-item"><span class="ov-label">Gyldig til</span><span class="ov-value">${vLbKontrollStatus.gyldigTil ? fmt(vLbKontrollStatus.gyldigTil) : '–'}</span></div>
+        </div>
+        <div style="margin-top:10px;font-weight:600;">${vLbKontrollStatus.ikon} ${vLbKontrollStatus.tekst}</div>
+        <div class="panel-actions" style="margin-top:10px;"><button type="button" class="btn small" data-lb-kontroll="${v.id}">Utført løftebordkontroll</button></div>
+      </div>
+      ${vLbHistorikk.length > 0 ? `<ul class="dmg-simple-list">${vLbHistorikk.map(l => loftebordHistorikkRadHtml(l)).join('')}</ul>` : ''}
+    </details>
+
+    <div class="bilinfo-edit-actions">
+      <button type="button" class="btn secondary small" id="cancel-vehicle-edit">Avbryt</button>
+      <button type="button" class="btn" id="save-vehicle">Lagre endringer</button>
     </div>
-    ${vVT.length === 0 ? `<div class="empty-note">Ingen verkstedtimer registrert på dette kjøretøyet.</div>` : `
-    <ul class="dmg-simple-list">
-      ${vVT.map(t => `
-        <li data-goto-vt="${v.id}">
-          <span class="dmg-simple-main">${fmt(t.dato)} – ${esc(t.beskrivelse)}</span>
-          <span class="badge ${t.dato >= todayISO() ? 'soon' : 'unset'}">${t.dato >= todayISO() ? 'Kommende' : 'Gjennomført'}</span>
-        </li>
-      `).join('')}
-    </ul>`}
+    ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--green);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
   `;
 
   // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
@@ -14896,23 +14894,27 @@ function renderBilkort(){
       </button>
     </div>`, '')}
 
-    ${showBilinfoRediger ? `
+    ${detaljerSkjult && showBilinfoRediger ? `
     <div class="panel" id="bilinfo-panel" style="margin-bottom:18px;">
-      <div class="p38-panel-head"><div class="tittel">✏️ Bilinformasjon</div></div>
+      <div class="p38-panel-head"><div class="tittel">${luc('pencil')} Rediger bilinformasjon</div></div>
       ${infoBody}
     </div>` : ''}
 
     ${(bilDeler['vehicle.kjoretoydetaljer'] = `
         ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
-          <div class="detalj-grid">
-            <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
-            <div class="detalj-rad"><span class="dl">Løyvenummer</span><span class="dv"${v.loyvenummer ? '' : ' style="color:var(--amber);"'}>${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
-            <div class="detalj-rad"><span class="dl">Driftslag</span><span class="dv">${esc(v.driftslag || '–')}</span></div>
-            <div class="detalj-rad"><span class="dl">Drivstoff</span><span class="dv">${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</span></div>
-            <div class="detalj-rad"><span class="dl">Årsmodell</span><span class="dv">${esc(v.arsmodell || '–')}</span></div>
-            <div class="detalj-rad"><span class="dl">Telefon</span><span class="dv">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;">${esc(v.telefon)}</a>` : '–'}</span></div>
-          </div>
-          <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${showBilinfoRediger ? 'Lukk redigering' : luc("pencil") + ' Rediger informasjon'}</button></div>
+          ${showBilinfoRediger ? infoBody : `
+            <div class="detalj-grid">
+              <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
+              <div class="detalj-rad"><span class="dl">Løyvenummer</span><span class="dv"${v.loyvenummer ? '' : ' style="color:var(--amber);"'}>${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
+              <div class="detalj-rad"><span class="dl">Servicenummer</span><span class="dv">${esc(v.servicenummer || '–')}</span></div>
+              <div class="detalj-rad"><span class="dl">Serviceintervall</span><span class="dv">${v.serviceIntervallKm ? Number(v.serviceIntervallKm).toLocaleString('nb-NO') + ' km' : '–'}</span></div>
+              <div class="detalj-rad"><span class="dl">Driftslag</span><span class="dv">${esc(v.driftslag || '–')}</span></div>
+              <div class="detalj-rad"><span class="dl">Drivstoff</span><span class="dv">${v.drivstoff ? esc(drivstoffTekst(v)) : '–'}</span></div>
+              <div class="detalj-rad"><span class="dl">Årsmodell</span><span class="dv">${esc(v.arsmodell || '–')}</span></div>
+              <div class="detalj-rad"><span class="dl">Telefon</span><span class="dv">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;">${esc(v.telefon)}</a>` : '–'}</span></div>
+            </div>
+            <div class="panel-actions"><button type="button" class="btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
+          `}
         `)}
     `, '')}${(bilDeler['vehicle.aktive-saker'] = vAktiveSakerListe.length === 0 ? '' : `
         <div class="panel" style="margin-bottom:16px;">
@@ -14951,7 +14953,9 @@ function attachBilkortListeners(){
   if(historikkSek) attachBilkortHistorikkListeners(historikkSek);
   // Prioritet 59: «Rediger informasjon» finnes nå KUN i Kjøretøydetaljer (profil-rediger-btn-2).
   const redigerBtn = document.getElementById('profil-rediger-btn-2');
-  if(redigerBtn) redigerBtn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; render(); });
+  if(redigerBtn) redigerBtn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; vehicleSaveConfirmedId = null; render(); });
+  const cancelVehicleEditBtn = document.getElementById('cancel-vehicle-edit');
+  if(cancelVehicleEditBtn) cancelVehicleEditBtn.addEventListener('click', () => { showBilinfoRediger = false; vehicleSaveConfirmedId = null; render(); });
   attachBestillListeners(currentVehicleId);
   // Prioritet 72.1, KRITISK REGRESJONSFIKS: «del-vehicle»-knappen finnes i DOM-en KUN når
   // «⚙️ Avanserte handlinger»-akkordionen (Prioritet 71.9) er ÅPEN — men den er lukket som

@@ -13,6 +13,21 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-22
+
+### Prioritet 65 — Direkte redigering av bilinformasjon
+
+1. «Rediger informasjon» bytter nå Kjøretøydetaljer mellom visningsmodus og redigeringsmodus på samme bilprofil. Bilkort, statusrader, aktive saker og Historikk forblir synlige.
+2. Feltene ligger i et kompakt 3-kolonners rutenett på desktop, 2 kolonner på mellomstore flater og 1 kolonne på mobil. Redigeringsseksjonen bruker full profilbredde mens den er aktiv.
+3. Serviceintervall er tilbake i bilprofilens redigering og lagres fortsatt som `serviceIntervallKm`, som brukes av neste service, varsler og kilometer igjen.
+4. Nytt separat felt `servicenummer` / Airtable-kolonnen `Vehicles.Servicenummer` er lagt til for verksted-, faktura- og kostnadsreferanse. Det påvirker aldri serviceberegningene.
+5. Dupliserte varsellampe- og verkstedhistorikklister er fjernet fra redigeringsflaten; de eksisterende Historikk-fanene er fortsatt synlige og er eneste historikkvisning.
+6. `storage.airtable.js` v2.23.0 → v2.24.0. App-/cacheversjon 113 → 114.
+
+**Krever før idriftsettelse:** opprett `Servicenummer` (enkel tekst) i `Vehicles`, eller kjør Innstillinger → Optimaliseringer → Airtable → «Synkroniser nå».
+
+---
+
 ## 2026-09-21
 
 ### Prioritet 64 — Samle oppdatering og synkronisering
