@@ -1,9 +1,8 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
-Sist oppdatert (feltendring): 2026-09-22 (Prioritet 65 — nytt, separat
-`Vehicles.Servicenummer` for verksted-/faktura-/kostnadsreferanse. Feltet må ikke blandes
-med `ServiceIntervallKm`, som fortsatt er beregningsgrunnlaget for neste service og varsler).
-Før det: 2026-09-20 (Prioritet 59 — to nye felt
+Sist oppdatert (feltendring): 2026-09-21 (Prioritet 67 — nytt felt
+`Servicenummer` på `Vehicles` for verksted-/faktura-referanse; kolonnen MÅ opprettes
+før versjon 115 / storage v2.24.0 tas i bruk. Før det: 2026-09-20 (Prioritet 59 — to nye felt
 `DekkRetning`/`BestillingGruppeId` på `WorkshopAppointments` for dekkskift på flere biler; kolonnene MÅ opprettes
 før versjon 107 tas i bruk, se tabellen for den tabellen under). Før det: 2026-09-18 (Prioritet 49, Del 2 — ny tabell
 `LiftgateHistory` (app-nøkkel `loftebordHistorikk`), se egen seksjon under.
@@ -71,6 +70,7 @@ kategorier — ingen av dem er Airtable-kolonner.
 | dekk | Dekk | tekst |
 | km | KM | tall |
 | loyvenummer | Løyvenummer | tekst |
+| **servicenummer** | **Servicenummer** | **tekst — NYTT i Prioritet 67.** Verksted-/faktura-/kostnadsreferanse. Ingen kobling til serviceintervall eller km igjen til service. **Krever en ny kolonne «Servicenummer» (enkel tekst) i Vehicles-tabellen i Airtable før denne versjonen tas i bruk.** |
 | hasPhoto | HasPhoto | boolsk |
 | sommerdekkDot | SommerdekkDot | tekst |
 | sommerdekkKommentar | SommerdekkKommentar | tekst |
@@ -89,7 +89,6 @@ kategorier — ingen av dem er Airtable-kolonner.
 | drivstoff | Drivstoff | tekst (Prioritet 37) |
 | mobilitetsgaranti | Mobilitetsgaranti | tekst (Prioritet 37) |
 | **telefon** | **Telefon** | **tekst (Prioritet 45 — 📞 Ringeliste)** |
-| **servicenummer** | **Servicenummer** | **tekst — verksted-/faktura-/kostnadsreferanse. NYTT i Prioritet 65 (2026-09-22). Helt separat fra `serviceIntervallKm`. Krever ny kolonne «Servicenummer» (enkel tekst) i Vehicles før idriftsettelse.** |
 | **aktivSjaforAutoReset** | **AktivSjaforAutoReset** | **boolsk — NYTT i Prioritet 72.1.** Per-bil-innstilling: skal aktiv sjåfør nullstilles automatisk kl. `aktivSjaforAutoResetTid` hver dag (`handhevAktivSjaforAutoReset()`)? Standard `true` for kjøretøy som matcher «Mercedes»/«eSprinter» i merke/modell (`vehicleErMercedesESprinter()`), `false` for alle andre — kun anvendt i minnet ved oppstart (`loadAll()`), aldri auto-lagret; administrator kan overstyre fritt per bil under Rediger informasjon. **Krever en ny kolonne «AktivSjaforAutoReset» (checkbox) i Vehicles-tabellen i Airtable før denne versjonen tas i bruk.** |
 | **aktivSjaforAutoResetTid** | **AktivSjaforAutoResetTid** | **tekst («HH:MM») — NYTT i Prioritet 72.1.** Klokkeslettet nullstillingen skjer på for akkurat denne bilen, standard `'14:50'` (`AKTIV_SJAFOR_AUTORESET_STD_TID`) når tomt/ugyldig. **Krever en ny kolonne «AktivSjaforAutoResetTid» (enkel tekst) i Vehicles-tabellen i Airtable.** |
 | **aktivSjaforAutoResetSisteDato** | **AktivSjaforAutoResetSisteDato** | **tekst (ISO-dato) — NYTT i Prioritet 72.1.** Intern dedup-sperre: hvilken operativ dag (`todayISO()`) funksjonen sist faktisk nullstilte akkurat denne bilen. Sikrer at nullstillingen kun skjer ÉN gang per dag — uten denne ville en sjåfør som sjekket inn igjen etter klokkeslettet blitt nullstilt på nytt ved neste inngangspunkt-sjekk samme dag. Ren driftsdata, ikke ment for manuell redigering. **Krever en ny kolonne «AktivSjaforAutoResetSisteDato» (enkel tekst) i Vehicles-tabellen i Airtable.** |
@@ -342,14 +341,17 @@ typen `'loftebord'` i `KONTROLLAVVIK_ORDER` (index.html).
   CLAUDE.md, Prioritet 50, for hvorfor (unngår å forurense
   `isKontrollertIdag()`/kilometerhistorikk). `{id, vehicleId, dato,
   tidspunkt, sjafor, tekst, lest}`.
+- `aktiv-sjafor-manuell-nullstilling` — **Prioritet 65:** kart `{ [vehicleId]: {dato, at} }` for administratorens manuelle «Nullstill aktiv sjåfør». Gjelder kun inneværende operative dag; en ny kontroll etter `at` gjenoppretter aktiv sjåfør fra kontrollhistorikken. Samme Settings-mønster som `operativ-kontrollgrunnlag` — ingen `LIST_TABLES`-felt.
 - Alle skadebilder (`photo:*`-nøkler i Photos-tabellen)
 
 ## 4. Live-beregnede verdier (IKKE Airtable-felt — beregnes i JavaScript)
 
 Disse skal ALDRI dokumenteres eller behandles som Airtable-kolonner:
 
-- `vehicleAktivSjafor()`, `vehicleSisteSjafor()` — beregnet fra
-  `aktivSjafor`/`aktivSjaforSiden` + dagens `kontroller`
+- `vehicleAktivSjafor()`, `vehicleSisteSjafor()` — **Prioritet 65:** aktiv sjåfør
+  leses live som sjåføren på siste gyldige kontroll i inneværende operative dag
+  (feltet `aktivSjafor` brukes når det er nyere, f.eks. «Ny sjåfør», eller når
+  administrator har nullstilt manuelt etter den kontrollen)
 - `vehicleServiceStatus()`, `vehicleNesteServiceKm()`,
   `vehicleSisteService()` — beregnet fra `servicehistorikk` + `v.km` +
   `serviceIntervallKm`

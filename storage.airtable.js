@@ -182,9 +182,6 @@
       // (FELTREGELEN i CLAUDE.md) — uten dette ville det forsvunnet stille ved neste
       // Airtable-henting, nøyaktig samme feilmønster som rammet feltene over historisk.
       telefon: ['Telefon'],
-      // Separat verksted-/fakturareferanse. Må aldri blandes med serviceIntervallKm,
-      // som er kilometergrunnlaget for neste service og varsler.
-      servicenummer: ['Servicenummer'],
       // Prioritet 72.1: per-bil-innstilling for daglig, automatisk nullstilling av aktiv
       // sjåfør (se handhevAktivSjaforAutoReset() i index.html). aktivSjaforAutoReset er en
       // boolsk brukervalgt av/på-bryter (standard: kun Mercedes eSprinter er PÅ, alle andre
@@ -194,7 +191,9 @@
       // dag. Registrert her SAMTIDIG som feltene tas i bruk i index.html (FELTREGELEN).
       aktivSjaforAutoReset: ['AktivSjaforAutoReset', 'bool'],
       aktivSjaforAutoResetTid: ['AktivSjaforAutoResetTid'],
-      aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato']
+      aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato'],
+      // Prioritet 67: servicenummer er verksted-/faktura-referanse — ikke serviceintervall.
+      servicenummer: ['Servicenummer']
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
