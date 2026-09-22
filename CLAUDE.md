@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 70 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 73 —
+**Del opp kontrollhistorikken.** Kontroller-fanen viser Denne uken og Forrige uke åpne, Eldre lukket og gruppert per måned ved åpning. Full historikk er en egen side med filter og eksport. Ingen historikk slettes. Kilometerstandsrapport uendret. `storage.airtable.js` uendret v2.24.0; appversjon 120. Se «Prioritet 73 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 70 —
 **Skill kommentar og kontrollavvik.** Kommentar fra sjåfør er informasjon og oppretter aldri sak, varsel eller kontrollavvik. Kontrollavvik er oppfølging, med eget avvik «Sidespeil defekt/ødelagt» og egen avvikskommentar på avviket. Bil og sjåfør er tatt ut av kontrollskjemaet. Nye skader og løftebord ligger på samme rad. `storage.airtable.js` uendret v2.24.0; appversjon 119. Se «Prioritet 70 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 72 — **Komprimer Biloversikt.** ← Tilbake fjernet fra primære sider (Biloversikt/Verksted/Kalender/Aktive saker/Varslingssenter/Rapporter-hub/Kostnader), beholdt på detaljsider; kjøretøyteller fjernet; «+ Ny bil» som egen fane til høyre i fanelinjen; Søk + Filter på samme linje. `storage.airtable.js` uendret (v2.24.0). Se «Prioritet 72 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 **Varslingssenter viser kun aktive hendelser.** Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk, ikke i Varslingssenteret. «Merk som løst» lukker også tilhørende sak. `storage.airtable.js` uendret v2.24.0; appversjon 118. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
@@ -6534,4 +6535,16 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 - Handlingsknapper som «+ Ny sak» og «Marker alle som sett» beholdes på sine primære sider (uten Tilbake ved siden av).
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v118 → v119), `version-check.js` (118 → 119), `version.json` (118 → 119). **`storage.airtable.js` uendret** (v2.24.0).
+
+## Prioritet 73 (2026-09-22) — Del opp kontrollhistorikken
+
+(Brukerens egen nummerering.) **Varig regel: Kontroller-fanen viser det som er relevant nå. Full levetidshistorikk ligger bak «Åpne full kontrollhistorikk».** Ingen kontrollrader slettes. Kilometerstandsrapporten (`rapportKilometerstandRader` / `rapportKilometerstandHistorikkRader` / `renderRapportKilometerstand` / `eksporterRapportKilometerstand`) er uendret.
+
+**Grupper** (ISO-uke mandag–søndag fra `todayISO()`, samme ukedagsindeks som `kalenderUkeDager()`):
+- **Denne uken** og **Forrige uke** er åpne som standard (`bilkortKontrollGruppeApen`).
+- **Eldre kontroller (antall)** er lukket. Ved åpning grupperes postene per måned (`kontrollHistorikkManedGrupper()`), hver måned lukket til den åpnes. Rader og månedsinnhold bygges først når gruppen/måneden er åpen.
+
+**Full historikk** (`screen === 'kontrollhistorikk'`): alle kontroller, km, sjåfør, kommentar, filter (bil/fra/til/sjåfør/kun kommentar) og Excel-eksport. Ikke et sidemenypunkt.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 119 → 120. `storage.airtable.js` uendret v2.24.0.
 

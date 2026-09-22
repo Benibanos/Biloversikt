@@ -1413,6 +1413,19 @@
   .bilkort-hist-detalj{padding:2px 0 14px 44px;}
   .bilkort-hist-verktoy{margin:6px 0 4px;}
   @media (max-width:640px){ .bilkort-hist-detalj{padding-left:0;} }
+  /* Prioritet 73: Kontroller-fanen grupperes i Denne uken / Forrige uke / Eldre. */
+  .kt-hist-gruppe{border:1.5px solid var(--line);border-radius:var(--radius);margin:0 0 8px;overflow:hidden;background:var(--surface);}
+  .kt-hist-gruppe-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:10px 12px;background:transparent;border:0;font:inherit;color:var(--ink);cursor:pointer;text-align:left;}
+  .kt-hist-gruppe-head:hover{background:var(--surface-2);}
+  .kt-hist-gruppe-tittel{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:6px;}
+  .kt-hist-gruppe-antall{color:var(--muted);font-size:12.5px;font-weight:600;white-space:nowrap;}
+  .kt-hist-gruppe-body{padding:4px 8px 8px;border-top:1px solid var(--line-soft);}
+  .kt-hist-maned{margin-top:8px;border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;}
+  .kt-hist-maned:first-child{margin-top:0;}
+  .kt-hist-maned-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 10px;background:var(--surface-2);border:0;font:inherit;color:var(--ink);cursor:pointer;text-align:left;}
+  .kt-hist-maned-tittel{font-weight:650;font-size:13px;display:flex;align-items:center;gap:6px;}
+  .kt-hist-maned-body{padding:4px 6px 6px;}
+  .kt-hist-full-lenke{margin:10px 0 2px;display:flex;justify-content:flex-start;}
   /* Dekkskift for flere biler: rullbar bilvalgliste (samme .og-rad-avkrysning som Operativ kontrollgrunnlag). */
   .vt-flerbil-liste{max-height:260px;overflow-y:auto;border-top:1px solid var(--line-soft);margin-top:6px;padding-top:4px;}
   /* Skjematisk forhåndsvisning i Innstillinger */
@@ -2490,6 +2503,13 @@ let editingPlanlagtDekkskiftId = null;
 // ingen data — samme mønster som bilkortHistorikkSubOpen den erstatter.
 let bilkortAktivFane = 'kontroller'; // Prioritet 59: kontroller | skader | varsellamper | verkstedhistorikk | kommentarer (Historikk-seksjonen)
 let bilkortHistRadApen = new Set(); // Prioritet 59: åpne rader i Historikk (id-er fra bilkortHistorikkRader()), ren visningstilstand
+let bilkortKontrollGruppeApen = new Set(['denne-uken','forrige-uke']); // Prioritet 73: Denne uken og Forrige uke åpne; Eldre lukket
+let bilkortKontrollManedApen = new Set(); // Prioritet 73: måneder under Eldre, lukket som standard
+let ktHistFilterBil = '';
+let ktHistFilterFra = '';
+let ktHistFilterTil = '';
+let ktHistFilterSjafor = '';
+let ktHistKunKommentar = false;
 let showBilinfoRediger = false;    // "✏️ Rediger informasjon" på Kjøretøyprofil
 // Kalender: hvilken måned som vises (YYYY-MM) og hvilken dato som er valgt. Begge er
 // ren visningstilstand — kalenderen leser kun eksisterende planleggingsdata.
@@ -4189,7 +4209,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill','kommentaroversikt'];
+const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill','kommentaroversikt','kontrollhistorikk'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -7313,6 +7333,56 @@ function isoDateOffset(iso, deltaDager){
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDager));
   return d.toISOString().slice(0, 10);
 }
+// Prioritet 73: ISO-uke mandag–søndag fra en operativ ISO-dato (samme ukedagsindeks som kalenderUkeDager).
+function isoUkeStart(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if(!m) return iso;
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  const ukedagIdx = (dt.getUTCDay() + 6) % 7;
+  return isoDateOffset(iso, -ukedagIdx);
+}
+function kontrollHistorikkUkegrenser(idag){
+  idag = idag || todayISO();
+  const denneStart = isoUkeStart(idag);
+  return {
+    idag,
+    denneStart,
+    denneSlutt: isoDateOffset(denneStart, 6),
+    forrigeStart: isoDateOffset(denneStart, -7),
+    forrigeSlutt: isoDateOffset(denneStart, -1)
+  };
+}
+function kontrollManedTittel(iso){
+  const m = /^(\d{4})-(\d{2})/.exec(iso || '');
+  if(!m) return iso || 'Uten dato';
+  const navn = MAANEDER_NB[Number(m[2]) - 1] || '';
+  if(!navn) return iso;
+  return navn.charAt(0).toUpperCase() + navn.slice(1) + ' ' + m[1];
+}
+function kontrollHistorikkFordel(rader, idag){
+  const g = kontrollHistorikkUkegrenser(idag);
+  const denne = [], forrige = [], eldre = [];
+  (rader || []).forEach(r => {
+    const d = r.dato || '';
+    if(d && d >= g.denneStart) denne.push(r);
+    else if(d && d >= g.forrigeStart) forrige.push(r);
+    else eldre.push(r);
+  });
+  return {denne, forrige, eldre, grenser: g};
+}
+function kontrollHistorikkManedGrupper(rader){
+  const map = new Map();
+  (rader || []).forEach(r => {
+    const key = (r.dato || '').slice(0, 7) || 'ukjent';
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  });
+  return [...map.keys()].sort((a, b) => b.localeCompare(a)).map(key => ({
+    key,
+    tittel: key === 'ukjent' ? 'Uten dato' : kontrollManedTittel(key + '-01'),
+    rader: map.get(key)
+  }));
+}
 
 // ================= Dekk: DOT-kode, alder og sesongvarsel =================
 // DOT-koden på et dekk avslutter alltid med 4 siffer: UUÅÅ (produksjonsuke +
@@ -7796,7 +7866,7 @@ function goTo(scr, vehicleId, _isBack){
   }
   screen = scr;
   if(vehicleId !== undefined) currentVehicleId = vehicleId;
-  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = layoutBilkortStartApne(); bilkortHistRadApen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; serviceSaveConfirmedId = null; showAddService = false; showUteAvDriftForm = false; }
+  if(scr === 'bilkort' && vehicleId !== undefined){ bilkortOpenSections = layoutBilkortStartApne(); bilkortHistRadApen = new Set(); bilkortKontrollGruppeApen = new Set(['denne-uken','forrige-uke']); bilkortKontrollManedApen = new Set(); vehicleSaveConfirmedId = null; dekkSaveConfirmedId = null; showAddDekkskifte = false; serviceSaveConfirmedId = null; showAddService = false; showUteAvDriftForm = false; }
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
@@ -7909,6 +7979,14 @@ function goToVerkstedFiltered(type){
 function goToKontrollhistorikkFiltered(dato){
   kontrolloversiktPeriode = 'idag';
   goTo('kontrolloversikt');
+}
+function goToFullKontrollhistorikk(vehicleId){
+  ktHistFilterBil = vehicleId || '';
+  ktHistFilterFra = '';
+  ktHistFilterTil = '';
+  ktHistFilterSjafor = '';
+  ktHistKunKommentar = false;
+  goTo('kontrollhistorikk');
 }
 
 function goToRegisterKontroll(vehicleId){
@@ -10912,6 +10990,7 @@ const DESKTOP_FRAME_TITTEL = {
   rapporter:'Rapporter', analyse:'Analyse', innstillinger:'Innstillinger',
   bestill:'Bestill tjenester', kommentaroversikt:'Kommentarer',
   dekkoversikt:'Dekk', kontrolloversikt:'Kontroller',
+  kontrollhistorikk:'Full kontrollhistorikk',
   allesider:'Alle sider', layouteditor:'Layout Editor'
 };
 function desktopFrameTittel(){ return DESKTOP_FRAME_TITTEL[screen] || 'Bilpark'; }
@@ -10991,6 +11070,7 @@ function render(){
   else if(screen === 'varsler') body = renderVarslerOversikt();
   else if(screen === 'dekkoversikt') body = renderDekkoversikt();
   else if(screen === 'kontrolloversikt') body = renderKontrolloversikt();
+  else if(screen === 'kontrollhistorikk') body = renderFullKontrollhistorikk();
   else if(screen === 'kostnadsoversikt') body = renderKostnadsoversikt();
   else if(screen === 'aktivesaker') body = renderAktiveSaker();
   else if(screen === 'rapporter') body = renderRapporter();
@@ -11116,6 +11196,7 @@ function render(){
   else if(screen === 'varsler') attachVarslerOversiktListeners();
   else if(screen === 'dekkoversikt') attachDekkoversiktListeners();
   else if(screen === 'kontrolloversikt') attachKontrolloversiktListeners();
+  else if(screen === 'kontrollhistorikk') attachFullKontrollhistorikkListeners();
   else if(screen === 'kostnadsoversikt') attachKostnadsoversiktListeners();
   else if(screen === 'aktivesaker') attachAktiveSakerListeners();
   else if(screen === 'rapporter') attachRapporterListeners();
@@ -13992,6 +14073,91 @@ function attachKontrolloversiktListeners(){
   if(deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelectedKontroller);
 }
 
+// ================= Prioritet 73: Full kontrollhistorikk (revisjon / km / søk) =================
+function fullKontrollhistorikkRader(){
+  let list = (kontroller || []).slice().sort((a, b) => ((b.dato || '') + (b.tidspunkt || '')).localeCompare((a.dato || '') + (a.tidspunkt || '')));
+  if(ktHistFilterBil) list = list.filter(k => k.vehicleId === ktHistFilterBil);
+  if(ktHistFilterFra) list = list.filter(k => (k.dato || '') >= ktHistFilterFra);
+  if(ktHistFilterTil) list = list.filter(k => (k.dato || '') <= ktHistFilterTil);
+  const q = (ktHistFilterSjafor || '').trim().toLowerCase();
+  if(q) list = list.filter(k => String(k.sjafor || '').toLowerCase().includes(q));
+  if(ktHistKunKommentar) list = list.filter(k => kontrollSjaforKommentarTekst(k));
+  return list;
+}
+function renderFullKontrollhistorikk(){
+  const rader = fullKontrollhistorikkRader();
+  const header = ['Dato', 'Klokkeslett', 'Bil', 'Kilometerstand', 'Sjåfør', 'Kommentar'];
+  const tabellRader = rader.map(k => {
+    const v = vehicles.find(x => x.id === k.vehicleId);
+    return {
+      vehicleId: k.vehicleId,
+      cells: [
+        fmt(k.dato),
+        esc(k.tidspunkt || '–'),
+        v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy',
+        `<b>${Number(k.km || 0).toLocaleString('nb-NO')} km</b>`,
+        esc(k.sjafor || '–'),
+        esc(kontrollSjaforKommentarTekst(k) || '–')
+      ]
+    };
+  });
+  return `
+    <div class="backrow"><button class="backbtn" id="kthist-back">← Tilbake</button></div>
+    <h2 style="font-size:19px;margin-bottom:6px;">${luc('clipboard-check', 'ic-blue')} Full kontrollhistorikk</h2>
+    <div class="required-hint" style="margin-bottom:14px;">Alle registrerte kontroller med kilometerstand, sjåfør og kommentar. Brukes til kilometerstandsrapport, revisjon og historiske søk. Ingen poster slettes herfra — sletting skjer fortsatt per kontroll i bilkortet eller Kontrolloversikt.</div>
+    <div class="filters-row" style="margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <select id="kthist-bil"><option value="">Alle kjøretøy</option>${vehicleOptions(ktHistFilterBil)}</select>
+      <input type="text" id="kthist-fra" inputmode="numeric" data-kind="date" placeholder="Fra DD/MM/ÅÅÅÅ" maxlength="10" value="${ktHistFilterFra ? fmt(ktHistFilterFra) : ''}">
+      <input type="text" id="kthist-til" inputmode="numeric" data-kind="date" placeholder="Til DD/MM/ÅÅÅÅ" maxlength="10" value="${ktHistFilterTil ? fmt(ktHistFilterTil) : ''}">
+      <input type="text" id="kthist-sjafor" placeholder="Sjåfør" value="${esc(ktHistFilterSjafor)}" style="min-width:140px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="kthist-kommentar" ${ktHistKunKommentar ? 'checked' : ''}> Kun med kommentar</label>
+      <button type="button" class="btn small" id="kthist-sok">Filtrer</button>
+      <button type="button" class="btn secondary small" id="kthist-eksport">${luc('download')} Eksporter Excel</button>
+    </div>
+    <div class="required-hint" style="margin-bottom:10px;">${rader.length} kontroll${rader.length === 1 ? '' : 'er'}.</div>
+    ${rapportTabellHtml(header, tabellRader)}
+  `;
+}
+function attachFullKontrollhistorikkListeners(){
+  const back = document.getElementById('kthist-back');
+  if(back) back.addEventListener('click', () => goBack());
+  const lesFiltre = () => {
+    const bil = document.getElementById('kthist-bil');
+    const sjafor = document.getElementById('kthist-sjafor');
+    const kom = document.getElementById('kthist-kommentar');
+    if(bil) ktHistFilterBil = bil.value || '';
+    ktHistFilterFra = readDateInput('kthist-fra') || '';
+    ktHistFilterTil = readDateInput('kthist-til') || '';
+    if(sjafor) ktHistFilterSjafor = sjafor.value || '';
+    if(kom) ktHistKunKommentar = !!kom.checked;
+  };
+  const oppdater = () => { lesFiltre(); render(); };
+  const bil = document.getElementById('kthist-bil');
+  if(bil) bil.addEventListener('change', oppdater);
+  const fra = document.getElementById('kthist-fra');
+  if(fra) fra.addEventListener('change', oppdater);
+  const til = document.getElementById('kthist-til');
+  if(til) til.addEventListener('change', oppdater);
+  const kom = document.getElementById('kthist-kommentar');
+  if(kom) kom.addEventListener('change', oppdater);
+  const sok = document.getElementById('kthist-sok');
+  if(sok) sok.addEventListener('click', oppdater);
+  const sjafor = document.getElementById('kthist-sjafor');
+  if(sjafor) sjafor.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); oppdater(); } });
+  const eksp = document.getElementById('kthist-eksport');
+  if(eksp) eksp.addEventListener('click', eksporterFullKontrollhistorikk);
+  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
+}
+function eksporterFullKontrollhistorikk(){
+  const rader = fullKontrollhistorikkRader();
+  const header = ['Dato', 'Klokkeslett', 'Bil', 'Kilometerstand', 'Sjåfør', 'Kommentar'];
+  const rows = rader.map(k => {
+    const v = vehicles.find(x => x.id === k.vehicleId);
+    return [fmt(k.dato), k.tidspunkt || '', v ? vehicleLabel(v) : 'Slettet kjøretøy', Number(k.km || 0), k.sjafor || '', kontrollSjaforKommentarTekst(k) || ''];
+  });
+  rapportEksporterExcel(header, rows, 'Kontrollhistorikk', 'Full_kontrollhistorikk.xlsx', [3]);
+}
+
 // ================= Prioritet 71: Varslingssenter =================
 // Erstatter "Påminnelser" (som tidligere KUN var aktive varsellamper) med ett samlet
 // varslingssenter: nye kommentarer, km-grense passert, service/EU-kontroll som nærmer
@@ -14419,7 +14585,7 @@ function bilkortHistorikkRader(v){
     .sort((a, b) => ((b.dato || '') + (b.tidspunkt || '')).localeCompare((a.dato || '') + (a.tidspunkt || '')))
     .map(k => {
       const avvik = (k.varsellamper && k.varsellamper.length > 0) || k.harNyeSkader || (k.kommentar && k.kommentar.trim());
-      return {id:'k:' + k.id, ikon:'clipboard-check', tone:TONE[avvik ? 'gul' : 'gronn'],
+      return {id:'k:' + k.id, dato: k.dato || '', ikon:'clipboard-check', tone:TONE[avvik ? 'gul' : 'gronn'],
         tittel: fmt(k.dato) + (k.tidspunkt ? ' kl. ' + k.tidspunkt : ''),
         linje2: Number(k.km || 0).toLocaleString('nb-NO') + ' km · ' + (k.sjafor || 'Ukjent') + ' · ' + (avvik ? 'Avvik/kommentar' : 'Ingen avvik'),
         detalj: () => kontrollHistoryCard(k)};
@@ -14481,9 +14647,50 @@ function bilkortHistRadHtml(r){
     </div>
     ${apen ? `<div class="bilkort-hist-detalj">${r.detalj()}</div>` : ''}`;
 }
+function ktHistGruppeHtml(id, tittel, antall, innholdHtml, apen){
+  return `<div class="kt-hist-gruppe${apen ? ' apen' : ''}">
+    <button type="button" class="kt-hist-gruppe-head" data-kt-hist-gruppe="${esc(id)}" aria-expanded="${apen}">
+      <span class="kt-hist-gruppe-tittel">${luc(apen ? 'chevron-down' : 'chevron-right')} ${esc(tittel)}</span>
+      <span class="kt-hist-gruppe-antall">${antall}</span>
+    </button>
+    ${apen ? `<div class="kt-hist-gruppe-body">${innholdHtml}</div>` : ''}
+  </div>`;
+}
+function ktHistManedHtml(gruppe){
+  const apen = bilkortKontrollManedApen.has(gruppe.key);
+  return `<div class="kt-hist-maned">
+    <button type="button" class="kt-hist-maned-head" data-kt-hist-maned="${esc(gruppe.key)}" aria-expanded="${apen}">
+      <span class="kt-hist-maned-tittel">${luc(apen ? 'chevron-down' : 'chevron-right')} ${esc(gruppe.tittel)}</span>
+      <span class="kt-hist-gruppe-antall">${gruppe.rader.length}</span>
+    </button>
+    ${apen ? `<div class="kt-hist-maned-body">${gruppe.rader.map(bilkortHistRadHtml).join('')}</div>` : ''}
+  </div>`;
+}
+function bilkortKontrollGrupperHtml(rader){
+  const fordelt = kontrollHistorikkFordel(rader);
+  const denneApen = bilkortKontrollGruppeApen.has('denne-uken');
+  const forrigeApen = bilkortKontrollGruppeApen.has('forrige-uke');
+  const eldreApen = bilkortKontrollGruppeApen.has('eldre');
+  const denneInnhold = denneApen
+    ? (fordelt.denne.length ? fordelt.denne.map(bilkortHistRadHtml).join('') : '<div class="empty-note">Ingen kontroller denne uken.</div>')
+    : '';
+  const forrigeInnhold = forrigeApen
+    ? (fordelt.forrige.length ? fordelt.forrige.map(bilkortHistRadHtml).join('') : '<div class="empty-note">Ingen kontroller forrige uke.</div>')
+    : '';
+  let eldreInnhold = '';
+  if(eldreApen){
+    if(!fordelt.eldre.length) eldreInnhold = '<div class="empty-note">Ingen eldre kontroller.</div>';
+    else eldreInnhold = kontrollHistorikkManedGrupper(fordelt.eldre).map(ktHistManedHtml).join('');
+  }
+  return ktHistGruppeHtml('denne-uken', 'Denne uken', fordelt.denne.length, denneInnhold, denneApen)
+    + ktHistGruppeHtml('forrige-uke', 'Forrige uke', fordelt.forrige.length, forrigeInnhold, forrigeApen)
+    + ktHistGruppeHtml('eldre', 'Eldre kontroller', fordelt.eldre.length, eldreInnhold, eldreApen)
+    + `<div class="kt-hist-full-lenke"><button type="button" class="btn secondary small" id="kt-hist-full-btn">Åpne full kontrollhistorikk</button></div>`;
+}
 function bilkortHistorikkInnholdHtml(v, fane, rader){
   const liste = (rader || bilkortHistorikkRader(v))[fane];
   const verktoy = fane === 'skader' ? `<div class="bilkort-hist-verktoy"><button type="button" class="btn secondary small" id="ny-skade-btn">+ Registrer skade</button></div>` : '';
+  if(fane === 'kontroller') return verktoy + bilkortKontrollGrupperHtml(liste);
   return verktoy + (liste.length ? liste.map(bilkortHistRadHtml).join('') : `<div class="empty-note">${BILKORT_HIST_TOM[fane]}</div>`);
 }
 function bilkortHistorikkSekHtml(v){
@@ -14523,6 +14730,20 @@ function byttBilkortHistorikkFane(fane){
 // Lyttere for innholdet i Historikk-seksjonen (rader + de eksisterende kortenes knapper). Festes av
 // attachBilkortListeners() ved full render, og på nytt kun på det utskiftede innholdet ved fanebytte.
 function attachBilkortHistorikkListeners(root){
+  root.querySelectorAll('[data-kt-hist-gruppe]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.ktHistGruppe;
+    if(bilkortKontrollGruppeApen.has(id)) bilkortKontrollGruppeApen.delete(id); else bilkortKontrollGruppeApen.add(id);
+    oppdaterBilkortHistorikkInnhold(false);
+  }));
+  root.querySelectorAll('[data-kt-hist-maned]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = el.dataset.ktHistManed;
+    if(bilkortKontrollManedApen.has(id)) bilkortKontrollManedApen.delete(id); else bilkortKontrollManedApen.add(id);
+    oppdaterBilkortHistorikkInnhold(false);
+  }));
+  const fullBtn = root.querySelector('#kt-hist-full-btn');
+  if(fullBtn) fullBtn.addEventListener('click', (e) => { e.stopPropagation(); goToFullKontrollhistorikk(currentVehicleId); });
   root.querySelectorAll('[data-hist-rad]').forEach(el => {
     const bytt = () => {
       const id = el.dataset.histRad;
@@ -20127,7 +20348,7 @@ if(drawerOverlayEl) drawerOverlayEl.addEventListener('click', closeDrawer);
 // Verkstedhistorikk, selv om skjermen har en egen ← Tilbake-knapp og ellers oppfører seg
 // som enhver annen underside. 'kalender', 'bestill' og 'kommentaroversikt' var av samme
 // grunn (nye skjermer lagt til etter denne listen sist ble oppdatert) også utelatt.
-const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'verkstedhistorikk', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger', 'kalender', 'bestill', 'kommentaroversikt', 'allesider', 'layouteditor'];
+const OVERSIKT_SWIPE_BACK_SCREENS = ['kontrolloversikt', 'verksted', 'skader', 'varsler', 'dekkoversikt', 'kostnadsoversikt', 'aktivesaker', 'rapporter', 'analyse', 'historikk', 'verkstedhistorikk', 'service', 'dekk', 'bilkort', 'kontroll', 'register', 'innstillinger', 'kalender', 'bestill', 'kommentaroversikt', 'allesider', 'layouteditor', 'kontrollhistorikk'];
 const SWIPE_EDGE_SONE = 28; // px fra venstre kant — bredt nok til å treffe pålitelig (iOS bruker typisk 20-25px), fortsatt smalt nok til å ikke stjele vanlig sveiping i innhold
 let swipeStartX = null, swipeStartY = null, swipeIgnored = false, swipeFraKant = false;
 const SWIPE_TERSKEL = 70;
