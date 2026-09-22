@@ -6593,5 +6593,5 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 
 **Ikke rørt:** `submitAddVT` / `fullforVerkstedbestilling` / saksmotor / `storage.airtable.js`.
 
-**Filer:** `index.html`, `kontroll.html`, `sw.js` / `version-check.js` / `version.json` 121 → 122. `storage.airtable.js` uendret v2.24.0.
+**Filer:** `index.html`, `kontroll.html`, `sw.js` / `version-check.js` / `version.json` 121 → 123. `storage.airtable.js` uendret v2.24.0.
 
