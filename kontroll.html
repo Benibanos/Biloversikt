@@ -15267,7 +15267,7 @@ function renderServiceSkjerm(){
     <h2 style="font-size:19px;margin-bottom:6px;">🔧 Service</h2>
     <div class="required-hint" style="margin-bottom:16px;">Km-basert serviceintervall — status, registrering og historikk.</div>
     <div class="panel" style="margin-bottom:16px;">
-      <div class="field" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;">
         <label>Kjøretøy</label>
         <select id="service-vehicle" required>
           <option value="">Velg bil...</option>
@@ -15275,13 +15275,14 @@ function renderServiceSkjerm(){
         </select>
       </div>
     </div>
+    ${!v && (showAddService || showAddHistoriskService) ? `<div class="empty-note" style="margin-bottom:16px;">Velg kjøretøy for å ${showAddHistoriskService ? 'registrere tidligere service' : 'registrere service'}.</div>` : ''}
     ${vehicleCardHtml}
     ${contentHtml}
   `;
 }
 function attachServiceSkjermListeners(){
   document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; showAddHistoriskService = false; showPlanleggService = false; serviceSaveConfirmedId = null; render(); });
+  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
   if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
   const serviceBtn = document.getElementById('ny-service-btn');
