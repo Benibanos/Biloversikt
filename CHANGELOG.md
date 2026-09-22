@@ -15,6 +15,16 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 70 — Skill kommentar og kontrollavvik
+
+Nummeret følger brukerens backlog. Historisk «Prioritet 70 — Samlet Verksted» er en annen sak.
+
+1. Kommentar fra sjåfør er informasjon. Den lagres på kontrollen (`kontroller.kommentar`, merket lest) og vises under Historikk → Kommentarer. Den oppretter ikke sak, varsel eller kontrollavvik.
+2. Kontrollavvik er uendret som oppfølgingsproblemer. «Sidespeil defekt/ødelagt» er et eget avvik.
+3. «Kommentar til kontrollavvik» vises når minst ett avvik er valgt, og lagres på avviket (`avvik[].kommentar` i den eksisterende Avvik-blobben). Ingen ny Airtable-kolonne.
+4. Bil og sjåfør er tatt ut av kontrollskjemaet. Administrator uten valgt bil velger bil før skjemaet.
+5. Nye skader og løftebord ligger på samme rad (Ja/Nei og OK/Må gjøres). Rekkefølgen er låst: kilometerstand, varsellamper, kontrollavvik, avvikskommentar, sjåførkommentar, skade og løftebord, send.
+6. `storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 118 → 119.
 ### Prioritet 72 — Komprimer Biloversikt
 
 (Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 — Dashboard 2.0».)

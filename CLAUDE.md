@@ -1,5 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 70 —
+**Skill kommentar og kontrollavvik.** Kommentar fra sjåfør er informasjon og oppretter aldri sak, varsel eller kontrollavvik. Kontrollavvik er oppfølging, med eget avvik «Sidespeil defekt/ødelagt» og egen avvikskommentar på avviket. Bil og sjåfør er tatt ut av kontrollskjemaet. Nye skader og løftebord ligger på samme rad. `storage.airtable.js` uendret v2.24.0; appversjon 119. Se «Prioritet 70 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 72 — **Komprimer Biloversikt.** ← Tilbake fjernet fra primære sider (Biloversikt/Verksted/Kalender/Aktive saker/Varslingssenter/Rapporter-hub/Kostnader), beholdt på detaljsider; kjøretøyteller fjernet; «+ Ny bil» som egen fane til høyre i fanelinjen; Søk + Filter på samme linje. `storage.airtable.js` uendret (v2.24.0). Se «Prioritet 72 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 **Varslingssenter viser kun aktive hendelser.** Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk, ikke i Varslingssenteret. «Merk som løst» lukker også tilhørende sak. `storage.airtable.js` uendret v2.24.0; appversjon 118. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
 **Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime. Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
@@ -6506,6 +6508,19 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 
 ---
 
+## Prioritet 70 (2026-09-22) — Skill kommentar og kontrollavvik
+
+(Brukerens egen nummerering. Det finnes en tidligere, urelatert «Prioritet 70 — Samlet Verksted og Verkstedhistorikk» lenger opp.)
+
+**Varig regel: kommentar er informasjon, kontrollavvik er et problem.** Sjåførens generelle kommentar (`kontroller.kommentar`) oppretter aldri sak, varsel eller kontrollavvik. Den vises under Historikk → Kommentarer. Nye kontrollrader settes `kommentarLest: true`, og `kommentarSkalVarsles()` utelater `kilde === 'kontroll'` fra Varslingssenteret og sidemenytelleren. Fristilte kommentarer fra ☰ Mer kan fortsatt varsles.
+
+**Avvikskommentar** vises bare når minst ett kontrollavvik er valgt (inkludert løftebord «Må gjøres»). Teksten lagres på avvikpunktet (`avvik[].kommentar` i den eksisterende `AktiveSaker.Avvik`-blobben) og i historikklinjen, kun for `caseType === 'kontrollavvik'`. Ingen ny kolonne. `storage.airtable.js` forblir v2.24.0.
+
+**Nytt avvik:** `sidespeil` / «Sidespeil defekt/ødelagt» i `KONTROLLAVVIK_ORDER`. Løftebord er tatt ut av chiplisten og ligger sammen med Nye skader: venstre Ja/Nei, høyre OK / Må gjøres. «Må gjøres» legger `loftebord` i `kontrollFormAvvik`. Smøring registreres fortsatt på Min Bil.
+
+**Kontrollrekkefølge er låst** (`canMove: false`): kilometerstand, varsellamper, kontrollavvik, kommentar til kontrollavvik, kommentar fra sjåfør, nye skader og løftebord, send. Bil og sjåfør er ikke felt på skjemaet. Uten valgt bil viser administrasjonen bilvelgeren før skjemaet; sjåføren sendes tilbake til Velg bil.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 118 → 119. `storage.airtable.js` uendret.
 ## Prioritet 72 (2026-09-22) — Komprimer Biloversikt
 
 (Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 (2026-09-18) — Dashboard 2.0».)
