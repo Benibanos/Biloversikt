@@ -15,6 +15,14 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 73 — Del opp kontrollhistorikken
+
+Nummeret følger brukerens backlog.
+
+1. Kontroller-fanen på Kjøretøyprofilen grupperes i **Denne uken** og **Forrige uke** (åpne som standard) og **Eldre kontroller (antall)** (lukket som standard).
+2. Åpnes Eldre, grupperes postene videre per måned (September 2026, August 2026, …). Måneder og eldre rader rendres først når de åpnes.
+3. **Åpne full kontrollhistorikk** går til en egen revisjonsside med alle kontroller, kilometerstander, sjåfører og kommentarer, plus filtrering og Excel-eksport.
+4. Ingen kontrollrader slettes. Kilometerstandsrapporten er uendret. `storage.airtable.js` uendret v2.24.0. App-/cacheversjon 119 → 120.
 ### Prioritet 71.1 — Fjern løftebord fra sjåførkontroll
 
 Nummeret følger brukerens backlog. Historisk «Prioritet 71.1 — migrerLegacySkaderTilSaker» er en annen sak.
