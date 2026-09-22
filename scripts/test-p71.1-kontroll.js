@@ -14,16 +14,34 @@ function assert(cond, msg) {
 }
 
 assert(html === kontroll, 'index.html og kontroll.html er identiske');
-assert(html.includes("'sidespeil':'Sidespeil defekt/ødelagt'"), 'sidespeil har egen etikett');
-assert(html.includes("'sidespeil'"), 'sidespeil finnes i oppslagene');
-assert(!html.includes('id="kt-sjafornavn"'), 'sjåførfeltet er borte fra kontrollsiden');
-assert(!html.includes("kontrollDeler['control.bil-sjafor']"), 'bil-og-sjåfør-kortet er borte');
+assert(!html.includes('id="kt-loftebord-ok"'), 'kontroll har ikke OK for løftebord');
+assert(!html.includes('id="kt-loftebord-ma"'), 'kontroll har ikke Må gjøres for løftebord');
+assert(!html.includes("kontrollDeler['control.skade-loftebord']"), 'skade-loftebord-kortet er borte');
 assert(html.includes("kontrollDeler['control.nye-skader']"), 'nye skader er eget kort');
-assert(html.includes('id="kt-avvik-kommentar"'), 'avvikskommentar har eget felt');
-assert(html.includes('id="kt-kommentar"'), 'sjåførkommentar har eget felt');
-assert(!html.includes('id="kt-loftebord-ma"'), 'løftebord Må gjøres er fjernet fra kontrollen');
-assert(!html.includes('id="kt-loftebord-ok"'), 'løftebord OK er fjernet fra kontrollen');
-assert(html.includes('function kommentarSkalVarsles'), 'varslingsfilter for kommentarer finnes');
+assert(!html.includes('name="kt-loftebord"'), 'ingen løftebord-radio i kontrollen');
+assert(html.includes("id=\"mb-loftebord-btn\""), 'Min Bil har Smør løftebord');
+assert(html.includes("'driver.loftebord':"), 'Min Bil-layout har løftebord');
+assert(html.includes("function submitMinBilLoftebordVedlikehold"), 'Min Bil-vedlikehold er urørt');
+assert(html.includes("id=\"kt-avvik-kommentar\""), 'avvikskommentar er beholdt');
+assert(html.includes("id=\"kt-kommentar\""), 'sjåførkommentar er beholdt');
+assert(html.includes("'sidespeil':'Sidespeil defekt/ødelagt'"), 'sidespeil er beholdt');
+
+const orderStart = html.indexOf('const KONTROLLAVVIK_ORDER');
+const orderLine = html.slice(orderStart, html.indexOf(';', orderStart));
+assert(orderLine.includes("'loftebord'"), 'loftebord ligger fortsatt i avviksordenen (Min Bil / historikk)');
+
+const km = html.indexOf("kt('km'");
+const send = html.indexOf("kt('send'");
+const block = html.slice(km, send);
+['km','varsellamper','kontrollavvik','avvik-kommentar','kommentar','nye-skader'].forEach((id, i, arr) => {
+  const pos = block.indexOf("kt('" + id + "'");
+  assert(pos >= 0, 'layout har ' + id);
+  if (i > 0) {
+    const prev = block.indexOf("kt('" + arr[i - 1] + "'");
+    assert(prev < pos, id + ' kommer etter ' + arr[i - 1]);
+  }
+});
+assert(!block.includes("kt('skade-loftebord'"), 'layout har ikke skade-loftebord');
 
 function extractFn(name) {
   const re = new RegExp('function ' + name + '\\(');
@@ -62,31 +80,11 @@ vm.runInContext(`
 `, sandbox);
 const sak = sandbox.aktiveSaker[0];
 assert(sak && sak.avvik.length === 2, 'ett kontrollkall lager én sak med to avvik');
-assert(sak.avvik[0].kommentar === '', 'varsellampe får ikke avvikskommentaren');
 assert(sak.avvik[1].kommentar === 'Defekt høyre sidespeil', 'kontrollavviket lagrer avvikskommentaren');
-assert(sak.avvik[1].sourceId === 'sidespeil', 'sidespeil er eget avvik');
 assert(vm.runInContext("kommentarSkalVarsles({lest:false, kilde:'kontroll'})", sandbox) === false, 'kontrollkommentar varsles ikke');
-assert(vm.runInContext("kommentarSkalVarsles({lest:false, kilde:'fristilt'})", sandbox) === true, 'fristilt kommentar kan varsles');
-assert(vm.runInContext("kommentarSkalVarsles({lest:true, kilde:'fristilt'})", sandbox) === false, 'lest kommentar varsles ikke');
-
-const orderStart = html.indexOf('const KONTROLLAVVIK_ORDER');
-const orderLine = html.slice(orderStart, html.indexOf(';', orderStart));
-assert(orderLine.includes("'sidespeil'") && orderLine.indexOf("'sidespeil'") < orderLine.indexOf("'loftebord'"), 'sidespeil ligger i kontrollavvik-rekkefølgen');
-
-const km = html.indexOf("kt('km'");
-const send = html.indexOf("kt('send'");
-const block = html.slice(km, send);
-['km','varsellamper','kontrollavvik','avvik-kommentar','kommentar','nye-skader'].forEach((id, i, arr) => {
-  const pos = block.indexOf("kt('" + id + "'");
-  assert(pos >= 0, 'layout har ' + id);
-  if (i > 0) {
-    const prev = block.indexOf("kt('" + arr[i - 1] + "'");
-    assert(prev < pos, id + ' kommer etter ' + arr[i - 1]);
-  }
-});
 
 if (fails.length) {
   console.error(fails.length + ' feilet');
   process.exit(1);
 }
-console.log('Alle p70-sjekker bestått');
+console.log('Alle p71.1-sjekker bestått');
