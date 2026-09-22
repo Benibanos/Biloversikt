@@ -15,6 +15,16 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 72 — Komprimer Biloversikt
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 — Dashboard 2.0».)
+
+1. ← Tilbake er fjernet fra primære sider: Biloversikt, Verksted, Kalender, Aktive saker, Varslingssenter, Rapporter-hub og Kostnader. Tilbake beholdes på detaljsider (Bilprofil, rapportdetalj → hub, m.fl.).
+2. Kjøretøytelleren «N av M kjøretøy» er fjernet fra Biloversikt.
+3. «+ Ny bil» ligger i fanelinjen helt til høyre (`.profil-tab-ny`) og fungerer som egen fane — registreringsskjemaet er fanens innhold, ikke en blokk over listen.
+4. Søk og Filter står på samme linje øverst (frigjort plass etter at tilbake-knappen ble fjernet).
+5. Ingen funksjonalitet er fjernet. `storage.airtable.js` er uendret (v2.24.0). App-/cacheversjon 118 → 119.
+
 ### Prioritet 69 — Rydd opp i sakslivssyklus
 
 1. Avslå setter saken til `avslatt`, kvitterer tilhørende aktive varsellamper og setter kontrollavvik i saken til `avslatt`. `resolvedAt` og historikklinjen gjør at oppføringen kun vises i historikk.
