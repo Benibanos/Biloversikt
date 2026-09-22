@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 68 —
-**Sakslivssyklus.** Avslå lukker saken, tilhørende varsellampe og kontrollavvik, og flytter oppføringen til historikk. Sjåførside og Dashboard leser samme aktive status. «Legg til bil» finnes ikke på saker; flere biler kan kun velges på dekkskift. `storage.airtable.js` uendret v2.24.0; appversjon 117. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 69 —
+**Varslingssenter viser kun aktive hendelser.** Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk, ikke i Varslingssenteret. «Merk som løst» lukker også tilhørende sak. `storage.airtable.js` uendret v2.24.0; appversjon 118. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
 **Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime. Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
 **Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 65 —
 **Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll. `storage.airtable.js` uendret v2.23.0. Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
@@ -3516,7 +3516,7 @@ samme skjerm (samme funksjoner: `varsellysHistorikkRow()`, `deleteVarsellysHisto
 `deleteSelectedVarsellysHistorikk()`, `vlhOpenVehicles`/`vlhSelectedIds`) — dette er
 fortsatt eneste sted en administrator kan revidere/slette kvitterte varsellamper, og var
 aldri en del av «for mye støy»-problemet (kvitterte varsler var allerede skjult fra aktiv
-visning). Varsellampe-rader i selve varslingssenteret har fortsatt en direkte
+visning). **Avløst 2026-09-22:** kvitteringshistorikken vises ikke lenger i Varslingssenteret. Kvitterte lamper ligger i bilens Varsellamper-historikk. Varsellampe-rader i selve varslingssenteret har fortsatt en direkte
 «✅ Merk som løst»-knapp (`kvitterVarsellys()`, uendret) ved siden av «Marker som sett» —
 de to handlingene er bevisst forskjellige: kvittering løser varselet permanent, «marker som
 sett» skjuler det midlertidig i 48 timer uten å røre `varsellys[]`.
@@ -6406,7 +6406,13 @@ setter hvert aktivt punkt i `sak.avvik` til `avslatt`, og kvitterer matchende va
 (`kvittert`) når ingen annen åpen sak på samme bil fortsatt har den lampen. Feiler
 lagringen, rulles både saker og varsellamper tilbake. Lukkede saker forsvinner fra de
 aktive listene og vises i historikk via `resolvedAt`. Kvitterte lamper ligger i
-varsellamphistorikken.
+varsellamphistorikken på kjøretøyprofilen.
+
+**Varslingssenter er «dette krever handling nå».** `beregnVarslingssenterListe()` tar med
+åpne saker og varsellamper med `status === 'aktiv'`. Avslåtte, lukkede og utførte saker og
+kvitterte lamper rendres ikke på skjermen. «Merk som løst» (`kvitterVarsellys()`) setter
+lampen til `kvittert` og avslår åpne saker på samme bil som kun hadde den lampen igjen.
+Andre aktive avvik på saken blir stående.
 
 **Varig regel: én sak tilhører ett kjøretøy.** «Legg til bil» og samlet flerbilshåndtering
 er fjernet fra Aktive saker, varsellamper, kontrollavvik og skader. Eldre `sakGruppeId`-rader
@@ -6414,7 +6420,7 @@ vises som egne saker på sin bil; kolonnen slettes ikke. Flere biler kan kun vel
 dekkskift (`Velg flere biler` i verkstedskjemaet), som fortsatt lager én verkstedbestilling
 per bil.
 
-`storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 116 → 117.
+`storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 116 → 118.
 
 ---
 

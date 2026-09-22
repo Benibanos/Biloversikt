@@ -18,6 +18,7 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 ### Prioritet 69 — Rydd opp i sakslivssyklus
 
 1. Avslå setter saken til `avslatt`, kvitterer tilhørende aktive varsellamper og setter kontrollavvik i saken til `avslatt`. `resolvedAt` og historikklinjen gjør at oppføringen kun vises i historikk.
+1b. Varslingssenter viser kun hendelser som krever handling. Kvittert varsellamphistorikk er tatt ut av skjermen og ligger i bilens historikk. «Merk som løst» lukker også den tilhørende åpne saken. App-/cacheversjon 117 → 118.
 2. Min Bil, Sjåførkontroll, Dashboard, Aktive saker og Varsler leser samme aktive varsellamper (`status === 'aktiv'`) og samme åpne saker (`sakErApen`). En avslått sak kan ikke bli stående som aktiv ett av stedene.
 3. Lagring av sak og varsellamper rulles tilbake sammen hvis Airtable-skrivingen feiler.
 4. «Legg til bil» er fjernet fra saker. En sak vises og behandles per kjøretøy. «Velg flere biler» finnes fortsatt kun på dekkskift.

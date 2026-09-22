@@ -113,6 +113,68 @@ Promise.resolve().then(() => {
   assert(gjenopprettet && gjenopprettet.avvik[0].status === 'aktiv', 'mislykket lagring ruller avviket tilbake');
   assert(sandbox.alerts.length > 0, 'brukeren får vite at avslaget ikke ble lagret');
 
+  assert(!html.includes('Varsellampe kvittering historikk'), 'Varslingssenter viser ikke kvitteringshistorikk');
+  assert(!html.includes("sd('varsler', 'historikk'"), 'layouten kan ikke slå på kvitteringshistorikk');
+
+  sandbox.failSak = false;
+  sandbox.vehicles = [{id:'v1', uteAvDrift:false}];
+  sandbox.nyeKommentarerListe = () => [];
+  sandbox.kmAvvikForVehicle = () => null;
+  sandbox.vehicleServiceStatus = () => ({status:'ok', tekst:''});
+  sandbox.vehicleHarAktivPlanlagtService = () => false;
+  sandbox.vehicleEuKontrollStatus = () => ({status:'ok', tekst:''});
+  sandbox.vehicleHarRegistrertEuTime = () => false;
+  sandbox.sakVehicle = (s) => sandbox.vehicles.find(x => x.id === s.vehicleId);
+  sandbox.vehicleLabel = () => 'Bil 1';
+  sandbox.sakKortOverskrift = (s) => s.title;
+  sandbox.sakOppfolgingStatus = () => '';
+  sandbox.varsellysLabel = (w) => w.type;
+  sandbox.sakFase = (s) => {
+    if (!sandbox.sakErApen(s)) return null;
+    if (s.status === 'verksted-bestilt') return 'verksted';
+    return 'aktiv';
+  };
+  ['allActiveVarsellys', 'historikkVarsellysForVehicle', 'beregnVarslingssenterListe', 'kvitterVarsellys'].forEach(name => {
+    vm.runInContext(extractFunction(html, name), sandbox);
+  });
+  sandbox.aktiveSaker.length = 0;
+  sandbox.varsellys.length = 0;
+  sandbox.aktiveSaker.push(
+    {id:'lukket', vehicleId:'v1', title:'Lukket', status:'avslatt', caseType:'skade', resolvedAt:'2026-09-20'},
+    {id:'apen', vehicleId:'v1', title:'Skade', status:'ny', caseType:'skade'}
+  );
+  sandbox.varsellys.push(
+    {id:'kv', vehicleId:'v1', type:'motor', status:'kvittert', kvittertDato:'2026-09-20'},
+    {id:'ak', vehicleId:'v1', type:'abs', status:'aktiv'}
+  );
+  const liste = sandbox.beregnVarslingssenterListe();
+  assert(liste.some(x => x.sakId === 'apen'), 'åpen skade vises i Varslingssenter');
+  assert(!liste.some(x => x.sakId === 'lukket'), 'avslått sak vises ikke i Varslingssenter');
+  assert(liste.some(x => x.varsellysId === 'ak'), 'aktiv varsellampe vises i Varslingssenter');
+  assert(!liste.some(x => x.varsellysId === 'kv' || (x.tekst || '').includes('motor')), 'kvittert varsellampe vises ikke i Varslingssenter');
+  assert(sandbox.historikkVarsellysForVehicle('v1').some(w => w.id === 'kv'), 'bilhistorikk beholder kvittert varsellampe');
+
+  sandbox.forelder = {
+    id:'s5', vehicleId:'v3', title:'Olje', status:'ny', caseType:'varsellampe', sourceId:'olje',
+    avvik:[{id:'a6', sourceId:'olje', status:'aktiv'}]
+  };
+  sandbox.aktiveSaker.push(sandbox.forelder);
+  sandbox.varsellys.push({id:'w4', vehicleId:'v3', type:'olje', status:'aktiv'});
+  return vm.runInContext('avslaSak("s5")', sandbox);
+}).then(() => {
+  assert(sandbox.forelder.status === 'avslatt', 'sak med lampetype på saken selv avslås');
+  assert(sandbox.varsellys.find(w => w.id === 'w4').status === 'kvittert', 'lampen kvitteres fra sakens egen kilde');
+
+  sandbox.lampeSak = {id:'ls', vehicleId:'v1', title:'ABS', status:'ny', caseType:'varsellampe', sourceId:'abs', historikk:[]};
+  sandbox.aktiveSaker.push(sandbox.lampeSak);
+  return vm.runInContext('kvitterVarsellys("ak")', sandbox);
+}).then(() => {
+  assert(sandbox.varsellys.find(w => w.id === 'ak').status === 'kvittert', 'Merk som løst kvitterer lampen');
+  assert(sandbox.lampeSak.status === 'avslatt', 'Merk som løst avslår tilhørende sak');
+  assert(sandbox.lampeSak.resolvedAt === '2026-09-22', 'kvittert sak får historikkdato');
+  const etter = sandbox.beregnVarslingssenterListe();
+  assert(!etter.some(x => x.varsellysId === 'ak' || x.sakId === 'ls'), 'løst varsel er borte fra Varslingssenter');
+
   if (failures.length) {
     console.error('\nFAILED:');
     failures.forEach(f => console.error('- ' + f));
