@@ -2862,12 +2862,25 @@ function sakAvvikListe(s){
   if(Array.isArray(s.avvik) && s.avvik.length > 0) return s.avvik;
   return [{
     id: s.id, caseType: s.caseType, sourceId: s.sourceId, label: sakProblemLabel(s),
-    status: (s.status === 'lukket' || s.status === 'utfort') ? 'utfort' : 'aktiv',
+    status: sakErApen(s) ? 'aktiv' : (s.status === 'avslatt' ? 'avslatt' : 'utfort'),
     createdAt: s.createdAt, resolvedAt: s.resolvedAt,
     linkedVtId: s.linkedVtId || null, reportCount: s.reportCount, lastReportedAt: s.lastReportedAt
   }];
 }
 function sakAvvikAktive(s){ return sakAvvikListe(s).filter(a => a.status === 'aktiv'); }
+// Én aktiv-status for kontrollavvik, delt av Min Bil og Sjåførkontroll. En avslått eller
+// lukket sak (og et avslått avvikspunkt) teller aldri som aktivt.
+function aktiveKontrollavvikTyper(vehicleId){
+  const typer = new Set();
+  if(!vehicleId) return typer;
+  aktiveSaker.forEach(s => {
+    if(s.vehicleId !== vehicleId || !sakErApen(s)) return;
+    sakAvvikAktive(s).forEach(a => {
+      if(a.caseType === 'kontrollavvik' && a.sourceId) typer.add(a.sourceId);
+    });
+  });
+  return typer;
+}
 // Finner en ÅPEN sak på bilen som allerede har dette spesifikke avviket AKTIVT — enten
 // som ett element i en flerpunkts sak sitt avvik[], eller (eldre data/skade/manuell) i
 // sakens egne toppnivåfelt. Brukt av BÅDE registrerAvvikSomSak (Min Bil/skade) OG
@@ -4638,7 +4651,6 @@ function layoutRegistrerAlle(){
   VARSLINGSSENTER_KATEGORI_ORDER.forEach(k => sd('varsler', 'kat-' + k, {label:KAT_LABEL[k] || k, ikon:KAT_IKON[k] || 'bell', tab:true,
     canHide: !['varsellampe','skade'].includes(k), critical: ['varsellampe','skade'].includes(k),
     lockReason:'Kritiske HMS-varsler kan ikke skjules.'}));
-  sd('varsler', 'historikk', {label:'Varsellampe kvittering historikk', ikon:'history', collapsible:'wrapper'});
   RAPPORT_ORDER.forEach(t => sd('rapporter', t, {label:RAPPORT_LABEL[t] || t, ikon:'file-bar-chart'}));
   ANALYSE_ORDER.forEach(t => sd('analyse', t, {label:ANALYSE_LABEL[t] || t, ikon:'line-chart'}));
   sd('innstillinger', 'register', {label:'Register', ikon:'package', collapsible:'settings', std:{collapsed:true}});
@@ -6725,6 +6737,9 @@ async function saveVarsellys(){
   try{ await window.storage.set('varsellys', JSON.stringify(varsellys), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
 }
+async function saveVarsellysEllerKast(){
+  await window.storage.set('varsellys', JSON.stringify(varsellys), true);
+}
 async function saveDekkhistorikk(){
   try{ await window.storage.set('dekkhistorikk', JSON.stringify(dekkhistorikk), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
@@ -8395,217 +8410,12 @@ function goToRegisterSak(vehicleId){
   sakFilterBil = '';
   goTo('aktivesaker');
 }
-// ================= Prioritet 63: flerbilssaker =================
-// «Ett problem + flere biler = én sak». Datamodell: hver bil beholder SIN EGEN saksrad (egen status, historikk,
-// oppfølging, verkstedbestilling og kjøretøyhistorikk — «status og oppfølging registreres per kjøretøy»), og radene som
-// hører sammen knyttes med et felles `sakGruppeId` (AktiveSaker.SakGruppeId). Aktive saker viser dem som ÉN sak med én rad
-// per bil (sakGruppePanelerHtml). Alternativet — én rad med en biler[]-liste — ville krevd per-bil status/oppfølging/
-// verksted inne i én rad og at alle konsumenter av s.vehicleId (Dashboard, bilstatus, Varslingssenter, Historikk,
-// Rapporter, sletting) lærte det nye formatet; den valgte modellen lar hele saksmotoren virke uendret per bil.
-// Unntak: varsellampe- og skadesaker kan ikke få flere biler — de er knyttet til ÉN bils egen varsellys-/skaderegistrering
-// (varsellys[]/damages[]), og en kopi på en annen bil ville pekt på feil bils data.
-const SAK_FLERBIL_UNNTATT = ['varsellampe', 'skade'];
-function sakGruppeMedlemmer(s){ return s.sakGruppeId ? aktiveSaker.filter(x => x.sakGruppeId === s.sakGruppeId) : [s]; }
-function sakKanFaFlereBiler(s){ return !!s && sakErApen(s) && !SAK_FLERBIL_UNNTATT.includes(s.caseType); }
-let sakLeggTilBilPanelId = null;   // sak-id (ett panel om gangen), ren visningstilstand
-// Kopierer saken til en ny bil (ny rad, samme problem). Den nye bilen starter i «Aktiv sak» hvis kilden gjør det, ellers i
-// «Under oppfølging» (aldri direkte i «Planlagt verksted» — den har ingen verkstedtime ennå). Rulles tilbake ved lagringsfeil.
-async function sakLeggTilBil(sakId, vehicleId){
-  const s = aktiveSaker.find(x => x.id === sakId);
-  if(!s || !sakKanFaFlereBiler(s) || !vehicleId) return;
-  const v = vehicles.find(x => x.id === vehicleId);
-  if(!v){ alert('Fant ikke kjøretøyet.'); return; }
-  const medlemmer = sakGruppeMedlemmer(s);
-  if(medlemmer.some(m => m.vehicleId === vehicleId && sakErApen(m))){
-    alert(vehicleLabel(v) + ' er allerede med i denne saken.');
-    return;
-  }
-  const snapshot = JSON.parse(JSON.stringify(aktiveSaker));
-  const now = new Date().toISOString();
-  const idag = todayISO();
-  const gruppeId = s.sakGruppeId || uid();
-  const kildeBil = sakVehicle(s);
-  const ny = {
-    id: uid(), caseId: nesteSakId(), vehicleId, registrationNumber: v.regnr || '',
-    caseType: s.caseType, title: s.title, description: s.description || '',
-    status: s.status === 'ny' ? 'ny' : 'under-oppfolging',
-    sourceType: 'flerbil', sourceId: s.caseType === 'kontrollavvik' ? (s.sourceId || '') : '',
-    reportedBy: loggedInRole || 'Ukjent', reportedAt: idag,
-    assignedTo: s.assignedTo || '', nextAction: s.nextAction || '', followUpDate: s.followUpDate || null,
-    resolvedAt: null, resolvedBy: null, resolutionNote: '',
-    reportCount: 1, lastReportedAt: now,
-    historikk: [{dato: idag, tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: 'Lagt til i flerbilssak — samme problem som ' + s.caseId + ' (' + (kildeBil ? vehicleLabel(kildeBil) : 'ukjent bil') + ')'}],
-    createdByControlId: null, createdAt: now, updatedAt: now, sakGruppeId: gruppeId
-  };
-  // Avvikslisten kopieres (kun de som fortsatt er aktive) med nye id-er — hver bil følger sine egne avvik.
-  if(Array.isArray(s.avvik) && s.avvik.length > 0){
-    const kopi = s.avvik.filter(a => a.status === 'aktiv' && a.caseType === 'kontrollavvik').map(a => ({
-      id: uid(), caseType: a.caseType, sourceId: a.sourceId, label: a.label, status: 'aktiv', createdAt: now, resolvedAt: null,
-      linkedVtId: null, reportCount: 1, lastReportedAt: now
-    }));
-    if(kopi.length > 0) ny.avvik = kopi;
-  }
-  s.sakGruppeId = gruppeId;
-  s.updatedAt = now;
-  if(!Array.isArray(s.historikk)) s.historikk = [];
-  s.historikk.push({dato: idag, tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: 'Bil lagt til i saken: ' + vehicleLabel(v) + ' (' + ny.caseId + ')'});
-  aktiveSaker.push(ny);
-  try{
-    await saveAktiveSakerEllerKast();
-  }catch(e){
-    aktiveSaker.length = 0;
-    Array.prototype.push.apply(aktiveSaker, snapshot);
-    console.error('[sakLeggTilBil] Lagring feilet — tilbakestilt', e);
-    alert('Kunne ikke legge til bilen. Ingenting er lagret — prøv igjen.');
-    render();
-    return;
-  }
-  sakLeggTilBilPanelId = null;
-  sakAktivFane = sakFase(ny) || sakAktivFane;
-  render();
-}
-// «Godta alle»: alle biler i saken som fortsatt står i «Aktiv sak» går til «Under oppfølging» i ÉN lagring.
-async function godtaSakGruppe(gruppeId){
-  const medlemmer = aktiveSaker.filter(s => s.sakGruppeId === gruppeId && s.status === 'ny');
-  if(medlemmer.length === 0) return;
-  await mutasjonMedRollback(aktiveSaker, () => {
-    const now = new Date().toISOString();
-    medlemmer.forEach(s => { s.status = 'under-oppfolging'; s.updatedAt = now; });
-  }, saveAktiveSakerEllerKast, 'Kunne ikke godta sakene');
-  render();
-}
-// Verkstedbestilling for flere biler i samme sak: ÉN bestilling PER BIL (aldri én rad med flere biler), alle med felles
-// bestillingGruppeId slik at «Alle N utført» i Verksted virker som for dekkskift. Idempotent: en bil som allerede har en
-// ikke-utført time koblet til saken (fra et tidligere, delvis forsøk) får den timen koblet på nytt i stedet for en ny.
-function visSakGruppeVtDialog(gruppeId){
-  const kandidater = aktiveSaker.filter(s => s.sakGruppeId === gruppeId && sakFase(s) === 'oppfolging' && !s.linkedVtId);
-  if(kandidater.length === 0){
-    alert('Ingen biler i saken er klare for verkstedbestilling. Bilen må stå i «Under oppfølging» og ikke ha en bestilt time.');
-    return;
-  }
-  const gammel = document.getElementById('gvt-overlay'); if(gammel) gammel.remove();
-  const type = sakTilVtType(kandidater[0]);
-  const std = standardVerkstedForVtType(type);
-  const el = document.createElement('div');
-  el.className = 'modal-overlay open'; el.id = 'gvt-overlay';
-  el.innerHTML = `
-    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="gvt-tittel" style="max-height:90vh;overflow-y:auto;">
-      <div class="modal-title" id="gvt-tittel">Bestill verkstedtime for flere biler</div>
-      <div class="required-hint" style="margin-bottom:10px;">${esc(sakProblemLabel(kandidater[0]))} — det opprettes én egen verkstedbestilling per bil.</div>
-      <div class="field" style="margin-bottom:10px;"><label>Biler</label>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${kandidater.map(s => { const v = sakVehicle(s); return `<label style="display:flex;align-items:center;gap:8px;font-weight:600;"><input type="checkbox" data-gvt-sak="${s.id}" checked style="width:auto;"> ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</label>`; }).join('')}
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
-        <select id="gvt-verksted"><option value="">Velg verksted...</option>${verkstedSelectOptions(std)}</select></div>
-      <div class="row2" style="margin-bottom:10px;">
-        <div class="field"><label>Dato</label><input id="gvt-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}"></div>
-        <div class="field"><label>Tidspunkt</label><input id="gvt-tid" type="text" inputmode="numeric" data-kind="time" placeholder="TT:MM" maxlength="5" value="07:30"></div>
-      </div>
-      <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="gvt-kommentar" placeholder="Valgfritt"></textarea></div>
-      <div class="form-msg" id="gvt-msg"></div>
-      <div class="panel-actions" style="justify-content:flex-end;">
-        <button type="button" class="btn secondary" id="gvt-avbryt">Avbryt</button>
-        <button type="button" class="btn" id="gvt-ok">Bestill</button>
-      </div>
-    </div>`;
-  document.body.appendChild(el);
-  const tast = (e) => { if(e.key === 'Escape') lukk(); };
-  const lukk = () => { document.removeEventListener('keydown', tast); el.remove(); };
-  document.addEventListener('keydown', tast);
-  el.querySelector('#gvt-avbryt').addEventListener('click', lukk);
-  el.addEventListener('click', (e) => { if(e.target === el) lukk(); });
-  const ok = el.querySelector('#gvt-ok');
-  ok.addEventListener('click', async () => {
-    if(ok.disabled) return;
-    const msg = el.querySelector('#gvt-msg');
-    const valgte = Array.from(el.querySelectorAll('[data-gvt-sak]:checked')).map(c => c.dataset.gvtSak);
-    const verksted = el.querySelector('#gvt-verksted').value;
-    const dato = readDateInput('gvt-dato');
-    const tidspunkt = readTimeInput('gvt-tid');
-    if(valgte.length === 0){ msg.textContent = 'Velg minst én bil.'; return; }
-    if(!verksted || !dato){ msg.textContent = 'Velg verksted og en gyldig dato (DD/MM/ÅÅÅÅ).'; return; }
-    ok.disabled = true; ok.textContent = 'Bestiller ...';
-    el.querySelector('#gvt-avbryt').disabled = true;
-    try{
-      await opprettVerkstedForSakGruppe({sakIder: valgte, verksted, dato, tidspunkt, kommentar: el.querySelector('#gvt-kommentar').value.trim()});
-    } finally { lukk(); }
-  });
-}
-async function opprettVerkstedForSakGruppe(o){
-  const saker = o.sakIder.map(id => aktiveSaker.find(s => s.id === id)).filter(s => s && sakFase(s) === 'oppfolging' && !s.linkedVtId);
-  if(saker.length === 0) return;
-  const sakSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
-  const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
-  const bestillingGruppeId = uid();
-  const now = new Date().toISOString();
-  const nye = [];
-  const koblinger = [];   // {sak, vt}
-  saker.forEach(s => {
-    let vt = verkstedtimer.find(t => t.sakId === s.id && !t.utfort);
-    if(!vt){
-      vt = {
-        id: uid(), vehicleId: s.vehicleId, verksted: o.verksted, dato: o.dato, tidspunkt: o.tidspunkt, beskrivelse: sakProblemLabel(s),
-        pris: null, notater: o.kommentar || '', sakId: s.id, caseId: s.caseId, kontaktperson: '', telefon: '', type: sakTilVtType(s),
-        mobilitetsgarantiAktivert: false, dekkRetning: '', bestillingGruppeId
-      };
-      verkstedtimer.push(vt); nye.push(vt);
-    }
-    koblinger.push({sak: s, vt});
-  });
-  const koble = ({sak, vt}) => {
-    sak.status = 'verksted-bestilt'; sak.linkedVtId = vt.id;
-    if(Array.isArray(sak.avvik)) sak.avvik.forEach(a => { if(a.status === 'aktiv' && !a.linkedVtId) a.linkedVtId = vt.id; });
-    sak.updatedAt = now;
-    if(!Array.isArray(sak.historikk)) sak.historikk = [];
-    sak.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: 'Verkstedtime bestilt (samlet bestilling for ' + koblinger.length + ' biler): ' + fmt(vt.dato) + (vt.tidspunkt ? ' kl. ' + vt.tidspunkt : '') + ' hos ' + vt.verksted});
-  };
-  const tilbakestill = () => {
-    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakSnapshot);
-    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnapshot);
-  };
-  // 1. Verkstedtimene — én skriving. Feiler den, leses fasiten fra Airtable: det som faktisk ligger der beholdes og kobles.
-  let bekreftet = koblinger;
-  try{
-    if(nye.length) await saveVerkstedtimerEllerKast();
-  }catch(e){
-    console.error('[opprettVerkstedForSakGruppe] Lagring av verkstedtimer feilet', e);
-    try{
-      const fasit = await hentVerkstedtimerFasit();
-      const lagretIder = new Set(fasit.map(t => t.id));
-      bekreftet = koblinger.filter(k => lagretIder.has(k.vt.id));
-      verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, fasit);
-    }catch(e2){
-      tilbakestill();
-      render();
-      alert('Kunne ikke bestille verkstedtimene, og kunne ikke kontrollere hva som ble lagret. Deler kan ligge lagret — sjekk Verksted før du prøver igjen (bilene som allerede har en time får den koblet på nytt, ingen dubletter).');
-      return;
-    }
-    if(bekreftet.length === 0){
-      tilbakestill();
-      render();
-      alert('Kunne ikke bestille verkstedtimene. Ingenting er lagret — prøv igjen.');
-      return;
-    }
-  }
-  // 2. Koble sakene (kun de bilene der timen faktisk er lagret).
-  bekreftet.forEach(koble);
-  try{
-    await saveAktiveSakerEllerKast();
-  }catch(e){
-    console.error('[opprettVerkstedForSakGruppe] Lagring av saker feilet', e);
-    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakSnapshot);
-    render();
-    alert('Verkstedtimene er lagret, men sakene kunne ikke oppdateres. Trykk «Bestill verkstedtime for alle» på nytt — timene som allerede finnes kobles til sakene uten å bli opprettet dobbelt.');
-    return;
-  }
-  const feilet = koblinger.length - bekreftet.length;
-  if(feilet > 0) alert('Verkstedtime ble bestilt for ' + bekreftet.length + ' av ' + koblinger.length + ' biler. ' + feilet + ' kunne ikke lagres — trykk «Bestill verkstedtime for alle» på nytt for resten.');
-  sakAktivFane = 'verksted';
-  render();
-}
-// Handlingsknappene som gjelder en sak i sin fase — delt av det vanlige sakskortet og en bils rad i en flerbilssak.
+// Prioritet 69: en sak tilhører ett kjøretøy. «Legg til bil» og samlet flerbilshåndtering
+// er fjernet fra Aktive saker, varsellamper, kontrollavvik og skader. Eksisterende
+// sakGruppeId-rader vises som egne saker per bil. Flerbil finnes kun som «Velg flere biler»
+// på dekkskift i verkstedskjemaet.
+
+// Handlingsknappene som gjelder én sak i sin fase. Hver sak tilhører ett kjøretøy.
 function sakHandlingHtml(s, fase){
   const uvPanelApen = sakUtenVerkstedPanelId === s.id;
   return fase === 'aktiv'
@@ -8617,72 +8427,6 @@ function sakHandlingHtml(s, fase){
        ${uvPanelApen ? sakUtenVerkstedPanelHtml(s) : ''}`
     : `<button type="button" class="btn small" data-sak-utfort="${s.id}">${luc('check')} Arbeid utført</button>`;
 }
-// «➕ Legg til bil»: knapp + panel (bilvalg). `s` er saken (eller en bil i en flerbilssak) panelet hører til.
-function sakLeggTilBilHtml(s){
-  if(!sakKanFaFlereBiler(s)) return '';
-  const apen = sakLeggTilBilPanelId === s.id;
-  const medlemmer = sakGruppeMedlemmer(s);
-  const valg = sortedVehicles(vehicles).filter(v => !medlemmer.some(m => m.vehicleId === v.id && sakErApen(m)));
-  return `
-    <button type="button" class="btn secondary small" data-sak-legg-til-bil="${s.id}">${luc('plus')} Legg til bil</button>
-    ${apen ? `
-    <div class="panel" style="margin-top:8px;padding:12px;">
-      <div class="field" style="margin-bottom:8px;">
-        <label>Bil som har samme problem</label>
-        <select id="sak-ltb-bil-${s.id}"><option value="">Velg bil...</option>
-          ${valg.map(v => `<option value="${v.id}">${esc(vehicleLabel(v))}${v.uteAvDrift ? ' (ute av drift)' : ''}</option>`).join('')}
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="btn small" data-sak-ltb-lagre="${s.id}">${luc('check')} Legg til</button>
-        <button type="button" class="btn secondary small" data-sak-ltb-avbryt="${s.id}">Avbryt</button>
-      </div>
-    </div>` : ''}`;
-}
-// Visning: ett panel per flerbilssak i valgt fane, med én rad per bil (kun biler som står i denne fasen).
-function sakGruppePanelerHtml(fase){
-  const ider = Array.from(new Set(aktiveSaker.filter(s => s.sakGruppeId && sakFase(s) === fase).map(s => s.sakGruppeId)));
-  if(ider.length === 0) return '';
-  const nyeste = gid => aktiveSaker.filter(s => s.sakGruppeId === gid).map(s => s.reportedAt || '').sort().pop() || '';
-  return ider.sort((a, b) => nyeste(b).localeCompare(nyeste(a))).map(gid => {
-    const alle = aktiveSaker.filter(s => s.sakGruppeId === gid);
-    const iFasen = alle.filter(s => sakFase(s) === fase).sort((a, b) => (a.caseId || '').localeCompare(b.caseId || ''));
-    const forste = iFasen[0];
-    const apneAlle = alle.filter(sakErApen);
-    const andre = apneAlle.filter(s => sakFase(s) !== fase);
-    const bilNavn = s => esc(sakVehicle(s) ? vehicleLabel(sakVehicle(s)) : '?');
-    const rad = s => {
-      const v = sakVehicle(s);
-      const vt = s.linkedVtId ? verkstedtimer.find(t => t.id === s.linkedVtId) : null;
-      return `
-      <div class="sak-gruppe-rad">
-        <div class="sak-gruppe-rad-topp">
-          <div class="sak-gruppe-bil">${SAK_BILSTATUS_IKON[vehicleSakStatus(s.vehicleId)] || ''} ${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Slettet kjøretøy')}</div>
-          <div class="sak-gruppe-ref">${esc(s.caseId || '')}</div>
-        </div>
-        ${vt ? `<div class="sak-gruppe-info">${luc('calendar-days')} ${fmt(vt.dato)}${vt.tidspunkt ? ' kl. ' + esc(vt.tidspunkt) : ''} · ${esc(vt.verksted || '')}</div>` : ''}
-        ${s.nextAction || s.followUpDate ? `<div class="sak-gruppe-info">${s.nextAction ? esc(s.nextAction) : ''}${s.nextAction && s.followUpDate ? ' · ' : ''}${s.followUpDate ? 'Oppfølging ' + fmt(s.followUpDate) : ''}</div>` : ''}
-        <div class="sak-horisontal-actions" style="margin-top:8px;">${sakHandlingHtml(s, fase)}</div>
-      </div>`;
-    };
-    const kandidaterVt = fase === 'oppfolging' ? iFasen.filter(s => !s.linkedVtId) : [];
-    const gruppeHandling = [
-      fase === 'aktiv' && iFasen.length >= 2 ? `<button type="button" class="btn small" data-godta-gruppe="${gid}">${luc('check')} Godta alle (${iFasen.length})</button>` : '',
-      kandidaterVt.length >= 2 ? `<button type="button" class="btn small" data-bestill-vt-gruppe="${gid}">${luc('calendar-days')} Bestill verkstedtime for alle (${kandidaterVt.length})</button>` : '',
-      sakLeggTilBilHtml(forste)
-    ].filter(Boolean).join('');
-    return `
-    <div class="panel sak-gruppe-panel" style="margin-bottom:12px;">
-      <div class="sak-gruppe-topp">
-        <div class="main">${luc('layers')} ${luc(SAK_TYPE_LUCIDE[forste.caseType] || 'folder')} ${esc(sakProblemLabel(forste))}</div>
-        <div class="desc">${esc(SAK_TYPE_LABEL[forste.caseType] || 'Sak')} · ${apneAlle.length} ${apneAlle.length === 1 ? 'bil' : 'biler'} i saken${andre.length ? ' · i andre faser: ' + andre.map(s => bilNavn(s) + ' (' + esc(SAK_FASE_LABEL[sakFase(s)]) + ')').join(', ') : ''}</div>
-      </div>
-      <div class="sak-gruppe-rader">${iFasen.map(rad).join('')}</div>
-      <div class="sak-horisontal-actions" style="margin-top:10px;">${gruppeHandling}</div>
-    </div>`;
-  }).join('');
-}
-
 // «Ny saksflyt»: de FIRE ett-klikks handlingene som driver hele arbeidsflyten
 // (godtaSak/avslaSak/bestillVerkstedForSak/markerSakUtfort, pluss
 // markerSakUtfortUtenVerksted). Ingen av dem åpner et skjema eller krever utfylte felt —
@@ -8704,11 +8448,64 @@ async function godtaSak(sakId){
 }
 async function avslaSak(sakId){
   const s = aktiveSaker.find(x => x.id === sakId);
-  if(!s) return;
-  if(!confirm(`Avslå saken «${sakProblemLabel(s)}»? Den fjernes fra arbeidsflyten, men blir liggende søkbar i Historikk/Rapporter.`)) return;
+  if(!s || !sakErApen(s)) return;
+  if(!confirm(`Avslå saken «${sakProblemLabel(s)}»? Saken, tilhørende varsellamper og kontrollavvik lukkes og flyttes til historikk.`)) return;
+  const sakSnap = JSON.parse(JSON.stringify(aktiveSaker));
+  const vlSnap = JSON.parse(JSON.stringify(varsellys));
+  const now = new Date().toISOString();
+  const idag = todayISO();
+  const lampeTyper = [];
+  sakAvvikListe(s).forEach(a => {
+    if(a.caseType === 'varsellampe' && a.sourceId && !lampeTyper.includes(a.sourceId)) lampeTyper.push(a.sourceId);
+  });
+  if(s.caseType === 'varsellampe' && s.sourceId && !lampeTyper.includes(s.sourceId)) lampeTyper.push(s.sourceId);
+  if(Array.isArray(s.avvik) && s.avvik.length > 0){
+    s.avvik.forEach(a => {
+      if(a.status === 'aktiv'){ a.status = 'avslatt'; a.resolvedAt = idag; }
+    });
+  }
+  let varsellysEndret = false;
+  lampeTyper.forEach(type => {
+    const fortsattApen = aktiveSaker.some(x => x.id !== s.id && x.vehicleId === s.vehicleId && sakErApen(x) &&
+      sakAvvikAktive(x).some(a => a.caseType === 'varsellampe' && a.sourceId === type));
+    if(fortsattApen) return;
+    const w = varsellys.find(x => x.vehicleId === s.vehicleId && x.type === type && x.status === 'aktiv');
+    if(!w) return;
+    w.status = 'kvittert';
+    w.kvittertDato = idag;
+    w.kvittertAv = loggedInRole || 'Ukjent';
+    varsellysEndret = true;
+  });
   s.status = 'avslatt';
-  s.updatedAt = new Date().toISOString();
-  await saveAktiveSaker();
+  s.resolvedAt = idag;
+  s.resolvedBy = loggedInRole || 'Ukjent';
+  s.resolutionNote = s.resolutionNote || 'Avslått';
+  s.updatedAt = now;
+  if(!Array.isArray(s.historikk)) s.historikk = [];
+  s.historikk.push({dato: idag, tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: 'Sak avslått. Tilhørende varsellamper og kontrollavvik er lukket.'});
+  const rullTilbake = () => {
+    aktiveSaker.length = 0;
+    Array.prototype.push.apply(aktiveSaker, sakSnap);
+    varsellys.length = 0;
+    Array.prototype.push.apply(varsellys, vlSnap);
+  };
+  try{
+    if(varsellysEndret) await saveVarsellysEllerKast();
+    await saveAktiveSakerEllerKast();
+  }catch(e){
+    console.error('[avslaSak] Lagring feilet — tilbakestiller', e);
+    rullTilbake();
+    let kompensert = true;
+    if(varsellysEndret){
+      try{ await saveVarsellysEllerKast(); }
+      catch(e2){ kompensert = false; console.error('[avslaSak] Kunne ikke skrive tilbake varsellamper', e2); }
+    }
+    render();
+    alert(kompensert
+      ? 'Kunne ikke avslå saken. Ingenting er lagret — prøv igjen.'
+      : 'Avslaget kunne ikke lagres, og varsellampene kunne ikke tilbakestilles i Airtable. Sjekk Varslingssenteret før du prøver igjen.');
+    return;
+  }
   render();
 }
 // «Del 2» — ett-klikks «✅ Arbeid utført» gjorde tidligere KUN s.status='utfort'. Det
@@ -10510,13 +10307,62 @@ function syncKontrollAnnetFromActive(vehicleId){
 }
 async function kvitterVarsellys(id){
   const w = varsellys.find(x => x.id === id);
-  if(!w) return;
+  if(!w || w.status !== 'aktiv') return;
   const v = vehicles.find(x => x.id === w.vehicleId);
-  if(!confirm('Kvittere ut «' + varsellysLabel(w) + '» på ' + (v ? vehicleLabel(v) : 'kjøretøyet') + '? Den vil ikke lenger vises som aktiv, og fjernes fra sjåførskjemaet.')) return;
+  if(!confirm('Kvittere ut «' + varsellysLabel(w) + '» på ' + (v ? vehicleLabel(v) : 'kjøretøyet') + '? Varsellampen og tilhørende åpne saker lukkes og flyttes til historikk.')) return;
+  const sakSnap = JSON.parse(JSON.stringify(aktiveSaker));
+  const vlSnap = JSON.parse(JSON.stringify(varsellys));
+  const now = new Date().toISOString();
+  const idag = todayISO();
   w.status = 'kvittert';
-  w.kvittertDato = todayISO();
+  w.kvittertDato = idag;
   w.kvittertAv = loggedInRole || 'Ukjent';
-  await saveVarsellys();
+  let sakerEndret = false;
+  aktiveSaker.filter(s => s.vehicleId === w.vehicleId && sakErApen(s)).forEach(s => {
+    const treffer = sakAvvikAktive(s).some(a => a.caseType === 'varsellampe' && a.sourceId === w.type)
+      || (s.caseType === 'varsellampe' && s.sourceId === w.type);
+    if(!treffer) return;
+    if(Array.isArray(s.avvik) && s.avvik.length > 0){
+      s.avvik.forEach(a => {
+        if(a.status === 'aktiv' && a.caseType === 'varsellampe' && a.sourceId === w.type){
+          a.status = 'avslatt';
+          a.resolvedAt = idag;
+        }
+      });
+    }
+    const fortsattAktiv = Array.isArray(s.avvik) && s.avvik.some(a => a.status === 'aktiv');
+    if(!fortsattAktiv){
+      s.status = 'avslatt';
+      s.resolvedAt = idag;
+      s.resolvedBy = loggedInRole || 'Ukjent';
+      s.resolutionNote = s.resolutionNote || 'Avslått';
+      if(!Array.isArray(s.historikk)) s.historikk = [];
+      s.historikk.push({dato: idag, tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', kommentar: 'Varsellampe kvittert. Saken er avslått og flyttet til historikk.'});
+    }
+    s.updatedAt = now;
+    sakerEndret = true;
+  });
+  const rullTilbake = () => {
+    aktiveSaker.length = 0;
+    Array.prototype.push.apply(aktiveSaker, sakSnap);
+    varsellys.length = 0;
+    Array.prototype.push.apply(varsellys, vlSnap);
+  };
+  try{
+    await saveVarsellysEllerKast();
+    if(sakerEndret) await saveAktiveSakerEllerKast();
+  }catch(e){
+    console.error('[kvitterVarsellys] Lagring feilet — tilbakestiller', e);
+    rullTilbake();
+    let kompensert = true;
+    try{ await saveVarsellysEllerKast(); }
+    catch(e2){ kompensert = false; console.error('[kvitterVarsellys] Kunne ikke skrive tilbake varsellamper', e2); }
+    render();
+    alert(kompensert
+      ? 'Kunne ikke kvittere varsellampen. Ingenting er lagret — prøv igjen.'
+      : 'Varsellampen kunne ikke tilbakestilles i Airtable. Sjekk historikken før du prøver igjen.');
+    return;
+  }
   render();
 }
 
@@ -11662,7 +11508,7 @@ function renderDriverMinBil(){
   const hovedstatus = vehicleHovedstatus(v.id);
   const activeVarsellysList = activeVarsellysForVehicle(v.id);
   const activeVarselTypes = new Set(activeVarsellysList.map(w => w.type));
-  const activeAvvikTypes = new Set(aktiveSaker.filter(s => s.vehicleId === v.id && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId));
+  const activeAvvikTypes = aktiveKontrollavvikTyper(v.id);
   // Prioritet 49, Del 2: løftebordkortets status — alltid beregnet, aldri konfigurert
   // (alle kjøretøy antas å ha løftebord, se CLAUDE.md Prioritet 49 Del 8).
   const lbStatus = loftebordVedlikeholdStatus(v.id);
@@ -14224,7 +14070,7 @@ function beregnVarslingssenterListe(){
         tekst: vehicleLabel(v) + ' — ' + eu.tekst, dato:todayISO(), mal:'bilkort'});
     }
   });
-  aktiveSaker.filter(s => sakErApen(s)).forEach(s => {
+  aktiveSaker.filter(s => sakErApen(s) && s.status !== 'avslatt' && s.status !== 'utfort' && s.status !== 'lukket').forEach(s => {
     const fase = sakFase(s);
     const v = sakVehicle(s);
     const bilTekst = v ? vehicleLabel(v) : 'Ukjent bil';
@@ -14241,7 +14087,7 @@ function beregnVarslingssenterListe(){
         dato: s.followUpDate || todayISO(), mal:'sak', sakId:s.id});
     }
   });
-  allActiveVarsellys().forEach(w => {
+  allActiveVarsellys().filter(w => w.status === 'aktiv').forEach(w => {
     const v = vehicles.find(x => x.id === w.vehicleId);
     liste.push({id:'vl:'+w.id, kategori:'varsellampe', vehicleId:w.vehicleId, tittel:'Varsellampe',
       tekst: (v ? vehicleLabel(v) : 'Ukjent bil') + ' — ' + varsellysLabel(w),
@@ -14303,9 +14149,6 @@ function renderVarslerOversikt(){
     if(!byKategori.has(x.kategori)) byKategori.set(x.kategori, []);
     byKategori.get(x.kategori).push(x);
   });
-  const kvittertVarsellys = varsellys.filter(w => w.status === 'kvittert')
-    .sort((a,b) => (b.kvittertDato||'').localeCompare(a.kvittertDato||''));
-  const kjentIder = new Set(vehicles.map(v => v.id));
   // Prioritet 71.6: horisontale kategori-faner i stedet for alle kategorier stablet
   // vertikalt samtidig — samme mønster som bilkortAktivFane (renderBilkort()): ren
   // visningstilstand, ALDRI mutert her, faller tilbake til første kategori med innhold
@@ -14317,15 +14160,13 @@ function renderVarslerOversikt(){
   const skjulteKategoriAntall = aktiveVarsler.filter(x => !layoutKategorier.includes(x.kategori)).length;
   const aktivKategori = kategorierMedInnhold.includes(varslingssenterAktivKategori) ? varslingssenterAktivKategori : (kategorierMedInnhold[0] || '');
   const kategoriItems = aktivKategori ? (byKategori.get(aktivKategori) || []) : [];
-  const vsDeler = {};
-
   return `
     <div class="backrow">
       <button class="backbtn" id="varsler-back">← Tilbake</button>
       ${aktiveVarsler.length > 0 ? `<button type="button" class="btn secondary small" id="varsler-marker-alle-btn" style="margin-left:auto;">✅ Marker alle som sett</button>` : ''}
     </div>
     <h2 style="font-size:19px;margin-bottom:6px;">${luc('bell')} Varslingssenter</h2>
-    <div class="required-hint" style="margin-bottom:16px;">${aktiveVarsler.length} varsel${aktiveVarsler.length===1?'':'er'} krever oppmerksomhet nå. «Marker som sett» rydder varselet i 48 timer — det kommer automatisk tilbake dersom problemet fortsatt ikke er løst.</div>
+    <div class="required-hint" style="margin-bottom:16px;">${aktiveVarsler.length} hendelse${aktiveVarsler.length===1?'':'r'} krever handling nå. Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk.</div>
     ${aktiveVarsler.length === 0 ? `<div class="empty-note">🟢 Ingen varsler — alt er fulgt opp.</div>` : `
     <div class="profil-tabs">
       ${kategorierMedInnhold.map(k => `<button type="button" class="profil-tab ${aktivKategori===k?'active':''}" data-varsel-kategori="${k}">${luc(VARSLINGSSENTER_KATEGORI_IKON[k])} ${VARSLINGSSENTER_KATEGORI_LABEL[k]} (${byKategori.get(k).length})</button>`).join('')}
@@ -14335,54 +14176,6 @@ function renderVarslerOversikt(){
     </div>
     ${skjulteKategoriAntall > 0 ? `<div class="required-hint" style="margin:-10px 0 18px;">${skjulteKategoriAntall} varsel${skjulteKategoriAntall === 1 ? '' : 'er'} ligger i kategorier som er skjult i layouten (Innstillinger → Layout Editor → Standardsider). Tallet over inkluderer dem.</div>` : ''}
     `}
-
-    ${(vsDeler['varsler.historikk'] = `
-    <h2 style="font-size:19px;margin:32px 0 6px;">🚨 Varsellampe kvittering historikk</h2>
-    <div class="required-hint" style="margin-bottom:16px;">
-      ${kvittertVarsellys.length} kvitterte varsellamper. Sletting her fjerner kun historikkposten —
-      det gjenåpner ikke varselet og påvirker ikke aktive varsler, sjåførkontroller eller bilinformasjon.
-    </div>
-    ${isAdmin && vlhSelectedIds.size > 0 ? `
-    <div class="toolbar">
-      <div class="count">${vlhSelectedIds.size} valgt${vlhSelectedIds.size === 1 ? '' : 'e'}</div>
-      <button class="btn danger-outline small" id="vlh-delete-selected-btn">🗑️ Slett valgte</button>
-    </div>` : ''}
-    ${kvittertVarsellys.length === 0 ? `<div class="empty-note">Ingen kvitterte varsellamper ennå.</div>` : (() => {
-      const byVehicleH = new Map();
-      kvittertVarsellys.forEach(w => {
-        if(!byVehicleH.has(w.vehicleId)) byVehicleH.set(w.vehicleId, []);
-        byVehicleH.get(w.vehicleId).push(w);
-      });
-      const beroerteKjoretoyH = sortedVehicles(vehicles.filter(v => byVehicleH.has(v.id)));
-      const foreldreloseH = kvittertVarsellys.filter(w => !kjentIder.has(w.vehicleId));
-      return KATEGORI_ORDER.filter(k => beroerteKjoretoyH.some(v => v.kategori === k)).map(k => {
-        const gruppeKjoretoy = beroerteKjoretoyH.filter(v => v.kategori === k);
-        return `
-        <div style="margin-bottom:22px;">
-          <div class="group-card-title" style="margin-bottom:10px;">${luc(GRUPPE_LUCIDE[k] || 'truck')} ${KATEGORI_GROUP_LABEL[k]}</div>
-          <div class="acc-list">
-            ${gruppeKjoretoy.map(v => {
-              const wList = byVehicleH.get(v.id) || [];
-              const open = vlhOpenVehicles.has(v.id);
-              return `
-              <div class="acc-row varsel ${open ? 'expanded' : ''}">
-                <div class="acc-head" data-toggle-vlh-vehicle="${v.id}">
-                  <div class="acc-head-left"><div class="flag-name">${luc('truck')} ${esc(v.bilnummer || '')} – ${esc(v.regnr)}</div></div>
-                  <div class="acc-head-right"><span class="group-count">${wList.length} kvitterte varsel${wList.length===1?'':'er'}</span><span class="chevron">${luc('chevron-down')}</span></div>
-                </div>
-                ${open ? `<div class="acc-body"><div class="dmg-list">${wList.map(w => varsellysHistorikkRow(w)).join('')}</div></div>` : ''}
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-      }).join('') + (foreldreloseH.length > 0 ? `
-      <div style="margin-bottom:22px;">
-        <div class="group-card-title" style="margin-bottom:10px;">${luc('help-circle')} Slettet kjøretøy</div>
-        <div class="dmg-list">${foreldreloseH.map(w => varsellysHistorikkRow(w)).join('')}</div>
-      </div>` : '');
-    })()}
-    `, '')}
-    ${layoutFlowHtml('admin-standard-pages:varsler', {parts:vsDeler})}
   `;
 }
 function attachVarslerOversiktListeners(){
@@ -14400,19 +14193,6 @@ function attachVarslerOversiktListeners(){
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
   document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
   document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
-  document.querySelectorAll('[data-toggle-vlh-vehicle]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.toggleVlhVehicle;
-    if(vlhOpenVehicles.has(id)) vlhOpenVehicles.delete(id); else vlhOpenVehicles.add(id);
-    render();
-  }));
-  document.querySelectorAll('[data-select-vlh]').forEach(el => el.addEventListener('change', (e) => {
-    if(e.target.checked) vlhSelectedIds.add(el.dataset.selectVlh);
-    else vlhSelectedIds.delete(el.dataset.selectVlh);
-    render();
-  }));
-  document.querySelectorAll('[data-delete-vlh]').forEach(el => el.addEventListener('click', () => deleteVarsellysHistorikk(el.dataset.deleteVlh)));
-  const deleteSelectedVlhBtn = document.getElementById('vlh-delete-selected-btn');
-  if(deleteSelectedVlhBtn) deleteSelectedVlhBtn.addEventListener('click', deleteSelectedVarsellysHistorikk);
 }
 
 // ================= Mobilitetsgaranti (Prioritet 65) =================
@@ -16053,8 +15833,7 @@ function sakKompaktKortHtml(s, fase){
   const bilder = sakBilderKeys(s);
   const tekster = sakKildeTekster(s);
   const beskrivelse = tekster.length ? tekster.map(t => t.tekst).join('\n') : 'Ingen kommentar registrert på kilden.';
-  // Prioritet 63: handlingsknappene er delt med bilradene i en flerbilssak (sakHandlingHtml), og «Legg til bil» ligger på ethvert åpent kort.
-  const handlingHtml = sakHandlingHtml(s, fase) + sakLeggTilBilHtml(s);
+  const handlingHtml = sakHandlingHtml(s, fase);
   return `
     <div class="sak-horisontal-kort">
       <div class="sak-horisontal-head">
@@ -16074,16 +15853,15 @@ function sakKompaktKortHtml(s, fase){
 // grupperingen). «Vis alle saker» viser sakene HORISONTALT side om side
 // (sak-horisontal-rad, se sakKompaktKortHtml).
 function sakFaneListeHtml(fase){
-  // Prioritet 63: saker som hører til en flerbilssak (sakGruppeId) vises samlet øverst — én sak, én rad per bil — og teller ikke i per-bil-grupperingen under.
-  const gruppePaneler = sakGruppePanelerHtml(fase);
-  const liste = aktiveSaker.filter(s => sakFase(s) === fase && !s.sakGruppeId);
+  // Prioritet 69: én sak per kjøretøy. Eldre sakGruppeId-rader vises under sin egen bil.
+  const liste = aktiveSaker.filter(s => sakFase(s) === fase);
   const grupper = new Map();
   liste.forEach(s => {
     if(!grupper.has(s.vehicleId)) grupper.set(s.vehicleId, []);
     grupper.get(s.vehicleId).push(s);
   });
-  if(grupper.size === 0) return gruppePaneler || `<div class="empty-note">Ingen saker her nå.</div>`;
-  return gruppePaneler + Array.from(grupper.entries()).sort((a,b) => {
+  if(grupper.size === 0) return `<div class="empty-note">Ingen saker her nå.</div>`;
+  return Array.from(grupper.entries()).sort((a,b) => {
     const aNyeste = a[1].map(s => s.reportedAt || '').sort().pop() || '';
     const bNyeste = b[1].map(s => s.reportedAt || '').sort().pop() || '';
     return bNyeste.localeCompare(aNyeste);
@@ -16740,17 +16518,6 @@ function attachAktiveSakerListeners(){
   document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
   document.querySelectorAll('[data-bestill-vt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); bestillVerkstedForSak(el.dataset.bestillVtSak); }));
   document.querySelectorAll('[data-sak-utfort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerSakUtfort(el.dataset.sakUtfort); }));
-  // Prioritet 63: flerbilssaker — «Legg til bil», «Godta alle» og samlet verkstedbestilling.
-  document.querySelectorAll('[data-sak-legg-til-bil]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const id = el.dataset.sakLeggTilBil; sakLeggTilBilPanelId = (sakLeggTilBilPanelId === id) ? null : id; render(); }));
-  document.querySelectorAll('[data-sak-ltb-avbryt]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); sakLeggTilBilPanelId = null; render(); }));
-  document.querySelectorAll('[data-sak-ltb-lagre]').forEach(el => el.addEventListener('click', beskyttKlikk('sakLeggTilBil', null, async () => {
-    const id = el.dataset.sakLtbLagre;
-    const sel = document.getElementById('sak-ltb-bil-' + id);
-    if(!sel || !sel.value){ alert('Velg en bil.'); return; }
-    await sakLeggTilBil(id, sel.value);
-  })));
-  document.querySelectorAll('[data-godta-gruppe]').forEach(el => el.addEventListener('click', beskyttKlikk('godtaSakGruppe', el, () => godtaSakGruppe(el.dataset.godtaGruppe))));
-  document.querySelectorAll('[data-bestill-vt-gruppe]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); visSakGruppeVtDialog(el.dataset.bestillVtGruppe); }));
   // Prioritet 71.2 — «✅ Utført uten verkstedbesøk»: åpne/lukk årsak-panelet, vis/skjul
   // "Beskriv"-feltet når "Annet" velges, og selve bekreftelsen (leser valgt årsak +
   // ev. fritekst, kaller markerSakUtfortUtenVerksted()).
@@ -20027,7 +19794,7 @@ function renderKontroll(){
   const v = vehicles.find(x => x.id === kontrollFormVehicleId);
   const activeVarsellysList = kontrollFormVehicleId ? activeVarsellysForVehicle(kontrollFormVehicleId) : [];
   const activeTypes = new Set(activeVarsellysList.map(w => w.type));
-  const activeAvvikTypes = kontrollFormVehicleId ? new Set(aktiveSaker.filter(s => s.vehicleId === kontrollFormVehicleId && s.caseType === 'kontrollavvik' && sakErApen(s)).map(s => s.sourceId)) : new Set();
+  const activeAvvikTypes = aktiveKontrollavvikTyper(kontrollFormVehicleId);
   let vlStatus = 'green';
   if(activeVarsellysList.length > 0){
     const alleNylige = activeVarsellysList.every(w => { const d = daysSince(w.registrertDato); return d !== null && d <= 1; });
