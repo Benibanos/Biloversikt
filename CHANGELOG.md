@@ -25,6 +25,15 @@ Nummeret følger brukerens backlog. Historisk «Prioritet 70 — Samlet Verksted
 4. Bil og sjåfør er tatt ut av kontrollskjemaet. Administrator uten valgt bil velger bil før skjemaet.
 5. Nye skader og løftebord ligger på samme rad (Ja/Nei og OK/Må gjøres). Rekkefølgen er låst: kilometerstand, varsellamper, kontrollavvik, avvikskommentar, sjåførkommentar, skade og løftebord, send.
 6. `storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 118 → 119.
+### Prioritet 72 — Komprimer Biloversikt
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 — Dashboard 2.0».)
+
+1. ← Tilbake er fjernet fra primære sider: Biloversikt, Verksted, Kalender, Aktive saker, Varslingssenter, Rapporter-hub og Kostnader. Tilbake beholdes på detaljsider (Bilprofil, rapportdetalj → hub, m.fl.).
+2. Kjøretøytelleren «N av M kjøretøy» er fjernet fra Biloversikt.
+3. «+ Ny bil» ligger i fanelinjen helt til høyre (`.profil-tab-ny`) og fungerer som egen fane — registreringsskjemaet er fanens innhold, ikke en blokk over listen.
+4. Søk og Filter står på samme linje øverst (frigjort plass etter at tilbake-knappen ble fjernet).
+5. Ingen funksjonalitet er fjernet. `storage.airtable.js` er uendret (v2.24.0). App-/cacheversjon 118 → 119.
 
 ### Prioritet 69 — Rydd opp i sakslivssyklus
 

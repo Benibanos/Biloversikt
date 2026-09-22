@@ -2,6 +2,7 @@
 
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 70 —
 **Skill kommentar og kontrollavvik.** Kommentar fra sjåfør er informasjon og oppretter aldri sak, varsel eller kontrollavvik. Kontrollavvik er oppfølging, med eget avvik «Sidespeil defekt/ødelagt» og egen avvikskommentar på avviket. Bil og sjåfør er tatt ut av kontrollskjemaet. Nye skader og løftebord ligger på samme rad. `storage.airtable.js` uendret v2.24.0; appversjon 119. Se «Prioritet 70 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 72 — **Komprimer Biloversikt.** ← Tilbake fjernet fra primære sider (Biloversikt/Verksted/Kalender/Aktive saker/Varslingssenter/Rapporter-hub/Kostnader), beholdt på detaljsider; kjøretøyteller fjernet; «+ Ny bil» som egen fane til høyre i fanelinjen; Søk + Filter på samme linje. `storage.airtable.js` uendret (v2.24.0). Se «Prioritet 72 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 **Varslingssenter viser kun aktive hendelser.** Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk, ikke i Varslingssenteret. «Merk som løst» lukker også tilhørende sak. `storage.airtable.js` uendret v2.24.0; appversjon 118. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
 **Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime. Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
 **Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 65 —
@@ -6520,3 +6521,17 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 **Kontrollrekkefølge er låst** (`canMove: false`): kilometerstand, varsellamper, kontrollavvik, kommentar til kontrollavvik, kommentar fra sjåfør, nye skader og løftebord, send. Bil og sjåfør er ikke felt på skjemaet. Uten valgt bil viser administrasjonen bilvelgeren før skjemaet; sjåføren sendes tilbake til Velg bil.
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 118 → 119. `storage.airtable.js` uendret.
+## Prioritet 72 (2026-09-22) — Komprimer Biloversikt
+
+(Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 (2026-09-18) — Dashboard 2.0».)
+
+**Varig regel: primære navigasjonssider har ikke ← Tilbake.** Brukeren kommer dit via sidemeny/bunnmeny; tilbake-knappen hører hjemme på detalj-/undersider. Primære uten Tilbake: Biloversikt, Verksted, Kalender, Aktive saker, Varslingssenter, Rapporter-hub, Kostnader. Detaljer med Tilbake: Bilprofil (`#back-to-register`), rapportdetalj (tilbake til hub), Verkstedhistorikk, Historikk, Bestill, Kommentarer, Analyse, Innstillinger, m.fl.
+
+**Biloversikt — mindre høyde, samme funksjon.**
+- Kjøretøytelleren «N av M kjøretøy» er fjernet (lite operativ verdi).
+- Søk + Filter står først på samme linje (`.reg-filterbar`) — plassen Tilbake/toolbar frigjorde.
+- «+ Ny bil» er en fane i `.profil-tabs` med `margin-left:auto` (`.profil-tab-ny`), ikke en egen knapp/blokk over listen. Valgt fane `ny-bil` setter `showAddVehicleForm = true` og rendrer `registerNyBilSkjemaHtml()` som fanens innhold. `formInProgress()` / `submitAddVehicle()` / `resetRegisterFiltre()` er uendret i kontrakt.
+- Handlingsknapper som «+ Ny sak» og «Marker alle som sett» beholdes på sine primære sider (uten Tilbake ved siden av).
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` (v118 → v119), `version-check.js` (118 → 119), `version.json` (118 → 119). **`storage.airtable.js` uendret** (v2.24.0).
+

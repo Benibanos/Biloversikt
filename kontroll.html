@@ -1526,6 +1526,8 @@
   }
   @media (max-width:1199px){ .profil-stat5{grid-template-columns:repeat(3,1fr);} }
   .profil-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
+  /* Prioritet 72: «+ Ny bil» i fanelinjen, alltid lengst til høyre. */
+  .profil-tab-ny{margin-left:auto;}
   .profil-tab{
     padding:11px 12px;font-size:13px;font-weight:600;color:var(--muted);background:none;
     border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;min-height:44px;
@@ -13235,42 +13237,8 @@ function attachDashboardListeners(){
 }
 
 // ================= scrBilregister =================
-function renderRegister(){
-  const q = filterSearch.trim().toLowerCase();
-  const filtered = vehicles.filter(v => {
-    if(q && !((v.bilnummer||'').toLowerCase().includes(q) || v.regnr.toLowerCase().includes(q) || (v.modell||'').toLowerCase().includes(q) || (v.loyvenummer||'').toLowerCase().includes(q))) return false;
-    if(filterKategori && v.kategori !== filterKategori) return false;
-    if(filterKontrollStatus === 'kontrollert' && !isKontrollertIdag(v.id)) return false;
-    if(filterKontrollStatus === 'ikke' && (isKontrollertIdag(v.id) || vehicleErReserveUnntatt(v.id))) return false;
-    if(filterLoyve === 'har' && !v.loyvenummer) return false;
-    if(filterLoyve === 'mangler' && v.loyvenummer) return false;
-    // Samme filter Dashboardets Bilparkhelse-chips og mobilens
-    // 🚚 Min bil-ikon bruker — gjenbruker vehicleHovedstatus()/vehicleAktivSjafor()
-    // uendret, ingen ny tellelogikk.
-    if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
-    if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
-    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== filterHovedstatus) return false;
-    // Prioritet 71.9: Reserve og Ute av drift skjules som standard for å redusere støy i
-    // daglig drift — kun synlige når brukeren aktivt ber om det, enten via de to nye
-    // hurtigknappene (visReserve/visUteAvDrift) eller ved å eksplisitt velge nettopp den
-    // kategorien/statusen i de vanlige filtrene (da er "aktivt valgt" allerede oppfylt).
-    // Unntatt fra regelen: "🚚 Har aktiv sjåfør" — en reserve-/ute av drift-bil som faktisk
-    // kjøres akkurat nå er relevant informasjon, ikke støy.
-    if(filterHovedstatus !== 'har-aktiv-sjafor'){
-      if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
-      if(!visUteAvDrift && v.uteAvDrift && filterHovedstatus !== 'ute-av-drift') return false;
-    }
-    return true;
-  });
-
+function registerNyBilSkjemaHtml(){
   return `
-    <div class="backrow"><button class="backbtn" id="register-back">← Tilbake</button></div>
-    <div class="toolbar">
-      <div class="count">${filtered.length} av ${vehicles.length} kjøretøy</div>
-      <button class="btn" id="add-vehicle-btn">${showAddVehicleForm ? 'Avbryt' : '+ Ny bil'}</button>
-    </div>
-
-    ${showAddVehicleForm ? `
     <form class="panel" id="add-vehicle-form">
       <h3>Ny bil</h3>
       <div class="row3">
@@ -13308,15 +13276,43 @@ function renderRegister(){
       <div class="field" style="margin-bottom:10px;"><label>🛟 Mobilitetsgaranti</label><input id="new-mobilitetsgaranti" type="text" placeholder="F.eks. Mercedes Service24h – gyldig til 14/08/2027"></div>
       <div class="form-msg" id="new-vehicle-msg"></div>
       <div class="panel-actions"><button class="btn" type="submit">Legg til og åpne</button></div>
-    </form>` : ''}
+    </form>`;
+}
+function renderRegister(){
+  const q = filterSearch.trim().toLowerCase();
+  const filtered = vehicles.filter(v => {
+    if(q && !((v.bilnummer||'').toLowerCase().includes(q) || v.regnr.toLowerCase().includes(q) || (v.modell||'').toLowerCase().includes(q) || (v.loyvenummer||'').toLowerCase().includes(q))) return false;
+    if(filterKategori && v.kategori !== filterKategori) return false;
+    if(filterKontrollStatus === 'kontrollert' && !isKontrollertIdag(v.id)) return false;
+    if(filterKontrollStatus === 'ikke' && (isKontrollertIdag(v.id) || vehicleErReserveUnntatt(v.id))) return false;
+    if(filterLoyve === 'har' && !v.loyvenummer) return false;
+    if(filterLoyve === 'mangler' && v.loyvenummer) return false;
+    // Samme filter Dashboardets Bilparkhelse-chips og mobilens
+    // 🚚 Min bil-ikon bruker — gjenbruker vehicleHovedstatus()/vehicleAktivSjafor()
+    // uendret, ingen ny tellelogikk.
+    if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
+    if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
+    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== filterHovedstatus) return false;
+    // Prioritet 71.9: Reserve og Ute av drift skjules som standard for å redusere støy i
+    // daglig drift — kun synlige når brukeren aktivt ber om det, enten via de to nye
+    // hurtigknappene (visReserve/visUteAvDrift) eller ved å eksplisitt velge nettopp den
+    // kategorien/statusen i de vanlige filtrene (da er "aktivt valgt" allerede oppfylt).
+    // Unntatt fra regelen: "🚚 Har aktiv sjåfør" — en reserve-/ute av drift-bil som faktisk
+    // kjøres akkurat nå er relevant informasjon, ikke støy.
+    if(filterHovedstatus !== 'har-aktiv-sjafor'){
+      if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
+      if(!visUteAvDrift && v.uteAvDrift && filterHovedstatus !== 'ute-av-drift') return false;
+    }
+    return true;
+  });
+  // Prioritet 72: «+ Ny bil» er en egen fane (ikke en blokk over listen). showAddVehicleForm
+  // speiler fanen, så formInProgress() og submitAddVehicle() fortsatt fungerer.
+  const erNyBilFane = showAddVehicleForm || registerAktivFane === 'ny-bil';
+  if(erNyBilFane){ showAddVehicleForm = true; registerAktivFane = 'ny-bil'; }
 
-    <!-- Prioritet 52, Del 4: kun PRESENTASJON er endret. Søkefeltet og Filter-knappen er alltid
-         synlige; alle øvrige filtre ligger i et lukket panel. Filterlogikken (variablene
-         filterKontrollStatus/visReserve/visUteAvDrift/filterKategori/filterHovedstatus/
-         filterLoyve og predikatet i renderRegister()) er UENDRET — de fire hurtigknappene fra
-         Prioritet 71.6/71.9 er blitt avkrysningsbokser som leser/skriver de samme variablene
-         med samme toggle-semantikk (Kontrollert/Ikke kontrollert utelukker hverandre, som
-         det tidligere nedtrekket «f-kontrollstatus» — hvis funksjon boksene nå dekker). -->
+  return `
+    <!-- Prioritet 72: tilbake-knapp og «N av M kjøretøy» er fjernet. Søk + Filter står først
+         på samme linje. «+ Ny bil» ligger i fanelinjen til høyre. -->
     ${(() => {
       const aktiveFiltre = [filterKategori, filterKontrollStatus, filterHovedstatus, filterLoyve].filter(Boolean).length + (visReserve ? 1 : 0) + (visUteAvDrift ? 1 : 0);
       return `
@@ -13359,91 +13355,75 @@ function renderRegister(){
     </div>` : ''}`;
     })()}
 
-    ${filtered.length === 0 ? `
-      <div class="empty">
-        <h3>${vehicles.length === 0 ? 'Ingen kjøretøy registrert ennå' : 'Ingen treff'}</h3>
-        <div>${vehicles.length === 0 ? 'Trykk «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.'}</div>
-      </div>
-    ` : `
-      ${(() => {
-        // 🚚 Min bil er fjernet som eget hovedikon — i stedet
-        // markeres driftskoordinatorens egen aktive bil tydelig her, øverst i riktig
-        // gruppe, som allerede er stedet man finner ALLE biler.
-        const minBil = egenAktiveBil();
-        return minBil ? `<div class="required-hint" style="margin-bottom:14px;background:var(--amber-soft);color:var(--ink);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;" data-open="${minBil.id}">🚚 Aktiv bil: ${esc(vehicleLabel(minBil))} →</div>` : '';
-      })()}
-      <div class="dash-group-grid" style="grid-template-columns:1fr;">
-        ${(() => {
-          // to ULIKE måter å se bilparken på, med bevisst ULIK logikk:
-          //
-          //  Biloversikt = ORGANISERING. Grupperes etter kategori (redigerbar), med den
-          //  systemstyrte gruppen 🚫 Ute av drift alltid nederst.
-          //  Biler i drift = AKTIV BRUK. Når filteret «Har aktiv sjåfør» er valgt, vises
-          //  ÉN samlet liste på tvers av alle kategorier — kategori skal
-          //  ikke påvirke hvem som faktisk kjører akkurat nå.
-          const minBil = egenAktiveBil();
-          const kortHtml = (biler) => sortedVehicles(biler).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('');
+    ${(() => {
+      const minBil = egenAktiveBil();
+      const nyBilFaneBtn = `<button type="button" class="profil-tab profil-tab-ny ${erNyBilFane ? 'active' : ''}" data-register-fane="ny-bil">+ Ny bil</button>`;
+      const aktivBilHint = (!erNyBilFane && minBil)
+        ? `<div class="required-hint" style="margin-bottom:14px;background:var(--amber-soft);color:var(--ink);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;" data-open="${minBil.id}">🚚 Aktiv bil: ${esc(vehicleLabel(minBil))} →</div>`
+        : '';
 
-          if(filterHovedstatus === 'har-aktiv-sjafor'){
-            const iDrift = sortedVehicles(filtered);
-            return `
-            <div class="panel dash-group-card">
-              <div class="group-card-head" style="cursor:default;">
-                <div>
-                  <div class="group-card-title">${luc('truck', 'ic-blue')} Biler i drift (${iDrift.length})</div>
-                  <div class="group-card-sub">Alle biler med aktiv sjåfør — uavhengig av kategori</div>
-                </div>
-              </div>
-              <div class="vehicle-group-body open">
-                <div><div class="gallery" style="margin-top:12px;">${kortHtml(iDrift)}</div></div>
-              </div>
-            </div>`;
-          }
+      // «Har aktiv sjåfør»: én samlet liste + Ny bil-fanen.
+      if(filterHovedstatus === 'har-aktiv-sjafor'){
+        const iDrift = sortedVehicles(filtered);
+        return `
+          <div class="profil-tabs">
+            <button type="button" class="profil-tab ${!erNyBilFane ? 'active' : ''}" data-register-fane="i-drift">${luc('truck', 'ic-blue')} Biler i drift (${iDrift.length})</button>
+            ${nyBilFaneBtn}
+          </div>
+          ${erNyBilFane ? registerNyBilSkjemaHtml() : `
+            ${aktivBilHint}
+            <div class="panel" style="margin-bottom:16px;">
+              <div class="required-hint" style="margin-bottom:12px;">Alle biler med aktiv sjåfør — uavhengig av kategori</div>
+              ${iDrift.length === 0
+                ? `<div class="empty"><h3>Ingen biler i drift</h3><div>Ingen kjøretøy har aktiv sjåfør akkurat nå.</div></div>`
+                : `<div class="gallery">${iDrift.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`}
+            </div>`}`;
+      }
 
-          // Prioritet 72.0: gruppene vises nå som FANER (.profil-tabs/.profil-tab — samme
-          // komponent Kjøretøyprofilen/Varslingssenteret allerede bruker), KUN én synlig
-          // om gangen, i stedet for et ekspander/lukk-akkordion (registerGrupperApne,
-          // HISTORISK, se deklarasjonen). Bytte mellom grupper krever dermed aldri
-          // scrolling forbi andre, allerede-åpne grupper.
-          // Grupperekkefølge: de administrerbare kategoriene i sin egen rekkefølge, deretter
-          // 🚫 Ute av drift sist. Tomme grupper får ingen fane (filter under).
-          const gruppeIder = [...KATEGORI_ORDER, UTE_AV_DRIFT_KATEGORI_ID]
-            .filter(k => filtered.some(v => vehicleVisningsKategori(v) === k));
-          if(gruppeIder.length === 0) return '';
-          // Aktiv fane: et eksplisitt kategorifilter vinner alltid (matcher tidligere
-          // "alltid åpen"-regel for filtrerte grupper), deretter forrige valgte fane
-          // (hvis den fortsatt finnes), deretter gruppen til egen aktive bil (samme
-          // auto-fremheving som akkordionen hadde), ellers første gruppe.
-          const aktivFane = (filterKategori && gruppeIder.includes(filterKategori)) ? filterKategori
-            : (registerAktivFane && gruppeIder.includes(registerAktivFane)) ? registerAktivFane
-            : (minBil && gruppeIder.includes(vehicleVisningsKategori(minBil))) ? vehicleVisningsKategori(minBil)
-            : gruppeIder[0];
-          const gruppeBilerFor = (k) => {
-            const gruppeBilerSortert = sortedVehicles(filtered.filter(v => vehicleVisningsKategori(v) === k));
-            // Egen aktive bil løftes øverst i sin gruppe — samme liste, kun omsortert.
-            return minBil && vehicleVisningsKategori(minBil) === k
-              ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
-              : gruppeBilerSortert;
-          };
-          const aktivGruppeBiler = gruppeBilerFor(aktivFane);
-          return `
-            <div class="profil-tabs">
-              ${gruppeIder.map(k => `
-                <button type="button" class="profil-tab ${k === aktivFane ? 'active' : ''}" data-register-fane="${k}">${kategoriIkonLucide(k)} ${esc(kategoriNavn(k))} (${filtered.filter(v => vehicleVisningsKategori(v) === k).length})</button>`).join('')}
-            </div>
+      const gruppeIder = [...KATEGORI_ORDER, UTE_AV_DRIFT_KATEGORI_ID]
+        .filter(k => filtered.some(v => vehicleVisningsKategori(v) === k));
+      // Aktiv fane: Ny bil vinner når den er valgt. Ellers kategorifilter → lagret fane →
+      // egen aktive bil → første gruppe. Tom liste uten grupper → Ny bil (eneste innhold).
+      let aktivFane;
+      if(erNyBilFane) aktivFane = 'ny-bil';
+      else if(filterKategori && gruppeIder.includes(filterKategori)) aktivFane = filterKategori;
+      else if(registerAktivFane && registerAktivFane !== 'ny-bil' && gruppeIder.includes(registerAktivFane)) aktivFane = registerAktivFane;
+      else if(minBil && gruppeIder.includes(vehicleVisningsKategori(minBil))) aktivFane = vehicleVisningsKategori(minBil);
+      else if(gruppeIder.length) aktivFane = gruppeIder[0];
+      else aktivFane = 'ny-bil';
+      if(aktivFane === 'ny-bil'){ showAddVehicleForm = true; registerAktivFane = 'ny-bil'; }
+
+      const gruppeBilerFor = (k) => {
+        const gruppeBilerSortert = sortedVehicles(filtered.filter(v => vehicleVisningsKategori(v) === k));
+        return minBil && vehicleVisningsKategori(minBil) === k
+          ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
+          : gruppeBilerSortert;
+      };
+      const innhold = aktivFane === 'ny-bil'
+        ? registerNyBilSkjemaHtml()
+        : (gruppeIder.length === 0
+          ? `<div class="empty">
+              <h3>${vehicles.length === 0 ? 'Ingen kjøretøy registrert ennå' : 'Ingen treff'}</h3>
+              <div>${vehicles.length === 0 ? 'Velg «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.'}</div>
+            </div>`
+          : `${aktivBilHint}
             <div class="panel" style="margin-bottom:16px;">
               <div class="gallery">
-                ${aktivGruppeBiler.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
+                ${gruppeBilerFor(aktivFane).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
               </div>
-            </div>`;
-        })()}
-      </div>
-    `}
+            </div>`);
+
+      return `
+        <div class="profil-tabs">
+          ${gruppeIder.map(k => `
+            <button type="button" class="profil-tab ${k === aktivFane ? 'active' : ''}" data-register-fane="${k}">${kategoriIkonLucide(k)} ${esc(kategoriNavn(k))} (${filtered.filter(v => vehicleVisningsKategori(v) === k).length})</button>`).join('')}
+          ${nyBilFaneBtn}
+        </div>
+        ${innhold}`;
+    })()}
   `;
 }
 function attachRegisterListeners(){
-  document.getElementById('register-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('add-vehicle-btn').addEventListener('click', () => { showAddVehicleForm = !showAddVehicleForm; render(); });
   const f = document.getElementById('add-vehicle-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddVehicle', submitAddVehicle));
   document.getElementById('f-search').addEventListener('input', e => {
@@ -13464,12 +13444,12 @@ function attachRegisterListeners(){
   regSel('qf-ikke-kontrollert-cb', e => { filterKontrollStatus = e.target.checked ? 'ikke' : ''; render(); });
   regSel('qf-vis-reserve-cb', e => { visReserve = e.target.checked; render(); });
   regSel('qf-vis-ute-cb', e => { visUteAvDrift = e.target.checked; render(); });
-  // Prioritet 72.0: gruppene er faner, ikke lenger en ekspander/lukk-akkordion —
-  // data-toggle-register-gruppe finnes ikke lenger i markup (kun det historiske
-  // "Biler i drift"-panelet, som fortsatt ikke er en fane og derfor ikke trenger en
-  // lytter her). data-register-fane setter kun hvilken fane som er aktiv.
+  // Prioritet 72: data-register-fane inkluderer «ny-bil». Bytting til en kategorifane lukker
+  // skjemaet; «ny-bil» åpner det som fanens innhold.
   document.querySelectorAll('[data-register-fane]').forEach(el => el.addEventListener('click', () => {
-    registerAktivFane = el.dataset.registerFane;
+    const fane = el.dataset.registerFane;
+    registerAktivFane = fane;
+    showAddVehicleForm = fane === 'ny-bil';
     render();
   }));
   document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
@@ -14179,11 +14159,9 @@ function renderVarslerOversikt(){
   const skjulteKategoriAntall = aktiveVarsler.filter(x => !layoutKategorier.includes(x.kategori)).length;
   const aktivKategori = kategorierMedInnhold.includes(varslingssenterAktivKategori) ? varslingssenterAktivKategori : (kategorierMedInnhold[0] || '');
   const kategoriItems = aktivKategori ? (byKategori.get(aktivKategori) || []) : [];
+  // Prioritet 72: ingen ← Tilbake på Varslingssenter (primær side). «Marker alle» beholdes.
   return `
-    <div class="backrow">
-      <button class="backbtn" id="varsler-back">← Tilbake</button>
-      ${aktiveVarsler.length > 0 ? `<button type="button" class="btn secondary small" id="varsler-marker-alle-btn" style="margin-left:auto;">✅ Marker alle som sett</button>` : ''}
-    </div>
+    ${aktiveVarsler.length > 0 ? `<div class="backrow" style="justify-content:flex-end;"><button type="button" class="btn secondary small" id="varsler-marker-alle-btn">✅ Marker alle som sett</button></div>` : ''}
     <h2 style="font-size:19px;margin-bottom:6px;">${luc('bell')} Varslingssenter</h2>
     <div class="required-hint" style="margin-bottom:16px;">${aktiveVarsler.length} hendelse${aktiveVarsler.length===1?'':'r'} krever handling nå. Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk.</div>
     ${aktiveVarsler.length === 0 ? `<div class="empty-note">🟢 Ingen varsler — alt er fulgt opp.</div>` : `
@@ -14198,7 +14176,6 @@ function renderVarslerOversikt(){
   `;
 }
 function attachVarslerOversiktListeners(){
-  document.getElementById('varsler-back').addEventListener('click', () => goBack());
   const markerAlleBtn = document.getElementById('varsler-marker-alle-btn');
   if(markerAlleBtn) markerAlleBtn.addEventListener('click', () => {
     const idListe = varslingssenterAktiveListe().map(x => x.id);
@@ -16181,8 +16158,8 @@ function renderKalender(){
   // Prioritet 60: månedskalender, valgt dato og «I dag/Senere» er komponenter i layoutmotoren (område
   // 'admin-standard-pages:kalender') — rekkefølge og synlighet styres av publisert layout; kalenderen selv er låst synlig.
   const kalDeler = {};
+  // Prioritet 72: ingen ← Tilbake på Kalender (primær side).
   return `
-    <div class="backrow"><button class="backbtn" id="kal-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">${luc('calendar-days', 'ic-green')} Kalender</h2>
     <div class="required-hint" style="margin-bottom:16px;">Service, dekkskift, EU-kontroll, verkstedtimer og oppfølginger — alt planlagt arbeid på ett sted. ${antallIMnd} aktivitet${antallIMnd===1?'':'er'} denne måneden.</div>
 
@@ -16254,7 +16231,6 @@ function kalenderIDagSenereHtml(){
   `;
 }
 function attachKalenderListeners(){
-  document.getElementById('kal-back').addEventListener('click', () => goBack('dashboard'));
   document.getElementById('kal-forrige').addEventListener('click', () => kalenderSkiftMnd(-1));
   document.getElementById('kal-neste').addEventListener('click', () => kalenderSkiftMnd(1));
   document.getElementById('kal-idag').addEventListener('click', () => {
@@ -16476,10 +16452,10 @@ function renderAktiveSaker(){
   const sakFaner = layoutFanerSynlige('admin-standard-pages:aktivesaker').map(e => layoutFaneNokkel(e.widgetId)).filter(k => sakFaneInfo[k]).map(k => Object.assign({nokkel:k}, sakFaneInfo[k]));
   if(sakFaner.length && !sakFaner.some(f => f.nokkel === sakAktivFane)) sakAktivFane = layoutFaneNokkel(layoutStartFane('admin-standard-pages:aktivesaker')) || sakFaner[0].nokkel;
 
+  // Prioritet 72: ingen ← Tilbake på Aktive saker (primær side). «+ Ny sak» beholdes.
   return `
-    <div class="backrow">
-      <button class="backbtn" id="sak-back">← Tilbake</button>
-      <button class="btn small" id="add-sak-btn" style="margin-left:auto;">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
+    <div class="backrow" style="justify-content:flex-end;">
+      <button class="btn small" id="add-sak-btn">${showAddSak ? 'Avbryt' : '+ Ny sak'}</button>
     </div>
     <h2 style="font-size:19px;margin-bottom:16px;">${luc('triangle-alert')} Aktive Saker</h2>
 
@@ -16523,7 +16499,6 @@ function renderAktiveSaker(){
 // markerKommentarSomLest() er UENDRET og fortsatt i bruk — nås nå kun via 💬 Kommentarer
 // i sidemenyen (attachKommentaroversiktListeners) og sjåførens egen kommentarskjerm.
 function attachAktiveSakerListeners(){
-  document.getElementById('sak-back').addEventListener('click', () => goBack());
   // «Ny saksflyt»: fanevalg og direkte sakskort-handlinger.
   document.querySelectorAll('[data-sak-fane]').forEach(el => el.addEventListener('click', () => {
     sakAktivFane = el.dataset.sakFane;
@@ -16911,8 +16886,8 @@ function renderVerksted(){
   // 'admin-standard-pages:verksted'). «Registrer og filtrer» og selve listen er låst synlige; skjemaet og filterpanelet følger «Registrer og filtrer».
   const vtDeler = {};
 
+  // Prioritet 72: ingen ← Tilbake på Verksted (primær side).
   return `
-    <div class="backrow"><button class="backbtn" id="vt-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
 
     ${vtFlerBilResultatHtml()}
@@ -17149,7 +17124,6 @@ function vtCard(t, upcoming, isNext){
 
 function attachVerkstedListeners(){
   attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
-  document.getElementById('vt-back').addEventListener('click', () => goBack());
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     vtFlereDetaljerApen = false;
@@ -18106,8 +18080,9 @@ function rapportFilterPanelHtml(){
 }
 function rapportHeaderHtml(){
   const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (RAPPORT_STATUS_FILTER_OPTIONS[rapportType] && rapportStatusFilter ? 1 : 0) + (RAPPORT_HAR_VERKSTED_FILTER[rapportType] && rapportFilterVerksted ? 1 : 0);
+  // Prioritet 72: ← Tilbake kun på rapportdetalj (tilbake til hub), ikke på Rapporter-huben.
   return `
-    <div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>
+    ${rapportType ? `<div class="backrow"><button class="backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>` : ''}
     <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
     ${rapportType ? `
     <div class="toolbar" style="margin-bottom:16px;">
@@ -18198,8 +18173,8 @@ function renderKostnadsoversikt(){
     </div>`;
   }).join('');
 
+  // Prioritet 72: ingen ← Tilbake på Kostnader (primær side).
   return `
-    <div class="backrow"><button class="backbtn" id="kost-back">← Tilbake</button></div>
     <h2 style="font-size:19px;margin-bottom:16px;">💰 Kostnadsoversikt</h2>
 
     <div class="dekk-status-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:28px;">
@@ -18291,7 +18266,6 @@ function renderKostnadsoversikt(){
   `;
 }
 function attachKostnadsoversiktListeners(){
-  document.getElementById('kost-back').addEventListener('click', () => goBack());
   document.getElementById('kost-filter-toggle-btn').addEventListener('click', () => {
     showKostFilterMeny = !showKostFilterMeny;
     render();
@@ -18482,10 +18456,10 @@ function renderRapporter(){
   return renderRapporterOversikt();
 }
 function attachRapporterListeners(){
+  // Prioritet 72: tilbake-knappen finnes kun når en rapport er åpen (hub → detalj).
   const tilbakeBtn = document.getElementById('rapport-tilbake-btn');
   if(tilbakeBtn) tilbakeBtn.addEventListener('click', () => {
-    if(rapportType){ rapportType = ''; showRapportFilterMeny = false; render(); }
-    else goBack();
+    rapportType = ''; showRapportFilterMeny = false; render();
   });
   document.querySelectorAll('[data-goto-rapport]').forEach(el => el.addEventListener('click', () => goToRapport(el.dataset.gotoRapport)));
   const filterToggleBtn = document.getElementById('rapport-filter-toggle-btn');
