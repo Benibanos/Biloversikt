@@ -40,9 +40,9 @@ assert(vtErKommende(null) === false, 'null appointment');
 assert(/servicenummer:\s*\['Servicenummer'\]/.test(storage), 'LIST_TABLES.vehicles.servicenummer');
 assert(/versjon:\s*'v2\.24\.0'/.test(storage), 'storage version v2.24.0');
 assert(html.includes('storage.airtable.js?v=2.24.0'), 'index.html cache-bust 2.24.0');
-assert(sw.includes("CACHE_VERSION = 'bilpark-v118'"), 'sw.js v118');
-assert(/const APP_VERSION = 118/.test(vc), 'APP_VERSION 118');
-assert(/"version":\s*"118"/.test(vj), 'version.json 118');
+assert(sw.includes("CACHE_VERSION = 'bilpark-v119'"), 'sw.js v119');
+assert(/const APP_VERSION = 119/.test(vc), 'APP_VERSION 119');
+assert(/"version":\s*"119"/.test(vj), 'version.json 119');
 
 assert(html.includes("BILKORT_HIST_FANER = ['kontroller', 'skader', 'varsellamper', 'verkstedhistorikk', 'kommentarer', 'aktivesaker']"),
   'historikk includes Aktive saker');

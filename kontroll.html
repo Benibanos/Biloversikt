@@ -749,6 +749,10 @@
   .chip-yn input{display:none;}
   .chip-yn label:has(input:checked){border-color:var(--chrome-bg);background:var(--chrome-bg);color:var(--chrome-text);}
   .chip-yn label.checked{border-color:var(--chrome-bg);background:var(--chrome-bg);color:var(--chrome-text);}
+  .kt-delt-rad{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;margin-bottom:14px;}
+  .kt-delt-rad .sj-card{margin:0;min-width:0;}
+  .kt-delt-rad .chip-yn{gap:6px;}
+  .kt-delt-rad .chip-yn label{padding:12px 4px;font-size:14px;}
   /* Prioritet 71.6: horisontal, enkeltvalgt verkstedtype-velger (VT_TYPE_VELGER) i
      Ny verkstedtime-skjemaet — samme radioknapp-under-label-mønster som .chip-yn over,
      men med flere, ujevnt brede alternativer i stedet for to like brede. */
@@ -2373,6 +2377,7 @@ let kontrollFormKm = '';
 let kontrollFormAnnetTekst = '';
 let kontrollFormSkadeBeskrivelse = '';
 let kontrollFormKommentar = '';
+let kontrollFormAvvikKommentar = '';
 let kontrollFormSjaforNavn = '';
 let kontrollFormVarsellamper = []; // huket-av varsellampe-nøkler (utenom 'annet', som spores separat i kontrollFormAnnet)
 let kontrollVarsellamperOpen = false; // om avkrysningslisten for varsellamper er utvidet (samlet i en dropdown for å spare plass)
@@ -2393,7 +2398,7 @@ function saveKontrollDraft(){
     const draft = {
       vehicleId: kontrollFormVehicleId, sjaforNavn: kontrollFormSjaforNavn, km: kontrollFormKm,
       varsellamper: kontrollFormVarsellamper, annet: kontrollFormAnnet, annetTekst: kontrollFormAnnetTekst,
-      avvik: kontrollFormAvvik,
+      avvik: kontrollFormAvvik, avvikKommentar: kontrollFormAvvikKommentar,
       harNyeSkader: kontrollFormHarSkader, skadeBeskrivelse: kontrollFormSkadeBeskrivelse,
       kommentar: kontrollFormKommentar, savedAt: Date.now()
     };
@@ -2416,6 +2421,7 @@ function loadKontrollDraft(){
     kontrollFormAnnet = !!draft.annet;
     kontrollFormAnnetTekst = draft.annetTekst || '';
     kontrollFormAvvik = Array.isArray(draft.avvik) ? draft.avvik : [];
+    kontrollFormAvvikKommentar = draft.avvikKommentar || '';
     kontrollFormHarSkader = !!draft.harNyeSkader;
     kontrollFormSkadeBeskrivelse = draft.skadeBeskrivelse || '';
     kontrollFormKommentar = draft.kommentar || '';
@@ -2904,19 +2910,24 @@ function finnAktivSakMedAvvik(vehicleId, caseType, sourceId){
 // en allerede eksisterende sak fra en tidligere kontroll (kun eksakte duplikater av et
 // allerede aktivt avvik bumpes, se over).
 function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
-  const {reportedBy, reportedAt, controlId, kommentar} = opts;
+  const {reportedBy, reportedAt, controlId, avvikKommentar} = opts;
   const now = new Date().toISOString();
   let nySak = null;
+  const avvikTekst = (avvikKommentar || '').trim();
   avvikListe.forEach(({caseType, sourceId, label}) => {
     // Historikk-kommentaren inneholder alltid selve avvik-etiketten (f.eks. "Motorlampe")
     // først, slik at hver observasjonslinje er identifiserbar selv når saken har flere
-    // avvik — samme mønster som tidligere, kun bygget fra avvik-elementets egen
-    // label i stedet for en hardkodet per-kall streng.
-    const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: label + (kommentar ? ' · ' + kommentar : '')};
+    // avvik. Teksten fra «Kommentar til kontrollavvik» hører kun til kontrollavvik —
+    // aldri til varsellamper, og aldri til sjåførens generelle kommentar.
+    const tekstPaAvvik = caseType === 'kontrollavvik' ? avvikTekst : '';
+    const historikkOppforsel = {dato: reportedAt, tidspunkt: nowTimeOslo(), av: reportedBy || 'Ukjent', kommentar: label + (tekstPaAvvik ? ' · ' + tekstPaAvvik : '')};
     const eksisterende = finnAktivSakMedAvvik(vehicleId, caseType, sourceId);
     if(eksisterende){
       const {sak, avvikItem} = eksisterende;
-      if(avvikItem){ avvikItem.reportCount = (avvikItem.reportCount||1)+1; avvikItem.lastReportedAt = now; }
+      if(avvikItem){
+        avvikItem.reportCount = (avvikItem.reportCount||1)+1; avvikItem.lastReportedAt = now;
+        if(tekstPaAvvik) avvikItem.kommentar = tekstPaAvvik;
+      }
       else { sak.reportCount = (sak.reportCount||1)+1; sak.lastReportedAt = now; }
       sak.updatedAt = now;
       if(!Array.isArray(sak.historikk)) sak.historikk = [];
@@ -2934,13 +2945,13 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
         resolvedAt: null, resolvedBy: null, resolutionNote: '',
         reportCount: 1, lastReportedAt: now,
         historikk: [historikkOppforsel],
-        avvik: [{id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now}],
+        avvik: [{id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now, kommentar: tekstPaAvvik}],
         createdByControlId: controlId || null,
         createdAt: now, updatedAt: now
       };
       aktiveSaker.push(nySak);
     } else {
-      nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now});
+      nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now, kommentar: tekstPaAvvik});
       nySak.updatedAt = now;
       if(!Array.isArray(nySak.historikk)) nySak.historikk = [];
       nySak.historikk.push(historikkOppforsel);
@@ -2990,12 +3001,12 @@ function sakHarBlittViderebehandlet(sak){
 // allerede bygger dynamisk fra KONTROLLAVVIK_ORDER.map(...). Løftebordets EGEN beskrivelses-
 // felt (Min Bil sin hurtigflyt, se submitMinBilAvvik()) og status/vedlikehold/kontroll-
 // mekanikken er en tilleggsting utenfor selve avviks-motoren.
-const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'slitte-bremser', 'feil-pa-kjoretoy', 'loftebord'];
-const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'slitte-bremser':'Slitte bremser', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'loftebord':'Løftebord', 'annet-avvik':'Andre kontrollavvik'};
-const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'slitte-bremser':'⚠️', 'feil-pa-kjoretoy':'🚨', 'loftebord':'🛗', 'annet-avvik':'📋'};
+const KONTROLLAVVIK_ORDER = ['slitte-dekk', 'defekt-lys', 'manglende-utstyr', 'slitte-bremser', 'feil-pa-kjoretoy', 'sidespeil', 'loftebord'];
+const KONTROLLAVVIK_LABEL = {'slitte-dekk':'Slitte dekk', 'defekt-lys':'Defekt lys', 'manglende-utstyr':'Manglende utstyr', 'slitte-bremser':'Slitte bremser', 'feil-pa-kjoretoy':'Feil på kjøretøy', 'sidespeil':'Sidespeil defekt/ødelagt', 'loftebord':'Løftebord', 'annet-avvik':'Andre kontrollavvik'};
+const KONTROLLAVVIK_IKON = {'slitte-dekk':'🛞', 'defekt-lys':'💡', 'manglende-utstyr':'🧰', 'slitte-bremser':'⚠️', 'feil-pa-kjoretoy':'🚨', 'sidespeil':'🪞', 'loftebord':'🛗', 'annet-avvik':'📋'};
 // Samme begrunnelse som GRUPPE_LUCIDE/SAK_TYPE_LUCIDE over — egen Lucide-variant for de
 // rene HTML-stedene (avvik-chips), se CLAUDE.md, Prioritet 56.
-const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'slitte-bremser':'triangle-alert', 'feil-pa-kjoretoy':'triangle-alert', 'loftebord':'arrow-up-down', 'annet-avvik':'clipboard-list'};
+const KONTROLLAVVIK_LUCIDE = {'slitte-dekk':'circle-dot', 'defekt-lys':'lightbulb', 'manglende-utstyr':'wrench', 'slitte-bremser':'triangle-alert', 'feil-pa-kjoretoy':'triangle-alert', 'sidespeil':'panel-left', 'loftebord':'arrow-up-down', 'annet-avvik':'clipboard-list'};
 
 let kthSelectedIds = new Set(); // admin-only: valgte kontroller for sletting
 // ---- Optimalisering 3 (Kontrollsletting med full cleanup) ----
@@ -4578,7 +4589,7 @@ function layoutRegistrerAlle(){
   side('kalender', {label:'Kalender', screen:'kalender', lucide:'calendar-days', farge:'ic-green'});
   side('aktive-saker', {label:'Aktive saker', screen:'aktivesaker', lucide:'triangle-alert', farge:'ic-yellow', teller:() => totaltKreverHandlingCount()});
   side('kommentarer', {label:'Kommentarer', screen:'kommentaroversikt', lucide:'message-square', devices:['mobile'],
-    teller:() => nyeKommentarerListe().filter(k => !k.lest).length, drawerTeller:true});
+    teller:() => nyeKommentarerListe().filter(k => kommentarSkalVarsles(k)).length, drawerTeller:true});
   side('varslingssenter', {label:'Varslingssenter', screen:'varsler', lucide:'bell', farge:'ic-yellow', teller:() => varslingssenterAntall(), drawerTeller:true});
   side('kostnader', {label:'Kostnader', screen:'kostnadsoversikt', lucide:'bar-chart-3'});
   side('rapporter', {label:'Rapporter', screen:'rapporter', lucide:'file-bar-chart'});
@@ -4626,13 +4637,12 @@ function layoutRegistrerAlle(){
 
   // ---------- Sjåførkontroll (begrenset redigering) ----------
   const kt = (id, def) => layoutReg('control.' + id, Object.assign({area:'driver-control', devices:['mobile','desktop'], roles:['driver','admin'], canHide:false, critical:true}, def));
-  kt('bil-sjafor', {label:'Kjøretøy og sjåfør', ikon:'car', canMove:false, lockReason:'Kjøretøy og sjåfør er låst øverst.'});
-  kt('km', {label:'Kilometerstand', ikon:'gauge', canMove:false, lockReason:'Kilometerstand er låst — kontrollens validering er knyttet til feltet.'});
-  kt('loftebord', {label:'Løftebord', ikon:'arrow-up-down', maxIndex:3, lockReason:'Løftebord kan flyttes, men må ligge tidlig i kontrollflyten (blant de fire første).', hideReason:'Løftebord kan ikke skjules — det er en påkrevd del av kontrollen.'});
-  kt('varsellamper', {label:'Varsellamper', ikon:'triangle-alert', lockReason:'Varsellamper er en påkrevd del av kontrollen.'});
-  kt('kontrollavvik', {label:'Kontrollavvik', ikon:'clipboard-list', lockReason:'Kontrollavvik er en påkrevd del av kontrollen.'});
-  kt('kommentar', {label:'Kommentar fra sjåfør', ikon:'message-square', canHide:true, critical:false});
-  kt('nye-skader', {label:'Nye skader', ikon:'octagon-alert', lockReason:'Nye skader er en påkrevd del av kontrollen.'});
+  kt('km', {label:'Kilometerstand', ikon:'gauge', canMove:false, lockReason:'Kilometerstand står øverst — bil og sjåfør er allerede valgt.'});
+  kt('varsellamper', {label:'Varsellamper', ikon:'triangle-alert', canMove:false, lockReason:'Varsellamper er en påkrevd del av kontrollen.'});
+  kt('kontrollavvik', {label:'Kontrollavvik', ikon:'clipboard-list', canMove:false, lockReason:'Kontrollavvik er en påkrevd del av kontrollen.'});
+  kt('avvik-kommentar', {label:'Kommentar til kontrollavvik', ikon:'message-square', canMove:false, canHide:true, critical:false});
+  kt('kommentar', {label:'Kommentar fra sjåfør', ikon:'message-square', canMove:false, canHide:true, critical:false});
+  kt('skade-loftebord', {label:'Nye skader og løftebord', ikon:'octagon-alert', canMove:false, lockReason:'Nye skader og løftebord ligger sammen og kan ikke skjules.'});
   kt('send', {label:'Send kontroll', ikon:'send', canMove:false, lockReason:'Send kontroll er låst nederst.'});
 
   // ---------- Standardsider (seksjonsrekkefølge, synlighet, starttilstand, standardfane) ----------
@@ -5779,7 +5789,7 @@ function renderLayoutEditor(){
       'admin-sidebar':'Endre rekkefølge, skjul/vis sider og flytt dem mellom primær og sekundær meny.',
       'vehicle-profile':'Endre rekkefølge, skjul/vis seksjoner, velg halv eller full bredde og om seksjonen starter åpen eller lukket. Historikk har egne faner (rekkefølge, synlighet og standardfane).',
       'driver-min-bil':'Rekkefølge, synlighet og starttilstand — aldri fri bredde eller høyde. Bilkort, løftebord, Registrer skade, Registrer varsellampe og Sjekk ut bil er låst. «Starter åpen» gjelder ett panel om gangen (det første i lista).',
-      'driver-control':'Begrenset redigering: 🔒 påkrevde deler kan ikke skjules eller fjernes. Løftebord kan flyttes, men må ligge blant de fire første. Kommentar kan flyttes eller skjules. Validering, påkrevde felt og lagringsrekkefølge endres aldri.',
+      'driver-control':'Begrenset redigering: rekkefølgen er låst (kilometerstand, varsellamper, kontrollavvik, kommentar til avvik, kommentar fra sjåfør, nye skader og løftebord, send). Kommentarfeltene kan skjules. Validering og lagringsrekkefølge endres aldri.',
       'mobile-dashboard':'Rekkefølge og synlighet for Mobil Dashboard.'
     }[layoutEditorGruppe] || 'Seksjonsrekkefølge, synlighet, starttilstand og standardfane. Skjemaer, tabeller, kalenderceller og modaler kan ikke flyttes fritt.';
     kropp = `<div class="dash-edit-hjelp">${hint}</div>${layoutListeEditorHtml(g)}`;
@@ -7802,7 +7812,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
     kontrollFormAnnet = false; kontrollFormHarSkader = false; pendingKontrollPhotos = [];
-    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormSjaforNavn = '';
   }
   if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
@@ -7909,7 +7919,7 @@ function goToRegisterKontroll(vehicleId){
   kontrollFormAvvik = [];
   kontrollAvvikOpen = false;
   pendingKontrollPhotos = [];
-  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
   kontrollFormSjaforNavn = loggedInRole || '';
   kontrollDraftRestored = loadKontrollDraft();
   if(vehicleId) kontrollFormVehicleId = vehicleId; // eksplisitt valgt bil overstyrer alltid en eventuell kladd
@@ -9913,7 +9923,7 @@ function kontrollFjernMerke(vehicleId, sjafor, dato){
 // Tømmer kontrollskjemaets tilstand (samme felter som etter en vellykket innsending).
 function nullstillKontrollSkjema(){
   kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
-  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
   kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
   kontrollFormAvvik = []; kontrollAvvikOpen = false;
   clearKontrollDraft();
@@ -9947,10 +9957,15 @@ async function submitKontroll(ev){
   const submitBtn = document.getElementById('kt-submit-btn');
   const msgEl = document.getElementById('kt-msg');
   const vehicleId = kontrollFormVehicleId;
-  const km = document.getElementById('kt-km').value;
-  const sjaforNavn = (document.getElementById('kt-sjafornavn').value || '').trim();
-  if(!vehicleId || !km || !sjaforNavn){
-    msgEl.textContent = 'Fyll ut sjåførnavn, velg bil, og fyll ut kilometerstand.';
+  const kmEl = document.getElementById('kt-km');
+  const km = kmEl ? kmEl.value : kontrollFormKm;
+  const sjaforNavn = (kontrollFormSjaforNavn || (driverMode ? driverNavn : loggedInRole) || '').trim();
+  if(!vehicleId || !km){
+    msgEl.textContent = 'Fyll ut kilometerstand.';
+    return;
+  }
+  if(!sjaforNavn){
+    msgEl.textContent = 'Sjåførnavn mangler. Gå tilbake og velg bilen på nytt.';
     return;
   }
   // Prioritet 66.9 DEL 7: en kontroll skriver v.km og kan starte en biløkt. Er
@@ -10001,7 +10016,11 @@ async function submitKontroll(ev){
   const skadeBeskrivelse = harNyeSkader ? (document.getElementById('kt-skade-beskrivelse').value || '').trim() : '';
   // Prioritet 60: kommentarkortet kan skjules av layouten — er feltet ikke i DOM-en, sendes ingen kommentar (ingen krasj).
   const kommentarFelt = document.getElementById('kt-kommentar');
-  const brukerKommentar = ((kommentarFelt ? kommentarFelt.value : '') || '').trim();
+  const brukerKommentar = ((kommentarFelt ? kommentarFelt.value : kontrollFormKommentar) || '').trim();
+  const avvikKommentarFelt = document.getElementById('kt-avvik-kommentar');
+  const avvikKommentar = avvik.length > 0
+    ? ((avvikKommentarFelt ? avvikKommentarFelt.value : kontrollFormAvvikKommentar) || '').trim()
+    : '';
 
   if(harNyeSkader && !skadeBeskrivelse){
     msgEl.textContent = 'Beskriv skaden du har oppdaget.';
@@ -10156,7 +10175,7 @@ async function submitKontroll(ev){
       linkedDamageId = uid();
       damages.push({
         id: linkedDamageId, vehicleId, dato, beskrivelse: skadeBeskrivelse,
-        alvorlighet: 'middels', kommentar: 'Meldt via sjåførkontroll' + (kommentar ? ' · ' + kommentar : ''),
+        alvorlighet: 'middels', kommentar: 'Meldt via sjåførkontroll',
         status: 'registrert', registrertAv: sjafor, hasPhoto: antallBilderLagret > 0,
         createdByControlId: id
       });
@@ -10171,7 +10190,7 @@ async function submitKontroll(ev){
     kontroller.push({
       id, vehicleId, dato, tidspunkt, sjafor, km,
       varsellamper, annetTekst, harNyeSkader, skadeBeskrivelse,
-      skadeBilderCount: antallBilderLagret, kommentar, linkedDamageId
+      skadeBilderCount: antallBilderLagret, kommentar, kommentarLest: true, linkedDamageId
     });
     try{ await saveKontroller(); lagret.push('kontroller'); }
     catch(e){ await rullTilbake('Kontrollen', e); return; }
@@ -10221,14 +10240,14 @@ async function submitKontroll(ev){
       });
     });
     if(kontrollAvvikBatch.length > 0){
-      registrerKontrollAvvikSomSak(vehicleId, kontrollAvvikBatch, {reportedBy: sjafor, reportedAt: dato, controlId: id, kommentar});
+      registrerKontrollAvvikSomSak(vehicleId, kontrollAvvikBatch, {reportedBy: sjafor, reportedAt: dato, controlId: id, avvikKommentar});
       sakerEndret = true;
     }
     if(harNyeSkader && linkedDamageId){
       registrerAvvikSomSak({
         vehicleId, caseType: 'skade', sourceId: linkedDamageId,
         tittel: 'Skade registrert', beskrivelse: 'Automatisk generert fra skaderegistrering.' + (skadeBeskrivelse ? ' ' + skadeBeskrivelse : ''),
-        reportedBy: sjafor, reportedAt: dato, kommentar: kommentar,
+        reportedBy: sjafor, reportedAt: dato, kommentar: skadeBeskrivelse,
         controlId: id
       });
       sakerEndret = true;
@@ -10249,7 +10268,7 @@ async function submitKontroll(ev){
     // rettet dataintegritetsfeil av nøyaktig denne typen.
 
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
-    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = '';
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
     kontrollFormAvvik = []; kontrollAvvikOpen = false;
     clearKontrollDraft();
@@ -12042,7 +12061,7 @@ function attachDriverMerListeners(){
   if(byttBilBtn) byttBilBtn.addEventListener('click', () => {
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormAnnetTekst = '';
     kontrollFormVarsellamper = []; kontrollVarsellamperOpen = false;
-    kontrollFormAvvik = []; kontrollAvvikOpen = false;
+    kontrollFormAvvik = []; kontrollAvvikOpen = false; kontrollFormAvvikKommentar = '';
     driverVelgBilId = '';
     driverScreen = 'velg-bil';
     render();
@@ -14042,7 +14061,7 @@ const VARSLINGSSENTER_KATEGORI_ORDER = ['kommentar','skade','verksted','oppfolgi
 // divergere fra listen det peker på.
 function beregnVarslingssenterListe(){
   const liste = [];
-  nyeKommentarerListe().filter(k => !k.lest).forEach(k => {
+  nyeKommentarerListe().filter(k => kommentarSkalVarsles(k)).forEach(k => {
     liste.push({id:'kommentar:'+k.kilde+':'+k.id, kategori:'kommentar', vehicleId:k.vehicleId,
       tittel:'Sjåførkommentar', tekst: k.bilTekst + ' · ' + k.sjafor + ': «' + k.kommentar + '»',
       dato:k.dato, mal:'kommentaroversikt'});
@@ -16275,6 +16294,11 @@ function attachKalenderListeners(){
 // AKTUELL bil vises. Administrator
 // (Dashboard-sidemeny, Kommentaroversikt, Aktive saker, Rapporter) kaller uten filter og
 // ser fortsatt hele bilparken, slik det alltid har gjort.
+// En kommentar fra sjåførkontrollen er informasjon. Den vises i Historikk → Kommentarer
+// og skal aldri bli et varsel. Fristilte kommentarer (☰ Mer) kan fortsatt varsles.
+function kommentarSkalVarsles(k){
+  return !!(k && !k.lest && k.kilde !== 'kontroll');
+}
 function nyeKommentarerListe(vehicleId){
   const fraKontroller = kontroller
     .map(k => {
@@ -19801,75 +19825,45 @@ function renderKontroll(){
     vlStatus = alleNylige ? 'amber' : 'red';
   }
   const vlStatusLabel = {red:'🔴 Aktive varsler', amber:'🟡 Nylig registrert', green:'🟢 Ingen aktive varsler'}[vlStatus];
-  // ---- Prioritet 56: kontrollflyten i Ringeliste-designet, med LØFTEBORD høyere opp ----
-  // Rekkefølge: 1 Bil · 2 Sjåfør · 3 Kilometerstand · 4 Løftebord · 5 Varsellamper ·
-  // 6 Kontrollavvik · 7 Kommentar · 8 Nye skader. Løftebord er det eneste løftebord-elementet som
-  // fantes i kontrollflyten (kontrollavviket 'loftebord', tidligere gjemt som siste chip i det lukkede
-  // «Kontrollavvik»-panelet). Det er nå løftet ut i eget kort (steg 4) sammen med løftebordets
-  // status — samme kontrollFormAvvik-liste, samme id-er og samme submitKontroll(): kun plasseringen
-  // er endret. «Kontrollavvik» viser de øvrige fire typene. Ingen ny funksjonalitet: smøring
-  // registreres fortsatt på Min Bil (sjåføren lander der automatisk etter innsending).
+  // Prioritet 70: bil og sjåfør er valgt før skjemaet. Rekkefølge: kilometerstand, varsellamper,
+  // kontrollavvik, kommentar til avvik (kun når avvik er valgt), kommentar fra sjåfør,
+  // nye skader og løftebord på samme rad, send. Smøring registreres fortsatt på Min Bil.
   const lb = v ? loftebordVedlikeholdStatus(v.id) : null;
   const lbAvvikAktiv = activeAvvikTypes.has('loftebord');
   const lbAvvikValgt = kontrollFormAvvik.includes('loftebord');
-  const lbAvvikChecked = lbAvvikAktiv || lbAvvikValgt;
-  const lbAccent = lb ? ({gronn:'var(--green)', gul:'var(--amber)', rod:'var(--red)'}[lb.status] || 'var(--line)') : 'var(--line)';
+  const lbAccent = lbAvvikValgt ? 'var(--orange)' : 'var(--green)';
   const lbSub = lb ? (lb.siste && lb.dagerSiden !== null
     ? `Sist utført ${fmt(lb.siste.dato)} · ${lb.dagerSiden === 0 ? 'i dag' : lb.dagerSiden + ' dag' + (lb.dagerSiden === 1 ? '' : 'er') + ' siden'}`
     : 'Vedlikehold ikke registrert') : '';
   const avvikTyper = KONTROLLAVVIK_ORDER.filter(k => k !== 'loftebord');
   const antallAvvikValgt = kontrollFormAvvik.filter(k => k !== 'loftebord').length;
   const kontrollDeler = {};
-  return `
-    ${driverMode ? `<div class="backrow"><button class="backbtn" id="kt-back">← Bytt bil</button></div>` : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`}
+  const tilbake = driverMode
+    ? `<div class="backrow"><button class="backbtn" id="kt-back">← Bytt bil</button></div>`
+    : `<div class="backrow"><button class="backbtn" id="kt-back">← Tilbake</button></div>`;
+  const hode = `
     <div class="sj-header">
       <div class="sj-header-icon" style="--tint:var(--green-soft);--tone:var(--green-ink);">${luc('clipboard-check')}</div>
       <div class="sj-header-text">
         <h2>Registrer kontroll</h2>
-        <div class="required-hint">Kilometerstand, løftebord, varsellamper og eventuelle nye skader — tar under et minutt.</div>
+        <div class="required-hint">${v ? esc(vehicleLabel(v)) + ' · kilometerstand, varsellamper og eventuelle avvik.' : 'Kilometerstand, varsellamper og eventuelle avvik.'}</div>
       </div>
-    </div>
+    </div>`;
+  if(!kontrollFormVehicleId){
+    const velger = driverMode
+      ? `<div class="sj-card" style="--accent:var(--blue);"><div class="sj-card-body"><p class="required-hint" style="margin:0;">Velg bilen først. Gå tilbake og velg kjøretøyet du kjører i dag.</p></div></div>`
+      : `<div class="sj-card" style="--accent:var(--blue);"><div class="sj-card-head"><span class="sj-card-title">Velg bil</span></div><div class="sj-card-body">${renderDriftslagGruppertBilvalg('data-velg-kontroll-bil')}</div></div>`;
+    return `${tilbake}${hode}${velger}`;
+  }
+  return `
+    ${tilbake}
+    ${hode}
     ${kontrollDraftRestored ? `<div class="required-hint" style="margin:0 0 14px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">↩️ Hentet frem det du holdt på å fylle ut sist. Stemmer det ikke, kan du bare rette det.</div>` : ''}
     <form id="kontroll-form">
       <!-- Prioritet 60: hvert kort under registreres som en komponent i kontrollDeler (uttrykkene gir tom streng), og
            layoutmotoren tegner dem i publisert rekkefølge nederst i skjemaet. Markup, id-er og validering er uendret. -->
-      ${(kontrollDeler['control.bil-sjafor'] = `
-      <!-- 1 Bil · 2 Sjåfør -->
-      <div class="sj-card" style="--accent:var(--blue);">
-        <div class="sj-card-head"><span class="sj-card-title">Bil og sjåfør</span></div>
-        <div class="sj-card-body">
-          ${kontrollFormVehicleId && v ? `
-          <div class="row2">
-            <div class="field" style="margin-bottom:0;">
-              <label>Kjøretøy</label>
-              <div class="kt-vehicle-chosen sj-tap" id="kt-bytt-bil" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;min-height:44px;">
-                <span>${esc(vehicleLabel(v))}${(v.merke || v.modell) ? ` <span class="required-hint" style="margin-left:6px;">${esc(v.merke)}${v.modell ? ' ' + esc(v.modell) : ''}</span>` : ''}</span><span class="required-hint">Bytt bil ↺</span>
-              </div>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label>Sjåførnavn</label>
-              <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
-            </div>
-          </div>
-          ` : `
-          <div class="field" style="margin-bottom:16px;">
-            <label>Velg bil — gruppert etter driftslag</label>
-            <div style="margin-top:8px;">
-              ${renderDriftslagGruppertBilvalg('data-velg-kontroll-bil')}
-            </div>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>Sjåførnavn</label>
-            <input id="kt-sjafornavn" type="text" placeholder="F.eks. Ola Nordmann" value="${esc(kontrollFormSjaforNavn)}" required>
-          </div>
-          `}
-          <!-- Prioritet 56: skiltkortet (.kt-vehicle-card) er tatt bort her — bil, regnr og modell står
-               allerede i kjøretøyraden over, og kortet kostet ca. 75 px scrolling før løftebord. -->
-        </div>
-      </div>
-
-      `, '')}${(kontrollDeler['control.km'] = `
-      <!-- 3 Kilometerstand -->
+      ${(kontrollDeler['control.km'] = `
+      <!-- 1 Kilometerstand -->
       <div class="sj-card" style="--accent:var(--blue);">
         <div class="sj-card-head"><span class="sj-card-title">Kilometerstand</span></div>
         <div class="sj-card-body">
@@ -19877,27 +19871,8 @@ function renderKontroll(){
         </div>
       </div>
 
-      `, '')}${(kontrollDeler['control.loftebord'] = `
-      <!-- 4 Løftebord -->
-      <div class="sj-card" style="--accent:${lbAccent};">
-        <div class="sj-card-head">
-          <span class="sj-card-title">Løftebord</span>
-          ${lb ? `<span class="sj-pill ${lb.status}">${lb.ikon} ${lb.tekst}</span>` : ''}
-        </div>
-        <div class="sj-card-body">
-          ${lb ? `<div class="required-hint" style="margin:0 0 10px;">${lbSub}</div>` : ''}
-          <div class="chip-grid">
-            <button type="button" class="chip ${lbAvvikChecked ? 'checked' : ''} ${lbAvvikAktiv ? 'chip-active-lamp' : ''}" id="kt-avvik-loftebord" data-kt-avvik="loftebord">
-              <span class="chip-icon">${lbAvvikAktiv ? luc('check') : luc(KONTROLLAVVIK_LUCIDE['loftebord'] || 'clipboard-list')}</span>
-              <span class="chip-text">${KONTROLLAVVIK_LABEL['loftebord']} — meld feil eller skade${lbAvvikAktiv ? ' — Registrert og under oppfølging' : ''}${lbAvvikAktiv && lbAvvikValgt ? ' (bekreftet i dag)' : ''}</span>
-            </button>
-          </div>
-          <div class="sj-hint">Smøring av løftebordet registrerer du på Min Bil — du kommer dit automatisk etter at kontrollen er sendt inn.</div>
-        </div>
-      </div>
-
       `, '')}${(kontrollDeler['control.varsellamper'] = `
-      <!-- 5 Varsellamper -->
+      <!-- 2 Varsellamper -->
       <div class="sj-card" style="--accent:var(--amber);">
         <div class="sj-card-head klikk" data-toggle-kt-varsellamper>
           <span class="sj-card-title">Varsellamper</span>
@@ -19934,14 +19909,13 @@ function renderKontroll(){
       </div>
 
       `, '')}${(kontrollDeler['control.kontrollavvik'] = `
-      <!-- 6 Kontrollavvik (løftebord ligger i eget kort over) -->
+      <!-- 3 Kontrollavvik (løftebord ligger i den delte raden under) -->
       <div class="sj-card" style="--accent:var(--orange);">
-        <div class="sj-card-head klikk" data-toggle-kt-avvik>
+        <div class="sj-card-head">
           <span class="sj-card-title">Kontrollavvik</span>
           ${antallAvvikValgt > 0 ? `<span class="sj-card-meta">${antallAvvikValgt} valgt</span>` : ''}
-          <span class="chevron">${luc(kontrollAvvikOpen ? 'chevron-up' : 'chevron-down')}</span>
         </div>
-        ${kontrollAvvikOpen ? `<div class="sj-card-body">
+        <div class="sj-card-body">
           <div class="chip-grid">
             ${avvikTyper.map(key => {
               const isActive = activeAvvikTypes.has(key);
@@ -19954,42 +19928,70 @@ function renderKontroll(){
               </button>
             `;}).join('')}
           </div>
-        </div>` : ''}
-      </div>
-
-      `, '')}${(kontrollDeler['control.kommentar'] = `
-      <!-- 7 Kommentar -->
-      <div class="sj-card" style="--accent:var(--muted);">
-        <div class="sj-card-head"><span class="sj-card-title">Kommentar fra sjåfør</span></div>
-        <div class="sj-card-body">
-          <div class="field" style="margin:0;"><textarea id="kt-kommentar" aria-label="Kommentar fra sjåfør" placeholder="Valgfritt" style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea></div>
         </div>
       </div>
 
-      `, '')}${(kontrollDeler['control.nye-skader'] = `
-      <!-- 8 Nye skader -->
-      <div class="sj-card" style="--accent:var(--red);">
-        <div class="sj-card-head"><span class="sj-card-title">Har du oppdaget nye skader?</span></div>
+      `, '')}${(kontrollDeler['control.avvik-kommentar'] = kontrollFormAvvik.length > 0 ? `
+      <!-- 4 Kommentar til kontrollavvik — kun når minst ett avvik er valgt, inkludert løftebord -->
+      <div class="sj-card" style="--accent:var(--orange);">
+        <div class="sj-card-head"><span class="sj-card-title">Kommentar til kontrollavvik</span></div>
         <div class="sj-card-body">
-          <div class="chip-yn">
-            <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
-            <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
+          <div class="field" style="margin:0;">
+            <textarea id="kt-avvik-kommentar" aria-label="Kommentar til kontrollavvik" placeholder="Valgfritt. F.eks. defekt høyre sidespeil, eller lys som virker kun sporadisk." style="min-height:44px;">${esc(kontrollFormAvvikKommentar)}</textarea>
           </div>
-          ${kontrollFormHarSkader ? `
-          <div class="field" style="margin-top:12px;">
-            <label>Beskrivelse av skade</label>
-            <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
+          <div class="sj-hint">Lagres på kontrollavviket. Oppretter ikke en egen kommentar.</div>
+        </div>
+      </div>
+      ` : '', '')}${(kontrollDeler['control.kommentar'] = `
+      <!-- 5 Kommentar fra sjåfør — informasjon, aldri sak eller varsel -->
+      <div class="sj-card" style="--accent:var(--muted);">
+        <div class="sj-card-head"><span class="sj-card-title">Kommentar fra sjåfør</span></div>
+        <div class="sj-card-body">
+          <div class="field" style="margin:0;">
+            <textarea id="kt-kommentar" aria-label="Kommentar fra sjåfør" placeholder="Informasjon om bilen. F.eks. rotete, må vaskes, mangler isskrape, tom spylevæskedunk." style="min-height:44px;">${esc(kontrollFormKommentar)}</textarea>
           </div>
-          <div class="field" style="margin-top:10px;">
-            <label>Bilder</label>
-            <div class="photo-input-area">
-              <input type="file" accept="image/*" multiple id="kt-skade-foto">
-              <div class="required-hint">Du kan velge flere bilder samtidig.</div>
-              ${pendingKontrollPhotos.length > 0 ? `<div class="kt-photo-grid">${pendingKontrollPhotos.map((p,i) => `
-                <div class="kt-photo-thumb"><img src="${p}"><button type="button" data-remove-photo="${i}">×</button></div>
-              `).join('')}</div>` : ''}
+          <div class="sj-hint">Informasjon. Vises under Historikk → Kommentarer. Oppretter ikke sak, varsel eller kontrollavvik.</div>
+        </div>
+      </div>
+
+      `, '')}${(kontrollDeler['control.skade-loftebord'] = `
+      <!-- 6 Nye skader og løftebord på én rad -->
+      <div class="kt-delt-rad">
+        <div class="sj-card" style="--accent:var(--red);">
+          <div class="sj-card-head"><span class="sj-card-title">Nye skader</span></div>
+          <div class="sj-card-body">
+            <div class="chip-yn">
+              <label for="kt-skade-ja" class="${kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-ja" ${kontrollFormHarSkader?'checked':''}> Ja</label>
+              <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
             </div>
-          </div>` : ''}
+            ${kontrollFormHarSkader ? `
+            <div class="field" style="margin-top:12px;">
+              <label>Beskrivelse av skade</label>
+              <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
+            </div>
+            <div class="field" style="margin-top:10px;">
+              <label>Bilder</label>
+              <div class="photo-input-area">
+                <input type="file" accept="image/*" multiple id="kt-skade-foto">
+                <div class="required-hint">Du kan velge flere bilder samtidig.</div>
+                ${pendingKontrollPhotos.length > 0 ? `<div class="kt-photo-grid">${pendingKontrollPhotos.map((p,i) => `
+                  <div class="kt-photo-thumb"><img src="${p}"><button type="button" data-remove-photo="${i}">×</button></div>
+                `).join('')}</div>` : ''}
+              </div>
+            </div>` : ''}
+          </div>
+        </div>
+        <div class="sj-card" style="--accent:${lbAccent};">
+          <div class="sj-card-head"><span class="sj-card-title">Løftebord</span></div>
+          <div class="sj-card-body">
+            <div class="chip-yn">
+              <label for="kt-loftebord-ok" class="${!lbAvvikValgt ? 'checked' : ''}"><input type="radio" name="kt-loftebord" id="kt-loftebord-ok" ${!lbAvvikValgt?'checked':''}> OK</label>
+              <label for="kt-loftebord-ma" class="${lbAvvikValgt ? 'checked' : ''}"><input type="radio" name="kt-loftebord" id="kt-loftebord-ma" ${lbAvvikValgt?'checked':''}> Må gjøres</label>
+            </div>
+            ${lbSub ? `<div class="required-hint" style="margin:10px 0 0;">${lbSub}</div>` : ''}
+            ${lbAvvikAktiv ? `<div class="sj-hint">Løftebordavvik er allerede under oppfølging. Velg «Må gjøres» bare hvis det skal meldes på nytt.</div>` : ''}
+            <div class="sj-hint">Smøring registreres på Min Bil.</div>
+          </div>
         </div>
       </div>
 
@@ -20005,14 +20007,12 @@ function attachKontrollListeners(){
   attachDriftslagGruppeListeners();
   const varsellamperHead = document.querySelector('[data-toggle-kt-varsellamper]');
   if(varsellamperHead) varsellamperHead.addEventListener('click', () => { kontrollVarsellamperOpen = !kontrollVarsellamperOpen; render(); });
-  const avvikHead = document.querySelector('[data-toggle-kt-avvik]');
-  if(avvikHead) avvikHead.addEventListener('click', () => { kontrollAvvikOpen = !kontrollAvvikOpen; render(); });
   const backBtn = document.getElementById('kt-back');
   if(backBtn) backBtn.addEventListener('click', () => {
     if(driverMode){
       kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormAnnetTekst = '';
       kontrollFormVarsellamper = []; kontrollVarsellamperOpen = false;
-      kontrollFormAvvik = []; kontrollAvvikOpen = false;
+      kontrollFormAvvik = []; kontrollAvvikOpen = false; kontrollFormAvvikKommentar = '';
       driverVelgBilId = '';
       driverScreen = 'velg-bil';
       render();
@@ -20020,7 +20020,8 @@ function attachKontrollListeners(){
       goBack();
     }
   });
-  document.getElementById('kontroll-form').addEventListener('submit', beskyttSubmit('submitKontroll', submitKontroll, {opptattTekst: 'Registrerer...'}));
+  const kontrollFormEl = document.getElementById('kontroll-form');
+  if(kontrollFormEl) kontrollFormEl.addEventListener('submit', beskyttSubmit('submitKontroll', submitKontroll, {opptattTekst: 'Registrerer...'}));
 
   document.querySelectorAll('[data-velg-kontroll-bil]').forEach(el => el.addEventListener('click', () => velgKontrollBil(el.dataset.velgKontrollBil)));
   const byttBilEl = document.getElementById('kt-bytt-bil');
@@ -20054,6 +20055,20 @@ function attachKontrollListeners(){
   if(sjaforInput) sjaforInput.addEventListener('input', e => { kontrollFormSjaforNavn = e.target.value; saveKontrollDraft(); });
   const kommentarInput = document.getElementById('kt-kommentar');
   if(kommentarInput) kommentarInput.addEventListener('input', e => { kontrollFormKommentar = e.target.value; saveKontrollDraft(); });
+  const avvikKommentarInput = document.getElementById('kt-avvik-kommentar');
+  if(avvikKommentarInput) avvikKommentarInput.addEventListener('input', e => { kontrollFormAvvikKommentar = e.target.value; saveKontrollDraft(); });
+  const loftebordOk = document.getElementById('kt-loftebord-ok');
+  const loftebordMa = document.getElementById('kt-loftebord-ma');
+  if(loftebordOk) loftebordOk.addEventListener('change', () => {
+    kontrollFormAvvik = kontrollFormAvvik.filter(k => k !== 'loftebord');
+    saveKontrollDraft();
+    render();
+  });
+  if(loftebordMa) loftebordMa.addEventListener('change', () => {
+    if(!kontrollFormAvvik.includes('loftebord')) kontrollFormAvvik.push('loftebord');
+    saveKontrollDraft();
+    render();
+  });
   const annetTekstInput = document.getElementById('kt-annet-tekst');
   if(annetTekstInput) annetTekstInput.addEventListener('input', e => { kontrollFormAnnetTekst = e.target.value; saveKontrollDraft(); });
   const skadeBeskrivelseInput = document.getElementById('kt-skade-beskrivelse');
