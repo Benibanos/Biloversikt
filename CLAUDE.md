@@ -1,10 +1,10 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 67 —
-**Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime (synlig til Utført, ikke klokke/dato). Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
-**Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser (⚠ Kilometeravvik med Fra/Til/differanse og Godkjenn; 💬 Sjåførkommentar viser kun kommentaren). Sjåfør ser kun aktiv bil; administrator har kjøretøyfilter. Historisk `kontroller[].kommentar` slettes ikke. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-21 (Prioritet 65 —
-**Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll (`AktivSjaforSiden` = kontrollens tidspunkt). Feltet gjenopprettes ved oppstart, synk, reload og cache-refresh når det mangler. Unntak: administratorens manuelle nullstilling inntil en ny kontroll. Dashboard-bannerets «N aktive» telles på samme kjøretøygrunnlag som «X/Y kontrollert». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 68 —
+**Direkte redigering av bilinformasjon.** Kjøretøydetaljer bytter mellom visnings- og redigeringsmodus på samme bilprofil, med kompakt 3-kolonners desktopgrid. Serviceintervall er tilbake som eget beregningsfelt ved siden av servicenummer. `storage.airtable.js` uendret v2.24.0; appversjon 116. Se «Prioritet 68 (2026-09-22)» nederst. Før det: 2026-09-21 (Prioritet 67 —
+**Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime. Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
+**Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 65 —
+**Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll. `storage.airtable.js` uendret v2.23.0. Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
 **Samle oppdatering og synkronisering.** Oppdater app, Database status og Systemkontroll sjåfører er samlet i Innstillinger → **Optimaliseringer** med Hurtigoversikt-faner (Alle / App / Airtable / Sjåfører) og «Oppdater og synkroniser alt». `storage.airtable.js` uendret (v2.23.0). Se «Prioritet 64 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 63 —
 **Dublettsikring og flerbilssaker.** Sjåførkontroll: «Registrerer...»-knapp og dublettsikring (samme bil + sjåfør + operative dag innen 10 min lagres kun én gang). Aktive saker: «➕ Legg til bil» —
 én sak for flere biler (én saksrad per bil knyttet med `sakGruppeId`), samlet Godta og én verkstedbestilling per bil. **Ny Airtable-kolonne `AktiveSaker.SakGruppeId` MÅ opprettes før idriftsettelse.**
@@ -6390,6 +6390,31 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 **Ikke rørt:** sjåførens daglige Systemkontroll-sperre (Prioritet 61), saksmotor, kilometerlogikk, aktiv sjåfør, kontrollgrunnlaget, Layout Engine-mekanikken for øvrig.
 
 **Kjente begrensninger:** (a) hard refresh logger ut administrator (samme som «Oppdater app» alltid har gjort — innlogging ligger i minnet); Dashboard vises etter ny innlogging; (b) «Oppdater og synkroniser alt» kan ikke fullføre Airtable-synk etter omlastingen i samme økt — synken kjøres FØR refresh; (c) to ulike enheter som synker samtidig følger siste skriving, uendret.
+
+---
+
+## Prioritet 68 (2026-09-22) — Direkte redigering av bilinformasjon
+
+**Varig regel: redigering av en bil skjer i Kjøretøydetaljer på selve bilprofilen.** «Rediger
+informasjon» bytter samme seksjon fra kompakt visning til redigerbare felt; det skal ikke
+bygges en separat redigeringsskjerm eller et langt, frittstående databasepanel. Bilkort,
+statusrader, aktive saker og Historikk forblir i DOM-en og synlige under redigering.
+
+**Kompakt layout:** `.bilinfo-edit-grid` bruker tre kolonner på desktop, to på mellomstore
+flater og én på mobil. En Kjøretøydetaljer-komponent med aktiv redigering spenner hele
+profilbredden, uavhengig av lagret halvbredde i Layout Engine. Avanserte
+driftsinnstillinger og løftebordkontroll ligger lukket under hovedfeltene, slik at normal
+redigering krever minst mulig scrolling.
+
+**Servicebegrepene er uavhengige:**
+- `v.serviceIntervallKm` / `Vehicles.ServiceIntervallKm` er et tall i kilometer og brukes
+  av `vehicleNesteServiceKm()`/`vehicleServiceStatus()` til neste service, varsler og km igjen.
+- `v.servicenummer` / `Vehicles.Servicenummer` er ren tekst for verksted-, faktura- og
+  kostnadsreferanse. Feltet påvirker aldri serviceberegninger.
+
+Ny kolonne `Vehicles.Servicenummer` (enkel tekst) MÅ opprettes før idriftsettelse, eller
+opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser nå».
+`storage.airtable.js` er uendret på v2.24.0; app-/cacheversjon 115 → 116.
 
 ---
 
