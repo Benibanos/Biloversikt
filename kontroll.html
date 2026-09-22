@@ -1329,7 +1329,8 @@
   .vt-plan-gruppe-tittel{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;}
   .vt-plan-rad{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line-soft);}
   .vt-plan-rad:first-child{border-top:none;}
-  .vt-plan-tid{flex:none;width:52px;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:2px;}
+  .vt-plan-tid{flex:none;min-width:52px;width:auto;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:2px;white-space:nowrap;}
+  .vt-plan-tid.dato{min-width:92px;}
   .vt-plan-main{flex:1;min-width:0;}
   .vt-plan-bil{font-size:14px;font-weight:700;}
   .vt-plan-prob,.vt-plan-ws{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere;}
@@ -7910,7 +7911,7 @@ function vtKommendeRadHtml(t, {historikk} = {}){
   const editing = editingVTId === t.id;
   return `
     <div class="vt-plan-rad ${forfalt ? 'vt-plan-forfalt' : ''}" data-vt-rad="${esc(t.id)}">
-      <div class="vt-plan-tid">${esc(tid)}</div>
+      <div class="vt-plan-tid${historikk ? ' dato' : ''}">${esc(tid)}</div>
       <div class="vt-plan-main">
         <div class="vt-plan-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
         <div class="vt-plan-prob">${esc(t.beskrivelse || (historikk ? 'Utført arbeid' : 'Ingen beskrivelse'))}</div>
