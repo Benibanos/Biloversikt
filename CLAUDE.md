@@ -1,7 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 68 —
-**Direkte redigering av bilinformasjon.** Kjøretøydetaljer bytter mellom visnings- og redigeringsmodus på samme bilprofil, med kompakt 3-kolonners desktopgrid. Serviceintervall er tilbake som eget beregningsfelt ved siden av servicenummer. `storage.airtable.js` uendret v2.24.0; appversjon 116. Se «Prioritet 68 (2026-09-22)» nederst. Før det: 2026-09-21 (Prioritet 67 —
+**Sakslivssyklus.** Avslå lukker saken, tilhørende varsellampe og kontrollavvik, og flytter oppføringen til historikk. Sjåførside og Dashboard leser samme aktive status. «Legg til bil» finnes ikke på saker; flere biler kan kun velges på dekkskift. `storage.airtable.js` uendret v2.24.0; appversjon 117. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
 **Opprydding av Kjøretøyprofil.** Bilkort samler navn·regnr, mobilitetsikon, løyve│servicenr, aktiv sjåfør og neste verkstedtime. Statusrad: Km · Sist service · EU · Dekk · Løftebord. Aktive saker er historikkfane. `Vehicles.Servicenummer` nytt felt. `storage.airtable.js` v2.24.0. Se «Prioritet 67 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 66 —
 **Skill kommentarer og kilometeravvik.** Kilometeravvik og sjåførkommentarer er egne hendelser. `storage.airtable.js` v2.23.0. Se «Prioritet 66 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 65 —
 **Aktiv sjåfør følger kontrollhistorikken.** En bil med gyldig kontroll i inneværende operative dag har alltid aktiv sjåfør = sjåføren på siste slike kontroll. `storage.airtable.js` uendret v2.23.0. Se «Prioritet 65 (2026-09-21)» nederst. Før det: 2026-09-21 (Prioritet 64 —
@@ -6390,6 +6390,31 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 **Ikke rørt:** sjåførens daglige Systemkontroll-sperre (Prioritet 61), saksmotor, kilometerlogikk, aktiv sjåfør, kontrollgrunnlaget, Layout Engine-mekanikken for øvrig.
 
 **Kjente begrensninger:** (a) hard refresh logger ut administrator (samme som «Oppdater app» alltid har gjort — innlogging ligger i minnet); Dashboard vises etter ny innlogging; (b) «Oppdater og synkroniser alt» kan ikke fullføre Airtable-synk etter omlastingen i samme økt — synken kjøres FØR refresh; (c) to ulike enheter som synker samtidig følger siste skriving, uendret.
+
+---
+
+## Prioritet 69 (2026-09-22) — Rydd opp i sakslivssyklus
+
+**Varig regel: avslå lukker hele hendelsen.** Når administrator avslår en sak, er saken,
+tilhørende varsellampe og tilhørende kontrollavvik lukket samtidig. Min Bil, Dashboard,
+Aktive saker og Varsler leser de samme kildene: åpen sak via `sakErApen()` (status
+`avslatt`, `utfort` og `lukket` er lukket) og aktiv varsellampe via `status === 'aktiv'`.
+En avslått sak skal ikke kunne stå som aktiv varsellampe eller aktivt kontrollavvik.
+
+`avslaSak()` setter `status` til `avslatt`, `resolvedAt`/`resolvedBy` og en historikklinje,
+setter hvert aktivt punkt i `sak.avvik` til `avslatt`, og kvitterer matchende varsellampe
+(`kvittert`) når ingen annen åpen sak på samme bil fortsatt har den lampen. Feiler
+lagringen, rulles både saker og varsellamper tilbake. Lukkede saker forsvinner fra de
+aktive listene og vises i historikk via `resolvedAt`. Kvitterte lamper ligger i
+varsellamphistorikken.
+
+**Varig regel: én sak tilhører ett kjøretøy.** «Legg til bil» og samlet flerbilshåndtering
+er fjernet fra Aktive saker, varsellamper, kontrollavvik og skader. Eldre `sakGruppeId`-rader
+vises som egne saker på sin bil; kolonnen slettes ikke. Flere biler kan kun velges på
+dekkskift (`Velg flere biler` i verkstedskjemaet), som fortsatt lager én verkstedbestilling
+per bil.
+
+`storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 116 → 117.
 
 ---
 
