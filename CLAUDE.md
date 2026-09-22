@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 70 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 71.1 —
+**Fjern løftebord fra sjåførkontroll.** Løftebord-seksjonen, OK/Må gjøres og status er tatt ut av kontrollflyten. Min Bil beholder status, sist utført, vedlikeholdshistorikk og «Smør løftebord». Ny rekkefølge: km → varsellamper → kontrollavvik → avvikskommentar → sjåførkommentar → nye skader → send. `storage.airtable.js` uendret v2.24.0; appversjon 120. Se «Prioritet 71.1 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 70 —
 **Skill kommentar og kontrollavvik.** Kommentar fra sjåfør er informasjon og oppretter aldri sak, varsel eller kontrollavvik. Kontrollavvik er oppfølging, med eget avvik «Sidespeil defekt/ødelagt» og egen avvikskommentar på avviket. Bil og sjåfør er tatt ut av kontrollskjemaet. Nye skader og løftebord ligger på samme rad. `storage.airtable.js` uendret v2.24.0; appversjon 119. Se «Prioritet 70 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 72 — **Komprimer Biloversikt.** ← Tilbake fjernet fra primære sider (Biloversikt/Verksted/Kalender/Aktive saker/Varslingssenter/Rapporter-hub/Kostnader), beholdt på detaljsider; kjøretøyteller fjernet; «+ Ny bil» som egen fane til høyre i fanelinjen; Søk + Filter på samme linje. `storage.airtable.js` uendret (v2.24.0). Se «Prioritet 72 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 69 —
 **Varslingssenter viser kun aktive hendelser.** Avslåtte, lukkede og utførte saker og kvitterte varsellamper ligger i historikk, ikke i Varslingssenteret. «Merk som løst» lukker også tilhørende sak. `storage.airtable.js` uendret v2.24.0; appversjon 118. Se «Prioritet 69 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 68 —
@@ -6138,7 +6139,7 @@ registeret og la motoren gjøre resten.
 | Sidemeny (desktop) + drawer (mobil) | sidebar | rekkefølge, skjul/vis, primær ↔ sekundær, dra og slipp | Hjem, Alle sider, Innstillinger |
 | Bilinformasjon | seksjoner | rekkefølge, skjul/vis, halv/full bredde, åpen/lukket start; Historikk-faner: rekkefølge, skjul/vis, standardfane | – (minst én fane synlig; skjult fane sletter aldri data) |
 | Min Bil (mobil) | liste | rekkefølge, skjul/vis, starttilstand (aldri bredde/høyde) | Bilkort (+ løftebord-raden), Registrer skade, Registrer varsellampe, Sjekk ut bil (låst nederst) |
-| Sjåførkontroll | begrenset | Løftebord kan flyttes (blant de fire første), Kommentar kan flyttes/skjules | Kjøretøy og sjåfør (øverst), Kilometerstand, Varsellamper, Kontrollavvik, Nye skader, Send kontroll (nederst) |
+| Sjåførkontroll | begrenset | Kommentarfeltene kan skjules | Kilometerstand, Varsellamper, Kontrollavvik, Nye skader, Send kontroll (nederst). Løftebord håndteres på Min Bil. |
 | Mobil Dashboard | liste | rekkefølge, skjul/vis | – |
 | Standardsider | seksjoner | seksjonsrekkefølge, skjul/vis, starttilstand, standardfane | listen på Verksted, selve kalenderen, fanen «Aktiv sak», kritiske HMS-varselkategorier (varsellampe, skade), Layout Editor i Innstillinger |
 
@@ -6521,6 +6522,18 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 **Kontrollrekkefølge er låst** (`canMove: false`): kilometerstand, varsellamper, kontrollavvik, kommentar til kontrollavvik, kommentar fra sjåfør, nye skader og løftebord, send. Bil og sjåfør er ikke felt på skjemaet. Uten valgt bil viser administrasjonen bilvelgeren før skjemaet; sjåføren sendes tilbake til Velg bil.
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 118 → 119. `storage.airtable.js` uendret.
+
+## Prioritet 71.1 (2026-09-22) — Fjern løftebord fra sjåførkontroll
+
+(Brukerens egen nummerering. Det finnes en tidligere, urelatert «Prioritet 71.1 — migrerLegacySkaderTilSaker» lenger opp.)
+
+**Varig regel: løftebord håndteres på Min Bil, ikke i sjåførkontrollen.** Kontrollflyten viser ikke løftebordseksjon, OK/Må gjøres eller vedlikeholdsstatus. `'loftebord'` beholdes i `KONTROLLAVVIK_ORDER`/`_LABEL`/`_IKON`/`_LUCIDE` for Min Bil-avvik og historikk, men filtreres ut av chiplisten, kladd, innsending og avvikskommentar-visning i `renderKontroll()`.
+
+**Kontrollrekkefølge er låst** (`canMove: false`): kilometerstand, varsellamper, kontrollavvik, kommentar til kontrollavvik, kommentar fra sjåfør, nye skader, send. Layout-id `control.nye-skader` avløser `control.skade-loftebord` (ukjent nøkkel forkastes av `layoutNormaliserGruppe()`).
+
+**Min Bil er urørt:** `driver.loftebord`, `loftebordVedlikeholdStatus()`, «Smør løftebord» / `submitMinBilLoftebordVedlikehold()`.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 119 → 120. `storage.airtable.js` uendret (v2.24.0).
 ## Prioritet 72 (2026-09-22) — Komprimer Biloversikt
 
 (Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 (2026-09-18) — Dashboard 2.0».)
