@@ -23,6 +23,15 @@ Nummeret følger brukerens backlog.
 2. Åpnes Eldre, grupperes postene videre per måned (September 2026, August 2026, …). Måneder og eldre rader rendres først når de åpnes.
 3. **Åpne full kontrollhistorikk** går til en egen revisjonsside med alle kontroller, kilometerstander, sjåfører og kommentarer, plus filtrering og Excel-eksport.
 4. Ingen kontrollrader slettes. Kilometerstandsrapporten er uendret. `storage.airtable.js` uendret v2.24.0. App-/cacheversjon 119 → 120.
+### Prioritet 71.1 — Fjern løftebord fra sjåførkontroll
+
+Nummeret følger brukerens backlog. Historisk «Prioritet 71.1 — migrerLegacySkaderTilSaker» er en annen sak.
+
+1. Løftebord-seksjonen (status, OK, Må gjøres) er fjernet fra sjåførkontrollen. Løftebordavvik kan ikke lenger velges i kontrollflyten.
+2. Min Bil er uendret: status, sist utført, vedlikeholdshistorikk og «Smør løftebord».
+3. Ny, låst kontrollrekkefølge: kilometerstand → varsellamper → kontrollavvik → kommentar til kontrollavvik → kommentar fra sjåfør → nye skader → send.
+4. Layout-nøkkelen `control.skade-loftebord` er erstattet av `control.nye-skader`. En gammel lagret nøkkel forkastes av `layoutNormaliserGruppe()`.
+5. `storage.airtable.js` er uendret på v2.24.0. App-/cacheversjon 119 → 120.
 
 ### Prioritet 70 — Skill kommentar og kontrollavvik
 
