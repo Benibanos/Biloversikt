@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 74 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 75 —
+**Ny verkstedoversikt.** Standardvisning grupperer planlagte verkstedtimer på dato (I dag / Denne uken / Senere, pluss Forfalt), ikke per bil. Faner Kommende (standard) · Biler · Historikk. Kompakt «Neste verksted» og KPI I dag / Denne uken / Forfalt. `storage.airtable.js` uendret v2.24.0; appversjon 122. Se «Prioritet 75 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 74 —
 **Historisk service.** «Registrer tidligere service» ved siden av «Registrer service». Utført dato = ServiceDato (`servicehistorikk[].dato`); `createdAt` er registreringstidspunkt. Siste service og km igjen beregnes live fra nyeste gyldige historikkpost; sletting oppdaterer automatisk. `storage.airtable.js` uendret v2.24.0; appversjon 121. Se «Prioritet 74 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 71.1 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 73 —
 **Del opp kontrollhistorikken.** Kontroller-fanen viser Denne uken og Forrige uke åpne, Eldre lukket og gruppert per måned ved åpning. Full historikk er en egen side med filter og eksport. Ingen historikk slettes. Kilometerstandsrapport uendret. `storage.airtable.js` uendret v2.24.0; appversjon 120. Se «Prioritet 73 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 70 —
@@ -6578,4 +6579,19 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 **Full historikk** (`screen === 'kontrollhistorikk'`): alle kontroller, km, sjåfør, kommentar, filter (bil/fra/til/sjåfør/kun kommentar) og Excel-eksport. Ikke et sidemenypunkt.
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 119 → 120. `storage.airtable.js` uendret v2.24.0.
+
+## Prioritet 75 (2026-09-22) — Ny verkstedoversikt
+
+(Brukerens egen nummerering.) **Varig regel: Verkstedoversikt svarer først på «Hva skal inn på verksted, og når?»** Planlagte timer vises som en arbeidsliste gruppert på dato, ikke bak per-bil-akkordion.
+
+**Faner** (`vtOversiktFane`, default `'kommende'`, nullstilles når man forlater siden):
+- **Kommende** — alle ikke-utførte timer sortert dato+klokkeslett, gruppert Forfalt · I dag · Denne uken (resten av ISO-uken etter i dag) · Senere. Hver rad: klokkeslett, `vehicleLabel()`, problem, verksted, [Åpne] [Utført]. Hele planen er lesbar uten å åpne hver bil.
+- **Biler** — den tidligere per-bil-grupperingen (`verkstedGroupedSection`, uten ytre «Biloversikt»-akkordion).
+- **Historikk** — utførte verkstedtimer (`t.utfort`) på samme side. Den frittstående Verkstedhistorikk-skjermen er uendret.
+
+**Øverst:** tre KPI-kort (I dag / Denne uken inkl. i dag / Forfalt = dato < `todayISO()`) og kompakt «Neste verksted» (`vtNesteKompaktHtml`) i stedet for det store `.nvt`-kortet. Dashboard, Kjøretøyprofil og Min Bil bruker fortsatt `nesteVerkstedtimeHtml()`.
+
+**Ikke rørt:** `submitAddVT` / `fullforVerkstedbestilling` / saksmotor / `storage.airtable.js`.
+
+**Filer:** `index.html`, `kontroll.html`, `sw.js` / `version-check.js` / `version.json` 121 → 122. `storage.airtable.js` uendret v2.24.0.
 
