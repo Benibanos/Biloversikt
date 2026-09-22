@@ -1198,11 +1198,9 @@
   /* egen rad kun for de fire bestillingskortene (Service/EU-kontroll/
      Dekkskifte/Ruteskift). Bevisst en EGEN klasse, ikke en endring av
      .dash40-grid4/.dash40-grid2 — KPI-radene skal forbli uendret. */
-  /* Prioritet 62: .dash40-grid5 er FJERNET. Alle "Bestill tjenester"-flater har nå fire
-     kort — Verkstedtime opprettes kun via saksflyten — og bruker .dash40-grid4-bestill
-     (dashboard desktop/mobil + Kjøretøyprofil) eller .dash40-grid2x2 (den dedikerte
-     Bestill tjenester-skjermen). .dash40-grid4/.dash40-grid2 er KPI-rader og urørt. */
-  .dash40-grid4-bestill{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+  /* Prioritet 76: Bestill tjenester har fem kort (Service / EU-kontroll / Dekkskift /
+     Ruteskift / Reparasjon). .dash40-grid4/.dash40-grid2 er KPI-rader og urørt. */
+  .dash40-grid4-bestill{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
   /* Prioritet 62: den DEDIKERTE Bestill tjenester-skjermen viser de fire kortene som et
      rent 2x2-rutenett i alle bredder — skjermen har én jobb ("Hva vil du bestille?"),
      og fire store trykkflater leses raskere enn en rad på fire. Dashboardpanelene bruker
@@ -1335,6 +1333,12 @@
   .vt-plan-bil{font-size:14px;font-weight:700;}
   .vt-plan-prob,.vt-plan-ws{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere;}
   .vt-plan-ws{color:var(--muted);}
+  .vt-plan-dato{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin:14px 0 2px;}
+  .vt-plan-gruppe > .vt-plan-dato:first-of-type{margin-top:0;}
+  .vt-plan-arbeid-etikett{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+  .vt-oppgave-liste{margin:2px 0 0;padding:0;list-style:none;}
+  .vt-oppgave-liste li{font-size:13.5px;color:var(--ink);line-height:1.35;}
+  .vt-oppgave-liste li::before{content:'☑ '; }
   .vt-plan-btns{flex:none;display:flex;flex-direction:column;gap:6px;align-items:stretch;}
   .vt-plan-forfalt .vt-plan-tid{color:var(--red);}
   @media (max-width:640px){
@@ -7608,7 +7612,54 @@ function vehicleEuKontrollStatus(v){
 // vtTypeTittel() er ÉN delt kilde til sannhet for lesing av feltet — brukes overalt (Bestill
 // tjenester/Kalender/Planlegging/Bilkort) istedenfor spredte, separate t.type === '...'-sjekker.
 function vtHarType(t, kode){
-  return !!(t && t.type && String(t.type).split(',').includes(kode));
+  return !!(t && t.type && String(t.type).split(',').map(s => s.trim()).includes(kode));
+}
+// Prioritet 76: én verkstedtime = én verkstedordre. Service, EU-kontroll og Reparasjon
+// kan ligge som flere arbeidsoppgaver på SAMME rad (kommaseparert Type). Dekkskift og
+// Ruteskift er eksklusive — egne flyter, aldri slått sammen med de tre andre.
+const VT_TYPE_LABEL = {
+  'eu-kontroll':'EU-kontroll',
+  service:'Service',
+  dekkskift:'Dekkskift',
+  ruteskift:'Ruteskift',
+  reparasjon:'Reparasjon'
+};
+const VT_TYPE_REKKEFOLGE = ['eu-kontroll','service','reparasjon','dekkskift','ruteskift'];
+const VT_ORDRE_TYPER = ['eu-kontroll','service','reparasjon'];
+const VT_EKSKLUSIVE_TYPER = ['dekkskift','ruteskift'];
+function vtTyperListe(tEllerStreng){
+  const raw = (tEllerStreng && typeof tEllerStreng === 'object') ? tEllerStreng.type : tEllerStreng;
+  const sett = new Set(String(raw || '').split(',').map(s => s.trim()).filter(k => VT_TYPE_REKKEFOLGE.includes(k)));
+  return VT_TYPE_REKKEFOLGE.filter(k => sett.has(k));
+}
+function vtSlaTyperSammen(a, b){
+  const sett = new Set(vtTyperListe(a).concat(vtTyperListe(b)));
+  return VT_TYPE_REKKEFOLGE.filter(k => sett.has(k)).join(',');
+}
+function vtErKombinerbarOrdre(tEllerStreng){
+  const typer = vtTyperListe(tEllerStreng);
+  return typer.length > 0 && typer.every(k => VT_ORDRE_TYPER.includes(k));
+}
+function vtOppgaverTekst(t){
+  const typer = vtTyperListe(t);
+  if(typer.length) return typer.map(k => VT_TYPE_LABEL[k]).join(', ');
+  return (t && t.beskrivelse) ? String(t.beskrivelse) : 'Arbeid';
+}
+function vtOppgaverListeHtml(t){
+  const typer = vtTyperListe(t);
+  const punkter = typer.length ? typer.map(k => VT_TYPE_LABEL[k]) : [(t && t.beskrivelse) ? String(t.beskrivelse) : 'Arbeid'];
+  return `<ul class="vt-oppgave-liste">${punkter.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`;
+}
+function finnEksisterendeVerkstedordre(vehicleId, dato, verksted, unntattId){
+  if(!vehicleId || !dato || !verksted) return null;
+  return verkstedtimer.find(t =>
+    t && !t.utfort &&
+    t.id !== unntattId &&
+    t.vehicleId === vehicleId &&
+    t.dato === dato &&
+    t.verksted === verksted &&
+    vtErKombinerbarOrdre(t)
+  ) || null;
 }
 // Prioritet 71.9: alle fem kanoniske typer (VT_TYPE_VELGER, Prioritet 71.6) skilles nå fra
 // hverandre her — tidligere falt Service/Dekkskift/Reparasjon alle sammen til det samme
@@ -7652,6 +7703,8 @@ function vtTypeArt(t){
   return 'verksted';
 }
 function vtTypeTittel(t){
+  const typer = vtTyperListe(t);
+  if(typer.length > 1) return typer.map(k => VT_TYPE_LABEL[k]).join(' + ') + ' (verkstedordre)';
   const eu = vtHarType(t, 'eu-kontroll'), rs = vtHarType(t, 'ruteskift');
   if(eu && rs) return 'EU-kontroll + Ruteskift (verkstedtime)';
   if(eu) return 'EU-kontroll (verkstedtime)';
@@ -7859,6 +7912,7 @@ function vtNesteKompaktHtml(t){
       <div class="nvt-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
       <div class="nvt-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div>
       <div class="nvt-verksted">${esc(t.verksted || 'Verksted ikke satt')}</div>
+      <div class="nvt-arbeid">${esc(vtOppgaverTekst(t))}</div>
     </div>`;
 }
 function vtOversiktKpi(liste){
@@ -7906,16 +7960,17 @@ function vtKommendeGrupper(liste){
 }
 function vtKommendeRadHtml(t, {historikk} = {}){
   const v = vtVehicle(t);
-  const tid = historikk ? (t.utfortDato ? fmt(t.utfortDato) : fmt(t.dato)) : (t.tidspunkt || '—');
+  const tid = t.tidspunkt || '—';
   const forfalt = !historikk && t.dato && t.dato < todayISO();
   const editing = editingVTId === t.id;
   return `
     <div class="vt-plan-rad ${forfalt ? 'vt-plan-forfalt' : ''}" data-vt-rad="${esc(t.id)}">
-      <div class="vt-plan-tid${historikk ? ' dato' : ''}">${esc(tid)}</div>
+      <div class="vt-plan-tid">${esc(tid)}</div>
       <div class="vt-plan-main">
         <div class="vt-plan-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
-        <div class="vt-plan-prob">${esc(t.beskrivelse || (historikk ? 'Utført arbeid' : 'Ingen beskrivelse'))}</div>
         <div class="vt-plan-ws">${esc(t.verksted || 'Verksted ikke satt')}</div>
+        <div class="vt-plan-arbeid-etikett">Arbeid</div>
+        ${vtOppgaverListeHtml(t)}
       </div>
       <div class="vt-plan-btns">
         <button type="button" class="btn secondary small" data-apne-vt="${esc(t.id)}">Åpne</button>
@@ -7924,6 +7979,18 @@ function vtKommendeRadHtml(t, {historikk} = {}){
     </div>
     ${editing ? vtCard(t, !t.utfort, !t.utfort && nesteVerkstedtime() && nesteVerkstedtime().id === t.id) : ''}`;
 }
+function vtPlanDatoGrupperHtml(rader, {historikk} = {}){
+  const kart = new Map();
+  rader.forEach(t => {
+    const k = historikk ? (t.utfortDato || t.dato || '') : (t.dato || '');
+    if(!kart.has(k)) kart.set(k, []);
+    kart.get(k).push(t);
+  });
+  return [...kart.entries()].map(([dato, liste]) => `
+    <div class="vt-plan-dato">${dato ? esc(fmt(dato)) : 'Uten dato'}</div>
+    ${liste.map(t => vtKommendeRadHtml(t, {historikk})).join('')}
+  `).join('');
+}
 function vtKommendeListeHtml(liste){
   const grupper = vtKommendeGrupper(liste);
   const synlige = grupper.filter(g => g.rader.length > 0);
@@ -7931,14 +7998,14 @@ function vtKommendeListeHtml(liste){
   return synlige.map(g => `
     <div class="vt-plan-gruppe" id="vt-gruppe-${g.id}">
       <div class="vt-plan-gruppe-tittel">${esc(g.tittel)}</div>
-      ${g.rader.map(t => vtKommendeRadHtml(t)).join('')}
+      ${vtPlanDatoGrupperHtml(g.rader)}
     </div>`).join('');
 }
 function vtHistorikkListeHtml(){
   const poster = verkstedtimer.filter(t => t.utfort && (!vtFilterBil || t.vehicleId === vtFilterBil) && (!vtFilterVerksted || t.verksted === vtFilterVerksted))
     .sort((a,b) => ((b.utfortDato || b.dato || '') + (b.tidspunkt || '')).localeCompare((a.utfortDato || a.dato || '') + (a.tidspunkt || '')));
   if(poster.length === 0) return `<div class="empty-note">Ingen utførte verkstedjobber.</div>`;
-  return `<div class="vt-plan-gruppe"><div class="vt-plan-gruppe-tittel">Utført</div>${poster.map(t => vtKommendeRadHtml(t, {historikk:true})).join('')}</div>`;
+  return `<div class="vt-plan-gruppe"><div class="vt-plan-gruppe-tittel">Utført</div>${vtPlanDatoGrupperHtml(poster, {historikk:true})}</div>`;
 }
 function vtOversiktFanerHtml(){
   const faner = [
@@ -9310,6 +9377,115 @@ function visBekreftDialog(o, onBekreft){
   });
   ok.focus();
 }
+// Prioritet 76: to handlinger — «Ny avtale» eller «Legg til eksisterende». Overlay-klikk /
+// Escape avbryter uten å lagre. Ingen render() (skjemaet bak er DOM-drevet).
+function visVerkstedordreValg(o, onNy, onLeggTil){
+  const gammel = document.getElementById('vt-ordre-overlay');
+  if(gammel) gammel.remove();
+  const el = document.createElement('div');
+  el.className = 'modal-overlay open';
+  el.id = 'vt-ordre-overlay';
+  el.innerHTML = `
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="vt-ordre-tittel">
+      <div class="modal-title" id="vt-ordre-tittel">${esc(o.tittel)}</div>
+      <p style="font-size:14.5px;line-height:1.5;margin-bottom:8px;">${esc(o.tekst)}</p>
+      <div class="required-hint" style="margin-bottom:16px;">${esc(o.detalj || '')}</div>
+      <div class="panel-actions" style="justify-content:flex-end;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="btn secondary" id="vt-ordre-ny">Ny avtale</button>
+        <button type="button" class="btn" id="vt-ordre-legg">Legg til eksisterende</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  const lukk = () => { document.removeEventListener('keydown', esc_); el.remove(); };
+  const esc_ = (e) => { if(e.key === 'Escape') lukk(); };
+  document.addEventListener('keydown', esc_);
+  el.addEventListener('click', (e) => { if(e.target === el) lukk(); });
+  const nyBtn = el.querySelector('#vt-ordre-ny');
+  const leggBtn = el.querySelector('#vt-ordre-legg');
+  nyBtn.addEventListener('click', async () => {
+    nyBtn.disabled = true; leggBtn.disabled = true; nyBtn.textContent = 'Oppretter …';
+    try{ await onNy(); } finally { lukk(); }
+  });
+  leggBtn.addEventListener('click', async () => {
+    nyBtn.disabled = true; leggBtn.disabled = true; leggBtn.textContent = 'Legger til …';
+    try{ await onLeggTil(); } finally { lukk(); }
+  });
+  leggBtn.focus();
+}
+function vtLesValgteTyperFraSkjema(){
+  const valgte = Array.from(document.querySelectorAll('input[name="vt-type"]:checked')).map(el => el.value).filter(k => VT_TYPE_REKKEFOLGE.includes(k));
+  if(valgte.length) return vtTyperListe(valgte.join(','));
+  if(VT_TYPE_REKKEFOLGE.includes(vtPrefillType)) return [vtPrefillType];
+  return [];
+}
+function vtKobleSakTilOrdre(sak, vtId){
+  if(!sak || !vtId) return;
+  sak.status = 'verksted-bestilt';
+  sak.linkedVtId = vtId;
+  const avvikCheckboxes = document.querySelectorAll('.vt-avvik-checkbox');
+  if(avvikCheckboxes.length > 0 && Array.isArray(sak.avvik)){
+    const valgteIder = new Set(Array.from(avvikCheckboxes).filter(c => c.checked).map(c => c.value));
+    sak.avvik.forEach(a => { if(valgteIder.has(a.id)) a.linkedVtId = vtId; });
+  }
+  sak.updatedAt = new Date().toISOString();
+}
+function vtFinnSakTilNyOrdre(vehicleId){
+  let sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
+  if(!sak){
+    const kandidater = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakFase(s) === 'oppfolging');
+    if(kandidater.length === 1) sak = kandidater[0];
+  }
+  return sak || null;
+}
+function vtNullstillAddSkjema(){
+  showAddVT = false;
+  vtPrefillVehicleId = '';
+  vtPrefillSakId = '';
+  vtPrefillKommentar = '';
+  vtFlereDetaljerApen = false;
+}
+async function leggTilPaEksisterendeVerkstedordre(eksisterende, payload){
+  const t = verkstedtimer.find(x => x.id === eksisterende.id);
+  if(!t || t.utfort){
+    alert('Verkstedordren er ikke lenger tilgjengelig. Opprett en ny avtale i stedet.');
+    return;
+  }
+  t.type = vtSlaTyperSammen(t.type, payload.type);
+  t.beskrivelse = vtOppgaverTekst(t);
+  if(payload.notater){
+    t.notater = t.notater ? (t.notater + '\n' + payload.notater) : payload.notater;
+  }
+  if(payload.kontaktperson && !t.kontaktperson) t.kontaktperson = payload.kontaktperson;
+  if(payload.telefon && !t.telefon) t.telefon = payload.telefon;
+  if(payload.tidspunkt && !t.tidspunkt) t.tidspunkt = payload.tidspunkt;
+  if(vtHarType(t, 'service') && payload.mobilitetsgarantiAktivert) t.mobilitetsgarantiAktivert = true;
+  await saveVerkstedtimer();
+  if(payload.sak){
+    if(!t.sakId){ t.sakId = payload.sak.id; t.caseId = payload.sak.caseId || ''; await saveVerkstedtimer(); }
+    vtKobleSakTilOrdre(payload.sak, t.id);
+    await saveAktiveSaker();
+  }
+  vtNullstillAddSkjema();
+  render();
+}
+async function opprettNyVerkstedordre(payload){
+  verkstedtimer.push({
+    id: payload.id, vehicleId: payload.vehicleId, verksted: payload.verksted, dato: payload.dato,
+    tidspunkt: payload.tidspunkt, beskrivelse: payload.beskrivelse, pris: payload.pris,
+    notater: payload.notater, sakId: payload.sak ? payload.sak.id : '',
+    caseId: payload.sak ? payload.sak.caseId : '', kontaktperson: payload.kontaktperson,
+    telefon: payload.telefon, type: payload.type,
+    mobilitetsgarantiAktivert: payload.mobilitetsgarantiAktivert,
+    dekkRetning: payload.dekkRetning, bestillingGruppeId: ''
+  });
+  await saveVerkstedtimer();
+  if(payload.sak){
+    vtKobleSakTilOrdre(payload.sak, payload.id);
+    await saveAktiveSaker();
+  }
+  vtNullstillAddSkjema();
+  render();
+}
 // Kalles fra submitAddVT() når «Velg flere biler» er aktiv. Validerer, og ber om bekreftelse FØR noe lagres.
 function submitDekkskiftFlereBiler(){
   const msgEl = document.getElementById('vt-msg');
@@ -9450,74 +9626,41 @@ async function submitAddVT(ev){
   // allerede registrert i LIST_TABLES i storage.airtable.js (historisk, se CLAUDE.md), så
   // ingen ny databasekolonne trengs — kun aktiv bruk av et eksisterende felt.
   //
-  // Prioritet 71.6: den horisontale verkstedtype-velgeren (VT_TYPE_VELGER) er ETT enkelt
-  // radiovalg — "Kun én verkstedtype skal kunne velges" (ticket-krav). type-feltet lagres
-  // derfor som ÉN streng, ikke lenger en kommaseparert kombinasjon fra to uavhengige
-  // avkrysningsbokser. Eldre, kommaseparerte data ('eu-kontroll,ruteskift') fra før denne
-  // endringen leses fortsatt korrekt av vtHarType() (uendret .split(',').includes()-logikk).
-  // Er saken sak-koblet (linkedSak), finnes ingen velger i DOM-en — fallback til
-  // vtPrefillType, som bestillVerkstedForSak() (Prioritet 71.8) nå setter fra sakens
-  // caseType via sakTilVtType() i stedet for et hardkodet 'reparasjon'.
-  const valgtTypeEl = document.querySelector('input[name="vt-type"]:checked');
-  const type = valgtTypeEl ? valgtTypeEl.value : vtPrefillType;
-  // Prioritet 71.5/71.6: mobilitetsgaranti-boksen ligger alltid i DOM-en (skjult via CSS når
-  // valgt type ikke er 'service', se add-vt-form), for at forslags-JS-en kan bytte type uten
-  // full render(). Gates derfor HER på faktisk valgt type også — en avkrysning som ble stående
-  // fra et tidligere "service"-valg skal ikke smitte over på en annen type ved innsending.
+  // Prioritet 76: arbeidsoppgaver er avkrysning — Service/EU-kontroll/Reparasjon kan
+  // kombineres på én ordre (kommaseparert Type). Dekkskift/Ruteskift er eksklusive.
+  const typer = vtLesValgteTyperFraSkjema();
+  const type = typer.join(',');
   const mobilitetsgarantiEl = document.getElementById('vt-mobilitetsgaranti');
-  const mobilitetsgarantiAktivert = !!(type === 'service' && mobilitetsgarantiEl && mobilitetsgarantiEl.checked);
+  const mobilitetsgarantiAktivert = !!(typer.includes('service') && mobilitetsgarantiEl && mobilitetsgarantiEl.checked);
   const msgEl = document.getElementById('vt-msg');
+  if(!typer.length){
+    msgEl.textContent = 'Velg minst én arbeidsoppgave.';
+    return;
+  }
   if(!vehicleId || !verksted || !dato || !beskrivelse){
     msgEl.textContent = 'Fyll ut bil, verksted, dato (DD/MM/ÅÅÅÅ) og beskrivelse.';
     return;
   }
-  const nyVtId = uid();
-  // «Del 2» — rotårsak til at saker ble hengende i "Under oppfølging": vtPrefillSakId
-  // settes KUN når verkstedtimen registreres via sakskortets egen «📅 Registrer
-  // verkstedtime»-knapp. Alle andre innganger (Verkstedoversikt sin generelle «+ Ny
-  // verkstedtime», hurtigbestilling fra Dashboard/Kjøretøyprofil, Min Bil) nullstiller
-  // den, og saken fikk da ALDRI status 'verksted-bestilt' — «✅ Arbeid utført» dukket
-  // aldri opp. Fallback: finnes det NØYAKTIG én åpen sak i fasen "Under oppfølging" på
-  // bilen, kobles den automatisk (samme kobling som om brukeren hadde brukt sakskort-
-  // knappen). Finnes det ingen, eller flere enn én (tvetydig — vi gjetter aldri hvilken),
-  // opprettes verkstedtimen uendret uten kobling, akkurat som før.
-  let sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
-  if(!sak){
-    const kandidater = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakFase(s) === 'oppfolging');
-    if(kandidater.length === 1) sak = kandidater[0];
-  }
-  // Prioritet 59: dekkretning lagres på selve dekkskift-bestillingen (også for én bil), slik at fullføring kan oppdatere
-  // dekkstatus og dekkhistorikk. Sak-koblede bestillinger har ingen retningsvelger — feltet er da tomt (uendret oppførsel).
+  const sak = vtFinnSakTilNyOrdre(vehicleId);
   const dekkRetningEl = document.querySelector('input[name="vt-dekkretning"]:checked');
-  const dekkRetning = (type === 'dekkskift' && dekkRetningEl) ? dekkRetningEl.value : '';
-  verkstedtimer.push({
-    id: nyVtId, vehicleId, verksted, dato, tidspunkt, beskrivelse, pris, notater,
-    sakId: sak ? sak.id : '', caseId: sak ? sak.caseId : '', kontaktperson, telefon, type,
-    mobilitetsgarantiAktivert, dekkRetning, bestillingGruppeId: ''
-  });
-  await saveVerkstedtimer();
-  if(sak){
-    sak.status = 'verksted-bestilt';
-    sak.linkedVtId = nyVtId;
-    // skjemaet viser avkrysningsbokser for HVILKE avvik som tas med kun når
-    // saken er flerpunkts (se sakWizardVtFormHtml) — finnes de, merk KUN de valgte
-    // avvikene med denne verkstedtimen. Resten av avvikene i saken forblir aktive og
-    // upåvirket. Enkeltavvik-saker/skjemaet på Verkstedoversikt (ingen avkrysningsbokser
-    // i DOM) er helt uendret fra før.
-    const avvikCheckboxes = document.querySelectorAll('.vt-avvik-checkbox');
-    if(avvikCheckboxes.length > 0 && Array.isArray(sak.avvik)){
-      const valgteIder = new Set(Array.from(avvikCheckboxes).filter(c => c.checked).map(c => c.value));
-      sak.avvik.forEach(a => { if(valgteIder.has(a.id)) a.linkedVtId = nyVtId; });
+  const dekkRetning = (typer.includes('dekkskift') && dekkRetningEl) ? dekkRetningEl.value : '';
+  const ordreBeskrivelse = vtTyperListe(type).length ? vtOppgaverTekst({type, beskrivelse}) : beskrivelse;
+  const payload = {
+    id: uid(), vehicleId, verksted, dato, tidspunkt, beskrivelse: ordreBeskrivelse, pris,
+    notater, sak, kontaktperson, telefon, type, mobilitetsgarantiAktivert, dekkRetning
+  };
+  if(vtErKombinerbarOrdre(type)){
+    const eksisterende = finnEksisterendeVerkstedordre(vehicleId, dato, verksted);
+    if(eksisterende){
+      visVerkstedordreValg({
+        tittel: 'Legg til på eksisterende verkstedordre?',
+        tekst: `Det finnes allerede en verkstedordre for denne bilen hos ${verksted} ${fmt(dato)}${eksisterende.tidspunkt ? ' kl. ' + eksisterende.tidspunkt : ''}.`,
+        detalj: 'Eksisterende arbeid: ' + vtOppgaverTekst(eksisterende) + '. Nytt arbeid: ' + vtOppgaverTekst({type}) + '.'
+      }, () => opprettNyVerkstedordre(payload), () => leggTilPaEksisterendeVerkstedordre(eksisterende, payload));
+      return;
     }
-    sak.updatedAt = new Date().toISOString();
-    await saveAktiveSaker();
   }
-  showAddVT = false;
-  vtPrefillVehicleId = '';
-  vtPrefillSakId = '';
-  vtPrefillKommentar = '';
-  vtFlereDetaljerApen = false;
-  render();
+  await opprettNyVerkstedordre(payload);
 }
 function toggleEditVT(id){
   editingVTId = editingVTId === id ? null : id;
@@ -9550,17 +9693,14 @@ async function deleteVT(id){
   // status (samme livssyklus som resten av appen, se SAK_STATUS_ORDER/oppdaterVerkstedStatuser())
   // i stedet for å la den bli stående feilaktig som "Verksted bestilt". Saken slettes ALDRI
   // automatisk — kun referansen og status på den.
-  const linketSak = aktiveSaker.find(s => s.linkedVtId === id);
-  if(linketSak){
+  const linketSaker = aktiveSaker.filter(s => s.linkedVtId === id);
+  linketSaker.forEach(linketSak => {
     linketSak.linkedVtId = '';
     if(linketSak.status === 'verksted-bestilt' || linketSak.status === 'utfort-venter-bekreftelse'){
-      // tilbakestilles nå til 'under-oppfolging' (ny flyt), ikke den gamle
-      // delstatusen 'tiltak-planlagt' — saken havner uansett i samme «Under oppfølging»-
-      // bøtte via sakFase(), men bruker nå kun statusverdier den nye flyten selv produserer.
       linketSak.status = 'under-oppfolging';
     }
     linketSak.updatedAt = new Date().toISOString();
-  }
+  });
   const idx = verkstedtimer.findIndex(t => t.id === id);
   if(idx !== -1) verkstedtimer.splice(idx, 1);
   const fjernetService = [];
@@ -9571,7 +9711,7 @@ async function deleteVT(id){
   }
   try{
     await saveVerkstedtimerEllerKast();
-    if(linketSak) await saveAktiveSakerEllerKast();
+    if(linketSaker.length) await saveAktiveSakerEllerKast();
     if(fjernetService.length) await saveServicehistorikk();
   } catch(e){
     aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
@@ -9717,9 +9857,11 @@ function bestillDekkskift(vehicleId){
 }
 // Prioritet 71.6: ett enkelt type-valg (VT_TYPE_VELGER) i stedet for to uavhengige
 // avkrysningsbokser — se standardVerkstedForVtType() over for samme mønster.
-const VT_TYPE_BESKRIVELSE_FORSLAG = {'eu-kontroll':'EU-kontroll', service:'Service', dekkskift:'Dekkskift', ruteskift:'Ruteskift', reparasjon:''};
+const VT_TYPE_BESKRIVELSE_FORSLAG = {'eu-kontroll':'EU-kontroll', service:'Service', dekkskift:'Dekkskift', ruteskift:'Ruteskift', reparasjon:'Reparasjon'};
 function vtBeskrivelseForslag(valgtType){
-  return VT_TYPE_BESKRIVELSE_FORSLAG[valgtType] || '';
+  const typer = Array.isArray(valgtType) ? valgtType : vtTyperListe(valgtType);
+  if(!typer.length) return VT_TYPE_BESKRIVELSE_FORSLAG[valgtType] || '';
+  return typer.map(k => VT_TYPE_BESKRIVELSE_FORSLAG[k] || VT_TYPE_LABEL[k] || '').filter(Boolean).join(', ');
 }
 function bestillEuKontroll(vehicleId){
   vtPrefillVehicleId = vehicleId || '';
@@ -9739,6 +9881,15 @@ function bestillRuteskift(vehicleId){
   vtPrefillType = 'ruteskift';
   vtPrefillKommentar = 'Ruteskift';
   vtPrefillSakId = '';
+  vtFlereDetaljerApen = false;
+  showAddVT = true;
+  goTo('verksted');
+}
+function bestillReparasjon(vehicleId){
+  vtPrefillVehicleId = vehicleId || '';
+  vtPrefillType = 'reparasjon';
+  vtPrefillSakId = '';
+  vtPrefillKommentar = '';
   vtFlereDetaljerApen = false;
   showAddVT = true;
   goTo('verksted');
@@ -9796,6 +9947,7 @@ function attachBestillListeners(scopeVehicleId){
       case 'eu': bestillEuKontroll(bil); break;
       case 'ruteskift': bestillRuteskift(bil); break;
       case 'dekk': bestillDekkskift(bil); break;
+      case 'reparasjon': bestillReparasjon(bil); break;
     }
   }));
 }
@@ -13106,6 +13258,7 @@ function dashBannerVerkstedHtml(vehicleId){
       <span class="dash-banner-vt-tid">${fmt(t.dato)}</span>
       ${t.tidspunkt ? `<span class="dash-banner-vt-kl">${esc(t.tidspunkt)}</span>` : ''}
       <span class="dash-banner-vt-verksted">${esc(t.verksted || 'Verksted ikke satt')}</span>
+      <span class="dash-banner-vt-arbeid">${esc(vtOppgaverTekst(t))}</span>
     </button>`;
 }
 function dashOperativBannerHtml(d){
@@ -13119,35 +13272,27 @@ function dashOperativBannerHtml(d){
 }
 // Prioritet 52, Del 3: «Bestill tjenester» som seksjon (overskrift + luft + subtil skiller),
 // ikke en boks. ÉN delt funksjon for desktop og mobil — samme fire kort, identisk markup.
+function bestillTjenesterKortHtml(bilId){
+  const bil = bilId ? ` data-bestill-bil="${bilId}"` : '';
+  const kort = (id, tint, tone, ikon, tittel, sub) => `
+        <button type="button" class="dash40-bestill" data-bestill="${id}"${bil} style="--tint:var(--${tint});--tone:var(--${tone});">
+          <span class="flis lg">${luc(ikon)}</span>
+          <span class="dash40-bestill-tittel">${tittel}</span>
+          <span class="dash40-bestill-sub">${sub}</span>
+          <span class="dash40-bestill-pil">→</span>
+        </button>`;
+  return kort('service','green-soft','green-ink','wrench','Service','Bestill service')
+    + kort('eu','blue-soft','blue','shield-check','EU-kontroll','Bestill EU-kontroll')
+    + kort('dekk','orange-soft','orange','circle-dot','Dekkskift','Bestill dekkskift')
+    + kort('ruteskift','red-soft','red','car-front','Ruteskift','Bestill ruteskift')
+    + kort('reparasjon','orange-soft','orange','factory','Reparasjon','Bestill reparasjon');
+}
 function dashBestillSekHtml(){
   return `
     <section class="dash-sek">
       <div class="dash-sek-tittel">${luc('plus')} Bestill tjenester</div>
       <div class="dash40-grid4-bestill">
-        <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-          <span class="flis lg">${luc('wrench')}</span>
-          <span class="dash40-bestill-tittel">Service</span>
-          <span class="dash40-bestill-sub">Bestill service</span>
-          <span class="dash40-bestill-pil">→</span>
-        </button>
-        <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-          <span class="flis lg">${luc('shield-check')}</span>
-          <span class="dash40-bestill-tittel">EU-kontroll</span>
-          <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
-          <span class="dash40-bestill-pil">→</span>
-        </button>
-        <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-          <span class="flis lg">${luc('circle-dot')}</span>
-          <span class="dash40-bestill-tittel">Dekkskift</span>
-          <span class="dash40-bestill-sub">Bestill dekkskift</span>
-          <span class="dash40-bestill-pil">→</span>
-        </button>
-        <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-          <span class="flis lg">${luc('car-front')}</span>
-          <span class="dash40-bestill-tittel">Ruteskift</span>
-          <span class="dash40-bestill-sub">Bestill ruteskift</span>
-          <span class="dash40-bestill-pil">→</span>
-        </button>
+        ${bestillTjenesterKortHtml()}
       </div>
     </section>`;
 }
@@ -15291,18 +15436,7 @@ function renderBilkort(){
     ${(bilDeler['vehicle.bestill'] = `
     <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
     <div class="dash40-grid4-bestill">
-      <button type="button" class="dash40-bestill" data-bestill="service" data-bestill-bil="${v.id}" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">${luc('wrench')}</span><span class="dash40-bestill-tittel">Service</span><span class="dash40-bestill-sub">Bestill service</span><span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu" data-bestill-bil="${v.id}" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">${luc('shield-check')}</span><span class="dash40-bestill-tittel">EU-kontroll</span><span class="dash40-bestill-sub">Bestill EU-kontroll</span><span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk" data-bestill-bil="${v.id}" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">${luc('circle-dot')}</span><span class="dash40-bestill-tittel">Dekkskift</span><span class="dash40-bestill-sub">Bestill dekkskift</span><span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="ruteskift" data-bestill-bil="${v.id}" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">${luc('car-front')}</span><span class="dash40-bestill-tittel">Ruteskift</span><span class="dash40-bestill-sub">Bestill ruteskift</span><span class="dash40-bestill-pil">→</span>
-      </button>
+      ${bestillTjenesterKortHtml(v.id)}
     </div>`, '')}
 
     ${detaljerSkjult && showBilinfoRediger ? `
@@ -16453,31 +16587,8 @@ function renderBestillTjenester(){
          Informasjonsveilederen, ikke ligge spredt rundt i appen». -->
     <div class="required-hint" style="margin-bottom:18px;">${kommende} kommende avtale${kommende===1?'':'r'} de neste 7 dagene.</div>
 
-    <div class="dash40-grid2x2">
-      <button type="button" class="dash40-bestill" data-bestill="service" style="--tint:var(--green-soft);--tone:var(--green-ink);">
-        <span class="flis lg">${luc('wrench')}</span>
-        <span class="dash40-bestill-tittel">Service</span>
-        <span class="dash40-bestill-sub">Bestill service</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="eu" style="--tint:var(--blue-soft);--tone:var(--blue);">
-        <span class="flis lg">${luc('shield-check')}</span>
-        <span class="dash40-bestill-tittel">EU-kontroll</span>
-        <span class="dash40-bestill-sub">Bestill EU-kontroll</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="dekk" style="--tint:var(--orange-soft);--tone:var(--orange);">
-        <span class="flis lg">${luc('circle-dot')}</span>
-        <span class="dash40-bestill-tittel">Dekkskift</span>
-        <span class="dash40-bestill-sub">Bestill dekkskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
-      <button type="button" class="dash40-bestill" data-bestill="ruteskift" style="--tint:var(--red-soft);--tone:var(--red);">
-        <span class="flis lg">${luc('car-front')}</span>
-        <span class="dash40-bestill-tittel">Ruteskift</span>
-        <span class="dash40-bestill-sub">Bestill ruteskift</span>
-        <span class="dash40-bestill-pil">→</span>
-      </button>
+    <div class="dash40-grid4-bestill" style="max-width:960px;">
+      ${bestillTjenesterKortHtml()}
     </div>
 
     <div class="panel">
@@ -17167,11 +17278,17 @@ function verkstedHistorikkType(t){
 // ingen parallell historikkmotor.
 function samletVerkstedHistorikkAlle(){
   const poster = [];
-  verkstedtimer.filter(t => t.utfort).forEach(t => poster.push({
-    id:'vt:'+t.id, vehicleId:t.vehicleId, dato:t.utfortDato || t.dato,
-    type:verkstedHistorikkType(t), verksted:t.verksted, tekst:t.beskrivelse || t.notater || '',
-    kilde:'Verksted'
-  }));
+  verkstedtimer.filter(t => t.utfort).forEach(t => {
+    const typer = vtTyperListe(t);
+    poster.push({
+      id:'vt:'+t.id, vehicleId:t.vehicleId, dato:t.utfortDato || t.dato,
+      type: typer.length > 1 ? typer.map(k => VT_TYPE_LABEL[k]).join(' + ') : verkstedHistorikkType(t),
+      typer,
+      verksted:t.verksted,
+      tekst: vtOppgaverTekst(t) + (t.notater ? ' · ' + t.notater : ''),
+      kilde:'Verksted'
+    });
+  });
   // fraVerkstedtimeId-oppføringer hoppes over her — de er allerede representert via
   // verkstedtimer-kilden over (samme fullførte service, se fullforVerkstedbestilling()).
   // Uten dette ville en service fullført gjennom Verksted-modulen vist seg TO ganger.
@@ -17191,7 +17308,11 @@ function samletVerkstedHistorikkAlle(){
 }
 function samletVerkstedHistorikk(){
   return samletVerkstedHistorikkAlle().filter(p => {
-    if(vtHistFilterType !== 'alle' && p.type !== vtHistFilterType) return false;
+    if(vtHistFilterType !== 'alle'){
+      if(Array.isArray(p.typer) && p.typer.length){
+        if(!p.typer.includes(vtHistFilterType)) return false;
+      } else if(p.type !== vtHistFilterType) return false;
+    }
     if(vtHistFilterBil && p.vehicleId !== vtHistFilterBil) return false;
     if(vtHistFilterFra && p.dato < vtHistFilterFra) return false;
     if(vtHistFilterTil && p.dato > vtHistFilterTil) return false;
@@ -17262,6 +17383,7 @@ async function fullforVerkstedbestillinger(ids){
   if(timer.length === 0) return;
   const servicehistorikkSnapshot = JSON.parse(JSON.stringify(servicehistorikk));
   const dekkhistorikkSnapshot = JSON.parse(JSON.stringify(dekkhistorikk));
+  const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
   const dekkFoer = {};   // vehicleId → v.dekk FØR endringen (for rollback)
   const idag = todayISO();
   let nyeService = 0, nyeDekk = 0;
@@ -17302,14 +17424,20 @@ async function fullforVerkstedbestillinger(ids){
     if(nyeService > 0) await saveServicehistorikk();
     let sakerEndret = false;
     timer.forEach(t => {
-      const sak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
-      if(!sak) return;
-      sak.status = 'utfort';
-      sak.resolvedAt = t.utfortDato;
-      sak.completedAt = t.utfortDato;
-      sak.resolvedBy = loggedInRole || 'Ukjent';
-      sak.updatedAt = new Date().toISOString();
-      sakerEndret = true;
+      const saker = aktiveSaker.filter(s => (s.linkedVtId === t.id) || (t.sakId && s.id === t.sakId));
+      saker.forEach(sak => {
+        if(!sak || sak.status === 'utfort' || sak.status === 'avslatt' || sak.status === 'lukket') return;
+        if(Array.isArray(sak.avvik) && sak.avvik.length > 0){
+          sak.avvik.forEach(a => { if(a.status === 'aktiv'){ a.status = 'utfort'; a.resolvedAt = t.utfortDato; } });
+        }
+        sak.status = 'utfort';
+        sak.resolvedAt = t.utfortDato;
+        sak.completedAt = t.utfortDato;
+        sak.resolvedBy = loggedInRole || 'Ukjent';
+        if(!sak.verkstedResultat) sak.verkstedResultat = 'feil-utbedret';
+        sak.updatedAt = new Date().toISOString();
+        sakerEndret = true;
+      });
     });
     if(sakerEndret) await saveAktiveSakerEllerKast();
     editingVTId = null;
@@ -17320,6 +17448,8 @@ async function fullforVerkstedbestillinger(ids){
     Array.prototype.push.apply(servicehistorikk, servicehistorikkSnapshot);
     dekkhistorikk.length = 0;
     Array.prototype.push.apply(dekkhistorikk, dekkhistorikkSnapshot);
+    aktiveSaker.length = 0;
+    Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
     Object.keys(dekkFoer).forEach(vid => { const v = vehicles.find(x => x.id === vid); if(v) v.dekk = dekkFoer[vid]; });
     console.error('[fullforVerkstedbestillinger] Feilet', e);
     alert('Kunne ikke flytte ' + (timer.length === 1 ? 'verkstedbesøket' : 'verkstedbesøkene') + ' til historikk. Endringen er tilbakestilt lokalt.');
@@ -17406,16 +17536,6 @@ function renderVerksted(){
       <input type="hidden" id="vt-vehicle" value="${linkedSak.vehicleId}">
       <input type="hidden" id="vt-beskrivelse" value="${esc(linkedSak.title)}">
       ` : `
-      <div class="field" style="margin-bottom:10px;">
-        <label>Type</label>
-        <div class="vt-type-row" id="vt-type-row">
-          ${VT_TYPE_VELGER.map(o => `
-          <label class="vt-type-opt ${initialType===o.id ? 'checked' : ''}">
-            <input type="radio" name="vt-type" value="${o.id}" ${initialType===o.id ? 'checked' : ''}>
-            <span class="vt-type-ikon">${luc(o.ikon)}</span><span>${o.label}</span>
-          </label>`).join('')}
-        </div>
-      </div>
       <div class="field" id="vt-bil-felt"><label>Bil</label>
         <select id="vt-vehicle" required>
           <option value="">Velg bil...</option>
@@ -17454,6 +17574,16 @@ function renderVerksted(){
       })()}
       <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><input id="vt-beskrivelse" type="text" placeholder="F.eks. skifte av bremser, årlig service..." value="${esc(vtBeskrivelseForslag(initialType))}" data-std-default="${esc(vtBeskrivelseForslag(initialType))}" required></div>
       `}
+      <div class="field" style="margin-bottom:10px;">
+        <label>Arbeid</label>
+        <div class="vt-type-row" id="vt-type-row">
+          ${VT_TYPE_VELGER.map(o => `
+          <label class="vt-type-opt ${initialType===o.id ? 'checked' : ''}">
+            <input type="checkbox" name="vt-type" value="${o.id}" ${initialType===o.id ? 'checked' : ''}>
+            <span class="vt-type-ikon">${luc(o.ikon)}</span><span>${o.label}</span>
+          </label>`).join('')}
+        </div>
+      </div>
       <div class="field"><label>Verksted</label>
         <select id="vt-verksted" required ${linkedSak ? '' : `data-std-default="${esc(standardVerkstedForVtType(initialType))}"`}>
           <option value="">Velg verksted...</option>
@@ -17551,8 +17681,9 @@ function vtCard(t, upcoming, isNext){
       <div class="vt-top" data-toggle-vt="${t.id}">
         <div class="vt-main">
           <div class="vt-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
-          <div class="vt-desc">${esc(t.beskrivelse)}${upcoming ? '' : ' (utført arbeid)'}</div>
-          <div class="dmg-meta">${esc(t.verksted)}${t.dekkRetning && DEKK_RETNING_TIL_LABEL[t.dekkRetning] ? ' · ' + DEKK_RETNING_TIL_LABEL[t.dekkRetning] : ''}${t.notater ? ' · ' + esc(t.notater) : ''}</div>
+          <div class="vt-plan-arbeid-etikett">Arbeid</div>
+          ${vtOppgaverListeHtml(t)}
+          <div class="dmg-meta">${esc(t.verksted)}${t.dekkRetning && DEKK_RETNING_TIL_LABEL[t.dekkRetning] ? ' · ' + DEKK_RETNING_TIL_LABEL[t.dekkRetning] : ''}${t.notater ? ' · ' + esc(t.notater) : ''}${upcoming ? '' : ' · utført arbeid'}</div>
           ${gruppeAntall > 1 ? `<div class="dmg-meta">👥 Samlet bestilling · ${gruppeAntall} biler</div>` : ''}
           ${linkedSak ? `<div class="dmg-meta" data-goto-sak="${linkedSak.id}" style="cursor:pointer;text-decoration:underline;">🗂️ Aktiv sak: ${esc(linkedSak.title)}</div>` : ''}
         </div>
@@ -17638,47 +17769,51 @@ function attachVerkstedListeners(){
       if(body) body.style.display = vtFlereDetaljerApen ? '' : 'none';
     });
   }
-  // Prioritet 71.6: den horisontale, enkeltvalgte type-velgeren (VT_TYPE_VELGER) erstatter de
-  // to uavhengige avkrysningsboksene fra Prioritet 61/62. Radioknappenes egen native
-  // enkeltvalg-oppførsel + `:has(input:checked)` i CSS-en holder selve valget synlig uten
-  // JS — denne lytteren oppdaterer KUN verksted-/beskrivelse-forslaget og mobilitetsgaranti-
-  // boksens synlighet, akkurat som Prioritet 61/62 sin oppdaterForslag() gjorde. Bruker
-  // render() bevisst IKKE, slik at resten av skjemaet (dato/kontaktperson/notater osv.) beholdes.
+  // Prioritet 76: Arbeid er avkrysning. Service/EU-kontroll/Reparasjon kan kombineres;
+  // Dekkskift og Ruteskift er eksklusive (kryss av én → de andre fjernes). Forslag til
+  // verksted/beskrivelse oppdateres uten render(), slik at Dato/Tid beholdes.
   const vtVerkstedFelt = document.getElementById('vt-verksted');
   const vtBeskrFelt = document.getElementById('vt-beskrivelse');
-  const vtTypeRadioer = document.querySelectorAll('input[name="vt-type"]');
+  const vtTypeBokser = document.querySelectorAll('#vt-type-row input[name="vt-type"]');
   const vtMsgWrap = document.getElementById('vt-mobilitetsgaranti-wrap');
-  if(vtTypeRadioer.length > 0){
-    const oppdaterForslag = (valgt) => {
+  if(vtTypeBokser.length > 0){
+    const oppdaterForslag = (endret) => {
+      if(endret && endret.checked && VT_EKSKLUSIVE_TYPER.includes(endret.value)){
+        vtTypeBokser.forEach(b => { if(b !== endret) b.checked = false; });
+      } else if(endret && endret.checked && VT_ORDRE_TYPER.includes(endret.value)){
+        vtTypeBokser.forEach(b => { if(VT_EKSKLUSIVE_TYPER.includes(b.value)) b.checked = false; });
+      }
+      const valgte = Array.from(vtTypeBokser).filter(b => b.checked).map(b => b.value);
+      const forslagType = valgte.find(k => VT_ORDRE_TYPER.includes(k)) || valgte[0] || '';
+      document.querySelectorAll('#vt-type-row .vt-type-opt').forEach(el => {
+        const cb = el.querySelector('input[name="vt-type"]');
+        el.classList.toggle('checked', !!(cb && cb.checked));
+      });
       if(vtVerkstedFelt && vtVerkstedFelt.dataset.stdDefault !== undefined
          && vtVerkstedFelt.value === (vtVerkstedFelt.dataset.stdDefault || '')){
-        const nyttVerksted = standardVerkstedForVtType(valgt);
+        const nyttVerksted = standardVerkstedForVtType(forslagType);
         vtVerkstedFelt.value = nyttVerksted;
         vtVerkstedFelt.dataset.stdDefault = nyttVerksted;
       }
       if(vtBeskrFelt && vtBeskrFelt.dataset.stdDefault !== undefined
          && vtBeskrFelt.value === (vtBeskrFelt.dataset.stdDefault || '')){
-        const nyBeskr = vtBeskrivelseForslag(valgt);
+        const nyBeskr = vtBeskrivelseForslag(valgte);
         vtBeskrFelt.value = nyBeskr;
         vtBeskrFelt.dataset.stdDefault = nyBeskr;
       }
-      document.querySelectorAll('.vt-type-opt').forEach(el => {
-        const radio = el.querySelector('input');
-        el.classList.toggle('checked', !!radio && radio.value === valgt);
-      });
+      const harService = valgte.includes('service');
       if(vtMsgWrap){
-        vtMsgWrap.style.display = valgt === 'service' ? '' : 'none';
-        if(valgt !== 'service'){ const cb = document.getElementById('vt-mobilitetsgaranti'); if(cb) cb.checked = false; }
+        vtMsgWrap.style.display = harService ? '' : 'none';
+        if(!harService){ const cb = document.getElementById('vt-mobilitetsgaranti'); if(cb) cb.checked = false; }
       }
-      // Prioritet 59: retning + «Velg flere biler» hører kun til dekkskift. Forlates typen, avsluttes flervalget
-      // (tilbake til én bil) så en skjult, glemt flerbilvalgliste aldri kan styre innsendingen.
       const dekkWrap = document.getElementById('vt-dekk-wrap');
       if(dekkWrap){
-        dekkWrap.style.display = valgt === 'dekkskift' ? '' : 'none';
-        if(valgt !== 'dekkskift') settFlerbilModus(false);
+        const harDekk = valgte.includes('dekkskift');
+        dekkWrap.style.display = harDekk ? '' : 'none';
+        if(!harDekk) settFlerbilModus(false);
       }
     };
-    vtTypeRadioer.forEach(radio => radio.addEventListener('change', () => oppdaterForslag(radio.value)));
+    vtTypeBokser.forEach(cb => cb.addEventListener('change', () => oppdaterForslag(cb)));
   }
   // ---- Prioritet 59: Velg flere biler (dekkskift) ----
   // Alt skjer i DOM-en uten render(): en render() ville nullstilt dato/verksted/kommentar brukeren har fylt inn.

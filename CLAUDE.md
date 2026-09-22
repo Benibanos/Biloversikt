@@ -1,6 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
-Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 75 —
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 76 —
+**Verkstedordre.** Én verkstedtime kan ha flere arbeidsoppgaver (Service, EU-kontroll, Reparasjon) på samme ordre. Reparasjon er femte kort under Bestill tjenester. Samme bil + dato + verksted (ikke utført) spør «Legg til på eksisterende verkstedordre?». Oversikt/historikk viser oppgavene samlet; Utført markerer hele ordren. `storage.airtable.js` uendret v2.24.0; appversjon 124. Se «Prioritet 76 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 75 —
 **Ny verkstedoversikt.** Standardvisning grupperer planlagte verkstedtimer på dato (I dag / Denne uken / Senere, pluss Forfalt), ikke per bil. Faner Kommende (standard) · Biler · Historikk. Kompakt «Neste verksted» og KPI I dag / Denne uken / Forfalt. `storage.airtable.js` uendret v2.24.0; appversjon 122. Se «Prioritet 75 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 74 —
 **Historisk service.** «Registrer tidligere service» ved siden av «Registrer service». Utført dato = ServiceDato (`servicehistorikk[].dato`); `createdAt` er registreringstidspunkt. Siste service og km igjen beregnes live fra nyeste gyldige historikkpost; sletting oppdaterer automatisk. `storage.airtable.js` uendret v2.24.0; appversjon 121. Se «Prioritet 74 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 71.1 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 73 —
@@ -6594,4 +6595,16 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 **Ikke rørt:** `submitAddVT` / `fullforVerkstedbestilling` / saksmotor / `storage.airtable.js`.
 
 **Filer:** `index.html`, `kontroll.html`, `sw.js` / `version-check.js` / `version.json` 121 → 123. `storage.airtable.js` uendret v2.24.0.
+
+## Prioritet 76 (2026-09-22) — Verkstedordre
+
+(Brukerens egen nummerering.) **Varig regel: én verkstedtime + flere arbeidsoppgaver = én verkstedordre.** Service, EU-kontroll og Reparasjon kan ligge på samme `WorkshopAppointments`-rad som kommaseparert `Type`. Dekkskift og Ruteskift er eksklusive og slås aldri sammen med de tre andre. Ingen ny Airtable-kolonne.
+
+**Bestill tjenester har fem kort:** Service · EU-kontroll · Dekkskift · Ruteskift · **Reparasjon** (`bestillReparasjon()`). Dette er et bevisst unntak fra Prioritet 62 sitt «fire kort / aldri Verkstedtime» — Reparasjon er en planlagt arbeidsoppgave, ikke en sakløs «Ny verkstedtime».
+
+**Merge ved innsending** (`submitAddVT`): når valgte typer er kombinerbare og det allerede finnes en ikke-utført ordre på samme bil, dato og verksted, spør dialogen «Legg til på eksisterende verkstedordre?» med **[Ny avtale]** og **[Legg til eksisterende]**. Overlay/Escape avbryter uten lagring. `leggTilPaEksisterendeVerkstedordre()` slår typene sammen med `vtSlaTyperSammen()` og kobler ev. sak via `vtKobleSakTilOrdre()`.
+
+**Oversikt og historikk** viser Arbeid som oppgaveliste (`vtOppgaverListeHtml`) på én rad per ordre. Utført (`fullforVerkstedbestillinger`) markerer hele raden og lukker **alle** saker med `linkedVtId === t.id` (ikke bare `t.sakId`). Historikkfilter matcher alle oppgaver på ordren via `p.typer`.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 123 → 124. **`storage.airtable.js` uendret** v2.24.0.
 
