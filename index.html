@@ -2484,6 +2484,7 @@ let aktiveSaker = []; // "Aktive Saker" — grunnmur for avviksoppfølging (Fase
 let showAddDekkskifte = false;
 let dekkSaveConfirmedId = null;
 let showAddService = false;
+let showAddHistoriskService = false; // «Registrer tidligere service» — utført dato = ServiceDato, createdAt er registreringstidspunkt
 let serviceSaveConfirmedId = null; // bekreftelse ved lagring av serviceintervall (samme mønster som dekkSaveConfirmedId)
 // planlagt service — egen registreringsflyt, atskilt fra
 // "Registrer service" (allerede utført). Lagres i egen array/Settings-nøkkel
@@ -7424,11 +7425,26 @@ function dekkAlderStatus(dot){
 // service planlegges FØR den blir kritisk, ikke først når den er rett på.
 const SERVICE_VARSEL_KM_GUL = 2500; // "gul"-terskel: 2500 km eller mindre igjen
 const SERVICE_VARSEL_KM_ROD = 1000; // "rød, men ikke forfalt ennå"-terskel: 1000 km eller mindre igjen
+// ServiceDato (s.dato) er autoritativ utført-dato. createdAt er kun registreringstidspunkt.
+function serviceDatoGyldig(dato){
+  if(typeof dato !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dato)) return false;
+  const [y, m, d] = dato.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+function servicePostErGyldig(s){
+  return !!(s && s.vehicleId && serviceDatoGyldig(s.dato));
+}
 function vehicleServiceHistorikk(vehicleId){
-  return servicehistorikk.filter(s => s.vehicleId === vehicleId).sort((a,b) => (b.km||0) - (a.km||0) || b.dato.localeCompare(a.dato));
+  return servicehistorikk.filter(s => s.vehicleId === vehicleId).sort((a,b) => {
+    const da = serviceDatoGyldig(a.dato) ? a.dato : '';
+    const db = serviceDatoGyldig(b.dato) ? b.dato : '';
+    if(db !== da) return db.localeCompare(da);
+    return (Number(b.km) || 0) - (Number(a.km) || 0);
+  });
 }
 function vehicleSisteService(vehicleId){
-  return vehicleServiceHistorikk(vehicleId)[0] || null;
+  return vehicleServiceHistorikk(vehicleId).find(servicePostErGyldig) || null;
 }
 // Returnerer km-verdien service nummer to bør skje ved, eller null dersom
 // intervall ikke er satt for bilen ENDA. Bruker siste registrerte service sin
@@ -7887,7 +7903,8 @@ function goTo(scr, vehicleId, _isBack){
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormSjaforNavn = '';
   }
-  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
+  if(scr === 'service' && vehicleId) serviceValgtVehicleId = vehicleId;
+  if(scr !== 'service'){ serviceValgtVehicleId = ''; showAddService = false; showAddHistoriskService = false; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; }
   if(scr !== 'dekk'){ dekkValgtVehicleId = ''; showAddDekkskifte = false; showPlanleggDekkskift = false; dekkSaveConfirmedId = null; }
   // Kjøretøyprofilens faner og redigeringspanel nullstilles ved bytte av bil,
   // på nøyaktig samme måte som de tidligere akkordion-seksjonene gjorde (se bilkort-linjen over).
@@ -8815,7 +8832,57 @@ async function submitService(ev){
   // "Servicehistorikk vs. kjøretøyets kilometerstand". Ingen saveVehicles()/reloadOne()
   // nødvendig siden vehicles-arrayet ikke er endret av denne funksjonen.
   showAddService = false;
+  showAddHistoriskService = false;
   render();
+}
+async function submitHistoriskService(ev){
+  ev.preventDefault();
+  const dato = readDateInput('hsv-dato');
+  const kmRaw = document.getElementById('hsv-km').value.trim();
+  const verksted = document.getElementById('hsv-verksted').value;
+  const kommentar = document.getElementById('hsv-kommentar').value.trim();
+  const msgEl = document.getElementById('hsv-msg');
+  if(!dato){ msgEl.textContent = 'Fyll ut utført dato (DD/MM/ÅÅÅÅ). Dette er ServiceDato, ikke registreringsdato.'; return; }
+  if(!serviceDatoGyldig(dato)){ msgEl.textContent = 'Utført dato er ugyldig.'; return; }
+  if(kmRaw === ''){ msgEl.textContent = 'Fyll ut kilometerstand ved service.'; return; }
+  const serviceKm = Number(kmRaw);
+  if(!Number.isFinite(serviceKm) || serviceKm < 0){
+    msgEl.textContent = 'Kilometerstand ved service må være et gyldig, ikke-negativt tall.';
+    return;
+  }
+  const v = vehicles.find(x => x.id === serviceValgtVehicleId);
+  if(!v) return;
+  const currentVehicleKm = v.km ? Number(v.km) : null;
+  if(currentVehicleKm !== null && serviceKm > currentVehicleKm){
+    const bekreftet = confirm(
+      'Kilometerstanden ved service (' + serviceKm.toLocaleString('nb-NO') + ' km) er høyere enn bilens registrerte nåværende kilometerstand (' + currentVehicleKm.toLocaleString('nb-NO') + ' km).\n\n' +
+      'Dette lagres KUN som en historisk verdi på selve serviceoppføringen — bilens nåværende kilometerstand endres ikke.\n\nVil du fortsette?'
+    );
+    if(!bekreftet) return;
+  }
+  const now = new Date().toISOString();
+  const nyOppforing = {
+    id: uid(), vehicleId: serviceValgtVehicleId, dato, km: serviceKm,
+    type: 'Service', verksted, kommentar,
+    createdAt: now, createdBy: loggedInRole || 'Ukjent'
+  };
+  const lagretOk = await mutasjonMedRollback(
+    servicehistorikk,
+    () => servicehistorikk.push(nyOppforing),
+    saveServicehistorikk,
+    'Kunne ikke lagre den historiske servicen til Airtable.'
+  );
+  if(!lagretOk) return;
+  showAddService = false;
+  showAddHistoriskService = false;
+  render();
+}
+function apneServicehistorikk(vehicleId, modus){
+  serviceValgtVehicleId = vehicleId || '';
+  showAddService = modus === 'ny';
+  showAddHistoriskService = modus === 'historisk';
+  showPlanleggService = false;
+  goTo('service', vehicleId || undefined);
 }
 // Serviceavtaler og verkstedtimer er bevisst ADSKILT (se planlagteServicer over) — en
 // registrert serviceavtale skal IKKE automatisk bli en verkstedtime. Enklere, dedikert
@@ -9348,6 +9415,7 @@ async function deleteVT(id){
   if(!confirm('Er du sikker på at du vil slette dette verkstedbesøket?')) return;
   const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
   const vtSnapshot = JSON.parse(JSON.stringify(verkstedtimer));
+  const shSnapshot = JSON.parse(JSON.stringify(servicehistorikk));
   // DEL 5: motsatt retning av deleteSak() — en aktiv sak kan peke til denne
   // verkstedtimen via linkedVtId. Nullstill referansen og sett saken tilbake til korrekt
   // status (samme livssyklus som resten av appen, se SAK_STATUS_ORDER/oppdaterVerkstedStatuser())
@@ -9366,12 +9434,20 @@ async function deleteVT(id){
   }
   const idx = verkstedtimer.findIndex(t => t.id === id);
   if(idx !== -1) verkstedtimer.splice(idx, 1);
+  const fjernetService = [];
+  for(let i = servicehistorikk.length - 1; i >= 0; i--){
+    if(servicehistorikk[i].fraVerkstedtimeId === id){
+      fjernetService.push(servicehistorikk.splice(i, 1)[0]);
+    }
+  }
   try{
     await saveVerkstedtimerEllerKast();
     if(linketSak) await saveAktiveSakerEllerKast();
+    if(fjernetService.length) await saveServicehistorikk();
   } catch(e){
     aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerSnapshot);
     verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnapshot);
+    servicehistorikk.length = 0; Array.prototype.push.apply(servicehistorikk, shSnapshot);
     console.error('[deleteVT] Feilet', e);
     render();
     alert('Kunne ikke slette verkstedtimen i Airtable. Endringen ble IKKE lagret og er tilbakestilt lokalt. Prøv igjen.');
@@ -9381,10 +9457,9 @@ async function deleteVT(id){
   render();
 }
 // rediger/slett servicehistorikk — samme mønster som toggleEditVT/
-// saveVTEdit/deleteVT over. "Siste service"/"neste service"/serviceindikator/
-// Planlegging/Dashboard trenger INGEN egen rekalkuleringskode — de er allerede LIVE
-// beregnet fra servicehistorikk (vehicleSisteService()/vehicleNesteServiceKm()/
-// vehicleServiceStatus()) ved hvert render(), samme prinsipp som resten av appen.
+// saveVTEdit/deleteVT over. «Siste service» og «km igjen til service» er LIVE fra
+// nyeste gyldige post i servicehistorikk (vehicleSisteService / vehicleServiceStatus)
+// — ingen eget felt på kjøretøyet. Slettes nyeste post, vinner neste gyldige ved neste render().
 function toggleEditService(id){
   editingServiceId = editingServiceId === id ? null : id;
   render();
@@ -9394,6 +9469,7 @@ async function saveServiceEdit(id){
   if(!s) return;
   const newDato = readDateInput('e-sv-dato-'+id);
   if(!newDato){ alert('Ugyldig dato. Bruk format DD/MM/ÅÅÅÅ.'); return; }
+  if(!serviceDatoGyldig(newDato)){ alert('Utført dato er ugyldig.'); return; }
   const kmRaw = document.getElementById('e-sv-km-'+id).value.trim();
   const type = document.getElementById('e-sv-type-'+id).value.trim();
   if(!kmRaw || !type){ alert('Fyll ut kilometerstand og type service.'); return; }
@@ -9416,7 +9492,7 @@ async function saveServiceEdit(id){
   render();
 }
 async function deleteService(id){
-  if(!confirm('Er du sikker på at du vil slette dette verkstedbesøket?')) return;
+  if(!confirm('Er du sikker på at du vil slette denne servicen? Siste service og kilometer igjen beregnes på nytt fra historikken.')) return;
   const lagretOk = await mutasjonMedRollback(
     servicehistorikk,
     // VIKTIG: muterer arrayet IN PLACE (splice), ikke "servicehistorikk = ...filter(...)" —
@@ -11075,7 +11151,7 @@ function render(){
   else if(screen === 'aktivesaker') body = renderAktiveSaker();
   else if(screen === 'rapporter') body = renderRapporter();
   else if(screen === 'analyse') body = renderAnalyse();
-  else if(screen === 'service') body = renderVerksted();
+  else if(screen === 'service') body = renderServiceSkjerm();
   else if(screen === 'dekk') body = renderDekkSkjerm();
   else if(screen === 'kalender') body = renderKalender();
   else if(screen === 'bestill') body = renderBestillTjenester();
@@ -11188,7 +11264,8 @@ function render(){
   else if(screen === 'register') attachRegisterListeners();
   else if(screen === 'bilkort') attachBilkortListeners();
   else if(screen === 'skader') attachAktiveSakerListeners();
-  else if(screen === 'verksted' || screen === 'service') attachVerkstedListeners();
+  else if(screen === 'verksted') attachVerkstedListeners();
+  else if(screen === 'service') attachServiceSkjermListeners();
   else if(screen === 'dekk') attachDekkSkjermListeners();
   else if(screen === 'verkstedhistorikk' || screen === 'historikk') attachVerkstedhistorikkListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
@@ -15036,7 +15113,7 @@ function renderBilkort(){
         <span class="flis" style="--tint:var(--blue-soft);--tone:var(--blue);">${luc('gauge')}</span>
         <span><span class="l">Kilometerstand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
       </div>
-      <div style="cursor:pointer;" data-goto-service="${v.id}" title="Åpne service">
+      <div style="cursor:pointer;" data-apne-service="${v.id}" title="Åpne servicehistorikk">
         <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};--tone:var(--green-ink);">${luc('wrench')}</span>
         <span>
           <span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span>
@@ -15223,8 +15300,9 @@ function attachBilkortListeners(){
 
   // (Skadekortenes lyttere festes av attachBilkortHistorikkListeners() over.)
 
-  // Funksjonsbasert navigasjon: Service/Dekk-statuslenkene i Operativ status åpner nå
-  // samlet Verksted direkte med type og bil forhåndsvalgt.
+  // Sist service-kortet åpner servicehistorikk (registrer ny / tidligere service),
+  // ikke verkstedbestilling. Bestill service går fortsatt via Bestill tjenester.
+  document.querySelectorAll('[data-apne-service]').forEach(el => el.addEventListener('click', () => { apneServicehistorikk(el.dataset.apneService); }));
   document.querySelectorAll('[data-goto-service]').forEach(el => el.addEventListener('click', () => { bestillService(el.dataset.gotoService); }));
   document.querySelectorAll('[data-goto-dekk]').forEach(el => el.addEventListener('click', () => { bestillDekkskift(el.dataset.gotoDekk); }));
   document.querySelectorAll('[data-apne-dekk]').forEach(el => el.addEventListener('click', () => { goToBilDekk(el.dataset.apneDekk); }));
@@ -15255,7 +15333,7 @@ function serviceHistoryCard(s){
       ${editing ? `
       <div class="dmg-editbox">
         <div class="row2">
-          <div class="field"><label>Dato</label><input id="e-sv-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(s.dato)}"></div>
+          <div class="field"><label>Utført dato</label><input id="e-sv-dato-${s.id}" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(s.dato)}"></div>
           <div class="field"><label>Kilometerstand</label><input id="e-sv-km-${s.id}" type="number" inputmode="numeric" min="0" step="1" value="${s.km}"></div>
         </div>
         <div class="field" style="margin-bottom:10px;"><label>Type service</label><input id="e-sv-type-${s.id}" type="text" value="${esc(s.type)}"></div>
@@ -15361,15 +15439,16 @@ function renderServiceSkjerm(){
       </div>
 
       <div class="panel" style="margin-bottom:16px;${(vServiceStatus.status === 'forfalt' || vServiceStatus.status === 'snart-rod') ? 'border-color:var(--red);background:var(--red-soft);' : (vServiceStatus.status === 'snart-gul' ? 'border-color:var(--amber);background:var(--amber-soft);' : '')}">
-        <div class="toolbar" style="margin-bottom:14px;">
+        <div class="toolbar" style="margin-bottom:14px;flex-wrap:wrap;gap:8px;">
           <div class="count">${vServiceHistorikk.length} service${vServiceHistorikk.length===1?'':'r'} registrert</div>
-          ${v.uteAvDrift ? '' : `<button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>`}
+          ${v.uteAvDrift ? '' : `<button class="btn small" id="ny-service-btn">${showAddService ? 'Avbryt' : '🔧 Registrer service'}</button>
+          <button class="btn small secondary" id="ny-historisk-service-btn">${showAddHistoriskService ? 'Avbryt' : 'Registrer tidligere service'}</button>`}
         </div>
         ${v.uteAvDrift ? '' : (showAddService ? `
         <form class="panel" id="add-service-form">
           <div class="row2">
-            <div class="field"><label>Dato</label><input id="sv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
-            <div class="field"><label>Kilometerstand</label><input id="sv-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
+            <div class="field"><label>Utført dato</label><input id="sv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+            <div class="field"><label>Kilometerstand ved service</label><input id="sv-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
           </div>
           <div class="field" style="margin-bottom:10px;"><label>Type service</label><input id="sv-type" type="text" placeholder="F.eks. Ordinær service" required></div>
           <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
@@ -15382,6 +15461,23 @@ function renderServiceSkjerm(){
           <div class="form-msg" id="sv-msg"></div>
           <div class="panel-actions"><button class="btn" type="submit">Lagre service</button></div>
         </form>` : '')}
+        ${v.uteAvDrift ? '' : (showAddHistoriskService ? `
+        <form class="panel" id="add-historisk-service-form">
+          <div class="required-hint" style="margin-bottom:10px;">Tidligere utført service. Utført dato lagres som ServiceDato — registreringstidspunktet settes automatisk og påvirker ikke «Siste service».</div>
+          <div class="row2">
+            <div class="field"><label>Utført dato</label><input id="hsv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" required></div>
+            <div class="field"><label>Kilometerstand ved service</label><input id="hsv-km" type="number" inputmode="numeric" min="0" step="1" placeholder="F.eks. ${v.km || 0}" required></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;"><label>Verksted</label>
+            <select id="hsv-verksted">
+              <option value="">Ikke satt / internt</option>
+              ${verkstedSelectOptions(standardVerkstedFor('service'))}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:6px;"><label>Kommentar</label><input id="hsv-kommentar" type="text" placeholder="Valgfritt"></div>
+          <div class="form-msg" id="hsv-msg"></div>
+          <div class="panel-actions"><button class="btn" type="submit">Lagre tidligere service</button></div>
+        </form>` : '')}
         ${v.uteAvDrift ? `<div class="empty-note" style="margin-top:10px;">🚫 Bilen er ute av drift — registrering av ny service er skjult. Historikk under er fortsatt tilgjengelig.</div>` : ''}
         ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
         <div class="dmg-list">${vServiceHistorikk.map(s => serviceHistoryCard(s)).join('')}</div>`}
@@ -15392,7 +15488,7 @@ function renderServiceSkjerm(){
     <h2 style="font-size:19px;margin-bottom:6px;">🔧 Service</h2>
     <div class="required-hint" style="margin-bottom:16px;">Km-basert serviceintervall — status, registrering og historikk.</div>
     <div class="panel" style="margin-bottom:16px;">
-      <div class="field" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;">
         <label>Kjøretøy</label>
         <select id="service-vehicle" required>
           <option value="">Velg bil...</option>
@@ -15400,19 +15496,24 @@ function renderServiceSkjerm(){
         </select>
       </div>
     </div>
+    ${!v && (showAddService || showAddHistoriskService) ? `<div class="empty-note" style="margin-bottom:16px;">Velg kjøretøy for å ${showAddHistoriskService ? 'registrere tidligere service' : 'registrere service'}.</div>` : ''}
     ${vehicleCardHtml}
     ${contentHtml}
   `;
 }
 function attachServiceSkjermListeners(){
   document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
-  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showAddService = false; showPlanleggService = false; serviceSaveConfirmedId = null; render(); });
+  document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
   if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
   const serviceBtn = document.getElementById('ny-service-btn');
-  if(serviceBtn) serviceBtn.addEventListener('click', () => { showAddService = !showAddService; render(); });
+  if(serviceBtn) serviceBtn.addEventListener('click', () => { showAddService = !showAddService; if(showAddService) showAddHistoriskService = false; render(); });
+  const historiskBtn = document.getElementById('ny-historisk-service-btn');
+  if(historiskBtn) historiskBtn.addEventListener('click', () => { showAddHistoriskService = !showAddHistoriskService; if(showAddHistoriskService) showAddService = false; render(); });
   const serviceForm = document.getElementById('add-service-form');
   if(serviceForm) serviceForm.addEventListener('submit', beskyttSubmit('submitService', submitService));
+  const historiskForm = document.getElementById('add-historisk-service-form');
+  if(historiskForm) historiskForm.addEventListener('submit', beskyttSubmit('submitHistoriskService', submitHistoriskService));
   const planleggBtn = document.getElementById('ny-planlagt-service-btn');
   if(planleggBtn) planleggBtn.addEventListener('click', () => { showPlanleggService = !showPlanleggService; render(); });
   const planleggForm = document.getElementById('planlegg-service-form');
@@ -17125,6 +17226,14 @@ function renderVerksted(){
           <div style="font-size:12px;font-weight:700;">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
         </button>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line-soft);">
+        <button type="button" id="registrer-service-btn" style="padding:12px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
+          <div style="font-weight:700;font-size:13px;">🔧 Registrer service</div>
+        </button>
+        <button type="button" id="registrer-tidligere-service-btn" style="padding:12px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
+          <div style="font-weight:700;font-size:13px;">Registrer tidligere service</div>
+        </button>
+      </div>
     </div>
 
     ${showAddVT ? (() => {
@@ -17355,6 +17464,10 @@ function attachVerkstedListeners(){
     else if(!vtPrefillVehicleId && !vtPrefillSakId){ vtPrefillType = 'reparasjon'; }
     render();
   });
+  const registrerServiceBtn = document.getElementById('registrer-service-btn');
+  if(registrerServiceBtn) registrerServiceBtn.addEventListener('click', () => apneServicehistorikk(vtFilterBil || vtPrefillVehicleId || '', 'ny'));
+  const registrerTidligereServiceBtn = document.getElementById('registrer-tidligere-service-btn');
+  if(registrerTidligereServiceBtn) registrerTidligereServiceBtn.addEventListener('click', () => apneServicehistorikk(vtFilterBil || vtPrefillVehicleId || '', 'historisk'));
   const f = document.getElementById('add-vt-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddVT', submitAddVT));
   // Prioritet 49: "▼ Flere detaljer" (Kommentar/Kontaktperson/Telefonnummer) toggles rent i

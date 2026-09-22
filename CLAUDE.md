@@ -1,5 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
+Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 74 —
+**Historisk service.** «Registrer tidligere service» ved siden av «Registrer service». Utført dato = ServiceDato (`servicehistorikk[].dato`); `createdAt` er registreringstidspunkt. Siste service og km igjen beregnes live fra nyeste gyldige historikkpost; sletting oppdaterer automatisk. `storage.airtable.js` uendret v2.24.0; appversjon 121. Se «Prioritet 74 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 71.1 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 73 —
 **Del opp kontrollhistorikken.** Kontroller-fanen viser Denne uken og Forrige uke åpne, Eldre lukket og gruppert per måned ved åpning. Full historikk er en egen side med filter og eksport. Ingen historikk slettes. Kilometerstandsrapport uendret. `storage.airtable.js` uendret v2.24.0; appversjon 120. Se «Prioritet 73 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 70 —
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 71.1 —
@@ -6536,6 +6538,21 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 **Min Bil er urørt:** `driver.loftebord`, `loftebordVedlikeholdStatus()`, «Smør løftebord» / `submitMinBilLoftebordVedlikehold()`.
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 119 → 120. `storage.airtable.js` uendret (v2.24.0).
+
+---
+
+## Prioritet 74 (2026-09-22) — Historisk service som autoritativ kilde
+
+**Varig regel: servicehistorikk er eneste kilde til «Siste service».** Det finnes ikke et eget kjøretøyfelt for siste service. `vehicleSisteService()` leser nyeste gyldige post (`dato` = ServiceDato, ISO `YYYY-MM-DD`) i `servicehistorikk`. `vehicleNesteServiceKm()` / `vehicleServiceStatus()` («km igjen») bruker den postens km + `v.serviceIntervallKm`. Ugyldig eller manglende dato telles ikke.
+
+**Registrer tidligere service** ligger ved siden av **Registrer service** (Verksted-verktøy + Service-skjermen). Felt: Utført dato, Kilometerstand ved service, Verksted, Kommentar. `createdAt` settes til nå og røres aldri av utført dato. Ny service (i dag) bruker samme `dato`-felt, men forhåndsutfylt med i dag.
+
+**Sletting:** `deleteService()` fjerner posten. `deleteVT()` fjerner også `servicehistorikk` med `fraVerkstedtimeId` (ellers ble «Siste service» stående etter at visningen i Verkstedhistorikk hoppet over den). Neste gyldige post vinner ved neste `render()`. `v.km` røres aldri.
+
+**Service-skjermen** (`screen === 'service'` → `renderServiceSkjerm()`) er igjen arbeidsflaten for utførte servicer. Kjøretøyprofilens «Sist service»-kort åpner den (`apneServicehistorikk`). Bestill service (kommende verkstedtime) er uendret.
+
+**Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 120 → 121. `storage.airtable.js` uendret (v2.24.0).
+
 ## Prioritet 72 (2026-09-22) — Komprimer Biloversikt
 
 (Brukerens egen nummerering; det finnes en tidligere, urelatert «Prioritet 72.0 (2026-09-18) — Dashboard 2.0».)
