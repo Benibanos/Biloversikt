@@ -15,6 +15,14 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 74 — Historisk service som autoritativ kilde
+
+1. «Registrer tidligere service» ligger ved siden av «Registrer service» på Verksted og på Service-skjermen. Utført dato lagres som `dato` (ServiceDato); `createdAt` er kun registreringstidspunkt.
+2. Siste service og km igjen til service beregnes fra nyeste gyldige post i `servicehistorikk` (sortert på ServiceDato, ikke km). Ingen eget felt på kjøretøyet.
+3. Sletting av servicepost eller av en fullført service-verkstedtime fjerner historikkposten; neste gyldige post blir siste service automatisk.
+4. Service-skjermen (`renderServiceSkjerm`) er igjen inngangen for utført/historisk registrering. Bestill service (kommende time) er uendret via Verksted.
+5. `storage.airtable.js` uendret v2.24.0. App-/cacheversjon 120 → 121.
+
 ### Prioritet 71.1 — Fjern løftebord fra sjåførkontroll
 
 Nummeret følger brukerens backlog. Historisk «Prioritet 71.1 — migrerLegacySkaderTilSaker» er en annen sak.
