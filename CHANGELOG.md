@@ -15,6 +15,15 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 76 — Verkstedordre
+
+1. Én `WorkshopAppointments`-rad er én verkstedordre. Service, EU-kontroll og Reparasjon kan kombineres som kommaseparert `Type`. Dekkskift og Ruteskift er eksklusive.
+2. Reparasjon er femte kort under Bestill tjenester (Dashboard, profil, Bestill-siden).
+3. Ved ny Service/EU-kontroll/Reparasjon på samme bil, dato og verksted (ikke utført) spør appen «Legg til på eksisterende verkstedordre?» med [Ny avtale] / [Legg til eksisterende].
+4. Verkstedoversikt Kommende og Historikk viser Arbeid som oppgaveliste på ordren, ikke separate timer.
+5. Utført markerer hele ordren og alle saker med `linkedVtId`. Historikkfilter matcher alle oppgaver på ordren.
+6. `storage.airtable.js` uendret v2.24.0. App-/cacheversjon 123 → 124.
+
 ### Prioritet 75 — Ny verkstedoversikt
 
 1. Verkstedoversikt er en operativ arbeidsliste: Kommende (standard) grupperer på dato (Forfalt / I dag / Denne uken / Senere), ikke per bil.
