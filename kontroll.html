@@ -1318,6 +1318,30 @@
   .nvt-arsak-etikett{font-weight:700;color:var(--muted);}
   .nvt-handling{margin-top:10px;}
   .nvt-tom-tekst{font-size:13.5px;color:var(--muted);}
+  /* Prioritet 75: Verkstedoversikt som arbeidsliste (dato, ikke bil). */
+  .vt-neste-kompakt{padding:10px 14px;margin-bottom:14px;}
+  .vt-neste-kompakt .nvt-tittel{margin-bottom:4px;font-size:12.5px;}
+  .vt-neste-kompakt .nvt-bil{font-size:14px;}
+  .vt-neste-kompakt .nvt-dato{font-size:13.5px;margin-top:2px;font-weight:600;}
+  .vt-neste-kompakt .nvt-verksted{margin-top:2px;font-size:13px;}
+  .vt-kpi-rad{margin-bottom:14px;}
+  .vt-plan-gruppe{margin-bottom:22px;}
+  .vt-plan-gruppe-tittel{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;}
+  .vt-plan-rad{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line-soft);}
+  .vt-plan-rad:first-child{border-top:none;}
+  .vt-plan-tid{flex:none;min-width:52px;width:auto;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:2px;white-space:nowrap;}
+  .vt-plan-tid.dato{min-width:92px;}
+  .vt-plan-main{flex:1;min-width:0;}
+  .vt-plan-bil{font-size:14px;font-weight:700;}
+  .vt-plan-prob,.vt-plan-ws{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere;}
+  .vt-plan-ws{color:var(--muted);}
+  .vt-plan-btns{flex:none;display:flex;flex-direction:column;gap:6px;align-items:stretch;}
+  .vt-plan-forfalt .vt-plan-tid{color:var(--red);}
+  @media (max-width:640px){
+    .vt-plan-rad{flex-wrap:wrap;}
+    .vt-plan-btns{flex-direction:row;width:100%;}
+    .vt-plan-btns .btn{flex:1;}
+  }
   /* Del 3: seksjoner skilles med luft, overskrift og en subtil linje — ikke med flere bokser. */
   .dash-sek{margin-top:22px;}
   .dash-sek + .dash-sek{margin-top:26px;padding-top:22px;border-top:1px solid var(--line-soft);}
@@ -2173,6 +2197,7 @@ let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
 let vtFilterSakStatus = ''; // '' | 'apen' | 'lukket' — filtrerer på status til tilknyttet Aktiv Sak (Fase 3)
 let showVtFilterMeny = false;
 let vtGrupperApen = false;
+let vtOversiktFane = 'kommende'; // 'kommende' | 'biler' | 'historikk' — Prioritet 75, default Kommende
 
 let sakFilterBil = '';
 let sakFilterType = '';
@@ -4670,7 +4695,7 @@ function layoutRegistrerAlle(){
 
   // ---------- Standardsider (seksjonsrekkefølge, synlighet, starttilstand, standardfane) ----------
   const sd = (page, id, def) => layoutReg(page + '.' + id, Object.assign({area:LAYOUT_SIDER_OMRADE, page}, def));
-  sd('verksted', 'neste-time', {label:'Neste verkstedtime', ikon:'factory', collapsible:'wrapper'});
+  sd('verksted', 'neste-time', {label:'Neste verksted og nøkkeltall', ikon:'factory', collapsible:'wrapper'});
   sd('verksted', 'verktoy', {label:'Registrer og filtrer', ikon:'wrench', canHide:false, critical:true, lockReason:'Inneholder «Registrer verkstedtime» og filter.'});
   sd('verksted', 'liste', {label:'Verkstedbestillinger', ikon:'list', canHide:false, critical:true, lockReason:'Selve listen over verkstedbestillinger kan ikke skjules.'});
   sd('kalender', 'maned', {label:'Månedskalender', ikon:'calendar-days', canHide:false, critical:true, lockReason:'Selve kalenderen kan ikke skjules.', std:{width:7, rowSpan:2}});
@@ -7822,6 +7847,109 @@ function nesteVerkstedtimeHtml(t, o){
       ${o.knapp ? `<div class="nvt-handling"><button type="button" class="btn small" data-apne-vt="${esc(t.id)}">${esc(o.knapp)}</button></div>` : ''}
     </div>`;
 }
+// Prioritet 75: kompakt «Neste verksted» for Verkstedoversikten (ikke det store .nvt-kortet).
+function vtNesteKompaktHtml(t){
+  if(!t){
+    return `<div class="panel nvt vt-neste-kompakt nvt-tom"><div class="nvt-tittel">${luc('wrench','ic-orange')} Neste verksted</div><div class="nvt-tom-tekst">Ingen planlagte verkstedtimer</div></div>`;
+  }
+  const v = vtVehicle(t);
+  return `
+    <div class="panel nvt vt-neste-kompakt" data-apne-vt="${esc(t.id)}" style="cursor:pointer;">
+      <div class="nvt-tittel">${luc('wrench','ic-orange')} Neste verksted</div>
+      <div class="nvt-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
+      <div class="nvt-dato">${fmt(t.dato)}${t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</div>
+      <div class="nvt-verksted">${esc(t.verksted || 'Verksted ikke satt')}</div>
+    </div>`;
+}
+function vtOversiktKpi(liste){
+  const idag = todayISO();
+  const ukeStart = isoUkeStart(idag);
+  const ukeSlutt = isoDateOffset(ukeStart, 6);
+  const planlagt = (liste || []).filter(t => t && !t.utfort && t.dato);
+  return {
+    idag: planlagt.filter(t => t.dato === idag).length,
+    uke: planlagt.filter(t => t.dato >= idag && t.dato <= ukeSlutt).length,
+    forfalt: planlagt.filter(t => t.dato < idag).length
+  };
+}
+function vtOversiktKpiHtml(kpi){
+  const kort = (nokkel, tint, tone, ikon, label, tall) => `
+    <button type="button" class="dash40-kpi" data-vt-kpi="${nokkel}" style="--tint:${tint};--tone:${tone};text-align:left;">
+      <div class="dash40-kpi-label">${luc(ikon)} ${esc(label)}</div>
+      <div class="dash40-kpi-num">${tall}</div>
+    </button>`;
+  return `<div class="dash40-grid3 vt-kpi-rad">
+    ${kort('idag','var(--orange-soft)','var(--orange)','wrench','I dag', kpi.idag)}
+    ${kort('uke','var(--blue-soft)','var(--blue)','calendar-days','Denne uken', kpi.uke)}
+    ${kort('forfalt','var(--red-soft)','var(--red)','triangle-alert','Forfalt', kpi.forfalt)}
+  </div>`;
+}
+function vtKommendeGrupper(liste){
+  const idag = todayISO();
+  const ukeStart = isoUkeStart(idag);
+  const ukeSlutt = isoDateOffset(ukeStart, 6);
+  const sortert = (liste || []).slice().sort((a,b) => (a.dato + (a.tidspunkt || '')).localeCompare(b.dato + (b.tidspunkt || '')));
+  const forfalt = [], iDag = [], uke = [], senere = [];
+  sortert.forEach(t => {
+    if(!t.dato){ senere.push(t); return; }
+    if(t.dato < idag) forfalt.push(t);
+    else if(t.dato === idag) iDag.push(t);
+    else if(t.dato <= ukeSlutt) uke.push(t);
+    else senere.push(t);
+  });
+  return [
+    {id:'forfalt', tittel:'Forfalt', rader:forfalt},
+    {id:'idag', tittel:'I dag', rader:iDag},
+    {id:'uke', tittel:'Denne uken', rader:uke},
+    {id:'senere', tittel:'Senere', rader:senere}
+  ];
+}
+function vtKommendeRadHtml(t, {historikk} = {}){
+  const v = vtVehicle(t);
+  const tid = historikk ? (t.utfortDato ? fmt(t.utfortDato) : fmt(t.dato)) : (t.tidspunkt || '—');
+  const forfalt = !historikk && t.dato && t.dato < todayISO();
+  const editing = editingVTId === t.id;
+  return `
+    <div class="vt-plan-rad ${forfalt ? 'vt-plan-forfalt' : ''}" data-vt-rad="${esc(t.id)}">
+      <div class="vt-plan-tid${historikk ? ' dato' : ''}">${esc(tid)}</div>
+      <div class="vt-plan-main">
+        <div class="vt-plan-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
+        <div class="vt-plan-prob">${esc(t.beskrivelse || (historikk ? 'Utført arbeid' : 'Ingen beskrivelse'))}</div>
+        <div class="vt-plan-ws">${esc(t.verksted || 'Verksted ikke satt')}</div>
+      </div>
+      <div class="vt-plan-btns">
+        <button type="button" class="btn secondary small" data-apne-vt="${esc(t.id)}">Åpne</button>
+        ${historikk ? '' : `<button type="button" class="btn small" data-fullfor-vt="${esc(t.id)}">Utført</button>`}
+      </div>
+    </div>
+    ${editing ? vtCard(t, !t.utfort, !t.utfort && nesteVerkstedtime() && nesteVerkstedtime().id === t.id) : ''}`;
+}
+function vtKommendeListeHtml(liste){
+  const grupper = vtKommendeGrupper(liste);
+  const synlige = grupper.filter(g => g.rader.length > 0);
+  if(synlige.length === 0) return `<div class="empty-note">Ingen planlagte verkstedtimer.</div>`;
+  return synlige.map(g => `
+    <div class="vt-plan-gruppe" id="vt-gruppe-${g.id}">
+      <div class="vt-plan-gruppe-tittel">${esc(g.tittel)}</div>
+      ${g.rader.map(t => vtKommendeRadHtml(t)).join('')}
+    </div>`).join('');
+}
+function vtHistorikkListeHtml(){
+  const poster = verkstedtimer.filter(t => t.utfort && (!vtFilterBil || t.vehicleId === vtFilterBil) && (!vtFilterVerksted || t.verksted === vtFilterVerksted))
+    .sort((a,b) => ((b.utfortDato || b.dato || '') + (b.tidspunkt || '')).localeCompare((a.utfortDato || a.dato || '') + (a.tidspunkt || '')));
+  if(poster.length === 0) return `<div class="empty-note">Ingen utførte verkstedjobber.</div>`;
+  return `<div class="vt-plan-gruppe"><div class="vt-plan-gruppe-tittel">Utført</div>${poster.map(t => vtKommendeRadHtml(t, {historikk:true})).join('')}</div>`;
+}
+function vtOversiktFanerHtml(){
+  const faner = [
+    {id:'kommende', label:'Kommende', ikon:'calendar-clock'},
+    {id:'biler', label:'Biler', ikon:'truck'},
+    {id:'historikk', label:'Historikk', ikon:'history'}
+  ];
+  return `<div class="profil-tabs" role="tablist">
+    ${faner.map(f => `<button type="button" class="profil-tab ${vtOversiktFane === f.id ? 'active' : ''}" data-vt-fane="${f.id}" role="tab" aria-selected="${vtOversiktFane === f.id}">${luc(f.ikon)} ${f.label}</button>`).join('')}
+  </div>`;
+}
 // «Åpne avtale»: åpner selve avtalen (redigeringsboksen) i Verkstedoversikten. Nullstiller
 // filtrene som ellers kunne skjule den, åpner riktig bil i oversikten og ruller den til syne.
 function apneVerkstedAvtale(id){
@@ -7829,12 +7957,13 @@ function apneVerkstedAvtale(id){
   if(!t) return;
   vtFilterBil = ''; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
   showVtFilterMeny = false; showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = '';
+  vtOversiktFane = t.utfort ? 'historikk' : 'kommende';
   vtGrupperApen = true;
   vtOversiktOpenVehicles = new Set([t.vehicleId]);
   editingVTId = t.id;
   goTo('verksted');
   setTimeout(() => {
-    const el = document.querySelector('[data-toggle-vt="' + t.id + '"]');
+    const el = document.querySelector('[data-vt-rad="' + t.id + '"]') || document.querySelector('[data-toggle-vt="' + t.id + '"]');
     if(el && el.scrollIntoView) el.scrollIntoView({block:'center'});
   }, 60);
 }
@@ -7886,7 +8015,7 @@ function goTo(scr, vehicleId, _isBack){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; editingVTId = null; showVtFilterMeny = false; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; editingVTId = null; showVtFilterMeny = false; vtOversiktFane = 'kommende'; }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
@@ -16936,7 +17065,7 @@ function verkstedSelectOptions(selected){
     .join('');
 }
 
-function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
+function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId, utenYtre){
   const byVehicle = new Map();
   itemsFiltered.forEach(t => {
     if(!byVehicle.has(t.vehicleId)) byVehicle.set(t.vehicleId, []);
@@ -16978,6 +17107,7 @@ function verkstedGroupedSection(itemsFiltered, openSet, toggleAttr, nextId){
       <div class="vt-list">${foreldrelose.map(t => vtCard(t, t.dato >= today, t.id === nextId)).join('')}</div>
     </div>` : '';
 
+  if(utenYtre) return `${grupper}${foreldreloseHtml}`;
   return `
     <div class="acc-row ${vtGrupperApen ? 'expanded' : ''}" style="margin-bottom:16px;">
       <div class="acc-head" data-toggle-vt-grupper>
@@ -17198,11 +17328,21 @@ async function fullforVerkstedbestillinger(ids){
 }
 function renderVerksted(){
   const visning = getFilteredVerkstedtimer();
-  // Prioritet 54: den nærmeste kommende verkstedtimen i HELE bilparken står øverst, uavhengig av
-  // filtrene under (samme nesteVerkstedtime() som Dashboard/Kjøretøyprofil/Min Bil), og er
-  // samme time som fremheves med blå ramme i listen (nextId).
+  // Prioritet 75: KPI og kompakt «Neste verksted» øverst. Standardfane er Kommende (dato-
+  // gruppert arbeidsliste). Biler = tidligere per-bil-gruppering. Historikk = utførte jobber.
   const nesteVT = nesteVerkstedtime();
-  const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nesteVT ? nesteVT.id : null);
+  const kpi = vtOversiktKpi(visning);
+  const fane = (vtOversiktFane === 'biler' || vtOversiktFane === 'historikk') ? vtOversiktFane : 'kommende';
+  let faneInnhold = '';
+  if(fane === 'historikk') faneInnhold = vtHistorikkListeHtml();
+  else if(fane === 'biler'){
+    const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nesteVT ? nesteVT.id : null, true);
+    faneInnhold = oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody;
+  } else {
+    faneInnhold = visning.length === 0
+      ? `<div class="empty-note">Ingen planlagte verkstedtimer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>`
+      : vtKommendeListeHtml(visning);
+  }
   const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length;
   // Prioritet 60: seksjonene (neste time, registrer/filtrer, liste) tegnes av layoutmotoren i publisert rekkefølge (område
   // 'admin-standard-pages:verksted'). «Registrer og filtrer» og selve listen er låst synlige; skjemaet og filterpanelet følger «Registrer og filtrer».
@@ -17214,7 +17354,7 @@ function renderVerksted(){
 
     ${vtFlerBilResultatHtml()}
 
-    ${(vtDeler['verksted.neste-time'] = nesteVerkstedtimeHtml(nesteVT, {knapp:'Åpne avtale', visArsak:true}), '')}
+    ${(vtDeler['verksted.neste-time'] = vtOversiktKpiHtml(kpi) + vtNesteKompaktHtml(nesteVT), '')}
 
     ${(vtDeler['verksted.verktoy'] = `
     <div class="panel" style="padding:0;overflow:hidden;margin-bottom:16px;">
@@ -17392,7 +17532,7 @@ function renderVerksted(){
 
     `, '')}
 
-    ${(vtDeler['verksted.liste'] = oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${antallAktiveFiltre > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody, '')}
+    ${(vtDeler['verksted.liste'] = vtOversiktFanerHtml() + `<div class="vt-oversikt-innhold" style="margin-top:12px;">${faneInnhold}</div>`, '')}
 
     ${layoutFlowHtml('admin-standard-pages:verksted', {parts:vtDeler})}
   `;
@@ -17453,7 +17593,21 @@ function vtCard(t, upcoming, isNext){
 }
 
 function attachVerkstedListeners(){
-  attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
+  attachNesteVerkstedtimeListeners();   // Prioritet 54/75: «Åpne» på Neste verksted og Kommende-rader
+  document.querySelectorAll('[data-vt-fane]').forEach(el => el.addEventListener('click', () => {
+    vtOversiktFane = el.dataset.vtFane || 'kommende';
+    if(vtOversiktFane === 'biler') vtGrupperApen = true;
+    render();
+  }));
+  document.querySelectorAll('[data-vt-kpi]').forEach(el => el.addEventListener('click', () => {
+    vtOversiktFane = 'kommende';
+    const maal = el.dataset.vtKpi;
+    render();
+    setTimeout(() => {
+      const g = document.getElementById('vt-gruppe-' + (maal === 'uke' ? 'uke' : maal));
+      if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
+    }, 40);
+  }));
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     vtFlereDetaljerApen = false;

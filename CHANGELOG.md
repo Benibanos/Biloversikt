@@ -15,6 +15,14 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-22
 
+### Prioritet 75 — Ny verkstedoversikt
+
+1. Verkstedoversikt er en operativ arbeidsliste: Kommende (standard) grupperer på dato (Forfalt / I dag / Denne uken / Senere), ikke per bil.
+2. Fanene Biler (tidligere per-bil-visning) og Historikk (utførte jobber) ligger på samme side.
+3. Det store «Neste verkstedtime»-kortet er erstattet av kompakt oppsummering pluss KPI I dag / Denne uken / Forfalt.
+4. Historikk-fanen viser dato i egen kolonne uten overlapping med bilnavn.
+5. `storage.airtable.js` uendret v2.24.0. App-/cacheversjon 121 → 123.
+
 ### Prioritet 74 — Historisk service som autoritativ kilde
 
 1. «Registrer tidligere service» ligger ved siden av «Registrer service» på Verksted og på Service-skjermen. Utført dato lagres som `dato` (ServiceDato); `createdAt` er kun registreringstidspunkt.
