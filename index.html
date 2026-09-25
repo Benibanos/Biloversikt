@@ -633,6 +633,15 @@
   .badge.unset{background:var(--line);color:var(--muted);}
   .badge.utbedret, .badge.lav{background:var(--green-soft);color:var(--green);}
   .badge.oppf-idag{background:var(--orange-soft);color:var(--orange);}
+/* Implementeringsfase 1A: én pilleklasse per tone i statusordboken (STATUS_TONE). Nye
+   statusvisninger bruker KUN disse; de eldre klassene over beholdes for eksisterende kode. */
+.badge.t-success{background:var(--green-soft);color:var(--green-ink);}
+.badge.t-warning{background:var(--amber-soft);color:var(--amber);}
+.badge.t-danger{background:var(--red-soft);color:var(--red);}
+.badge.t-info{background:var(--blue-soft);color:var(--blue);}
+.badge.t-workshop{background:var(--orange-soft);color:var(--orange);}
+.badge.t-neutral{background:var(--line);color:var(--muted);}
+.badge .lucide-ic{width:13px;height:13px;vertical-align:-2px;}
 
   /* ---- Bilkort ---- */
   .bilkort-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
@@ -1971,8 +1980,11 @@ function updateOfflineBanner(){
     if(!bar){
       bar = document.createElement('div');
       bar.id = 'offline-banner';
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B45309;color:#fff;padding:12px 16px;font:600 13.5px system-ui,sans-serif;text-align:center;';
-      bar.textContent = '📡 Ingen nettforbindelse. Det du registrerer nå lagres lokalt på enheten og sendes automatisk til den sentrale databasen så snart nettet er tilbake.';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:var(--amber);color:#fff;padding:12px 16px;font:600 13.5px system-ui,sans-serif;text-align:center;';
+      bar.setAttribute('role', 'status');
+      // Fase 1G: synkstatus «Offline» (statusordbok §5). Appen har ennå ingen offline-kø
+      // (kommer med utboksen i Trinn B), så teksten lover ikke automatisk sending.
+      bar.textContent = 'Offline · Ingen nettforbindelse. Det du sender nå blir ikke lagret. Vent til nettet er tilbake, og send på nytt.';
       document.body.prepend(bar);
     }
   } else if(bar){
@@ -2428,6 +2440,9 @@ let kontrollVarsellamperOpen = false; // om avkrysningslisten for varsellamper e
 let kontrollFormAvvik = []; // huket-av kontrollavvik-nøkler (slitte dekk, defekt lys, osv.), se KONTROLLAVVIK_ORDER
 let kontrollAvvikOpen = false;
 let pendingKontrollPhotos = []; // array av dataURL-er, flere skadebilder per kontroll
+// Fase 1D: skadetype og «Kan bilen kjøres?» for en ny skade i kontrollen (se alvorlighetForSkade()).
+let kontrollFormSkadeType = '';
+let kontrollFormSkadeKanKjores = '';
 
 // ---- Midlertidig lagring av sjåførkontroll-skjemaet ----
 // Kun en lokal sikkerhetskopi av det som IKKE ennå er sendt inn — selve appens
@@ -2444,6 +2459,7 @@ function saveKontrollDraft(){
       varsellamper: kontrollFormVarsellamper, annet: kontrollFormAnnet, annetTekst: kontrollFormAnnetTekst,
       avvik: kontrollFormAvvik, avvikKommentar: kontrollFormAvvikKommentar,
       harNyeSkader: kontrollFormHarSkader, skadeBeskrivelse: kontrollFormSkadeBeskrivelse,
+      skadeType: kontrollFormSkadeType, skadeKanKjores: kontrollFormSkadeKanKjores,
       kommentar: kontrollFormKommentar, savedAt: Date.now()
     };
     window.localStorage.setItem(KONTROLL_DRAFT_KEY, JSON.stringify(draft));
@@ -2468,6 +2484,8 @@ function loadKontrollDraft(){
     kontrollFormAvvikKommentar = draft.avvikKommentar || '';
     kontrollFormHarSkader = !!draft.harNyeSkader;
     kontrollFormSkadeBeskrivelse = draft.skadeBeskrivelse || '';
+    kontrollFormSkadeType = draft.skadeType || '';
+    kontrollFormSkadeKanKjores = draft.skadeKanKjores || '';
     kontrollFormKommentar = draft.kommentar || '';
     if(kontrollFormVarsellamper.length > 0 || kontrollFormAnnet) kontrollVarsellamperOpen = true;
     if(kontrollFormAvvik.length > 0) kontrollAvvikOpen = true;
@@ -2558,8 +2576,263 @@ let dbStatusSyncing = false;
 let dbStatusSyncLog = null; // resultat fra siste window.autoFixAirtableSchema()-kall
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
 
+// ================= Implementeringsfase 1A: Statusordbok =================
+// ENESTE kilde i appen for statusnavn, fargetoner og ikoner. Speiler status-dictionary.md i
+// Bilpark Design System (../Dv4/project/status-dictionary.md). Ingen annen kode skal definere
+// egne statusord, farger eller ikoner for disse domenene — de gamle kartene lenger ned
+// (HOVEDSTATUS_LABEL, P38_STATUS_STIL, SAK_STATUS_LABEL, ALVOR_LABEL …) er nå AVLEDET herfra og
+// beholdt kun fordi mange visninger allerede leser dem. En ny status legges først inn i
+// ordboken i designsystemet, deretter her.
+// Tone → appens egne CSS-variabler (cursor-rules.md, «Token usage»). `emoji` brukes KUN der
+// Lucide ikke kan tegnes (<option>-tekst, title-attributter, Excel-eksport).
+const STATUS_TONE = {
+  success: {fg:'var(--green-ink)', dot:'var(--green)', tint:'var(--green-soft)', badge:'t-success', emoji:'🟢'},
+  warning: {fg:'var(--amber)', dot:'var(--amber)', tint:'var(--amber-soft)', badge:'t-warning', emoji:'🟡'},
+  danger:  {fg:'var(--red)', dot:'var(--red)', tint:'var(--red-soft)', badge:'t-danger', emoji:'🔴'},
+  info:    {fg:'var(--blue)', dot:'var(--blue)', tint:'var(--blue-soft)', badge:'t-info', emoji:'🔵'},
+  workshop:{fg:'var(--orange)', dot:'var(--orange)', tint:'var(--orange-soft)', badge:'t-workshop', emoji:'🟠'},
+  neutral: {fg:'var(--muted)', dot:'var(--muted)', tint:'var(--surface-3)', badge:'t-neutral', emoji:'⚪'}
+};
+// Domene → nøkkel → {label, tone, ikon (Lucide)}. Rekkefølgen i hvert domene er ordbokens.
+const STATUS = {
+  // §1 Driftsstatus (lagret). Trinn A: avledet fra UteAvDrift/Kategori, se vehicleDriftsstatus().
+  driftsstatus: {
+    'aktiv':           {label:'Aktiv', tone:'success', ikon:'circle-check'},
+    'reserve':         {label:'Reserve', tone:'neutral', ikon:'circle-dashed'},
+    'kan-ikke-brukes': {label:'Kan ikke brukes', tone:'danger', ikon:'octagon-alert'},
+    'utfaset':         {label:'Utfaset', tone:'neutral', ikon:'archive'}
+  },
+  // §2 Operativ status (avledet av vehicleHovedstatus()). Rekkefølge = prioritet.
+  operativ: {
+    'utfaset':           {label:'Utfaset', tone:'neutral', ikon:'archive'},
+    'kan-ikke-brukes':   {label:'Kan ikke brukes', tone:'danger', ikon:'octagon-alert'},
+    'pa-verksted':       {label:'På verksted', tone:'workshop', ikon:'wrench'},
+    'verksted-planlagt': {label:'Verksted bestilt', tone:'workshop', ikon:'wrench'},
+    'oppfolging':        {label:'Under oppfølging', tone:'warning', ikon:'triangle-alert'},
+    'reserve':           {label:'Reserve', tone:'neutral', ikon:'circle-dashed'},
+    'ikke-kontrollert':  {label:'Mangler kontroll', tone:'warning', ikon:'clipboard-x'},
+    'operativ':          {label:'Operativ', tone:'success', ikon:'circle-check'}
+  },
+  // §3 Verkstedstatus. Trinn A: avledet av vtStatus() fra Utfort/Dato.
+  verksted: {
+    'planlagt':  {label:'Planlagt', tone:'neutral', ikon:'calendar'},
+    'bekreftet': {label:'Bekreftet', tone:'info', ikon:'calendar-check'},
+    'pagar':     {label:'Pågår', tone:'workshop', ikon:'wrench'},
+    'utfort':    {label:'Utført', tone:'success', ikon:'circle-check'},
+    'avlyst':    {label:'Avlyst', tone:'neutral', ikon:'circle-x'},
+    'forfalt':   {label:'Forfalt', tone:'danger', ikon:'clock'}
+  },
+  // §4 Alvorlighet (skader lagret, alt annet avledet — damage-severity-framework.md).
+  alvorlighet: {
+    'kritisk': {label:'Kritisk', tone:'danger', ikon:'octagon-alert', rang:0},
+    'hoy':     {label:'Høy', tone:'warning', ikon:'triangle-alert', rang:1},
+    'middels': {label:'Middels', tone:'info', ikon:'info', rang:2},
+    'lav':     {label:'Lav', tone:'neutral', ikon:'circle-dashed', rang:3}
+  },
+  // §5 Synkstatus — beskriver ferskheten til dataene på enheten, aldri kjøretøyet.
+  synk: {
+    'sanntid':   {label:'Sanntid', tone:'success', ikon:'radio'},
+    'forsinket': {label:'Forsinket', tone:'warning', ikon:'clock'},
+    'utdatert':  {label:'Utdatert', tone:'warning', ikon:'history'},
+    'offline':   {label:'Offline', tone:'danger', ikon:'wifi-off'}
+  },
+  // §7 Saksstatus (lagret, uendrede verdier).
+  sak: {
+    'ny':                        {label:'Ny', tone:'warning', ikon:'circle-dot'},
+    'under-oppfolging':          {label:'Under oppfølging', tone:'info', ikon:'user-round'},
+    'vurderes':                  {label:'Vurderes', tone:'info', ikon:'search'},
+    'tiltak-planlagt':           {label:'Tiltak planlagt', tone:'info', ikon:'list-checks'},
+    'verksted-bestilt':          {label:'Verksted bestilt', tone:'workshop', ikon:'wrench'},
+    'utfort-venter-bekreftelse': {label:'Utført – venter bekreftelse', tone:'workshop', ikon:'clipboard-check'},
+    'delvis-utfort':             {label:'Delvis utført', tone:'warning', ikon:'circle-alert'},
+    'utfort':                    {label:'Utført', tone:'success', ikon:'circle-check'},
+    'avslatt':                   {label:'Avslått', tone:'neutral', ikon:'circle-x'},
+    'lukket':                    {label:'Lukket', tone:'neutral', ikon:'archive'}
+  },
+  // §8 Andre lagrede statuser.
+  skade: {
+    'registrert': {label:'Registrert', tone:'warning', ikon:'circle-dot'},
+    'oppfolging': {label:'Under oppfølging', tone:'info', ikon:'user-round'},
+    'utbedret':   {label:'Utbedret', tone:'success', ikon:'circle-check'}
+  },
+  varsellampe: {
+    'aktiv':    {label:'Aktiv', tone:'warning', ikon:'triangle-alert'},
+    'kvittert': {label:'Kvittert', tone:'success', ikon:'circle-check'}
+  },
+  eu: {
+    'ok':        {label:'Godkjent', tone:'success', ikon:'shield-check'},
+    'snart-gul': {label:'Nærmer seg', tone:'info', ikon:'shield-check'},
+    'snart-rod': {label:'Snart', tone:'warning', ikon:'shield-alert'},
+    'forfalt':   {label:'EU-kontroll forfalt', tone:'danger', ikon:'shield-x'},
+    'ukjent':    {label:'Mangler registrering', tone:'neutral', ikon:'circle-dashed'}
+  },
+  // §9 Varselstatus (avledet — aldri lagret).
+  varsel: {
+    'ny':               {label:'Ny', tone:'warning', ikon:'circle-dot'},
+    'under-oppfolging': {label:'Under oppfølging', tone:'info', ikon:'user-round'},
+    'lost':             {label:'Løst', tone:'success', ikon:'circle-check'},
+    'arkivert':         {label:'Arkivert', tone:'neutral', ikon:'archive'}
+  }
+};
+// Eldre nøkler som fortsatt kan forekomme (lagrede filtre, eldre kode, historiske data). De
+// oversettes til ordbokens nøkkel; ingen ny kode skal bruke dem.
+const STATUS_ALIAS = {
+  operativ: {'ute-av-drift':'kan-ikke-brukes', 'verksted':'verksted-planlagt'},
+  alvorlighet: {'høy':'hoy', 'critical':'kritisk', 'high':'hoy', 'medium':'middels', 'low':'lav'}
+};
+function statusNokkel(domene, key){
+  const a = STATUS_ALIAS[domene];
+  return (a && a[key]) || key;
+}
+function statusDef(domene, key){
+  const d = STATUS[domene] || {};
+  return d[statusNokkel(domene, key)] || null;
+}
+function statusLabel(domene, key){ const s = statusDef(domene, key); return s ? s.label : (key || ''); }
+function statusTone(domene, key){ const s = statusDef(domene, key); return STATUS_TONE[s ? s.tone : 'neutral']; }
+function statusEmoji(domene, key){ return statusTone(domene, key).emoji; }
+// Ikon i statusens tone, med ordet som title/aria-label så statusen ikke bæres av farge alene.
+function statusIkonHtml(domene, key, cls){
+  const s = statusDef(domene, key);
+  if(!s) return '';
+  return `<span style="color:${STATUS_TONE[s.tone].fg};" title="${esc(s.label)}" aria-label="${esc(s.label)}" role="img">${luc(s.ikon, cls)}</span>`;
+}
+// Pille med ikon og ord (status leses aldri av farge alene). `tekst` overstyrer ordet.
+function statusPilleHtml(domene, key, tekst){
+  const s = statusDef(domene, key);
+  if(!s) return '';
+  return `<span class="badge ${STATUS_TONE[s.tone].badge}">${luc(s.ikon)} ${esc(tekst || s.label)}</span>`;
+}
+function alvorlighetRang(key){ const s = statusDef('alvorlighet', key); return s ? s.rang : 9; }
+function hoyesteAlvorlighet(liste){
+  return (liste || []).filter(Boolean).map(k => statusNokkel('alvorlighet', k))
+    .sort((a,b) => alvorlighetRang(a) - alvorlighetRang(b))[0] || null;
+}
+// §5: synkstatus for DENNE enheten, fra siste vellykkede lesing eller skriving mot Airtable.
+function synkStatus(){
+  if(typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+  const tider = [typeof sisteVellykkedeSynkTidspunkt !== 'undefined' ? sisteVellykkedeSynkTidspunkt : null,
+                 typeof vehiclesSisteOkLesing !== 'undefined' ? vehiclesSisteOkLesing : null].filter(Boolean).sort();
+  if(!tider.length) return null; // før første synk: lasting, ikke en femte status
+  const min = (Date.now() - new Date(tider[tider.length - 1]).getTime()) / 60000;
+  if(min < 2) return 'sanntid';
+  if(min <= 15) return 'forsinket';
+  return 'utdatert';
+}
+
+// ================= Implementeringsfase 1D: Alvorlighetsrammeverket =================
+// ENESTE regel for alvorlighet (damage-severity-framework.md). Ingen annen kode velger
+// alvorlighet selv. Sjåføren velger aldri alvorlighet: skadetype + «Kan bilen kjøres?» gir den.
+const SKADETYPE_ORDER = ['bulk-riper', 'glass', 'sidespeil', 'lys', 'dekk-felg', 'loftebord', 'annet'];
+const SKADETYPE_LABEL = {'bulk-riper':'Bulk/riper', 'glass':'Glass/rute', 'sidespeil':'Sidespeil', 'lys':'Lys',
+  'dekk-felg':'Dekk/felg', 'loftebord':'Løftebord', 'annet':'Annet',
+  // Kun ved administrators reklassifisering (Trinn B lagrer Skadetype):
+  'bremser':'Bremser', 'styring':'Styring', 'struktur':'Struktur'};
+const KAN_KJORES_ORDER = ['ja', 'usikker', 'nei'];
+const KAN_KJORES_LABEL = {ja:'Ja', usikker:'Usikker', nei:'Nei'};
+const ALVORLIGHET_SKADE_REGEL = {
+  'bremser':   {ja:'hoy', usikker:'kritisk', nei:'kritisk'},
+  'styring':   {ja:'hoy', usikker:'kritisk', nei:'kritisk'},
+  'struktur':  {ja:'hoy', usikker:'kritisk', nei:'kritisk'},
+  'dekk-felg': {ja:'hoy', usikker:'hoy', nei:'kritisk'},
+  'glass':     {ja:'middels', usikker:'hoy', nei:'kritisk'},
+  'lys':       {ja:'middels', usikker:'hoy', nei:'kritisk'},
+  'sidespeil': {ja:'middels', usikker:'hoy', nei:'kritisk'},
+  'loftebord': {ja:'middels', usikker:'hoy', nei:'kritisk'},
+  'bulk-riper':{ja:'lav', usikker:'middels', nei:'kritisk'},
+  'annet':     {ja:'middels', usikker:'hoy', nei:'kritisk'}
+};
+function alvorlighetForSkade(skadetype, kanKjores){
+  const regel = ALVORLIGHET_SKADE_REGEL[skadetype] || ALVORLIGHET_SKADE_REGEL.annet;
+  return regel[kanKjores] || null;
+}
+const ALVORLIGHET_KONTROLLAVVIK = {'styring':'kritisk', 'slitte-bremser':'hoy', 'slitte-dekk':'hoy', 'sidespeil':'hoy',
+  'defekt-lys':'hoy', 'feil-pa-kjoretoy':'hoy', 'loftebord':'middels', 'manglende-utstyr':'middels', 'annet-avvik':'middels'};
+const ALVORLIGHET_VARSELLAMPE = {bremse:'hoy', motor:'hoy', abs:'hoy', adblue:'middels', batteri:'middels',
+  dekktrykk:'lav', service:'lav', annet:'lav'};
+const EU_KONTROLL_VARSEL_DAGER_HASTER = 14; // ≤ 14 dager: Høy, sortert først blant Høy
+function alvorlighetForEu(eu){
+  if(!eu) return null;
+  if(eu.status === 'forfalt') return 'kritisk';
+  if(eu.status === 'snart-rod') return 'hoy';
+  if(eu.status === 'snart-gul') return 'middels';
+  return null;
+}
+function euHaster(eu){ return !!eu && eu.status === 'snart-rod' && eu.gjenstaende !== undefined && eu.gjenstaende <= EU_KONTROLL_VARSEL_DAGER_HASTER; }
+function alvorlighetForService(ss){
+  if(!ss) return null;
+  return {'forfalt':'hoy', 'snart-rod':'middels', 'snart-gul':'lav'}[ss.status] || null;
+}
+// Felles skjemadel for sjåførens skademelding (Min Bil og sjåførkontroll): skadetype og
+// «Kan bilen kjøres?». Samme markup og samme regel begge steder.
+function skadeTypeOgKanKjoresHtml(prefix, type, kanKjores){
+  return `
+        <div class="field" style="margin-bottom:10px;"><label for="${prefix}-skade-type">Hva slags skade?</label>
+          <select id="${prefix}-skade-type">
+            <option value="" ${!type?'selected':''}>Velg skadetype</option>
+            ${SKADETYPE_ORDER.map(k => `<option value="${k}" ${type===k?'selected':''}>${SKADETYPE_LABEL[k]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Kan bilen kjøres?</label>
+          <div class="chip-yn" role="radiogroup" aria-label="Kan bilen kjøres?">
+            ${KAN_KJORES_ORDER.map(k => `<label for="${prefix}-kan-kjores-${k}" class="${kanKjores===k?'checked':''}"><input type="radio" name="${prefix}-kan-kjores" id="${prefix}-kan-kjores-${k}" value="${k}" ${kanKjores===k?'checked':''}> ${KAN_KJORES_LABEL[k]}</label>`).join('')}
+          </div>
+          ${kanKjores === 'nei' ? `<div class="required-hint" style="margin-top:8px;color:var(--red);font-weight:600;">${luc('octagon-alert')} Ikke kjør bilen. Driften blir varslet når du sender.</div>` : ''}
+        </div>`;
+}
+function attachSkadeTypeOgKanKjores(prefix, onType, onKanKjores){
+  const sel = document.getElementById(prefix + '-skade-type');
+  if(sel) sel.addEventListener('change', e => onType(e.target.value));
+  document.querySelectorAll(`input[name="${prefix}-kan-kjores"]`).forEach(r => r.addEventListener('change', e => onKanKjores(e.target.value)));
+}
+// Felles validering + beregning for en skade meldt av sjåfør. Returnerer {feil} eller
+// {alvorlighet, beskrivelse, kanKjoresTekst}. Skadetypen står først i beskrivelsen, og svaret
+// på «Kan bilen kjøres?» lagres i kommentaren inntil Trinn B får egne felt (Skadetype/KanKjores).
+function sjaforSkadeVurdering(type, kanKjores, beskrivelse){
+  if(!type) return {feil:'Velg hva slags skade det er.'};
+  if(!kanKjores) return {feil:'Svar på om bilen kan kjøres.'};
+  const alvorlighet = alvorlighetForSkade(type, kanKjores);
+  const tekst = (beskrivelse || '').trim();
+  return {
+    alvorlighet,
+    beskrivelse: SKADETYPE_LABEL[type] + (tekst ? ': ' + tekst : ''),
+    kanKjoresTekst: 'Kan bilen kjøres: ' + KAN_KJORES_LABEL[kanKjores]
+  };
+}
+// Alvorlighet for ett avvikspunkt i en sak (sakAvvikListe()): skade → skadens lagrede
+// alvorlighet, varsellampe/kontrollavvik → tabellene over, alt annet → «annet» (Middels).
+function alvorlighetForAvvikPunkt(a){
+  if(!a) return null;
+  if(a.caseType === 'skade'){
+    const d = (typeof damages !== 'undefined' ? damages : []).find(x => x.id === a.sourceId);
+    return d && STATUS.alvorlighet[statusNokkel('alvorlighet', d.alvorlighet)] ? statusNokkel('alvorlighet', d.alvorlighet) : 'middels';
+  }
+  if(a.caseType === 'varsellampe') return ALVORLIGHET_VARSELLAMPE[a.sourceId] || 'lav';
+  if(a.caseType === 'kontrollavvik') return ALVORLIGHET_KONTROLLAVVIK[a.sourceId] || 'middels';
+  return 'middels';
+}
+// En sak har den høyeste alvorligheten blant sine aktive avvikspunkter.
+function sakAlvorlighet(s){
+  const punkter = sakAvvikListe(s);
+  const aktive = punkter.filter(a => a.status !== 'utfort' && a.status !== 'avslatt');
+  return hoyesteAlvorlighet((aktive.length ? aktive : punkter).map(alvorlighetForAvvikPunkt)) || 'middels';
+}
+// Kritisk sikkerhetsfunn (skade/kontrollavvik) setter bilen til «Kan ikke brukes» straks,
+// logget som system. Utløpt EU-kontroll gjør det ALDRI (flåteansvarlig bestemmer). Settes
+// aldri tilbake automatisk. Returnerer true hvis bilen ble endret (kalleren lagrer).
+function settKanIkkeBrukesVedKritiskFunn(v, kilde, tekst){
+  if(!v || vehicleDriftsstatus(v) === 'kan-ikke-brukes') return false;
+  const dato = todayISO();
+  v.uteAvDrift = true;
+  v.uteAvDriftArsak = tekst || 'Kritisk funn';
+  v.uteAvDriftDato = dato;
+  if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
+  v.statusHistorikk.push({dato, handling:'ute-av-drift', arsak: v.uteAvDriftArsak, kommentar:'', av:'system', kilde: kilde || ''});
+  return true;
+}
+
 // ---- Aktive Saker: konstanter ----
-const SAK_TYPE_ORDER = ['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
+const SAK_TYPE_ORDER =['varsellampe', 'skade', 'kontrollavvik', 'dekk', 'service', 'annet'];
 const SAK_TYPE_LABEL = {varsellampe:'Varsellampe', skade:'Skade', kontrollavvik:'Kontrollavvik', dekk:'Dekk', service:'Service', annet:'Annet'};
 const SAK_TYPE_IKON = {varsellampe:'🚨', skade:'⚠️', kontrollavvik:'📋', dekk:'🛞', service:'🔧', annet:'📁'};
 // Samme begrunnelse som GRUPPE_LUCIDE over: SAK_TYPE_IKON brukes også i <option>-lister
@@ -2575,8 +2848,9 @@ const SAK_TYPE_LUCIDE = {varsellampe:'triangle-alert', skade:'triangle-alert', k
 // verksted»). Ingen NYE saker får noensinne disse verdiene lenger — kun 'ny',
 // 'under-oppfolging', 'verksted-bestilt', 'utfort' eller 'avslatt' (se godtaSak()/
 // avslaSak()/markerSakUtfort()/submitVT()).
-const SAK_STATUS_ORDER = ['ny', 'under-oppfolging', 'vurderes', 'tiltak-planlagt', 'verksted-bestilt', 'utfort-venter-bekreftelse', 'delvis-utfort', 'utfort', 'avslatt', 'lukket'];
-const SAK_STATUS_LABEL = {'ny':'Ny', 'under-oppfolging':'Under oppfølging', 'vurderes':'Vurderes', 'tiltak-planlagt':'Tiltak planlagt', 'verksted-bestilt':'Verksted bestilt', 'utfort-venter-bekreftelse':'Utført - venter bekreftelse', 'delvis-utfort':'Delvis utført', 'utfort':'Utført', 'avslatt':'Avslått', 'lukket':'Lukket'};
+// Fase 1A: avledet fra statusordboken (STATUS.sak) — ikke definer saksstatuser her.
+const SAK_STATUS_ORDER = Object.keys(STATUS.sak);
+const SAK_STATUS_LABEL = Object.fromEntries(SAK_STATUS_ORDER.map(k => [k, STATUS.sak[k].label]));
 const SAK_RESULTAT_ORDER = ['feil-utbedret', 'ingen-feil-funnet', 'midlertidig-reparert', 'avventer-deler', 'ny-verkstedtime-nodvendig'];
 const SAK_RESULTAT_LABEL = {'feil-utbedret':'Feil utbedret', 'ingen-feil-funnet':'Ingen feil funnet', 'midlertidig-reparert':'Midlertidig reparert', 'avventer-deler':'Avventer deler', 'ny-verkstedtime-nodvendig':'Ny verkstedtime nødvendig'};
 // Prioritet 71.2: valgfri årsak ved «✅ Utført uten verkstedbesøk» (saker under oppfølging
@@ -2707,11 +2981,14 @@ function vehicleEldsteApneSak(vehicleId){
 // (Dashboard, Biloversikt, Kjøretøyprofil) — kun én hovedstatus vises per bil.
 // Prioritet: Ute av drift > Kritisk > Verksted bestilt > Under oppfølging > Reservebil
 // (ikke i bruk) > Ikke kontrollert > Operativ.
+// Fase 1B: returnerer nøklene i statusordboken §2 (STATUS.operativ). De tidligere nøklene
+// 'ute-av-drift' og 'verksted' er alias (STATUS_ALIAS.operativ). 'utfaset' og 'pa-verksted'
+// krever de lagrede feltene fra Trinn B (Driftsstatus, WorkshopAppointments.Status).
 function vehicleHovedstatus(vehicleId){
   const v = vehicles.find(x => x.id === vehicleId);
-  if(v && v.uteAvDrift) return 'ute-av-drift';
+  if(v && vehicleDriftsstatus(v) === 'kan-ikke-brukes') return 'kan-ikke-brukes';
   const apneSaker = vehicleAktiveSaker(vehicleId);
-  if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'verksted';
+  if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'verksted-planlagt';
   if(apneSaker.length > 0) return 'oppfolging';
   if(!isKontrollertIdag(vehicleId)){
     // Optimalisering 14: en reservebil som ikke er tatt i bruk ennå i dag får sin egen,
@@ -2727,24 +3004,30 @@ function vehicleHovedstatus(vehicleId){
 // -- en bil som faktisk ikke kan brukes -- ikke en manuelt satt saksprioritet. Hierarkiet
 // er dermed seks nivaaer: Ute av drift > Verksted bestilt > Under oppfolging > Reservebil
 // > Ikke kontrollert > Operativ. Selve rekkefoelgen og de gjenværende nivaaene er URORT.
-const HOVEDSTATUS_ORDER = ['ute-av-drift', 'verksted', 'oppfolging', 'reserve', 'ikke-kontrollert', 'operativ'];
-const HOVEDSTATUS_IKON = {'ute-av-drift':'🔴', verksted:'🟠', oppfolging:'🟡', reserve:'🚐', 'ikke-kontrollert':'⚪', operativ:'🟢'};
-const HOVEDSTATUS_LABEL = {'ute-av-drift':'Ute av drift', verksted:'Verksted bestilt', oppfolging:'Under oppfølging', reserve:'Reservebil (ikke i bruk)', 'ikke-kontrollert':'Ikke kontrollert', operativ:'Operativ'};
-// Gjenbruker eksisterende .badge-fargeklasser (rød/oransje/gul/grå/grønn) slik at
-// hovedstatusen får riktig farge overalt den vises (Kjøretøyprofil m.fl.). "reserve" bruker
-// samme nøytrale grå som "unset" — bevisst IKKE gul/urovekkende, siden det ikke er et problem.
-// ren presentasjonstabell — hvilken tonet flate/farge hver hovedstatus
-// får i det nye pillesystemet. Ingen logikk, kun farger; statusverdiene selv kommer
-// fortsatt utelukkende fra vehicleHovedstatus().
-const P38_STATUS_STIL = {
-  'ute-av-drift':{tint:'var(--red-soft)', tone:'var(--red)'},
-  verksted:{tint:'var(--orange-soft)', tone:'var(--orange)'},
-  oppfolging:{tint:'var(--amber-soft)', tone:'var(--amber)'},
-  reserve:{tint:'var(--surface-3)', tone:'var(--muted)'},
-  'ikke-kontrollert':{tint:'var(--surface-3)', tone:'var(--muted)'},
-  operativ:{tint:'var(--green-soft)', tone:'var(--green-ink)'}
-};
-const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', verksted:'oppf-idag', oppfolging:'soon', reserve:'unset', 'ikke-kontrollert':'unset', operativ:'ok'};
+// Fase 1A/1B: alle fire tabellene er AVLEDET fra statusordboken (STATUS.operativ og
+// STATUS_TONE) og beholdt kun fordi mange visninger leser dem. ORDER er statusene
+// vehicleHovedstatus() faktisk kan returnere i Trinn A, i ordbokens prioritetsrekkefølge.
+// Oppslag med eldre nøkler ('ute-av-drift', 'verksted') gir samme verdi som den nye nøkkelen.
+const HOVEDSTATUS_ORDER = ['kan-ikke-brukes', 'verksted-planlagt', 'oppfolging', 'reserve', 'ikke-kontrollert', 'operativ'];
+function _hovedstatusTabell(fn){
+  const t = {};
+  Object.keys(STATUS.operativ).forEach(k => { t[k] = fn(k); });
+  Object.keys(STATUS_ALIAS.operativ).forEach(gammel => { t[gammel] = t[STATUS_ALIAS.operativ[gammel]]; });
+  return t;
+}
+const HOVEDSTATUS_IKON = _hovedstatusTabell(k => statusEmoji('operativ', k));
+const HOVEDSTATUS_LABEL = _hovedstatusTabell(k => statusLabel('operativ', k));
+const P38_STATUS_STIL = _hovedstatusTabell(k => { const t = statusTone('operativ', k); return {tint:t.tint, tone:t.fg}; });
+const HOVEDSTATUS_BADGE_KLASSE = _hovedstatusTabell(k => statusTone('operativ', k).badge);
+// §1 Driftsstatus. Trinn A avleder den fra dagens felt (UteAvDrift, Kategori 'reserve');
+// Trinn B leser det lagrede feltet Vehicles.Driftsstatus og skriver begge.
+function vehicleDriftsstatus(v){
+  if(!v) return null;
+  if(v.driftsstatus && STATUS.driftsstatus[v.driftsstatus]) return v.driftsstatus;
+  if(v.uteAvDrift) return 'kan-ikke-brukes';
+  if(v.kategori === 'reserve') return 'reserve';
+  return 'aktiv';
+}
 
 // ---- Optimalisering 5 (Operativ Morgenvisning): "Dagens status" per bil ----
 // Enklere, morgen-fokusert status enn vehicleHovedstatus() — svarer kun på "er denne
@@ -2760,17 +3043,8 @@ const HOVEDSTATUS_BADGE_KLASSE = {'ute-av-drift':'overdue', verksted:'oppf-idag'
 // RØD = minst én åpen sak med prioritet Kritisk, ORANSJE = minst én sak med status
 // "Verksted bestilt" (eller "Utført - venter bekreftelse"), GUL = minst én åpen sak,
 // GRØNN = ingen. Kritisk prioritet overstyrer alltid verkstedstatus.
-function vehicleSakStatus(vehicleId){
-  // Prioritet 59 (Alternativ B): ROEDT er ikke lenger "minst en sak med prioritet
-  // Kritisk", men "bilen er ute av drift" -- samme definisjon som vehicleHovedstatus().
-  const vSakSt = vehicles.find(x => x.id === vehicleId);
-  if(vSakSt && vSakSt.uteAvDrift) return 'rod';
-  const apneSaker = aktiveSaker.filter(s => s.vehicleId === vehicleId && sakErApen(s));
-  if(apneSaker.length === 0) return 'gronn';
-  if(apneSaker.some(s => s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse')) return 'oransje';
-  return 'gul';
-}
-const SAK_BILSTATUS_IKON = {gronn:'🟢', gul:'🟡', oransje:'🟠', rod:'🔴'};
+// Fase 1A: den parallelle «sak-bilstatusen» (gronn/gul/oransje/rod) er FJERNET — én
+// kjøretøystatusmodell. Sakslisten viser nå bilens operative status (vehicleHovedstatus()).
 // Fase 3: verksteddato passert på en "Verksted bestilt"-sak flytter den automatisk til
 // "Utført - venter bekreftelse", uten at administrator må gjøre det manuelt. Kjøres ved
 // boot og hver gang Aktive Saker/Dashboard rendres (billig, idempotent operasjon).
@@ -3113,7 +3387,10 @@ let minBilNySjaforMsg = '';
 let driverNavnDialogBilId = '';
 let driverNavnDialogMsg = '';
 let minBilSkadeBeskrivelse = '';
-let minBilSkadeAlvorlighet = 'middels';
+// Fase 1D: sjåføren velger aldri alvorlighet — skadetype + «Kan bilen kjøres?» gir den
+// (alvorlighetForSkade()).
+let minBilSkadeType = '';
+let minBilSkadeKanKjores = '';
 let minBilSkadeKommentar = '';
 // tekst i «☰ Mer → 💬 Legg til kommentar»-skjemaet (renderDriverNyKommentar()).
 let driverNyKommentarTekst = '';
@@ -4461,7 +4738,7 @@ const STANDARD_BILKATEGORIER = [
 // automatisk tilbake i sin egen kategori i det uteAvDrift fjernes. Ingen ekstra felt,
 // ingen manuell flytting, ingenting som kan komme ut av synk.
 const UTE_AV_DRIFT_KATEGORI_ID = 'ute-av-drift';
-const UTE_AV_DRIFT_KATEGORI_NAVN = 'Ute av drift';
+const UTE_AV_DRIFT_KATEGORI_NAVN = 'Kan ikke brukes';
 const UTE_AV_DRIFT_KATEGORI_IKON = '🚫';
 // Bygger de tre oppslagene på nytt fra `bilkategorier`. Kalles etter lasting og etter hver
 // eneste endring i kategoriregisteret. Muterer innholdet i de eksisterende objektene/
@@ -4625,6 +4902,9 @@ function layoutRegistrerAlle(){
     minWidth:4, minHeight:3, renderer:() => dashWidgetVarslerHtml(), std:{x:0, y:21, width:6, height:5, visible:false}});
   dash('aktive-saker', {label:'Aktive saker', ikon:'triangle-alert', beskrivelse:'De nyeste sakene som venter på behandling.',
     minWidth:4, minHeight:3, renderer:ctx => dashWidgetAktiveSakerHtml(ctx.d), std:{x:6, y:21, width:6, height:5, visible:false}});
+  // Fase 1A: informasjonshendelser (sjåførkommentarer og -notater) — aldri varsler.
+  dash('aktivitet', {label:'Siste aktivitet', ikon:'activity', beskrivelse:'Sjåførkommentarer og sjåførnotater siste 7 dager. Informasjon, ikke varsler.',
+    minWidth:4, minHeight:3, renderer:() => dashWidgetAktivitetHtml(), std:{x:0, y:17, width:12, height:5, visible:true}});
   dash('loftebord', {label:'Løftebordstatus', ikon:'arrow-up-down', beskrivelse:'Vedlikehold og årlig kontroll av løftebord, hele flåten.',
     minWidth:3, minHeight:2, renderer:() => dashWidgetLoftebordHtml(), std:{x:7, y:17, width:5, height:3, visible:false}});
 
@@ -4642,7 +4922,7 @@ function layoutRegistrerAlle(){
   side('aktive-saker', {label:'Aktive saker', screen:'aktivesaker', lucide:'triangle-alert', farge:'ic-yellow', teller:() => totaltKreverHandlingCount()});
   side('kommentarer', {label:'Kommentarer', screen:'kommentaroversikt', lucide:'message-square', devices:['mobile'],
     teller:() => nyeKommentarerListe().filter(k => kommentarSkalVarsles(k)).length, drawerTeller:true});
-  side('varslingssenter', {label:'Varslingssenter', screen:'varsler', lucide:'bell', farge:'ic-yellow', teller:() => varslingssenterAntall(), drawerTeller:true});
+  side('varslingssenter', {label:'Varslingssenter', screen:'varsler', lucide:'bell', farge:'ic-yellow', teller:() => varslingssenterKlokkeAntall(), drawerTeller:true});
   side('kostnader', {label:'Kostnader', screen:'kostnadsoversikt', lucide:'bar-chart-3'});
   side('rapporter', {label:'Rapporter', screen:'rapporter', lucide:'file-bar-chart'});
   side('bestill', {label:'Bestill tjenester', screen:'bestill', lucide:'plus', std:{section:'primary', visible:false}});
@@ -4660,7 +4940,7 @@ function layoutRegistrerAlle(){
   bil('bestill', {label:'Bestill tjenester', ikon:'plus', beskrivelse:'Service, EU-kontroll, dekkskift og ruteskift for denne bilen.', collapsible:'wrapper', std:{width:12}});
   bil('kjoretoydetaljer', {label:'Kjøretøydetaljer', ikon:'car', beskrivelse:'Kompakt visning og direkte redigering av bilinformasjon, servicenummer og serviceintervall.', collapsible:'accordion', std:{width:6, collapsed:true}});
   bil('aktive-saker', {label:'Aktive saker', ikon:'folder-open', beskrivelse:'Flyttet til Historikk-fanen (Prioritet 67). Skjult som standard.', std:{width:6, visible:false}});
-  bil('avanserte-handlinger', {label:'Avanserte handlinger', ikon:'settings', beskrivelse:'Marker ute av drift og slett bil.', collapsible:'accordion', std:{width:6, collapsed:true}});
+  bil('avanserte-handlinger', {label:'Avanserte handlinger', ikon:'settings', beskrivelse:'Sett til «Kan ikke brukes» og slett bil.', collapsible:'accordion', std:{width:6, collapsed:true}});
   bil('historikk', {label:'Historikk', ikon:'history', beskrivelse:'Kontroller, skader, varsellamper, verkstedhistorikk, kommentarer og aktive saker.', collapsible:'wrapper', std:{width:12}});
   [['kontroller','Kontroller','clipboard-check'], ['skader','Skader','octagon-alert'], ['varsellamper','Varsellamper','triangle-alert'],
    ['verkstedhistorikk','Verkstedhistorikk','wrench'], ['kommentarer','Kommentarer','message-square'], ['aktivesaker','Aktive saker','folder-open']].forEach(([k, l, i]) =>
@@ -5981,7 +6261,7 @@ function vehicleDriftslagGruppe(v){
 // visningen), slik at bilen automatisk dukker opp i riktig driftslag-gruppe igjen den
 // dagen den settes tilbake i drift — ingen egen "husk opprinnelig lag"-logikk er
 // nødvendig siden lagtilknytningen aldri fjernes fra databasen.
-const DRIFTSLAG_GRUPPE_UTE_AV_DRIFT = 'Biler ute av drift';
+const DRIFTSLAG_GRUPPE_UTE_AV_DRIFT = 'Kan ikke brukes';
 function kontrollDriftslagGrupper(){
   const grupper = {};
   const uteAvDrift = [];
@@ -6058,7 +6338,7 @@ function renderDriftslagGruppertBilvalg(velgAttr){
                   <div class="ringeliste-row-main">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
                   <div class="ringeliste-row-sub">${esc(v.merke)} ${esc(v.modell)}${v.uteAvDriftArsak ? ' · ' + esc(v.uteAvDriftArsak) : ''}</div>
                 </div>
-                <span class="sj-pill rod">⛔ Ute av drift</span>
+                <span class="sj-pill rod">⛔ Kan ikke brukes</span>
               </div>`;
               }
               const kontrollert = isKontrollertIdag(v.id);
@@ -6078,7 +6358,7 @@ function renderDriftslagGruppertBilvalg(velgAttr){
                   <div class="ringeliste-row-main">${esc(v.bilnummer)} · ${esc(v.regnr)}</div>
                   <div class="ringeliste-row-sub">${esc(v.merke)} ${esc(v.modell)}${aktivSjafor ? ` · ${luc('user-round')} ${esc(aktivSjafor)}` : ''}</div>
                 </div>
-                <span class="sj-pill ${kontrollert ? 'gronn' : 'noytral'}">${kontrollert ? '✅ ' + (kontrollTid ? esc(kontrollTid) : 'Kontrollert') : 'Ikke kontrollert'}</span>
+                <span class="sj-pill ${kontrollert ? 'gronn' : 'noytral'}">${kontrollert ? '✅ ' + (kontrollTid ? esc(kontrollTid) : 'Kontrollert') : 'Mangler kontroll'}</span>
                 <span class="sj-velg-chevron">${luc('chevron-right')}</span>
               </div>`;
             }).join('')}
@@ -6097,8 +6377,15 @@ function attachDriftslagGruppeListeners(){
     render();
   }));
 }
-const SKADE_STATUS_LABEL = {registrert:'Registrert', oppfolging:'Under oppfølging', utbedret:'Utbedret'};
-const ALVOR_LABEL = {lav:'Lav', middels:'Middels', hoy:'Høy'};
+// Fase 1A: avledet fra statusordboken (STATUS.skade / STATUS.alvorlighet).
+const SKADE_STATUS_LABEL = Object.fromEntries(Object.keys(STATUS.skade).map(k => [k, STATUS.skade[k].label]));
+const ALVOR_LABEL = Object.fromEntries(Object.keys(STATUS.alvorlighet).map(k => [k, STATUS.alvorlighet[k].label]));
+// Rekkefølge i nedtrekkslister (stigende): Lav · Middels · Høy · Kritisk.
+const ALVORLIGHET_VALG = ['lav', 'middels', 'hoy', 'kritisk'];
+function alvorlighetOptions(valgt){
+  const v = statusNokkel('alvorlighet', valgt);
+  return ALVORLIGHET_VALG.map(k => `<option value="${k}" ${v===k?'selected':''}>${ALVOR_LABEL[k]}</option>`).join('');
+}
 const VARSELLAMPE_LABEL = {
   motor:'Motorlampe', adblue:'AdBlue', dekktrykk:'Dekktrykk', bremse:'Bremsevarsel',
   batteri:'Batteri/Lading', abs:'ABS', service:'Servicevarsel', annet:'Annet'
@@ -7491,7 +7778,20 @@ function vehicleNesteServiceKm(vehicleId, v){
 // "neste service"-km. Fire nivåer, samme mønster som vehicleEuKontrollStatus():
 // 🟢 ok (mer enn 2500 km igjen), 🟡 snart-gul (2500 km eller mindre), 🔴
 // snart-rod (1000 km eller mindre), 🔴 forfalt (intervall passert).
+// Fase 1A: tonen for en servicestatus følger alvorlighetsrammeverket (forfalt Høy, snart-rød
+// Middels, snart-gul Lav) — ingen egne farger. ikon (emoji) kommer fra samme tone.
+function serviceStatusTone(ss){
+  if(!ss) return STATUS_TONE.neutral;
+  if(ss.status === 'ok') return STATUS_TONE.success;
+  const a = alvorlighetForService(ss);
+  return a ? statusTone('alvorlighet', a) : STATUS_TONE.neutral;
+}
 function vehicleServiceStatus(v){
+  const r = _vehicleServiceStatusRa(v);
+  r.ikon = serviceStatusTone(r).emoji;
+  return r;
+}
+function _vehicleServiceStatusRa(v){
   const nesteKm = vehicleNesteServiceKm(v.id, v);
   if(nesteKm === null) return {status:'ukjent', ikon:'⚪', tekst:'Serviceintervall ikke satt'};
   const naaverendeKm = v.km ? Number(v.km) : 0;
@@ -7588,7 +7888,13 @@ function vehicleHarAktivPlanlagtDekkskift(vehicleId){
 // hele dager — ingen kalendermåned-aritmetikk innført et nytt sted i koden.
 const EU_KONTROLL_VARSEL_DAGER_GUL = 90; // "3 måneder eller mindre igjen" → gul
 const EU_KONTROLL_VARSEL_DAGER_ROD = 30; // "1 måned eller mindre igjen" → rød (fortsatt ikke forfalt)
+// Fase 1A: ikon (emoji) følger statusordboken §8 (STATUS.eu), ikke en egen tabell.
 function vehicleEuKontrollStatus(v){
+  const r = _vehicleEuKontrollStatusRa(v);
+  r.ikon = statusEmoji('eu', r.status);
+  return r;
+}
+function _vehicleEuKontrollStatusRa(v){
   if(!v.euGodkjentTil) return {status:'ukjent', ikon:'⚪', tekst:'Mangler registrering'};
   const gjenstaende = daysUntil(v.euGodkjentTil);
   if(gjenstaende === null) return {status:'ukjent', ikon:'⚪', tekst:'Mangler registrering'};
@@ -7848,6 +8154,16 @@ function vtOsloNaa(){
 function vtErKommende(t){
   return !!(t && !t.utfort && t.dato);
 }
+// Fase 1C: verkstedstatus (statusordbok §3, workshop-state-model.md) — ENESTE definisjon.
+// Trinn A avleder den fra Utfort og Dato (Planlagt · Utført · Forfalt). Trinn B leser det
+// lagrede feltet WorkshopAppointments.Status og får da også Bekreftet, Pågår og Avlyst.
+function vtStatus(t){
+  if(!t) return null;
+  if(t.status && STATUS.verksted[t.status]) return t.status;
+  if(t.utfort) return 'utfort';
+  if(t.dato && t.dato < todayISO()) return 'forfalt';
+  return 'planlagt';
+}
 function kommendeVerkstedtimer(vehicleId){
   return verkstedtimer
     .filter(t => (!vehicleId || t.vehicleId === vehicleId) && vtErKommende(t))
@@ -7923,7 +8239,7 @@ function vtOversiktKpi(liste){
   return {
     idag: planlagt.filter(t => t.dato === idag).length,
     uke: planlagt.filter(t => t.dato >= idag && t.dato <= ukeSlutt).length,
-    forfalt: planlagt.filter(t => t.dato < idag).length
+    forfalt: planlagt.filter(t => vtStatus(t) === 'forfalt').length
   };
 }
 function vtOversiktKpiHtml(kpi){
@@ -7946,7 +8262,7 @@ function vtKommendeGrupper(liste){
   const forfalt = [], iDag = [], uke = [], senere = [];
   sortert.forEach(t => {
     if(!t.dato){ senere.push(t); return; }
-    if(t.dato < idag) forfalt.push(t);
+    if(vtStatus(t) === 'forfalt') forfalt.push(t);
     else if(t.dato === idag) iDag.push(t);
     else if(t.dato <= ukeSlutt) uke.push(t);
     else senere.push(t);
@@ -7961,13 +8277,14 @@ function vtKommendeGrupper(liste){
 function vtKommendeRadHtml(t, {historikk} = {}){
   const v = vtVehicle(t);
   const tid = t.tidspunkt || '—';
-  const forfalt = !historikk && t.dato && t.dato < todayISO();
+  const vtSt = vtStatus(t);
+  const forfalt = !historikk && vtSt === 'forfalt';
   const editing = editingVTId === t.id;
   return `
     <div class="vt-plan-rad ${forfalt ? 'vt-plan-forfalt' : ''}" data-vt-rad="${esc(t.id)}">
       <div class="vt-plan-tid">${esc(tid)}</div>
       <div class="vt-plan-main">
-        <div class="vt-plan-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</div>
+        <div class="vt-plan-bil">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'} ${statusPilleHtml('verksted', vtSt)}</div>
         <div class="vt-plan-ws">${esc(t.verksted || 'Verksted ikke satt')}</div>
         <div class="vt-plan-arbeid-etikett">Arbeid</div>
         ${vtOppgaverListeHtml(t)}
@@ -8096,7 +8413,7 @@ function goTo(scr, vehicleId, _isBack){
   if(scr !== 'kontroll'){
     kontrollPrefillVehicleId = ''; kontrollFormVehicleId = '';
     kontrollFormAnnet = false; kontrollFormHarSkader = false; pendingKontrollPhotos = [];
-    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormSjaforNavn = '';
   }
   if(scr === 'service' && vehicleId) serviceValgtVehicleId = vehicleId;
@@ -8173,7 +8490,7 @@ function goToRegisterKategori(kategori){
 // vehicleHovedstatus()/vehicleAktivSjafor() som før. Ingen ny filtreringslogikk.
 function goToRegisterHovedstatus(status){
   resetRegisterFiltre();
-  filterHovedstatus = status || '';
+  filterHovedstatus = status ? statusNokkel('operativ', status) : '';
   goTo('register');
 }
 function goToSkaderFiltered(opts){
@@ -8212,7 +8529,7 @@ function goToRegisterKontroll(vehicleId){
   kontrollFormAvvik = [];
   kontrollAvvikOpen = false;
   pendingKontrollPhotos = [];
-  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
+  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
   kontrollFormSjaforNavn = loggedInRole || '';
   kontrollDraftRestored = loadKontrollDraft();
   if(vehicleId) kontrollFormVehicleId = vehicleId; // eksplisitt valgt bil overstyrer alltid en eventuell kladd
@@ -8294,7 +8611,7 @@ async function saveVehicleForm(id){
   v.modell = document.getElementById('f-modell').value.trim();
   v.arsmodell = document.getElementById('f-arsmodell').value.trim();
   v.kategori = document.getElementById('f-kategori').value;
-  v.status = document.getElementById('f-status').value;
+  // Fase 1B: Vehicles.Status er avviklet (statusordbok, «Retired statuses») og skrives ikke lenger fra skjemaet.
   v.dekk = document.getElementById('f-dekk').value;
   v.km = nyKmRaw;
   v.loyvenummer = document.getElementById('f-loyvenummer').value.trim();
@@ -8436,6 +8753,11 @@ async function submitAddSkade(ev){
     reportedBy: loggedInRole || 'Ukjent', reportedAt: dato, kommentar: kommentar
   });
   await saveAktiveSaker();
+  // Fase 1D: Kritisk skade → «Kan ikke brukes» (damage-severity-framework.md).
+  if(alvorlighet === 'kritisk' && status !== 'utbedret'){
+    const bil = vehicles.find(x => x.id === vehicleId);
+    if(settKanIkkeBrukesVedKritiskFunn(bil, 'skade:' + id, 'Kritisk skade: ' + beskrivelse)) await saveVehicles();
+  }
   showAddSkade = false;
   skadePrefillVehicleId = '';
   render();
@@ -8447,13 +8769,15 @@ async function submitAddSkade(ev){
 async function submitMinBilSkade(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v) return;
-  const beskrivelse = minBilSkadeBeskrivelse.trim();
-  if(!beskrivelse){ alert('Beskriv skaden før du lagrer.'); return; }
+  if(!minBilSkadeBeskrivelse.trim()){ alert('Beskriv skaden før du lagrer.'); return; }
+  const vurdering = sjaforSkadeVurdering(minBilSkadeType, minBilSkadeKanKjores, minBilSkadeBeskrivelse);
+  if(vurdering.feil){ alert(vurdering.feil); return; }
+  const beskrivelse = vurdering.beskrivelse;
   const id = uid();
   const dato = todayISO();
   damages.push({
-    id, vehicleId: v.id, dato, beskrivelse, alvorlighet: minBilSkadeAlvorlighet,
-    kommentar: minBilSkadeKommentar.trim(), status: 'registrert', estimertKostnad: null,
+    id, vehicleId: v.id, dato, beskrivelse, alvorlighet: vurdering.alvorlighet,
+    kommentar: [vurdering.kanKjoresTekst, minBilSkadeKommentar.trim()].filter(Boolean).join('\n'), status: 'registrert', estimertKostnad: null,
     registrertAv: driverNavn || 'Ukjent', hasPhoto: false, createdByControlId: null
   });
   await saveDamages();
@@ -8472,12 +8796,21 @@ async function submitMinBilSkade(){
     reportedBy: driverNavn || 'Ukjent', reportedAt: dato, kommentar: minBilSkadeKommentar.trim()
   });
   await saveAktiveSaker();
-  minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeAlvorlighet = 'middels'; pendingMinBilFoto = null;
+  // Fase 1D: Kritisk (f.eks. «Kan bilen kjøres? Nei») → bilen settes til «Kan ikke brukes».
+  let kritiskFeil = false;
+  if(vurdering.alvorlighet === 'kritisk'){
+    try{ if(settKanIkkeBrukesVedKritiskFunn(v, 'skade:' + id, 'Kritisk skade meldt av sjåfør: ' + beskrivelse)) await saveVehiclesOrThrow(); }
+    catch(e){ kritiskFeil = true; }
+  }
+  const varKritisk = vurdering.alvorlighet === 'kritisk';
+  minBilAksjon = ''; minBilSkadeBeskrivelse = ''; minBilSkadeKommentar = ''; minBilSkadeType = ''; minBilSkadeKanKjores = ''; pendingMinBilFoto = null;
   // Prioritet 56: vellykket registrering = kort bekreftelse (ingen knapp å trykke); en reell
   // feil (bildet ble ikke lagret) varsles fortsatt med dialog.
   if(!fotoLagretOk) alert('Skade registrert, men bildet kunne ikke lagres (for stort eller nettverksfeil). Legg det til på nytt fra skadekortet.');
+  if(kritiskFeil) alert('Skaden er registrert, men bilen kunne ikke settes til «Kan ikke brukes». Ikke kjør bilen, og kontakt drift.');
   render();
-  if(fotoLagretOk) visSjToast('Skade registrert');
+  if(varKritisk && !kritiskFeil) alert('Ikke kjør bilen. Bilen er satt til «Kan ikke brukes», og driften ser skaden nå. Kontakt drift.');
+  else if(fotoLagretOk) visSjToast('Skade registrert');
 }
 async function submitMinBilVarsel(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
@@ -8588,6 +8921,7 @@ async function saveDamageEdit(id){
   d.vehicleId = document.getElementById('e-sk-vehicle-'+id).value;
   d.dato = newDato;
   d.beskrivelse = document.getElementById('e-sk-beskrivelse-'+id).value.trim();
+  const forrigeAlvorlighet = statusNokkel('alvorlighet', d.alvorlighet);
   d.alvorlighet = document.getElementById('e-sk-alvorlighet-'+id).value;
   d.kommentar = document.getElementById('e-sk-kommentar-'+id).value.trim();
   d.status = document.getElementById('e-sk-status-'+id).value;
@@ -8600,6 +8934,12 @@ async function saveDamageEdit(id){
   }
   pendingPhotoData = null;
   await saveDamages();
+  // Fase 1D: oppgradering til Kritisk setter bilen til «Kan ikke brukes». Nedgradering setter
+  // den aldri tilbake automatisk (flåteansvarlig gjør det selv i Kjøretøyprofilen).
+  if(d.alvorlighet === 'kritisk' && forrigeAlvorlighet !== 'kritisk' && d.status !== 'utbedret'){
+    const bil = vehicles.find(x => x.id === d.vehicleId);
+    if(settKanIkkeBrukesVedKritiskFunn(bil, 'skade:' + d.id, 'Kritisk skade: ' + (d.beskrivelse || ''))) await saveVehicles();
+  }
   editingDamageId = null;
   if(!fotoLagretOk) alert('Endringene ble lagret, men det nye bildet kunne ikke lagres (for stort eller nettverksfeil). Prøv igjen.');
   render();
@@ -10360,7 +10700,7 @@ function kontrollFjernMerke(vehicleId, sjafor, dato){
 // Tømmer kontrollskjemaets tilstand (samme felter som etter en vellykket innsending).
 function nullstillKontrollSkjema(){
   kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
-  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
+  kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
   kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
   kontrollFormAvvik = []; kontrollAvvikOpen = false;
   clearKontrollDraft();
@@ -10461,6 +10801,12 @@ async function submitKontroll(ev){
 
   if(harNyeSkader && !skadeBeskrivelse){
     msgEl.textContent = 'Beskriv skaden du har oppdaget.';
+    return;
+  }
+  // Fase 1D: skadetype + «Kan bilen kjøres?» gir alvorligheten (alvorlighetForSkade()).
+  const skadeVurdering = harNyeSkader ? sjaforSkadeVurdering(kontrollFormSkadeType, kontrollFormSkadeKanKjores, skadeBeskrivelse) : null;
+  if(skadeVurdering && skadeVurdering.feil){
+    msgEl.textContent = skadeVurdering.feil;
     return;
   }
 
@@ -10611,8 +10957,8 @@ async function submitKontroll(ev){
     if(harNyeSkader){
       linkedDamageId = uid();
       damages.push({
-        id: linkedDamageId, vehicleId, dato, beskrivelse: skadeBeskrivelse,
-        alvorlighet: 'middels', kommentar: 'Meldt via sjåførkontroll',
+        id: linkedDamageId, vehicleId, dato, beskrivelse: skadeVurdering.beskrivelse,
+        alvorlighet: skadeVurdering.alvorlighet, kommentar: 'Meldt via sjåførkontroll\n' + skadeVurdering.kanKjoresTekst,
         status: 'registrert', registrertAv: sjafor, hasPhoto: antallBilderLagret > 0,
         createdByControlId: id
       });
@@ -10705,7 +11051,7 @@ async function submitKontroll(ev){
     // rettet dataintegritetsfeil av nøyaktig denne typen.
 
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
-    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
+    kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
     kontrollFormAvvik = []; kontrollAvvikOpen = false;
     clearKontrollDraft();
@@ -10714,6 +11060,23 @@ async function submitKontroll(ev){
     const antallValgteBilder = pendingKontrollPhotos.length;
     pendingKontrollPhotos = [];
     const bildeAdvarsel = antallValgteBilder > 0 && antallBilderLagret < antallValgteBilder;
+    // Fase 1D: Kritisk skade → «Kan ikke brukes». Utenfor rollback-grensen (som steg 8):
+    // kontrollen er gyldig lagret og rulles ikke tilbake om statusendringen feiler.
+    const kritiskSkade = !!(skadeVurdering && skadeVurdering.alvorlighet === 'kritisk');
+    if(kritiskSkade){
+      let kritiskOk = true;
+      try{ if(settKanIkkeBrukesVedKritiskFunn(v, 'skade:' + linkedDamageId, 'Kritisk skade meldt av sjåfør: ' + skadeVurdering.beskrivelse)) await saveVehiclesOrThrow(); }
+      catch(e){ kritiskOk = false; }
+      alert(kritiskOk
+        ? 'Ikke kjør bilen. ' + vehicleLabel(v) + ' er satt til «Kan ikke brukes», og driften ser skaden nå. Kontakt drift.'
+        : 'Kontrollen er registrert, men ' + vehicleLabel(v) + ' kunne ikke settes til «Kan ikke brukes». Ikke kjør bilen, og kontakt drift.');
+      if(driverMode){
+        // Ingen biløkt på en bil som ikke kan brukes: sjåføren sendes tilbake til bilvalget.
+        driverScreen = 'velg-bil';
+        render();
+        return;
+      }
+    }
     if(bildeAdvarsel){
       alert('Kontroll registrert for ' + vehicleLabel(v) + '. OBS: ' + (antallValgteBilder - antallBilderLagret) + ' av ' + antallValgteBilder + ' bilder kunne ikke lagres (for stort eller nettverksfeil).');
     } else if(!driverMode){
@@ -11493,7 +11856,7 @@ function render(){
   // selv bygger. Kun for desktop — mobil har sin egen, allerede kompakte topplinje
   // (.p41-head, kun på Dashboard) og bunnmeny som eneste navigasjon, uten sidepanel å
   // koble sammen med noe.
-  const aktiveVarslerFrameAntall = varslingssenterAntall();
+  const aktiveVarslerFrameAntall = varslingssenterKlokkeAntall();
   app.innerHTML = `
     <div class="app-shell ${uiExp === 'desktop' ? 'app-shell-desktop' : 'app-shell-mobil'}">
       ${uiExp === 'desktop' ? `
@@ -12001,13 +12364,7 @@ function renderDriverMinBil(){
       ${minBilAksjon === 'skade' ? `
       <div class="panel">
         <div class="field" style="margin-bottom:10px;"><label>Beskrivelse</label><textarea id="mb-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(minBilSkadeBeskrivelse)}</textarea></div>
-        <div class="field" style="margin-bottom:10px;"><label>Alvorlighet</label>
-          <select id="mb-skade-alvorlighet">
-            <option value="lav" ${minBilSkadeAlvorlighet==='lav'?'selected':''}>Lav</option>
-            <option value="middels" ${minBilSkadeAlvorlighet==='middels'?'selected':''}>Middels</option>
-            <option value="hoy" ${minBilSkadeAlvorlighet==='hoy'?'selected':''}>Høy</option>
-          </select>
-        </div>
+        ${skadeTypeOgKanKjoresHtml('mb', minBilSkadeType, minBilSkadeKanKjores)}
         <div class="field" style="margin-bottom:10px;"><label>Kommentar</label><textarea id="mb-skade-kommentar" placeholder="Valgfritt">${esc(minBilSkadeKommentar)}</textarea></div>
         <div class="field" style="margin-bottom:10px;">
           <label>Bilde</label>
@@ -12117,7 +12474,7 @@ function renderDriverMinBil(){
         <div class="sj-row">
           <div class="sj-row-icon" style="--tint:${p48Kontrollert ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${p48Kontrollert ? 'var(--green-ink)' : 'var(--amber)'};">${luc(p48Kontrollert ? 'clipboard-check' : 'clipboard-x')}</div>
           <div class="sj-row-text">
-            <div class="sj-row-main">${p48Kontrollert ? 'Kontrollert i dag' : 'Ikke kontrollert i dag'}</div>
+            <div class="sj-row-main">${p48Kontrollert ? 'Kontrollert i dag' : 'Mangler kontroll i dag'}</div>
             <div class="sj-row-sub">${bkKontrollTid ? 'Kontroll utført ' + esc(bkKontrollTid) : (siste ? 'Sist kontrollert ' + fmt(siste.dato) : 'Ingen kontroll registrert')}</div>
           </div>
         </div>`,
@@ -12254,8 +12611,7 @@ function attachDriverMinBilListeners(){
 
   const skadeBeskrivelseInput = document.getElementById('mb-skade-beskrivelse');
   if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { minBilSkadeBeskrivelse = e.target.value; });
-  const skadeAlvorInput = document.getElementById('mb-skade-alvorlighet');
-  if(skadeAlvorInput) skadeAlvorInput.addEventListener('change', e => { minBilSkadeAlvorlighet = e.target.value; });
+  attachSkadeTypeOgKanKjores('mb', v => { minBilSkadeType = v; }, v => { minBilSkadeKanKjores = v; render(); });
   const skadeKommentarInput = document.getElementById('mb-skade-kommentar');
   if(skadeKommentarInput) skadeKommentarInput.addEventListener('input', e => { minBilSkadeKommentar = e.target.value; });
   const skadeFotoInput = document.getElementById('mb-skade-foto');
@@ -12389,7 +12745,7 @@ function renderDriverRingeliste(){
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button type="button" class="btn small ${driverRingelisteVisReserve ? '' : 'secondary'}" id="rl-vis-reserve-btn">✅ Vis reserve</button>
-      <button type="button" class="btn small ${driverRingelisteVisUteAvDrift ? '' : 'secondary'}" id="rl-vis-ute-btn">✅ Vis ute av drift</button>
+      <button type="button" class="btn small ${driverRingelisteVisUteAvDrift ? '' : 'secondary'}" id="rl-vis-ute-btn">✅ Vis «Kan ikke brukes»</button>
     </div>
     <div class="ringeliste-scroll">
       ${ringelisteGroupHtml('aktive', 'Aktive sjåfører', '--green-ink', aktiveRader)}
@@ -12619,7 +12975,7 @@ function renderLoginShell(){
 // fjernet herfra i sin helhet, akkurat som på desktop.
 function renderMobilHjem(){
   const d = dashboardBeregning();
-  const aktiveVarslerAntall = varslingssenterAntall();
+  const aktiveVarslerAntall = varslingssenterKlokkeAntall();
   // Prioritet 60: markupen per komponent er uendret; layoutmotoren (område 'mobile-dashboard') velger rekkefølge/synlighet.
   // Mobilforsiden er én stablet kolonne, så hele rekkefølgen fra layouten brukes direkte.
   const delerHtml = {
@@ -13332,16 +13688,13 @@ function dashHovSakRadHtml(s, fane){
 // herfra; alle disse handlingene ligger uendret i Varslingssenteret, og raden er hele klikkmålet:
 // km-varsler og varsellamper (som har Godta/Avslå/Merk som løst) åpner Varslingssenteret på riktig
 // kategori, resten går rett til bilen, saken eller kommentarene (samme mål som knappene hadde).
-const DASH_VARSEL_TONE = {
-  kommentar:['var(--blue-soft)','var(--blue)'], skade:['var(--red-soft)','var(--red)'],
-  verksted:['var(--orange-soft)','var(--orange)'], oppfolging:['var(--amber-soft)','var(--amber)'],
-  varsellampe:['var(--amber-soft)','var(--amber)'], service:['var(--orange-soft)','var(--orange)'],
-  eu:['var(--blue-soft)','var(--blue)'], km:['var(--amber-soft)','var(--amber)']
-};
+// Fase 1E: raden får tonen til varselets alvorlighet (statusordbok §4), ikke en egen farge per
+// kategori. Varsler uten alvorlighet (km-avvik = datakvalitet) er nøytrale.
 function dashHovVarselRadHtml(x){
   const v = vehicles.find(b => b.id === x.vehicleId);
   const bil = v ? vehicleLabel(v) : '';
-  const [tint, tone] = DASH_VARSEL_TONE[x.kategori] || ['var(--surface-3)', 'var(--muted)'];
+  const vt = x.alvorlighet ? statusTone('alvorlighet', x.alvorlighet) : STATUS_TONE.neutral;
+  const tint = vt.tint, tone = vt.fg;
   // varsel.tekst starter allerede med bilens navn — den står i fet skrift over, så prefikset strippes.
   let detalj = x.tekst || '';
   if(bil && detalj.startsWith(bil)) detalj = detalj.slice(bil.length);
@@ -13356,15 +13709,18 @@ function dashHovVarselRadHtml(x){
     <div class="p38-case" ${attr}>
       <span class="flis sm" style="--tint:${tint};color:${tone};">${luc(VARSLINGSSENTER_KATEGORI_IKON[x.kategori] || 'bell')}</span>
       <span>
-        <b>${bil ? esc(bil) : esc(x.tittel)}</b>
+        <b>${bil ? esc(bil) : esc(x.tittel)} ${x.alvorlighet ? statusPilleHtml('alvorlighet', x.alvorlighet) : ''}</b>
         <span>${esc(x.tittel)}${detalj ? ' — ' + esc(detalj) : ''} · <span style="color:${tone};font-weight:600;">${luc('arrow-right')} ${lenke}</span></span>
       </span>
     </div>`;
 }
 function dashHurtigoversiktInnholdHtml(fane, d){
   if(fane === 'varsler'){
-    const aktive = varslingssenterAktiveListe();
-    if(aktive.length === 0) return `<div class="empty-note">Ingen varsler nå.</div>`;
+    const aktive = varslingssenterKlokkeListe();
+    if(aktive.length === 0){
+      const ovrige = varslingssenterAntall();
+      return `<div class="empty-note">Ingen kritiske eller høye varsler nå.${ovrige ? ' ' + ovrige + ' andre ligger i <button type="button" class="p38-lenke" data-quick-page="varsler">Varslingssenteret →</button>' : ''}</div>`;
+    }
     return aktive.slice(0, 8).map(x => dashHovVarselRadHtml(x)).join('')
       + (aktive.length > 8 ? `<div class="required-hint" style="margin-top:6px;">Viser 8 av ${aktive.length} — <button type="button" class="p38-lenke" data-quick-page="varsler">se alle i Varslingssenteret →</button></div>` : '');
   }
@@ -13375,7 +13731,7 @@ function dashHurtigoversiktInnholdHtml(fane, d){
 }
 function dashHurtigoversiktHtml(d){
   const fane = DASH_HOV_FANE_ORDER.includes(dashHurtigoversiktFane) ? dashHurtigoversiktFane : 'aktiv';
-  const antallForFane = {aktiv: d.sakFaseAntall.aktiv, oppfolging: d.sakFaseAntall.oppfolging, verksted: d.sakFaseAntall.verksted, varsler: varslingssenterAntall()};
+  const antallForFane = {aktiv: d.sakFaseAntall.aktiv, oppfolging: d.sakFaseAntall.oppfolging, verksted: d.sakFaseAntall.verksted, varsler: varslingssenterKlokkeAntall()};
   // Prioritet 52, Del 1/3: seksjon (ikke boks) med fast id, slik at fanebytte kan oppdatere
   // KUN .dash-hov-innhold (se byttHurtigoversiktFane()) i stedet for hele Dashboardet.
   return `
@@ -13497,8 +13853,39 @@ function kalenderUkeWidgetHtml(){
       </div>`}
     </button>`;
 }
+// Fase 1A: informasjonshendelser (alert-classification-matrix.md, «Not alerts»). Sjåførkommentarer
+// (fristilte) og sjåførnotater (kommentar på en kontroll) siste 7 dager, nyeste først. De lager
+// aldri varsler, teller aldri i klokken og har ingen alvorlighet.
+function aktivitetsHendelser(maks){
+  const fra = isoDateOffset(todayISO(), -6);
+  return nyeKommentarerListe()
+    .filter(k => (k.dato || '') >= fra)
+    .slice(0, maks || 10)
+    .map(k => ({
+      id: k.kilde + ':' + k.id, vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt,
+      type: k.kilde === 'kontroll' ? 'Sjåførnotat' : 'Sjåførkommentar',
+      ikon: k.kilde === 'kontroll' ? 'notebook-pen' : 'message-square',
+      bil: k.bilTekst, sjafor: k.sjafor, tekst: k.kommentar, lest: k.lest
+    }));
+}
+function dashWidgetAktivitetHtml(){
+  const hendelser = aktivitetsHendelser(8);
+  const t = STATUS_TONE.neutral;
+  return `
+    <div class="panel">
+      <div class="p38-panel-head"><div class="tittel">${luc('activity')} Siste aktivitet</div><button type="button" class="p38-lenke" data-goto-varsel-kommentarer="1">Alle kommentarer →</button></div>
+      ${hendelser.length ? hendelser.map(h => `
+        <div class="p38-case" data-goto-varsel-kommentarer="1">
+          <span class="flis sm" style="--tint:${t.tint};color:${t.fg};">${luc(h.ikon)}</span>
+          <span>
+            <b>${esc(h.bil)}${h.lest ? '' : ' <span class="badge t-neutral">Ulest</span>'}</b>
+            <span>${esc(h.type)} · ${esc(h.sjafor)}: «${esc(h.tekst.length > 90 ? h.tekst.slice(0, 89).trimEnd() + '…' : h.tekst)}» · ${fmt(h.dato)}${h.tidspunkt ? ' ' + esc(h.tidspunkt) : ''}</span>
+          </span>
+        </div>`).join('') : '<div class="empty-note">Ingen sjåførkommentarer siste 7 dager.</div>'}
+    </div>`;
+}
 function dashWidgetVarslerHtml(){
-  const aktive = varslingssenterAktiveListe();
+  const aktive = varslingssenterKlokkeListe();
   return `
     <div class="panel">
       <div class="p38-panel-head"><div class="tittel">${luc('bell', 'ic-yellow')} Varsler (${aktive.length})</div><button type="button" class="p38-lenke" data-quick-page="varsler">Åpne Varslingssenter →</button></div>
@@ -13724,7 +14111,7 @@ function renderRegister(){
     // uendret, ingen ny tellelogikk.
     if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
     if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
-    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== filterHovedstatus) return false;
+    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== statusNokkel('operativ', filterHovedstatus)) return false;
     // Prioritet 71.9: Reserve og Ute av drift skjules som standard for å redusere støy i
     // daglig drift — kun synlige når brukeren aktivt ber om det, enten via de to nye
     // hurtigknappene (visReserve/visUteAvDrift) eller ved å eksplisitt velge nettopp den
@@ -13733,7 +14120,7 @@ function renderRegister(){
     // kjøres akkurat nå er relevant informasjon, ikke støy.
     if(filterHovedstatus !== 'har-aktiv-sjafor'){
       if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
-      if(!visUteAvDrift && v.uteAvDrift && filterHovedstatus !== 'ute-av-drift') return false;
+      if(!visUteAvDrift && vehicleDriftsstatus(v) === 'kan-ikke-brukes' && statusNokkel('operativ', filterHovedstatus) !== 'kan-ikke-brukes') return false;
     }
     return true;
   });
@@ -13758,12 +14145,12 @@ function renderRegister(){
       <div class="reg-filtergruppe">
         <span class="gl">Kontrollstatus i dag</span>
         <label><input type="checkbox" id="qf-kontrollert-cb" ${filterKontrollStatus==='kontrollert' ? 'checked' : ''}> Kontrollert</label>
-        <label><input type="checkbox" id="qf-ikke-kontrollert-cb" ${filterKontrollStatus==='ikke' ? 'checked' : ''}> Ikke kontrollert</label>
+        <label><input type="checkbox" id="qf-ikke-kontrollert-cb" ${filterKontrollStatus==='ikke' ? 'checked' : ''}> Mangler kontroll</label>
       </div>
       <div class="reg-filtergruppe">
         <span class="gl">Vis også</span>
         <label><input type="checkbox" id="qf-vis-reserve-cb" ${visReserve ? 'checked' : ''}> Reserve</label>
-        <label><input type="checkbox" id="qf-vis-ute-cb" ${visUteAvDrift ? 'checked' : ''}> Ute av drift</label>
+        <label><input type="checkbox" id="qf-vis-ute-cb" ${visUteAvDrift ? 'checked' : ''}> Kan ikke brukes</label>
       </div>
       <div class="reg-filterselects">
         <div><label for="f-kategori">Kategori</label>
@@ -13771,10 +14158,7 @@ function renderRegister(){
         <div><label for="f-hovedstatus">Status</label>
           <select id="f-hovedstatus">
             <option value="" ${filterHovedstatus===''?'selected':''}>Alle statuser</option>
-            <option value="operativ" ${filterHovedstatus==='operativ'?'selected':''}>🟢 Operative</option>
-            <option value="oppfolging" ${filterHovedstatus==='oppfolging'?'selected':''}>🟡 Under oppfølging</option>
-            <option value="verksted" ${filterHovedstatus==='verksted'?'selected':''}>🟠 Verksted bestilt</option>
-            <option value="ute-av-drift" ${filterHovedstatus==='ute-av-drift'?'selected':''}>🔴 Ute av drift</option>
+            ${['operativ', 'oppfolging', 'ikke-kontrollert', 'verksted-planlagt', 'kan-ikke-brukes'].map(k => `<option value="${k}" ${statusNokkel('operativ', filterHovedstatus)===k?'selected':''}>${statusEmoji('operativ', k)} ${statusLabel('operativ', k)}</option>`).join('')}
             <option value="har-aktiv-sjafor" ${filterHovedstatus==='har-aktiv-sjafor'?'selected':''}>🚚 Har aktiv sjåfør</option>
           </select></div>
         <div><label for="f-loyve">Løyvenummer</label>
@@ -13917,7 +14301,7 @@ function galleryCard(v, erMinAktiveBil){
   const modellTekst = [v.merke, v.modell].filter(Boolean).join(' ').trim();
   const kmTekst = v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Km ikke satt';
   return `
-    <div class="gcard ${v.status}" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);"' : ''}>
+    <div class="gcard" data-open="${v.id}" ${erMinAktiveBil ? 'style="border-color:var(--amber);"' : ''}>
       <div class="gcard-head">
         <span class="flis" style="--tint:${st.tint};color:var(--blue);">${v.kategori === 'lastebil' ? luc('truck') : luc('car')}</span>
         <div style="flex:1;min-width:0;">
@@ -13952,8 +14336,8 @@ function damageCard(d, showVehicle){
           <div class="dmg-meta">Meldt av ${esc(d.registrertAv)} · ${fmt(d.dato)}</div>
         </div>
         <div class="dmg-badges">
-          <span class="badge ${d.alvorlighet}">${ALVOR_LABEL[d.alvorlighet] || '—'}</span>
-          <span class="badge ${d.status}">${SKADE_STATUS_LABEL[d.status]}</span>
+          ${statusPilleHtml('alvorlighet', d.alvorlighet) || '<span class="badge t-neutral">—</span>'}
+          ${statusPilleHtml('skade', d.status) || `<span class="badge t-neutral">${esc(d.status || '—')}</span>`}
           ${bilderKeys.length > 0 ? `<span class="badge unset">📷 ${bilderKeys.length} bilde${bilderKeys.length===1?'':'r'}</span>` : ''}
           ${d.status !== 'utbedret' ? `<button class="btn small" data-mark-fikset="${d.id}">✅ Marker som fikset</button>` : ''}
         </div>
@@ -13968,9 +14352,7 @@ function damageCard(d, showVehicle){
         <div class="row2">
           <div class="field"><label>Alvorlighetsgrad</label>
             <select id="e-sk-alvorlighet-${d.id}">
-              <option value="lav" ${d.alvorlighet==='lav'?'selected':''}>Lav</option>
-              <option value="middels" ${d.alvorlighet==='middels'?'selected':''}>Middels</option>
-              <option value="hoy" ${d.alvorlighet==='hoy'?'selected':''}>Høy</option>
+              ${alvorlighetOptions(d.alvorlighet)}
             </select>
           </div>
           <div class="field"><label>Status</label>
@@ -14544,25 +14926,36 @@ async function markerAlleVarslerSett(idListe){
   render();
 }
 const VARSLINGSSENTER_KATEGORI_LABEL = {
-  kommentar:'Sjåførkommentarer', skade:'Nye skader', verksted:'Verkstedoppfølging',
+  skade:'Nye skader', verksted:'Verkstedoppfølging',
   oppfolging:'Påminnelser', varsellampe:'Varsellamper', service:'Service nærmer seg',
-  eu:'EU-kontroll', km:'Kilometeravvik'
+  eu:'EU-kontroll', kontroll:'Mangler kontroll', km:'Kilometeravvik'
 };
 const VARSLINGSSENTER_KATEGORI_IKON = {
-  kommentar:'message-square', skade:'triangle-alert', verksted:'factory', oppfolging:'clock-3',
-  varsellampe:'bell', service:'wrench', eu:'shield-check', km:'gauge'
+  skade:'triangle-alert', verksted:'factory', oppfolging:'clock-3',
+  varsellampe:'bell', service:'wrench', eu:'shield-check', kontroll:'clipboard-x', km:'gauge'
 };
-const VARSLINGSSENTER_KATEGORI_ORDER = ['kommentar','skade','verksted','oppfolging','varsellampe','service','eu','km'];
+const VARSLINGSSENTER_KATEGORI_ORDER = ['skade','verksted','oppfolging','varsellampe','service','eu','kontroll','km'];
+
+// ================= Implementeringsfase 1E: Varselmotor =================
+// Klassifiserer hvert varsel etter alert-classification-matrix.md: alvorlighet (fra
+// alvorlighetsrammeverket, se Fase 1D) og varselstatus (statusordbok §9). Ingen visning
+// velger alvorlighet selv. Varsler uten alvorlighet (km-avvik) er datakvalitet, ikke varsler
+// i matrisens forstand, og telles aldri i klokken.
+// Alvorlighet → rang for sortering; ≤ 14-dagers EU-kontroll sorteres først blant Høy.
+function varselSorteringsNokkel(x){
+  const rang = x.alvorlighet ? alvorlighetRang(x.alvorlighet) : 8;
+  return rang * 10 + (x.haster ? 0 : 1);
+}
+// Kun Kritisk og Høy teller i klokken og røde tall (notification-strategy.md, «Noise rules»).
+function varselTellerIKlokken(x){ return x.alvorlighet === 'kritisk' || x.alvorlighet === 'hoy'; }
+function sakVarselStatus(s){ return s.status === 'ny' ? 'ny' : 'under-oppfolging'; }
 // Bygger ALLE aktive varsler (før 48-timers skjul-filtrering) — brukt av selve skjermen
 // OG av badge-tallene i sidemeny/drawer/dashboard-klokken, slik at tallet aldri kan
 // divergere fra listen det peker på.
 function beregnVarslingssenterListe(){
   const liste = [];
-  nyeKommentarerListe().filter(k => kommentarSkalVarsles(k)).forEach(k => {
-    liste.push({id:'kommentar:'+k.kilde+':'+k.id, kategori:'kommentar', vehicleId:k.vehicleId,
-      tittel:'Sjåførkommentar', tekst: k.bilTekst + ' · ' + k.sjafor + ': «' + k.kommentar + '»',
-      dato:k.dato, mal:'kommentaroversikt'});
-  });
+  // Fase 1A (beslutning etter godkjenning): sjåførkommentarer og sjåførnotater er informasjonshendelser,
+  // ikke varsler. De vises i «Siste aktivitet» (aktivitetsHendelser()) og i Kommentaroversikt.
   vehicles.forEach(v => {
     const kmA = kmAvvikForVehicle(v);
     if(kmA){
@@ -14571,45 +14964,72 @@ function beregnVarslingssenterListe(){
       liste.push({id:'km:'+(kmA.kontrollId || v.id), kategori:'km', vehicleId:v.id, tittel:'Kilometeravvik',
         tekst: vehicleLabel(v) + ' — Forrige km ' + kmA.vKm.toLocaleString('nb-NO') + ', ny km ' + kmA.kontrollKm.toLocaleString('nb-NO') +
           ', differanse +' + kmA.differanse.toLocaleString('nb-NO') + ' km' + (kmA.sjafor ? ' · ' + kmA.sjafor : '') + '.',
-        dato:kmA.dato || todayISO(), mal:'bilkort'});
+        dato:kmA.dato || todayISO(), mal:'bilkort', alvorlighet:null, varselStatus:'ny'});
     }
   });
-  vehicles.filter(v => !v.uteAvDrift).forEach(v => {
+  vehicles.filter(v => vehicleDriftsstatus(v) !== 'kan-ikke-brukes').forEach(v => {
     const ss = vehicleServiceStatus(v);
-    if((ss.status === 'forfalt' || ss.status === 'snart-rod' || ss.status === 'snart-gul') && !vehicleHarAktivPlanlagtService(v.id)){
-      liste.push({id:'service:'+v.id, kategori:'service', vehicleId:v.id, tittel:'Service nærmer seg',
-        tekst: vehicleLabel(v) + ' — ' + ss.tekst, dato:todayISO(), mal:'bilkort'});
-    }
-    const eu = vehicleEuKontrollStatus(v);
-    if((eu.status === 'forfalt' || eu.status === 'snart-rod') && !vehicleHarRegistrertEuTime(v.id)){
-      liste.push({id:'eu:'+v.id, kategori:'eu', vehicleId:v.id, tittel:'EU-kontroll',
-        tekst: vehicleLabel(v) + ' — ' + eu.tekst, dato:todayISO(), mal:'bilkort'});
+    // Regel 2 (uendret): en planlagt service før fristen skjuler servicevarselet.
+    if(alvorlighetForService(ss) && !vehicleHarAktivPlanlagtService(v.id)){
+      liste.push({id:'service:'+v.id, kategori:'service', vehicleId:v.id, tittel: ss.status === 'forfalt' ? 'Service forfalt' : 'Service nærmer seg',
+        tekst: vehicleLabel(v) + ' — ' + ss.tekst, dato:todayISO(), mal:'bilkort',
+        alvorlighet: alvorlighetForService(ss), varselStatus:'ny'});
     }
   });
+  // EU-kontroll (beslutning 3): 90 d → Middels, 30 d → Høy, 14 d → Høy og først, forfalt → Kritisk.
+  // Forfalt vises ALLTID, også med bestilt time (situasjon B viser timen). Før fristen skjuler en
+  // bestilt EU-time varselet, som før (Regel 3). Gjelder også biler som ikke kan brukes.
+  vehicles.forEach(v => {
+    const eu = vehicleEuKontrollStatus(v);
+    const alv = alvorlighetForEu(eu);
+    if(!alv) return;
+    const harTime = vehicleHarRegistrertEuTime(v.id);
+    if(eu.status !== 'forfalt' && harTime) return;
+    if(eu.status !== 'forfalt' && vehicleDriftsstatus(v) === 'kan-ikke-brukes') return;
+    const nesteEu = harTime ? kommendeVerkstedtimer(v.id).find(t => vtHarType(t, 'eu-kontroll')) : null;
+    liste.push({id:'eu:'+v.id, kategori:'eu', vehicleId:v.id,
+      tittel: eu.status === 'forfalt' ? (harTime ? 'EU-kontroll forfalt · verksted bestilt' : 'EU-kontroll forfalt') : 'EU-kontroll',
+      tekst: vehicleLabel(v) + ' — ' + eu.tekst + (nesteEu ? ' · verksted bestilt ' + fmt(nesteEu.dato) : ''),
+      dato:todayISO(), mal:'bilkort', alvorlighet: alv, haster: euHaster(eu), varselStatus:'ny'});
+  });
+  // Mangler kontroll (Middels): kun biler i det operative kontrollgrunnlaget, på en driftsdag,
+  // som faktisk står som «Mangler kontroll» (ikke reserve, verksted eller «Kan ikke brukes»).
+  const opIdag = operativKontrollStatusIdag();
+  if(opIdag.ok && opIdag.driftsdag){
+    opIdag.manglerBiler.filter(v => vehicleHovedstatus(v.id) === 'ikke-kontrollert').forEach(v => {
+      liste.push({id:'kontroll:'+v.id+':'+todayISO(), kategori:'kontroll', vehicleId:v.id, tittel:'Mangler kontroll',
+        tekst: vehicleLabel(v) + ' — ingen kontroll registrert i dag', dato:todayISO(), mal:'bilkort',
+        alvorlighet:'middels', varselStatus:'ny'});
+    });
+  }
   aktiveSaker.filter(s => sakErApen(s) && s.status !== 'avslatt' && s.status !== 'utfort' && s.status !== 'lukket').forEach(s => {
     const fase = sakFase(s);
     const v = sakVehicle(s);
     const bilTekst = v ? vehicleLabel(v) : 'Ukjent bil';
+    const alv = sakAlvorlighet(s);
     if(fase === 'verksted'){
       liste.push({id:'sak:'+s.id, kategori:'verksted', vehicleId:s.vehicleId, tittel:'Verkstedoppfølging',
         tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — ' + (s.status === 'utfort-venter-bekreftelse' ? 'venter bekreftelse på utført arbeid' : 'verksted bestilt'),
-        dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id});
+        dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id, alvorlighet: alv, varselStatus: sakVarselStatus(s)});
     } else if(fase === 'aktiv' && s.caseType === 'skade'){
-      liste.push({id:'sak:'+s.id, kategori:'skade', vehicleId:s.vehicleId, tittel:'Ny skade',
-        tekst: bilTekst + ' — ' + sakKortOverskrift(s), dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id});
+      liste.push({id:'sak:'+s.id, kategori:'skade', vehicleId:s.vehicleId, tittel: alv === 'kritisk' ? 'Kritisk skade' : 'Ny skade',
+        tekst: bilTekst + ' — ' + sakKortOverskrift(s), dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id,
+        alvorlighet: alv, varselStatus: sakVarselStatus(s)});
     } else if(sakOppfolgingStatus(s) === 'forfalt'){
       liste.push({id:'sak:'+s.id, kategori:'oppfolging', vehicleId:s.vehicleId, tittel:'Oppfølging forfalt',
         tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — frist ' + fmt(s.followUpDate),
-        dato: s.followUpDate || todayISO(), mal:'sak', sakId:s.id});
+        dato: s.followUpDate || todayISO(), mal:'sak', sakId:s.id, alvorlighet: alv, varselStatus: sakVarselStatus(s)});
     }
   });
   allActiveVarsellys().filter(w => w.status === 'aktiv').forEach(w => {
     const v = vehicles.find(x => x.id === w.vehicleId);
     liste.push({id:'vl:'+w.id, kategori:'varsellampe', vehicleId:w.vehicleId, tittel:'Varsellampe',
       tekst: (v ? vehicleLabel(v) : 'Ukjent bil') + ' — ' + varsellysLabel(w),
-      dato: w.registrertDato, mal:'varsellys', varsellysId:w.id});
+      dato: w.registrertDato, mal:'varsellys', varsellysId:w.id,
+      alvorlighet: ALVORLIGHET_VARSELLAMPE[w.type] || 'lav', varselStatus:'ny'});
   });
-  return liste.sort((a,b) => (b.dato||'').localeCompare(a.dato||''));
+  // Fase 1E: alvorlighet først (Kritisk → Lav, ≤ 14-dagers EU først blant Høy), så nyeste først.
+  return liste.sort((a,b) => (varselSorteringsNokkel(a) - varselSorteringsNokkel(b)) || (b.dato||'').localeCompare(a.dato||''));
 }
 // AKTIV visning = alt som ikke er skjult av "marker som sett" akkurat nå. Dette er
 // tallet/listen som faktisk vises og telles i røde badges — ferdigkravet "brukeren skal
@@ -14617,6 +15037,14 @@ function beregnVarslingssenterListe(){
 // beregnVarslingssenterListe() nødvendigvis er det.
 function varslingssenterAktiveListe(){
   return beregnVarslingssenterListe().filter(x => !varselErSkjult(x.id));
+}
+// Fase 1E: Dashboard og klokken viser/teller kun Kritisk og Høy; Middels og Lav ligger i
+// Varslingssenteret (dashboard-blueprint.md, notification-strategy.md).
+function varslingssenterKlokkeListe(){
+  return varslingssenterAktiveListe().filter(varselTellerIKlokken);
+}
+function varslingssenterKlokkeAntall(){
+  return varslingssenterKlokkeListe().length;
 }
 function varslingssenterAntall(){
   return varslingssenterAktiveListe().length;
@@ -14647,7 +15075,7 @@ function varslingssenterRadHtml(x){
   return `
     <div class="vl-card">
       <div class="vl-card-main">
-        <div class="title">${esc(x.tittel)}</div>
+        <div class="title">${esc(x.tittel)} ${x.alvorlighet ? statusPilleHtml('alvorlighet', x.alvorlighet) : '<span class="badge t-neutral">Datakvalitet</span>'} ${x.varselStatus ? statusPilleHtml('varsel', x.varselStatus) : ''}</div>
         <div class="vl-card-meta">${esc(x.tekst)}${x.dato ? ' · ' + fmt(x.dato) : ''}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -14834,7 +15262,7 @@ function vehicleHistorikkTidslinje(vehicleId, filterType){
   if(v && Array.isArray(v.statusHistorikk)){
     v.statusHistorikk.forEach(h => {
       let tekst;
-      if(h.handling === 'ute-av-drift') tekst = 'Markert ute av drift' + (h.arsak ? ': ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '');
+      if(h.handling === 'ute-av-drift') tekst = 'Satt til «Kan ikke brukes»' + (h.arsak ? ': ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '');
       else if(h.handling === 'kontroll-slettet') tekst = 'Kontroll slettet av administrator' + (h.arsak ? ' · Årsak: ' + h.arsak : '') + (h.kommentar ? ' · ' + h.kommentar : '');
       else tekst = 'Satt tilbake i drift' + (h.kommentar ? ': ' + h.kommentar : '');
       hendelser.push({dato: h.dato, tid: '', type: 'statusendring', tekst, av: h.av || ''});
@@ -14927,55 +15355,54 @@ const BILKORT_HIST_TOM = {kontroller:'Ingen kontroller registrert.', skader:'Ing
 const BILKORT_HIST_VT_LABEL = {'eu-kontroll':'EU-kontroll', service:'Service', dekkskift:'Dekkskift', ruteskift:'Ruteskift', reparasjon:'Reparasjon', annet:'Annet'};
 const BILKORT_HIST_VT_IKON = {'eu-kontroll':'shield-check', service:'wrench', dekkskift:'circle-dot', ruteskift:'car-front', reparasjon:'factory', annet:'factory'};
 function bilkortHistorikkRader(v){
-  const TONE = {
-    gronn:['var(--green-soft)', 'var(--green-ink)'], gul:['var(--amber-soft)', 'var(--amber)'],
-    rod:['var(--red-soft)', 'var(--red)'], noytral:['var(--surface-3)', 'var(--muted)']
-  };
+  // Fase 1A: tonene kommer fra statusordboken (STATUS_TONE / statusTone()), ikke et lokalt kart.
+  const TONE = k => [STATUS_TONE[k].tint, STATUS_TONE[k].fg];
+  const STONE = (domene, key) => { const x = statusTone(domene, key); return [x.tint, x.fg]; };
   const kort = (t, n) => { t = (t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
   const kontroller = vehicleKontroller(v.id).slice()
     .sort((a, b) => ((b.dato || '') + (b.tidspunkt || '')).localeCompare((a.dato || '') + (a.tidspunkt || '')))
     .map(k => {
       const avvik = (k.varsellamper && k.varsellamper.length > 0) || k.harNyeSkader || (k.kommentar && k.kommentar.trim());
-      return {id:'k:' + k.id, dato: k.dato || '', ikon:'clipboard-check', tone:TONE[avvik ? 'gul' : 'gronn'],
+      return {id:'k:' + k.id, dato: k.dato || '', ikon:'clipboard-check', tone:TONE(avvik ? 'warning' : 'success'),
         tittel: fmt(k.dato) + (k.tidspunkt ? ' kl. ' + k.tidspunkt : ''),
         linje2: Number(k.km || 0).toLocaleString('nb-NO') + ' km · ' + (k.sjafor || 'Ukjent') + ' · ' + (avvik ? 'Avvik/kommentar' : 'Ingen avvik'),
         detalj: () => kontrollHistoryCard(k)};
     });
   const skader = vehicleDamages(v.id).map(d => ({
-    id:'s:' + d.id, ikon:'octagon-alert', tone:TONE[d.status === 'utbedret' ? 'gronn' : 'rod'],
+    id:'s:' + d.id, ikon:'octagon-alert', tone:STONE('skade', d.status),
     tittel: d.beskrivelse || 'Skade',
-    linje2: fmt(d.dato) + ' · ' + (SKADE_STATUS_LABEL[d.status] || d.status) + (d.registrertAv ? ' · Meldt av ' + d.registrertAv : ''),
+    linje2: fmt(d.dato) + ' · ' + statusLabel('alvorlighet', d.alvorlighet) + ' · ' + statusLabel('skade', d.status) + (d.registrertAv ? ' · Meldt av ' + d.registrertAv : ''),
     detalj: () => damageCard(d, false)
   }));
   const varsellamper = activeVarsellysForVehicle(v.id).concat(historikkVarsellysForVehicle(v.id))
     .sort((a, b) => (b.registrertDato || '').localeCompare(a.registrertDato || ''))
     .map(w => ({
-      id:'w:' + w.id, ikon:'triangle-alert', tone:TONE[w.status === 'aktiv' ? 'gul' : 'gronn'],
+      id:'w:' + w.id, ikon:'triangle-alert', tone:STONE('varsellampe', w.status),
       tittel: varsellysLabel(w),
       linje2: fmt(w.registrertDato) + ' · ' + (w.status === 'aktiv' ? 'Aktiv' : 'Kvittert' + (w.kvittertDato ? ' ' + fmt(w.kvittertDato) : '')),
       detalj: () => varsellysCard(w)
     }));
   const verkstedhistorikk = samletVerkstedHistorikkAlle().filter(p => p.vehicleId === v.id).map(p => ({
-    id:'h:' + p.id, ikon: BILKORT_HIST_VT_IKON[p.type] || 'factory', tone:TONE.noytral,
+    id:'h:' + p.id, ikon: BILKORT_HIST_VT_IKON[p.type] || 'factory', tone:STONE('verksted', 'utfort'),
     tittel: BILKORT_HIST_VT_LABEL[p.type] || p.type,
     linje2: fmt(p.dato) + (p.verksted ? ' · ' + p.verksted : '') + (p.tekst ? ' · ' + kort(p.tekst, 90) : ''),
     detalj: null
   }));
   const kommentarer = nyeKommentarerListe(v.id).map(k => ({
-    id:'c:' + k.kilde + ':' + k.id, ikon:'message-square', tone:TONE[k.lest ? 'noytral' : 'gul'],
+    id:'c:' + k.kilde + ':' + k.id, ikon:'message-square', tone:TONE(k.lest ? 'neutral' : 'warning'),
     tittel: '💬 Sjåførkommentar',
     linje2: fmt(k.dato) + ' · ' + k.sjafor + ' · ' + kort(k.kommentar, 90),
     sorter:(k.dato || '') + (k.tidspunkt || ''),
     detalj: () => nyeKommentarRadHtml(k, true, true)
   })).concat(kmAvvikHendelserListe(v.id).map(x => ({
-    id:'km:' + x.id, ikon:'gauge', tone:TONE.gul,
+    id:'km:' + x.id, ikon:'gauge', tone:TONE('warning'),
     tittel: '⚠ Kilometeravvik',
     linje2: 'Fra ' + Number(x.vKm).toLocaleString('nb-NO') + ' km · Til ' + Number(x.kontrollKm).toLocaleString('nb-NO') + ' km · +' + Number(x.differanse).toLocaleString('nb-NO') + ' km',
     sorter:(x.dato || '') + (x.tidspunkt || ''),
     detalj: () => kmAvvikHendelseRadHtml(x, true, true)
   }))).sort((a, b) => (b.sorter || '').localeCompare(a.sorter || ''));
   const aktivesaker = vehicleAktiveSaker(v.id).map(s => ({
-    id:'as:' + s.id, ikon: SAK_TYPE_LUCIDE[s.caseType] || 'folder-open', tone:TONE.gul,
+    id:'as:' + s.id, ikon: SAK_TYPE_LUCIDE[s.caseType] || 'folder-open', tone:STONE('sak', s.status),
     tittel: sakKortOverskrift(s),
     linje2: (SAK_TYPE_LABEL[s.caseType] || 'Annet') + ' · ' + (SAK_STATUS_LABEL[s.status] || s.status) + (s.reportedAt ? ' · ' + fmt(s.reportedAt) : ''),
     detalj: null,
@@ -15157,7 +15584,7 @@ function renderBilkort(){
   // Operativ status; nå går all operativ info MOTSATT vei, inn i Operativ status, ut av
   // toppanelet), men samme underliggende prinsipp: hvert felt vises kun ett sted.
   const euKontrollStatus = vehicleEuKontrollStatus(v);
-  const euKontrollFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[euKontrollStatus.status];
+  const euKontrollTone = statusTone('eu', euKontrollStatus.status);
   // Prioritet 66 DEL 10: ren RAPPORTERING av et eksisterende avvik — korrigerer ingenting.
   // MÅ deklareres FØR fane-objektet under, som leser den i Oversikt-fanen. Ble den stående
   // lenger nede, kastet renderBilkort() «Cannot access 'vKmAvvik' before initialization»
@@ -15176,7 +15603,7 @@ function renderBilkort(){
   // operativ informasjon). uteAvDriftBody-konstanten er uendret, kun BRUKT et annet sted
   // i templaten under (se Faresone).
   const uteAvDriftBody = !v.uteAvDrift ? `
-    <button type="button" class="btn danger-outline" id="uad-marker-btn">${showUteAvDriftForm ? 'Avbryt' : '⛔ Marker ute av drift'}</button>
+    <button type="button" class="btn danger-outline" id="uad-marker-btn">${showUteAvDriftForm ? 'Avbryt' : '⛔ Sett til «Kan ikke brukes»'}</button>
     ${showUteAvDriftForm ? `
     <div class="panel" style="margin-top:10px;">
       <div class="field" style="margin-bottom:10px;"><label>Årsak</label><input id="uad-arsak" type="text" placeholder="F.eks. Motorhavari" required></div>
@@ -15199,7 +15626,7 @@ function renderBilkort(){
   // historikk) er flyttet til en egen, dedikert skjerm (screen='service',
   // renderServiceSkjerm()) — Kjøretøyprofil viser kun en kort statuslenke i Operativ
   // status (funksjonsbasert navigasjon, "ren kjøretøyinformasjon").
-  const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
+  const serviceTone = serviceStatusTone(vServiceStatus);
 
   const aktiveSakerBody = vAktiveSakerListe.length === 0 ? `<div class="empty-note">Ingen registrerte aktive saker.</div>` : `
     <div class="dmg-list">
@@ -15254,13 +15681,7 @@ function renderBilkort(){
       <div class="field"><label>Driftslag</label><input id="f-driftslag" type="text" placeholder="F.eks. Lag 1" value="${esc(v.driftslag||'')}" list="driftslag-forslag"><datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist></div>
       <div class="field"><label>Telefon</label><input id="f-telefon" type="tel" inputmode="tel" value="${esc(v.telefon||'')}"></div>
 
-      <div class="field"><label>Status</label>
-        <select id="f-status">
-          <option value="ok" ${v.status==='ok'?'selected':''}>OK</option>
-          <option value="oppfolging" ${v.status==='oppfolging'?'selected':''}>Trenger oppfølging</option>
-          <option value="verksted" ${v.status==='verksted'?'selected':''}>På verksted</option>
-        </select>
-      </div>
+      <!-- Fase 1B: det manuelle feltet «Status» (Vehicles.Status: ok/oppfolging/verksted) er avviklet — bilens status kommer kun fra statusordboken (vehicleHovedstatus()). Lagret verdi røres ikke. -->
       <div class="field span2"><label>Mobilitetsgaranti</label><input id="f-mobilitetsgaranti" type="text" placeholder="F.eks. gyldig til 14/08/2027" value="${esc(v.mobilitetsgaranti||'')}"></div>
     </div>
 
@@ -15379,7 +15800,7 @@ function renderBilkort(){
       </div>
     </div>`, '')}${(bilDeler['vehicle.neste-verkstedtime'] = '', '')}
 
-    ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--red-soft);color:var(--red);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--red);">⛔ Ute av drift${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
+    ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--red-soft);color:var(--red);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--red);">⛔ Kan ikke brukes${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
 
     ${(bilDeler['vehicle.statusrad'] = `
     <div class="profil-stat5">
@@ -15388,7 +15809,7 @@ function renderBilkort(){
         <span><span class="l">Kilometerstand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
       </div>
       <div style="cursor:pointer;" data-apne-service="${v.id}" title="Åpne servicehistorikk">
-        <span class="flis" style="--tint:${serviceStatusFarge==='var(--green)'?'var(--green-soft)':(serviceStatusFarge==='var(--red)'?'var(--red-soft)':'var(--amber-soft)')};--tone:var(--green-ink);">${luc('wrench')}</span>
+        <span class="flis" style="--tint:${serviceTone.tint};--tone:${serviceTone.fg};">${luc('wrench')}</span>
         <span>
           <span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span>
           <span class="stat-skille" aria-hidden="true"></span>
@@ -15396,7 +15817,7 @@ function renderBilkort(){
         </span>
       </div>
       <div>
-        <span class="flis" style="--tint:${euKontrollFarge==='var(--green)'?'var(--green-soft)':'var(--red-soft)'};--tone:var(--blue);">${luc('shield-check')}</span>
+        <span class="flis" style="--tint:${euKontrollTone.tint};--tone:${euKontrollTone.fg};">${luc('shield-check')}</span>
         <span><span class="l">Godkjent til</span><span class="v">${v.euGodkjentTil ? fmt(v.euGodkjentTil) : 'Mangler registrering'}</span><span class="s">${euKontrollStatus.ikon} ${esc(euKontrollStatus.tekst)}</span></span>
       </div>
       <div style="cursor:pointer;" data-apne-dekk="${v.id}" title="Åpne dekkinformasjon">
@@ -15417,7 +15838,7 @@ function renderBilkort(){
     <div class="profil-stat4">
       <div>
         <span class="flis" style="--tint:${vKontrollertIdag || vehicleErReserveUnntatt(v.id) ? 'var(--green-soft)' : 'var(--amber-soft)'};--tone:${vKontrollertIdag ? 'var(--green-ink)' : (vehicleErReserveUnntatt(v.id) ? 'var(--muted)' : 'var(--amber)')};">${vehicleErReserveUnntatt(v.id) && !vKontrollertIdag ? luc('truck') : luc('clipboard-check')}</span>
-        <span><span class="l">Kontrollstatus</span><span class="v" style="font-size:15px;">${vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (vKontrollertIdag ? 'Kontrollert i dag' : 'Ikke kontrollert')}</span><span class="s">${vLastKontroll ? 'Sist ' + fmt(vLastKontroll.dato) : 'Ingen kontroll registrert'}</span></span>
+        <span><span class="l">Kontrollstatus</span><span class="v" style="font-size:15px;">${vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (vKontrollertIdag ? 'Kontrollert i dag' : 'Mangler kontroll')}</span><span class="s">${vLastKontroll ? 'Sist ' + fmt(vLastKontroll.dato) : 'Ingen kontroll registrert'}</span></span>
       </div>
       <div>
         <span class="flis" style="--tint:${vAktiveVarsler.length > 0 ? 'var(--red-soft)' : 'var(--green-soft)'};--tone:${vAktiveVarsler.length > 0 ? 'var(--amber)' : 'var(--green-ink)'};">${luc('triangle-alert')}</span>
@@ -15463,7 +15884,7 @@ function renderBilkort(){
         `)}
     `, '')}${(bilDeler['vehicle.aktive-saker'] = '', '')}${(bilDeler['vehicle.avanserte-handlinger'] = `
         ${bilkortAccordionRow('avansert', '⚙️ Avanserte handlinger', null, `
-          <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? 'Ute av drift er en driftskritisk markering.' : 'Marker ute av drift eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
+          <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? '«Kan ikke brukes» er en driftskritisk markering.' : 'Sett til «Kan ikke brukes» eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
           <div style="margin-bottom:16px;">
             ${uteAvDriftBody}
           </div>
@@ -15628,7 +16049,7 @@ function renderServiceSkjerm(){
     // kommentar ved deklarasjonen av planlagteServicer.
     const vPlanlagteServicer = planlagteServicer.filter(t => t.vehicleId === v.id && t.dato >= todayISO())
       .sort((a,b) => (a.dato+((a.tidspunkt)||'')).localeCompare(b.dato+((b.tidspunkt)||'')));
-    const serviceStatusFarge = {ok:'var(--green)', 'snart-gul':'var(--amber)', 'snart-rod':'var(--red)', forfalt:'var(--red)', ukjent:'var(--muted)'}[vServiceStatus.status];
+    const serviceStatusFarge = serviceStatusTone(vServiceStatus).fg;
     vehicleCardHtml = `
       <div class="kt-vehicle-card" style="margin-bottom:16px;">
         <div class="plate"><span class="cc">N</span><span class="num">${esc(v.regnr)}</span></div>
@@ -15681,7 +16102,7 @@ function renderServiceSkjerm(){
             </div>` : ''}
           </li>`).join('')}
         </ul>`}
-        ${v.uteAvDrift ? `<div class="empty-note">🚫 Bilen er ute av drift — planlegging av ny service er skjult.</div>` : `
+        ${v.uteAvDrift ? `<div class="empty-note">🚫 Bilen kan ikke brukes — planlegging av ny service er skjult.</div>` : `
         <button class="btn small" id="ny-planlagt-service-btn">${showPlanleggService ? 'Avbryt' : '📅 Planlegg service'}</button>
         ${showPlanleggService ? `
         <form class="panel" id="planlegg-service-form" style="margin-top:14px;">
@@ -15741,7 +16162,7 @@ function renderServiceSkjerm(){
           <div class="form-msg" id="hsv-msg"></div>
           <div class="panel-actions"><button class="btn" type="submit">Lagre tidligere service</button></div>
         </form>` : '')}
-        ${v.uteAvDrift ? `<div class="empty-note" style="margin-top:10px;">🚫 Bilen er ute av drift — registrering av ny service er skjult. Historikk under er fortsatt tilgjengelig.</div>` : ''}
+        ${v.uteAvDrift ? `<div class="empty-note" style="margin-top:10px;">🚫 Bilen kan ikke brukes — registrering av ny service er skjult. Historikk under er fortsatt tilgjengelig.</div>` : ''}
         ${vServiceHistorikk.length === 0 ? `<div class="empty-note">Ingen servicer registrert på dette kjøretøyet ennå.</div>` : `
         <div class="dmg-list">${vServiceHistorikk.map(s => serviceHistoryCard(s)).join('')}</div>`}
       </div>`;
@@ -15909,7 +16330,7 @@ function renderDekkSkjerm(){
             </form>` : ''}
           </li>`).join('')}
         </ul>`}
-        ${v.uteAvDrift ? `<div class="empty-note">🚫 Bilen er ute av drift — planlegging av nytt dekkskift er skjult.</div>` : `
+        ${v.uteAvDrift ? `<div class="empty-note">🚫 Bilen kan ikke brukes — planlegging av nytt dekkskift er skjult.</div>` : `
         <button class="btn small" id="ny-planlagt-dekkskift-btn">${showPlanleggDekkskift ? 'Avbryt' : '🛞 Registrer dekkskifttime'}</button>
         ${showPlanleggDekkskift ? `
         <form class="panel" id="planlegg-dekkskift-form" style="margin-top:14px;">
@@ -15938,7 +16359,7 @@ function renderDekkSkjerm(){
           <div class="count">${naaverendeDekkLabel}</div>
           ${v.uteAvDrift ? '' : `<button class="btn small" id="ny-dekkskifte-btn">${showAddDekkskifte ? 'Avbryt' : '🛞 Registrer dekkskifte'}</button>`}
         </div>
-        ${v.uteAvDrift ? `<div class="empty-note" style="margin-bottom:10px;">🚫 Bilen er ute av drift — registrering av nytt dekkskifte er skjult. Historikk under er fortsatt tilgjengelig.</div>` : (showAddDekkskifte ? `
+        ${v.uteAvDrift ? `<div class="empty-note" style="margin-bottom:10px;">🚫 Bilen kan ikke brukes — registrering av nytt dekkskifte er skjult. Historikk under er fortsatt tilgjengelig.</div>` : (showAddDekkskifte ? `
         <form class="panel" id="add-dekkskifte-form">
           <div class="row2">
             <div class="field"><label>Retning</label>
@@ -16099,9 +16520,7 @@ function renderSkader(){
       <div class="row2">
         <div class="field"><label>Alvorlighetsgrad</label>
           <select id="sk-alvorlighet">
-            <option value="lav">Lav</option>
-            <option value="middels" selected>Middels</option>
-            <option value="hoy">Høy</option>
+            ${alvorlighetOptions('middels')}
           </select>
         </div>
         <div class="field"><label>Status</label>
@@ -16454,7 +16873,7 @@ function sakFaneListeHtml(fase){
     return `<div class="panel" style="margin-bottom:12px;">
       <div class="dmg-top">
         <div class="dmg-text">
-          <div class="main">${SAK_BILSTATUS_IKON[vehicleSakStatus(vehicleId)]} ${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Slettet kjøretøy')}</div>
+          <div class="main">${statusIkonHtml('operativ', vehicleHovedstatus(vehicleId))} ${luc('truck')} ${esc(v ? vehicleLabel(v) : 'Slettet kjøretøy')}</div>
           <div class="desc">${saker.length} aktiv${saker.length === 1 ? ' sak' : 'e saker'}</div>
           <div class="desc">Nyeste: ${esc(sakProblemLabel(nyeste))} • ${fmt(nyeste.reportedAt)}</div>
         </div>
@@ -19538,7 +19957,7 @@ function operativGrunnlagBodyHtml(){
           <label class="og-rad" data-og-tekst="${esc([vehicleLabel(v), v.merke, v.modell, v.regnr].filter(Boolean).join(' ').toLowerCase())}">
             <input type="checkbox" data-og-bil="${esc(v.id)}"${d.vehicleIds.has(v.id) ? ' checked' : ''}>
             <span>${esc(vehicleLabel(v))}</span>
-            ${v.uteAvDrift ? '<span class="og-tag">Ute av drift</span>' : v.kategori === 'reserve' ? '<span class="og-tag">Reserve</span>' : ''}
+            ${v.uteAvDrift ? '<span class="og-tag">Kan ikke brukes</span>' : v.kategori === 'reserve' ? '<span class="og-tag">Reserve</span>' : ''}
           </label>`).join('')}
       </div>`;
   }).join('');
@@ -19768,6 +20187,7 @@ function databaseStatusHtml(){
         <div class="ov-grid">
           <div class="ov-item"><span class="ov-label">Feilede lagringer</span><span class="ov-value">${synkFeilLogg.length}</span></div>
           <div class="ov-item"><span class="ov-label">Sist synkronisert</span><span class="ov-value">${sisteVellykkedeSynkTidspunkt ? new Date(sisteVellykkedeSynkTidspunkt).toLocaleString('nb-NO') : 'Ingen vellykket lagring registrert ennå denne økten'}</span></div>
+          <div class="ov-item"><span class="ov-label">Synkstatus</span><span class="ov-value">${synkStatus() ? statusPilleHtml('synk', synkStatus()) : 'Venter på første synk'}</span></div>
         </div>
         ${harFeil ? `
         <div class="ov-label" style="margin:14px 0 8px;">Feilede lagringer (nyeste først)</div>
@@ -20038,8 +20458,8 @@ function renderInnstillinger(){
       Kategoriene bilparken grupperes etter i Biloversikt, og som ligger i alle
       kategori-nedtrekkslister og rapportfiltre. Rekkefølgen her er rekkefølgen de vises i.
       <br><br>
-      🚫 <strong>Ute av drift</strong> er systemstyrt og vises ikke her: en bil merket
-      «ute av drift» flyttes automatisk dit, og faller like automatisk tilbake til sin egen
+      🚫 <strong>Kan ikke brukes</strong> er systemstyrt og vises ikke her: en bil satt til
+      «Kan ikke brukes» flyttes automatisk dit, og faller like automatisk tilbake til sin egen
       kategori når den settes i drift igjen. Kategorien under beholdes hele tiden.
       <br><br>
       🔄 <strong>Reserve</strong> har i tillegg en operativ regel: en reservebil krever ikke
@@ -20095,7 +20515,7 @@ function renderInnstillinger(){
       <div class="settings-list">
         ${sortedVehicles(vehicles).map(v => `
           <div class="settings-row">
-            <span>${esc(vehicleLabel(v))}${v.uteAvDrift ? ` <span class="required-hint" style="margin-left:6px;">🚫 ute av drift</span>` : ''}</span>
+            <span>${esc(vehicleLabel(v))}${v.uteAvDrift ? ` <span class="required-hint" style="margin-left:6px;">🚫 kan ikke brukes</span>` : ''}</span>
             <select data-flytt-bil-kategori="${v.id}" style="min-height:40px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);">
               ${kategoriOptionsHtml(v.kategori, null)}
             </select>
@@ -20554,6 +20974,7 @@ function renderKontroll(){
             <label for="kt-skade-nei" class="${!kontrollFormHarSkader ? 'checked' : ''}"><input type="radio" name="kt-skade" id="kt-skade-nei" ${!kontrollFormHarSkader?'checked':''}> Nei</label>
           </div>
           ${kontrollFormHarSkader ? `
+          <div style="margin-top:12px;">${skadeTypeOgKanKjoresHtml('kt', kontrollFormSkadeType, kontrollFormSkadeKanKjores)}</div>
           <div class="field" style="margin-top:12px;">
             <label>Beskrivelse av skade</label>
             <textarea id="kt-skade-beskrivelse" placeholder="Hva har skjedd, og hvor på bilen?">${esc(kontrollFormSkadeBeskrivelse)}</textarea>
@@ -20637,6 +21058,9 @@ function attachKontrollListeners(){
   if(annetTekstInput) annetTekstInput.addEventListener('input', e => { kontrollFormAnnetTekst = e.target.value; saveKontrollDraft(); });
   const skadeBeskrivelseInput = document.getElementById('kt-skade-beskrivelse');
   if(skadeBeskrivelseInput) skadeBeskrivelseInput.addEventListener('input', e => { kontrollFormSkadeBeskrivelse = e.target.value; saveKontrollDraft(); });
+  attachSkadeTypeOgKanKjores('kt',
+    v => { kontrollFormSkadeType = v; saveKontrollDraft(); },
+    v => { kontrollFormSkadeKanKjores = v; saveKontrollDraft(); render(); });
 
   const annetBtn = document.getElementById('kt-varsel-annet');
   if(annetBtn) annetBtn.addEventListener('click', () => {

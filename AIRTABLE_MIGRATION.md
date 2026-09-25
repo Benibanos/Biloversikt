@@ -700,3 +700,66 @@ opprettes automatisk: Innstillinger → Optimaliseringer → Airtable → «Synk
 
 Feltet (`sakGruppeId` i appen, `storage.airtable.js` v2.23.0) er tomt for vanlige saker. Flerbilssaker («➕ Legg til bil» i Aktive saker) har ÉN saksrad per bil, og radene som hører sammen deler samme verdi.
 Ingen migrering av eksisterende saker er nødvendig (tomt = ikke del av en flerbilssak). Ingen annen tabell/kolonne er endret.
+
+---
+
+## Implementeringsfase 1, Trinn A (2026-09-26) — ingen kolonneendring
+
+**Ingen handling kreves i Airtable.** `LIST_TABLES` og `storage.airtable.js` (v2.24.0) er uendret.
+
+- `Damages.Alvorlighet` kan nå ha verdien `kritisk` i tillegg til `lav` · `middels` · `hoy` (samme tekstfelt). Kritisk settes av alvorlighetsregelen (skadetype + «Kan bilen kjøres?») eller av administrator.
+- Svaret på «Kan bilen kjøres?» lagres midlertidig som en linje i `Damages.Kommentar` («Kan bilen kjøres: Nei»), og skadetypen står først i `Damages.Beskrivelse` («Glass/rute: …»), til Trinn B gir egne felt.
+- `Vehicles.StatusHistorikk` kan få oppføringer med `av: "system"` og `kilde: "skade:<AppId>"` når et Kritisk funn setter bilen til «Kan ikke brukes» (`UteAvDrift = true`).
+- `Vehicles.Status` (ok/oppfolging/verksted) skrives ikke lenger fra kjøretøyskjemaet og leses ikke av appen. Kolonnen og eksisterende verdier skal IKKE slettes.
+
+## Implementeringsfase 1, Trinn B — kolonner som må opprettes
+
+Kilde: `airtable-schema-v2.md` i Bilpark Design System. **Kolonnene kan opprettes nå**: dagens app skriver kun feltene i `LIST_TABLES`, så tomme ekstra kolonner påvirker ingenting. De MÅ finnes før Trinn B-koden publiseres (da registreres de i `LIST_TABLES`, og alle lagringer til tabellen feiler hvis en kolonne mangler).
+
+Alle tekstfelt er «Single line text» med mindre annet står. Opprett dem manuelt, eller med «Synkroniser nå» etter at Trinn B-koden er publisert (krever `schema.bases:write`).
+
+### Del 1 — nødvendig for Implementeringsfase 1
+
+| Tabell | Kolonne | Type | Verdier | Migrering av eksisterende rader |
+|---|---|---|---|---|
+| Vehicles | `Driftsstatus` | Single line text | `aktiv` · `reserve` · `kan-ikke-brukes` · `utfaset` | `UteAvDrift = true` → `kan-ikke-brukes`; ellers `Kategori = reserve` → `reserve`; ellers `aktiv` |
+| Vehicles | `DriftsstatusFra` | Single line text | ISO-tidspunkt | `UteAvDriftDato` hvis satt, ellers migreringstidspunktet |
+| Vehicles | `UtfasetDato` | Single line text | ISO-dato | tom |
+| Vehicles | `UtfasetArsak` | Single line text | `solgt` · `vraket` · `leie-avsluttet` · `annet` | tom |
+| WorkshopAppointments | `Status` | Single line text | `planlagt` · `bekreftet` · `pagar` · `utfort` · `avlyst` · `forfalt` | `Utfort = true` → `utfort`; ellers `Dato` passert → `forfalt`; ellers `planlagt` |
+| WorkshopAppointments | `StatusHistorikk` | Long text | JSON-liste | én oppføring «migrert» med utledet status |
+| WorkshopAppointments | `BekreftetDato`, `BekreftetAv` | Single line text | | tom |
+| WorkshopAppointments | `LevertDato` | Single line text | ISO-tidspunkt | tom |
+| WorkshopAppointments | `AvlystDato` | Single line text | ISO-dato | tom |
+| WorkshopAppointments | `AvlystArsak` | Single line text | `ombooket` · `verksted-stengt` · `ikke-behov` · `utfaset` · `duplikat` · `annet` | tom |
+| WorkshopAppointments | `OmbooketFraId` | Single line text | AppId | tom |
+| WorkshopAppointments | `Akutt` | Checkbox | | usann |
+| WorkshopAppointments | `ForventetFerdig` | Single line text | ISO-tidspunkt | tom (fylles ved ny bestilling) |
+| Damages | `Skadetype` | Single line text | `bulk-riper` · `glass` · `sidespeil` · `lys` · `dekk-felg` · `loftebord` · `bremser` · `styring` · `struktur` · `annet` | tom for eldre skader; for skader fra 2026-09-26 kan typen leses fra starten av `Beskrivelse` |
+| Damages | `KanKjores` | Single line text | `ja` · `usikker` · `nei` | fra linjen «Kan bilen kjøres: …» i `Kommentar` der den finnes |
+| Damages | `AlvorlighetKilde` | Single line text | `sjafor` · `drift` | `sjafor` der `KanKjores` finnes, ellers `drift` |
+| Damages | `StatusHistorikk` | Long text | JSON-liste | tom |
+| Damages | `BildeAntall` | Number (heltall) | 0–10 | antall `photo:damage:<id>`-nøkler |
+| Damages | `BildeStatus` | Single line text | `ingen` · `venter` · `komplett` · `delvis` | `komplett` hvis `HasPhoto`, ellers `ingen` |
+| AktiveSaker | `Alvorlighet` | Single line text | `lav` · `middels` · `hoy` · `kritisk` | beregnes fra sakens kilder (samme regel som appen bruker i dag, `sakAlvorlighet()`) |
+| Users | `Tilgangsrolle` | Single line text | `flateansvarlig` · `terminalleder` · `verkstedpartner` · `administrator` · `systemadministrator` | alle eksisterende brukere → `administrator` |
+| DriverChecks | `Avvik` | Long text | JSON-liste med kontrollavvik-nøkler | tom |
+| DriverChecks | `Enhet`, `OpprettetLokalt` | Single line text | | tom |
+| Damages | `Enhet`, `OpprettetLokalt` | Single line text | | tom |
+
+Synkstatus lagres IKKE som kolonne, men som Settings-rader `synkstatus:<enhetId>` (samme mønster som `systemkontroll:<enhetId>`). Ingen handling i Airtable.
+
+### Del 2 — for Sprint 2-funksjonene (kan vente)
+
+| Tabell | Kolonne | Type |
+|---|---|---|
+| Vehicles | `GarantiTil`, `GarantiMerke`, `Hjemmebase` | Single line text |
+| **Workshops** (ny tabell) | `AppId`, `Navn`, `Verkstedtype`, `Betjener` (Long text, JSON), `Kompetanse` (Long text, JSON), `AutorisertMerker` (Long text, JSON), `KapasitetPerDag` (Number), `ReserverteSlots` (Number), `AkuttSlots` (Number), `Apningstider` (Long text, JSON), `Stengt` (Long text, JSON), `Adresse`, `AvstandKm` (Number), `Kontaktperson`, `Telefon`, `Aktiv` (Checkbox) | se skjema |
+| WorkshopAppointments | `WorkshopId` | Single line text |
+
+### Rekkefølge
+
+1. Opprett Del 1-kolonnene (tomme).
+2. Si fra; Trinn B-koden registrerer dem i `LIST_TABLES` (ny `storage.airtable.js`-versjon), og får en migreringsfunksjon under Innstillinger → Optimaliseringer som viser hvor mange rader som får hvilken verdi før noe skrives.
+3. Publiser Trinn B. Kjør migreringen én gang som administrator.
+4. De gamle feltene (`UteAvDrift`, `Utfort`) skrives parallelt i to uker, deretter leses de ikke lenger. Ingen kolonner slettes.

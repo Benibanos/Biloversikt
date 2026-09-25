@@ -13,6 +13,29 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-26
+
+### Implementeringsfase 1A — Sjåførkommentarer er informasjon, ikke varsler
+
+1. Sjåførkommentarer og sjåførnotater (kommentar på en kontroll) lager ikke lenger varsler. Kategorien «Sjåførkommentarer» er fjernet fra Varslingssenteret.
+2. Ny Dashboard-komponent «Siste aktivitet» (`dashboard.aktivitet`, synlig som standard, kan flyttes/skjules i Layout Editor) viser kommentarer og notater siste 7 dager (`aktivitetsHendelser()`), med «Ulest»-merke og lenke til Kommentaroversikt. Kommentaroversikt og kjøretøyets historikk er uendret.
+3. Mobilmenyens teller for uleste kommentarer (Kommentarer-siden) er beholdt; den er sidens egen teller, ikke et varsel.
+4. App-/cacheversjon 125 → 126; `kontroll.html` = `index.html`. `storage.airtable.js` uendret. Syntaks parset i nettleser; ikke testet i appen mot Airtable.
+
+### Implementeringsfase 1, Trinn A — Statusordbok, alvorlighet og varselmotor (uten skjemaendring)
+
+Kilde: Bilpark Design System (`../Dv4/project/`): `status-dictionary.md`, `damage-severity-framework.md`, `alert-classification-matrix.md`, `workshop-state-model.md`. Trinn A bruker kun eksisterende Airtable-felt; Trinn B (nye kolonner og migrering) er beskrevet i `AIRTABLE_MIGRATION.md`.
+
+1. **1A Statusordbok:** nytt felles lag `STATUS` / `STATUS_TONE` / `STATUS_ALIAS` med hjelpefunksjonene `statusDef()`, `statusLabel()`, `statusTone()`, `statusPilleHtml()`, `statusIkonHtml()` og `synkStatus()`. `HOVEDSTATUS_*`, `P38_STATUS_STIL`, `SAK_STATUS_*`, `ALVOR_LABEL` og `SKADE_STATUS_LABEL` er nå avledet fra ordboken. Den parallelle «sak-bilstatusen» (`vehicleSakStatus`, grønn/gul/oransje/rød) er fjernet. Nye pilleklasser `.badge.t-*` per tone.
+2. **1B Kjøretøystatus:** `vehicleHovedstatus()` returnerer ordbokens nøkler (`kan-ikke-brukes`, `verksted-planlagt`); de gamle (`ute-av-drift`, `verksted`) virker som alias. Ny `vehicleDriftsstatus()` (Aktiv · Reserve · Kan ikke brukes · Utfaset), avledet fra `UteAvDrift`/`Kategori` til Trinn B. «Ute av drift» er erstattet av «Kan ikke brukes», «Ikke kontrollert» av «Mangler kontroll», «Reservebil (ikke i bruk)» av «Reserve» i hele grensesnittet. Det manuelle skjemafeltet `Vehicles.Status` er fjernet og leses ikke lenger (lagret verdi urørt).
+3. **1C Verkstedstatus:** ny `vtStatus()` (Planlagt · Utført · Forfalt i Trinn A). Verkstedoversikt, KPI og grupper bruker den; hver rad viser statuspille.
+4. **1D Alvorlighet:** én regel `alvorlighetForSkade(skadetype, kanKjores)`. Sjåføren velger ikke lenger alvorlighet i Min Bil; Min Bil og sjåførkontroll spør om skadetype og «Kan bilen kjøres?» (Ja/Usikker/Nei). Kritisk (bl.a. alltid ved «Nei») setter bilen til «Kan ikke brukes» straks (logget som `system` i `StatusHistorikk`), og sjåføren får beskjed om å ikke kjøre. I sjåførmodus startes ingen biløkt på en bil som ikke kan brukes. Administrator kan velge Kritisk; oppgradering til Kritisk gir samme statusendring. Tabellene for kontrollavvik, varsellamper, EU-kontroll og service ligger samme sted.
+5. **1E Varselmotor:** alle varsler i Varslingssenteret får alvorlighet og varselstatus og sorteres Kritisk → Lav (≤ 14-dagers EU-kontroll først blant Høy). EU-kontroll: 90 d Middels, 30 d Høy, 14 d Høy, forfalt Kritisk — også med bestilt time (vises som «EU-kontroll forfalt · verksted bestilt»), uten automatisk statusendring. Ny kategori «Mangler kontroll» (Middels) for biler i operativt kontrollgrunnlag på driftsdager. Klokken, sidemenyens teller og Dashboardets varselliste viser nå kun Kritisk og Høy; Middels og Lav ligger i Varslingssenteret.
+6. **1G Synk og DriverControl:** offline-banneret bruker ordbokens «Offline» og lover ikke lenger lokal lagring og automatisk sending (appen har ingen offline-kø før utboksen i Trinn B). Optimaliseringer viser synkstatus (Sanntid · Forsinket · Utdatert · Offline).
+7. EU- og servicefarger i Kjøretøyprofilen og historikkens farger kommer fra ordboken.
+8. `storage.airtable.js` uendret v2.24.0. Ingen Airtable-kolonner lagt til. Ny verdi `kritisk` i `Damages.Alvorlighet` (tekstfelt). App-/cacheversjon 124 → 125; `kontroll.html` = `index.html`.
+9. Testet: syntaks for begge skriptblokker (parset i nettleser), 37 isolerte regeltester for alvorlighet, EU, service, saker, ordbok, alias og «Kan ikke brukes»-regelen. **Ikke testet i appen mot Airtable** — se testliste i `ROADMAP.md`.
+
 ## 2026-09-22
 
 ### Prioritet 76 — Verkstedordre

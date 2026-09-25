@@ -1,5 +1,7 @@
 # CLAUDE.md — Bilpark Operativsystem
 
+**Implementeringsfase 1, Trinn A (2026-09-26): statusordboken er appens eneste kilde til statusnavn, farger, ikoner og alvorlighet.** Se «Implementeringsfase 1 (2026-09-26)» nederst — den avløser alle lokale statuskart og «Ute av drift»-terminologien. Appversjon 125; storage.airtable.js uendret v2.24.0.
+
 Prosjektets kilde til sannhet. Sist konsolidert: 2026-09-22 (Prioritet 76 —
 **Verkstedordre.** Én verkstedtime kan ha flere arbeidsoppgaver (Service, EU-kontroll, Reparasjon) på samme ordre. Reparasjon er femte kort under Bestill tjenester. Samme bil + dato + verksted (ikke utført) spør «Legg til på eksisterende verkstedordre?». Oversikt/historikk viser oppgavene samlet; Utført markerer hele ordren. `storage.airtable.js` uendret v2.24.0; appversjon 124. Se «Prioritet 76 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 75 —
 **Ny verkstedoversikt.** Standardvisning grupperer planlagte verkstedtimer på dato (I dag / Denne uken / Senere, pluss Forfalt), ikke per bil. Faner Kommende (standard) · Biler · Historikk. Kompakt «Neste verksted» og KPI I dag / Denne uken / Forfalt. `storage.airtable.js` uendret v2.24.0; appversjon 122. Se «Prioritet 75 (2026-09-22)» nederst. Før det: 2026-09-22 (Prioritet 74 —
@@ -6608,3 +6610,23 @@ opprettes via Innstillinger → Optimaliseringer → Airtable → «Synkroniser 
 
 **Filer:** `index.html`, `kontroll.html` (eksakt kopi), `sw.js` / `version-check.js` / `version.json` 123 → 124. **`storage.airtable.js` uendret** v2.24.0.
 
+---
+
+## Implementeringsfase 1 (2026-09-26) — Statusordbok, alvorlighet og varselmotor
+
+Kilde til sannhet utenfor dette repoet: Bilpark Design System (`../Dv4/project/`), særlig `status-dictionary.md`, `damage-severity-framework.md`, `alert-classification-matrix.md`, `workshop-state-model.md` og `cursor-rules.md` (også i `.cursor/rules/cursor-rules.mdc`).
+
+**Varige regler:**
+
+1. **Én statusordbok.** `STATUS` / `STATUS_TONE` / `STATUS_ALIAS` (rett før «Aktive Saker: konstanter») er den ENESTE definisjonen av statusnavn, toner og ikoner for domenene driftsstatus, operativ status, verksted, alvorlighet, synk, sak, skade, varsellampe, EU og varsel. Bruk `statusLabel()`, `statusTone()`, `statusPilleHtml()`, `statusIkonHtml()`, `statusEmoji()`. Ingen ny kode definerer egne statusord, farger eller ikoner; en ny status legges først inn i designsystemets ordbok, deretter i `STATUS`.
+2. **Gamle nøkler er alias.** `vehicleHovedstatus()` returnerer ordbokens nøkler (`kan-ikke-brukes`, `verksted-planlagt` …). `ute-av-drift` og `verksted` virker fortsatt via `STATUS_ALIAS` (lagrede filtre, eldre kode). `HOVEDSTATUS_*`, `P38_STATUS_STIL`, `SAK_STATUS_*`, `ALVOR_LABEL`, `SKADE_STATUS_LABEL` er AVLEDET — endre ordboken, ikke dem.
+3. **Terminologi.** «Kan ikke brukes» (ikke «Ute av drift»), «Mangler kontroll» (ikke «Ikke kontrollert»), «Verksted bestilt», «Reserve», «Offline». Historikk-nøkkelen `handling: 'ute-av-drift'` i `Vehicles.StatusHistorikk` er lagret data og beholdes.
+4. **Driftsstatus.** `vehicleDriftsstatus(v)` er eneste kilde (Aktiv · Reserve · Kan ikke brukes · Utfaset). Trinn A avleder den fra `UteAvDrift`/`Kategori`; Trinn B leser `Vehicles.Driftsstatus`. `Vehicles.Status` (ok/oppfolging/verksted) er avviklet: leses og skrives ikke fra UI, slettes aldri.
+5. **Verkstedstatus.** `vtStatus(t)` er eneste kilde. Trinn A: Planlagt · Utført · Forfalt fra `Utfort`/`Dato`.
+6. **Alvorlighet.** `alvorlighetForSkade(skadetype, kanKjores)` er eneste regel for skader; sjåføren velger aldri alvorlighet selv. Tabellene `ALVORLIGHET_KONTROLLAVVIK`, `ALVORLIGHET_VARSELLAMPE`, `alvorlighetForEu()`, `alvorlighetForService()` og `sakAlvorlighet()` ligger samme sted. «Nei» gir alltid Kritisk.
+7. **Kritisk sikkerhetsfunn → «Kan ikke brukes» straks** (`settKanIkkeBrukesVedKritiskFunn()`, logget `av: 'system'`). Settes aldri tilbake automatisk. **Utløpt EU-kontroll setter ALDRI bilen til «Kan ikke brukes» automatisk** — flåteansvarlig bestemmer (beslutning etter Sprint 2).
+8. **Varselmotor.** Hvert varsel i `beregnVarslingssenterListe()` har `alvorlighet` og `varselStatus`, sorteres etter `varselSorteringsNokkel()`. Klokke, sideteller og Dashboardets varselliste bruker `varslingssenterKlokkeListe()`/`-Antall()` = kun Kritisk og Høy. Km-avvik har ingen alvorlighet (datakvalitet). Informasjonshendelser er aldri varsler: sjåførkommentarer og sjåførnotater vises i «Siste aktivitet» (`aktivitetsHendelser()`, Dashboard-komponenten `dashboard.aktivitet`) og i Kommentaroversikt — aldri i Varslingssenteret. En kommentar blir bare et varsel hvis den fører til et registrert avvik, en skade eller en sak som varselmotoren klassifiserer.
+9. **EU-kontroll:** 90 d Middels · 30 d Høy · 14 d Høy (sortert først, `EU_KONTROLL_VARSEL_DAGER_HASTER`) · forfalt Kritisk, også med bestilt time («EU-kontroll forfalt · verksted bestilt»).
+10. **Offline.** Appen har ingen offline-kø før utboksen i Trinn B. Ikke lov sjåføren lokal lagring eller automatisk sending i tekst.
+
+**Trinn B (venter på kolonner):** se `AIRTABLE_MIGRATION.md`, «Implementeringsfase 1, Trinn B». Ingen av de nye feltene er i `LIST_TABLES` ennå — legg dem inn først når kolonnene finnes i basen.
