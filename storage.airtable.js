@@ -142,14 +142,12 @@
   // 'bool' = checkbox, 'num' = tall, 'select' = single select (verdien er en nøkkel
   // fra statusordboken, lagret som tekst). Uten type = ren tekst.
   //
-  // Implementeringsfase 1B (skjemasynk): de 19 godkjente feltene fra AIRTABLE_MIGRATION.md,
-  // «Del 1», er registrert med fase1B(). De er PLANLAGTE (aktiv:false): skjemasjekken ser dem
-  // og «Opprett manglende Fase 1B-felt» kan opprette kolonnene, men toAirtableFields()/
-  // fromAirtableFields() hopper over dem — vanlig lagring og lesing er nøyaktig som før, og
-  // ingen raddata skrives. De aktiveres først av migreringskoden i fase 1B (egen godkjenning).
-  // Valgene i single select er de lagrede NØKLENE fra statusordboken (beslutning 2026-09-26).
+  // Implementeringsfase 1B: de 19 godkjente feltene fra AIRTABLE_MIGRATION.md, «Del 1».
+  // fase:'1B' styrer skjemasjekk og «Opprett manglende Fase 1B-felt». aktiv:true betyr at
+  // toAirtableFields()/fromAirtableFields() leser og skriver dem. Eldre felt (UteAvDrift,
+  // Utfort, Kategori reserve) beholdes. Valgene i single select er interne nøkler (F).
   function fase1B(atNavn, type, valg) {
-    return [atNavn, type, { fase: '1B', aktiv: false, valg: valg || null }];
+    return [atNavn, type, { fase: '1B', aktiv: true, valg: valg || null }];
   }
   const FASE1B_VALG = {
     driftsstatus: ['aktiv', 'reserve', 'kan-ikke-brukes', 'utfaset'],
@@ -217,7 +215,7 @@
       aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato'],
       // Prioritet 67: servicenummer er verksted-/faktura-referanse — ikke serviceintervall.
       servicenummer: ['Servicenummer'],
-      // Fase 1B (planlagt, se fase1B() over): driftsstatus etter statusordboken §1.
+      // Fase 1B: driftsstatus etter statusordboken §1. UteAvDrift skrives parallelt.
       driftsstatus: fase1B('Driftsstatus', 'select', FASE1B_VALG.driftsstatus),
       driftsstatusFra: fase1B('DriftsstatusFra', 'text'),
       utfasetDato: fase1B('UtfasetDato', 'text'),
@@ -227,7 +225,7 @@
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
       alvorlighet: ['Alvorlighet'], kommentar: ['Kommentar'], status: ['Status'], registrertAv: ['RegistrertAv'],
       hasPhoto: ['HasPhoto', 'bool'], createdByControlId: ['CreatedByControlId'], estimertKostnad: ['EstimertKostnad', 'num'],
-      // Fase 1B (planlagt): skadetype, sjåførens svar og kilde for alvorlighet (damage-severity-framework.md).
+      // Fase 1B: skadetype, sjåførens svar og kilde for alvorlighet (damage-severity-framework.md).
       skadetype: fase1B('Skadetype', 'select', FASE1B_VALG.skadetype),
       kanKjores: fase1B('KanKjores', 'select', FASE1B_VALG.kanKjores),
       alvorlighetKilde: fase1B('AlvorlighetKilde', 'select', FASE1B_VALG.alvorlighetKilde),
@@ -251,7 +249,7 @@
       // biler i ÉN handling («Velg flere biler») — ÉN rad per bil, aldri én rad med flere VehicleId —
       // og lar «Alle utført» fullføre dem samlet. Tom for alle vanlige enkeltbestillinger.
       dekkRetning: ['DekkRetning'], bestillingGruppeId: ['BestillingGruppeId'],
-      // Fase 1B (planlagt): verkstedstatus og livsløp etter workshop-state-model.md.
+      // Fase 1B: verkstedstatus. Utfort skrives parallelt. WorkshopId er Del 2 (G).
       status: fase1B('Status', 'select', FASE1B_VALG.verkstedStatus),
       statusHistorikk: fase1B('StatusHistorikk', 'json'),
       bekreftetDato: fase1B('BekreftetDato', 'text'),
@@ -285,7 +283,7 @@
     }},
     'admin-users': { table: 'Users', fields: {
       id: ['AppId'], rolle: ['Rolle'], tittel: ['Tittel'], brukernavn: ['Brukernavn'], passord: ['Passord'],
-      // Fase 1B (planlagt): tilgangsrolle (access-control-model.md). Tas i bruk i Sprint 2.
+      // Fase 1B: tilgangsrolle. Eksisterende brukere migreres til administrator (E).
       tilgangsrolle: fase1B('Tilgangsrolle', 'select', FASE1B_VALG.tilgangsrolle)
     }},
     dekkhistorikk: { table: 'TireChanges', fields: {
@@ -342,7 +340,7 @@
   // get()/set()/del() under: alt som ikke er en LIST_TABLES-nøkkel eller har
   // "photo:"-prefiks, går automatisk til denne Settings-tabellen).
 
-  // Planlagte (ikke aktiverte) fase 1B-felt skrives og leses IKKE — se fase1B() over.
+  // Fase 1B-felt med aktiv:true skrives og leses. Eldre felt beholdes.
   function toAirtableFields(config, obj) {
     const out = {};
     Object.keys(config.fields).forEach(appField => {
@@ -658,8 +656,9 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.25.0',
+    versjon: 'v2.26.0',
     bygget: '26.09.2026 00:00',
+    // v2.26.0 (Fase 1B migrering): 19 fase 1B-felt er aktive (leses/skrives). Eldre felt beholdes.
     // v2.25.0 (Fase 1B skjemasynk): 19 planlagte fase 1B-felt i LIST_TABLES (skrives/leses ikke),
     // type 'select', skjemarapport med fase 1B/utsatte felt/typeavvik, oppretting kun med bekreftelse.
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre

@@ -724,7 +724,7 @@ Kolonnenavn skrives nøyaktig som under (store/små bokstaver og uten mellomrom)
 
 | # | Tabell | Kolonne | Type | Gyldige verdier | Migrering av eksisterende rader |
 |---|---|---|---|---|---|
-| 1 | Vehicles | `Driftsstatus` | Single line text | `aktiv` · `reserve` · `kan-ikke-brukes` · `utfaset` | `UteAvDrift = true` → `kan-ikke-brukes`; ellers `Kategori = reserve` → `reserve`; ellers `aktiv`. Ingen bil blir `utfaset` ved migrering |
+| 1 | Vehicles | `Driftsstatus` | Single select (interne nøkler) | `aktiv` · `reserve` · `kan-ikke-brukes` · `utfaset` | `UteAvDrift = true` → `kan-ikke-brukes` (også reserve, beslutning B); ellers `Kategori = reserve` → `reserve`; ellers `aktiv`. Ingen bil blir `utfaset` ved migrering |
 | 2 | Vehicles | `DriftsstatusFra` | Single line text | ISO-dato/-tidspunkt | `UteAvDriftDato` for `kan-ikke-brukes`, ellers migreringsdatoen |
 | 3 | Vehicles | `UtfasetDato` | Single line text | ISO-dato | tom |
 | 4 | Vehicles | `UtfasetArsak` | Single line text | `solgt` · `vraket` · `leie-avsluttet` · `annet` | tom |
@@ -759,7 +759,9 @@ Synkstatus lagres IKKE som kolonne, men som Settings-rader `synkstatus:<enhetId>
 
 ## Migreringssjekkliste — fase 1B
 
-Hvem: **A** = administrator (deg), **K** = kode (Claude). Ingenting skrives til Airtable av koden før punkt 5.
+Hvem: **A** = administrator (deg), **K** = kode (Claude). Radskriving skjer kun når administrator trykker «Kjør migrering».
+
+Godkjente beslutninger (2026-09-25): **A** ingen spesiell håndtering, Status skrives ikke på historiske åpne timer; **B** reserve + UteAvDrift → `kan-ikke-brukes`; **C** skader uten parse i manuell liste, ikke auto; **D** Utfaset kun manuelt; **E** alle brukere → `administrator`; **F** single select med interne nøkler; **G** WorkshopId tom til Workshops finnes.
 
 ### 1. Før kolonnene opprettes
 
@@ -779,16 +781,16 @@ Hvem: **A** = administrator (deg), **K** = kode (Claude). Ingenting skrives til 
 - [ ] **A** Kjør forhåndsvisningen og send resultatet (tall + eventuelle rader under «krever beslutning»).
 - [ ] **A** Ta beslutning A og B under basert på tallene.
 
-### 4. Migreringskode (K)
+### 4. Migreringskode (K) — levert 2026-09-25 (app 132, storage v2.26.0)
 
-- [ ] Registrer Del 1-feltene i `LIST_TABLES`; øk `storage.airtable.js` til v2.25.0 og `?v=` i `index.html`/`kontroll.html`; app-/cacheversjon +1.
-- [ ] Les de lagrede feltene: `vehicleDriftsstatus()` leser `Driftsstatus`, `vtStatus()` leser `Status` (gir også Bekreftet, Pågår og Avlyst), `alvorlighetForAvvikPunkt()` bruker lagret skadedata, `sakAlvorlighet()` skriver `AktiveSaker.Alvorlighet` når saken lagres.
-- [ ] Skriv begge modeller parallelt i kontrollperioden: `Driftsstatus` + `UteAvDrift`, `Status` + `Utfort`.
-- [ ] Verkstedlivsløpet etter `workshop-state-model.md`: Bekreft, Levert/Pågår (automatisk ved booket tid for Bekreftet), Utført, Avlys med årsak (erstatter sletting av verkstedtimer), Forfalt ved dagskillet, «Book ny tid» som ny rad med `OmbooketFraId`. Alle overganger logges i `StatusHistorikk`.
-- [ ] Sjåførens skademelding lagrer `Skadetype`, `KanKjores` og `AlvorlighetKilde = sjafor`; administratorens endring av alvorlighet lagrer `AlvorlighetKilde = drift` og historikk (nedgradering krever årsak).
-- [ ] Kjøretøyprofil: «Sett til Kan ikke brukes», «Sett i drift» og (administrator) «Utfas» med årsak. Utfasing avlyser fremtidige verkstedtimer (`AvlystArsak = utfaset`) og krever at åpne saker er lukket.
-- [ ] Migreringsfunksjon «Kjør migrering» (administrator): samme beregning som forhåndsvisningen, skriver kun tomme felt (idempotent — kan kjøres flere ganger), leser tilbake og viser avvik.
-- [ ] Syntaks- og regeltester; testplan for fase 1B i `ROADMAP.md`.
+- [x] Del 1-feltene i `LIST_TABLES` med `aktiv:true`; `storage.airtable.js` v2.26.0; `?v=2.26.0`; app-/cacheversjon 132.
+- [x] `vehicleDriftsstatus()` leser lagret `Driftsstatus` med fallback til `UteAvDrift`/`Kategori`. `vtStatus()` uendret (visning kan vise forfalt uten at feltet skrives). Nye saker får `Alvorlighet`.
+- [x] Dobbeltskriving: `Driftsstatus` + `UteAvDrift`, `Status` + `Utfort` på mutasjon (ikke på hver tilfeldig `saveVehicles`).
+- [ ] Verkstedlivsløp Bekreft / Pågår / Avlys / Forfalt ved dagskille / Book ny tid — **ikke i Fase 1B**. Utført skriver begge felt.
+- [x] Sjåførskade lagrer `Skadetype`, `KanKjores`, `AlvorlighetKilde = sjafor`. Admin-skade: `AlvorlighetKilde = drift` når parse finnes.
+- [ ] Utfas-UI — **ikke i Fase 1B** (beslutning D).
+- [x] «Kjør migrering» / «Rull tilbake»: tomme felt, snapshot, validering etterpå, rapport. Ingen automatisk kjøring.
+- [x] Kompatibilitetsmappinger (`STATUS_ALIAS`, `UteAvDrift`, `Utfort`) er **ikke** fjernet. 14 dager etter vellykket migrering.
 
 ### 5. Migrering (A)
 
@@ -799,8 +801,10 @@ Hvem: **A** = administrator (deg), **K** = kode (Claude). Ingenting skrives til 
 
 ### 6. Kontrollperiode (2 uker)
 
-- [ ] Appen skriver gamle og nye felt parallelt. En daglig konsistenssjekk (Datakvalitet) viser rader der `Driftsstatus` og `UteAvDrift`, eller `Status` og `Utfort`, ikke stemmer.
-- [ ] Ingen avvik i 14 dager → gå videre.
+Starter når administrator har kjørt migreringen (status `kjoert` i `fase1B-migrering`). Dobbeltskriving er på. Datakvalitetsmotor er **ikke** innført i Fase 1B — avvik fanges i migreringsrapporten og ved stikkprøve.
+
+- [ ] Appen skriver gamle og nye felt parallelt i 14 dager.
+- [ ] Ingen avvik i 14 dager → gå videre (ikke start Fase 2 før det).
 
 ### 7. Fjern midlertidige kompatibilitetsmappinger (K, etter kontrollperioden)
 

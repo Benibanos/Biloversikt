@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.25.0"></script>
+<script src="storage.airtable.js?v=2.26.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -2050,6 +2050,8 @@ const STANDARD_RINGELISTE_EKSTRA = {
 // operativGrunnlag er ALLTID enten en validert konfigurasjon eller null — status forteller
 // hvorfor den er null. Ingen fallback: uten gyldig grunnlag vises ingen prosent.
 const OPERATIV_GRUNNLAG_KEY = 'operativ-kontrollgrunnlag';
+const FASE1B_MIGRERING_KEY = 'fase1B-migrering';
+const FASE1B_KOMPAT_DAGER = 14;
 const OPERATIV_STANDARD_UKEDAGER = [1, 2, 3, 4, 5];
 const OPERATIV_UKEDAG_NAVN = {1:'Mandag', 2:'Tirsdag', 3:'Onsdag', 4:'Torsdag', 5:'Fredag', 6:'Lørdag', 7:'Søndag'};
 let operativGrunnlag = null;
@@ -2581,6 +2583,9 @@ let dekkValgtVehicleId = '';
 let dbStatusReport = null; // resultat fra siste window.checkAirtableSchema()-kall
 let dbStatusSyncing = false;
 let dbStatusSyncLog = null; // resultat fra siste window.autoFixAirtableSchema()-kall
+let fase1BMigreringBlob = null; // Settings-nøkkel fase1B-migrering
+let fase1BMigreringRapport = null;
+let fase1BMigreringOpptatt = false;
 let isAdmin = false; // lokal, per enhet — styrer hvem som kan kvittere ut varsellamper
 
 // ================= Implementeringsfase 1A: Statusordbok =================
@@ -2892,6 +2897,7 @@ function settKanIkkeBrukesVedKritiskFunn(v, kilde, tekst){
   v.uteAvDriftDato = dato;
   if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
   v.statusHistorikk.push({dato, handling:'ute-av-drift', arsak: v.uteAvDriftArsak, kommentar:'', av:'system', kilde: kilde || ''});
+  fase1BDobbeltskrivKjoretoy(v);
   return true;
 }
 
@@ -3180,6 +3186,7 @@ function registrerAvvikSomSak({vehicleId, caseType, sourceId, tittel, beskrivels
     createdByControlId: controlId || null,
     createdAt: now, updatedAt: now
   };
+  sak.alvorlighet = sakAlvorlighet(sak);
   aktiveSaker.push(sak);
   return sak;
 }
@@ -3326,6 +3333,7 @@ function registrerKontrollAvvikSomSak(vehicleId, avvikListe, opts){
         createdByControlId: controlId || null,
         createdAt: now, updatedAt: now
       };
+      nySak.alvorlighet = sakAlvorlighet(nySak);
       aktiveSaker.push(nySak);
     } else {
       nySak.avvik.push({id: uid(), caseType, sourceId, label, status: 'aktiv', createdAt: now, resolvedAt: null, linkedVtId: null, reportCount: 1, lastReportedAt: now, kommentar: tekstPaAvvik});
@@ -4404,6 +4412,10 @@ function attachOptimaliseringInnholdListeners(root){
   if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); synkroniserAirtableNaa(); });
   const dbOpprett1BBtn = root.querySelector('#db-opprett-1b-btn');
   if(dbOpprett1BBtn) dbOpprett1BBtn.addEventListener('click', (e) => { e.stopPropagation(); opprettManglendeFase1BFelt(); });
+  const migKjorBtn = root.querySelector('#fase1b-kjor-migrering-btn');
+  if(migKjorBtn) migKjorBtn.addEventListener('click', (e) => { e.stopPropagation(); fase1BKjorMigrering(); });
+  const migTilbakeBtn = root.querySelector('#fase1b-rull-tilbake-btn');
+  if(migTilbakeBtn) migTilbakeBtn.addEventListener('click', (e) => { e.stopPropagation(); fase1BRullTilbake(); });
   const hardRefreshBtn = root.querySelector('#hard-refresh-btn');
   if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', (e) => { e.stopPropagation(); hardRefreshApp(); });
   const pwaSettingsInstallBtn = root.querySelector('#pwa-settings-install-btn');
@@ -6858,6 +6870,7 @@ async function loadAll(){
   // (oppstartApne() tegner først etter at loadAll() er ferdig). Feiler aldri oppstarten —
   // status ('mangler'/'korrupt'/'lesefeil') gjør at Dashboard i stedet ber om konfigurering.
   await lastOperativGrunnlag();
+  await lastFase1BMigrering();
   await lastAktivSjaforManuellNullstilling();
   try{
     const au = await window.storage.get('admin-users', true);
@@ -6869,9 +6882,9 @@ async function loadAll(){
     // Innstillinger → Administratorbrukere før appen tas i reell bruk — se sikkerhets-
     // forbeholdet ved definisjonen av ADMIN_SCREENS lenger opp i filen.
     adminUsers = [
-      {id: uid(), rolle: 'Pedersen',   tittel: 'Administrator',  brukernavn: 'pedersen',   passord: 'bring2026'},
-      {id: uid(), rolle: 'Gustavsen',  tittel: 'Driftskoordinator',    brukernavn: 'gustavsen',  passord: 'bring2026'},
-      {id: uid(), rolle: 'Jakobsen',   tittel: 'Transportleder', brukernavn: 'jakobsen',   passord: 'bring2026'},
+      {id: uid(), rolle: 'Pedersen',   tittel: 'Administrator',  brukernavn: 'pedersen',   passord: 'bring2026', tilgangsrolle: 'administrator'},
+      {id: uid(), rolle: 'Gustavsen',  tittel: 'Driftskoordinator',    brukernavn: 'gustavsen',  passord: 'bring2026', tilgangsrolle: 'administrator'},
+      {id: uid(), rolle: 'Jakobsen',   tittel: 'Transportleder', brukernavn: 'jakobsen',   passord: 'bring2026', tilgangsrolle: 'administrator'},
     ];
     await saveAdminUsers();
   }
@@ -6999,6 +7012,7 @@ function _lagBatchetLiveSyncHandler(){
     // redigeringsskjema overskrives aldri (se operativGrunnlagEtterEksternLasting()).
     const grunnlagEndret = await lastOperativGrunnlag().catch(() => false);
     if(grunnlagEndret) operativGrunnlagEtterEksternLasting();
+    await lastFase1BMigrering().catch(() => false);
     // Prioritet 58: samme for Dashboard-layouten — en endring gjort av en annen administrator slår
     // gjennom her. Et åpent utkast overskrives aldri (se dashEditEtterEksternLasting()).
     const layoutEndret = await lastLayoutConfig().catch(() => false);
@@ -7019,6 +7033,9 @@ function _lagBatchetLiveSyncHandler(){
 async function saveAdminUsers(){
   try{ await window.storage.set('admin-users', JSON.stringify(adminUsers), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveAdminUsersEllerKast(){
+  await window.storage.set('admin-users', JSON.stringify(adminUsers), true);
 }
 async function saveAdminUserCredentials(id){
   const u = adminUsers.find(x => x.id === id);
@@ -7091,6 +7108,9 @@ async function saveVehicles(){
 async function saveDamages(){
   try{ await window.storage.set('damages', JSON.stringify(damages), true); }
   catch(e){ alert('Kunne ikke lagre. Prøv igjen.'); console.error(e); }
+}
+async function saveDamagesEllerKast(){
+  await window.storage.set('damages', JSON.stringify(damages), true);
 }
 async function saveVerkstedtimer(){
   try{ await window.storage.set('verkstedtimer', JSON.stringify(verkstedtimer), true); }
@@ -8202,7 +8222,7 @@ function vtOsloNaa(){
 // Workshop-state-model.md + statusordbok §3 — ENESTE lesedefinisjon.
 // Trinn A: Utfort-boolean og Dato (planlagt · utfort · forfalt). Lagret Status og
 // bekreftet/pagar/avlyst leses når de finnes (kompatibilitet / Trinn B), men skrives
-// ikke til Airtable her (Status er fase 1B, aktiv:false).
+// ikke til Airtable her utenom fullføring og Fase 1B-migrering / dobbeltskriving.
 function vtStatus(t){
   if(!t) return null;
   const lagret = statusNokkel('verksted', t.status);
@@ -8786,10 +8806,15 @@ async function submitAddSkade(ev){
   }
   const id = uid();
   let fotoLagretOk = true;
+  const parsedType = fase1BParseSkadetype(beskrivelse);
+  const parsedKan = fase1BParseKanKjores(kommentar);
   damages.push({
     id, vehicleId, dato, beskrivelse, alvorlighet, kommentar, status, estimertKostnad,
     registrertAv: loggedInRole || 'Ukjent', hasPhoto: false,
-    createdByControlId: null
+    createdByControlId: null,
+    skadetype: parsedType || '',
+    kanKjores: parsedKan || '',
+    alvorlighetKilde: 'drift'
   });
   await saveDamages();
   if(pendingPhotoData){
@@ -8835,7 +8860,8 @@ async function submitMinBilSkade(){
   damages.push({
     id, vehicleId: v.id, dato, beskrivelse, alvorlighet: vurdering.alvorlighet,
     kommentar: [vurdering.kanKjoresTekst, minBilSkadeKommentar.trim()].filter(Boolean).join('\n'), status: 'registrert', estimertKostnad: null,
-    registrertAv: driverNavn || 'Ukjent', hasPhoto: false, createdByControlId: null
+    registrertAv: driverNavn || 'Ukjent', hasPhoto: false, createdByControlId: null,
+    skadetype: minBilSkadeType, kanKjores: minBilSkadeKanKjores, alvorlighetKilde: 'sjafor'
   });
   await saveDamages();
   let fotoLagretOk = true;
@@ -9039,6 +9065,7 @@ async function markerUteAvDrift(vehicleId){
   v.uteAvDriftDato = dato;
   if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
   v.statusHistorikk.push({dato, handling: 'ute-av-drift', arsak, kommentar, av: loggedInRole || 'Ukjent'});
+  fase1BDobbeltskrivKjoretoy(v);
   showUteAvDriftForm = false;
   await saveVehicles();
   render();
@@ -9051,6 +9078,7 @@ async function settTilbakeIDrift(vehicleId){
   v.uteAvDrift = false;
   if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
   v.statusHistorikk.push({dato, handling: 'tilbake-i-drift', kommentar, av: loggedInRole || 'Ukjent'});
+  fase1BDobbeltskrivKjoretoy(v);
   showUteAvDriftForm = false;
   await saveVehicles();
   render();
@@ -9083,10 +9111,12 @@ async function submitAddSak(ev){
     caseType, title, description, status: 'ny',
     sourceType: 'manuell', sourceId: '',
     reportedBy: loggedInRole || 'Ukjent', reportedAt: todayISO(),
-    assignedTo: '', nextAction, followUpDate,
+    assignedTo: '', nextAction,     followUpDate,
     resolvedAt: null, resolvedBy: null, resolutionNote: '',
     createdAt: now, updatedAt: now
   });
+  const nySak = aktiveSaker[aktiveSaker.length - 1];
+  nySak.alvorlighet = sakAlvorlighet(nySak);
   await saveAktiveSaker();
   showAddSak = false;
   sakPrefillVehicleId = '';
@@ -9875,6 +9905,7 @@ async function opprettNyVerkstedordre(payload){
     mobilitetsgarantiAktivert: payload.mobilitetsgarantiAktivert,
     dekkRetning: payload.dekkRetning, bestillingGruppeId: ''
   });
+  fase1BFyllNyVerkstedtime(verkstedtimer[verkstedtimer.length - 1]);
   await saveVerkstedtimer();
   if(payload.sak){
     vtKobleSakTilOrdre(payload.sak, payload.id);
@@ -9951,6 +9982,7 @@ async function opprettDekkskiftFlereBiler(s){
     pris: null, notater: s.notater, sakId: '', caseId: '', kontaktperson: s.kontaktperson, telefon: s.telefon,
     type: 'dekkskift', mobilitetsgarantiAktivert: false, dekkRetning: s.retning, bestillingGruppeId: gruppeId
   }}));
+  poster.forEach(p => fase1BFyllNyVerkstedtime(p.vt));
   vtFlerBilResultat = {gruppeId, verksted: s.verksted, dato: s.dato, tidspunkt: s.tidspunkt, retning: s.retning, feil: '', poster};
   await lagreDekkskiftPoster(poster);
   showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false;
@@ -11017,7 +11049,8 @@ async function submitKontroll(ev){
         id: linkedDamageId, vehicleId, dato, beskrivelse: skadeVurdering.beskrivelse,
         alvorlighet: skadeVurdering.alvorlighet, kommentar: 'Meldt via sjåførkontroll\n' + skadeVurdering.kanKjoresTekst,
         status: 'registrert', registrertAv: sjafor, hasPhoto: antallBilderLagret > 0,
-        createdByControlId: id
+        createdByControlId: id,
+        skadetype: kontrollFormSkadeType, kanKjores: kontrollFormSkadeKanKjores, alvorlighetKilde: 'sjafor'
       });
       try{ await saveDamages(); lagret.push('damages'); }
       catch(e){ await rullTilbake('Skaden', e); return; }
@@ -11709,7 +11742,7 @@ async function addAdminUser(){
   if(adminUsers.some(u => u.brukernavn.toLowerCase() === brukernavn.toLowerCase())){
     alert('Dette brukernavnet er allerede i bruk.'); return;
   }
-  adminUsers.push({id: uid(), rolle: navn, tittel, brukernavn, passord});
+  adminUsers.push({id: uid(), rolle: navn, tittel, brukernavn, passord, tilgangsrolle: 'administrator'});
   await saveAdminUsers();
   showAddAdminUser = false;
   render();
@@ -17846,6 +17879,8 @@ async function fullforVerkstedbestillinger(ids){
     t.utfort = true;
     t.utfortDato = idag;
     t.status = 'utfort';
+    if(!Array.isArray(t.statusHistorikk)) t.statusHistorikk = [];
+    t.statusHistorikk.push({dato: idag, tidspunkt: nowTimeOslo(), status: 'utfort', av: loggedInRole || 'system'});
     if(vtHarType(t, 'service')){
       servicehistorikk.push({
         id: uid(), vehicleId: t.vehicleId, dato: t.utfortDato, km: v && v.km ? Number(v.km) : 0,
@@ -20208,6 +20243,13 @@ const FASE1B_VERKSTED_ALDER_LABEL = {
   '90-364':'90–364 dager siden',
   '365+':'365 dager eller mer'
 };
+function fase1BFeltTomt(verdi){
+  if(verdi == null) return true;
+  if(typeof verdi === 'boolean') return false;
+  if(typeof verdi === 'number') return !Number.isFinite(verdi);
+  if(Array.isArray(verdi)) return verdi.length === 0;
+  return String(verdi).trim() === '';
+}
 function fase1BParseSkadetype(beskrivelse){
   const t = String(beskrivelse || '').trim();
   if(!t) return null;
@@ -20258,9 +20300,13 @@ function fase1BMigreringForhandsvis(){
   const driftsstatusFordeling = {aktiv:0, reserve:0, 'kan-ikke-brukes':0, utfaset:0};
   const beslutningB = [];
   const driftsstatusFraKilder = {'ute-av-drift-dato':0, 'migreringsdato':0, 'ugyldig-ute-av-drift-dato':0};
+  let vehiclesTomDriftsstatus = 0;
   (kjoretoyOk ? vehicles : []).forEach(v => {
-    const ds = fase1BForeslattDriftsstatus(v);
+    const foreslatt = fase1BForeslattDriftsstatus(v);
+    const lagret = statusNokkel('driftsstatus', v.driftsstatus);
+    const ds = lagret || foreslatt;
     fase1BInkr(driftsstatusFordeling, ds);
+    if(fase1BFeltTomt(v.driftsstatus)) vehiclesTomDriftsstatus++;
     if(v.uteAvDrift && v.kategori === 'reserve'){
       beslutningB.push({
         id: v.id,
@@ -20271,7 +20317,7 @@ function fase1BMigreringForhandsvis(){
       });
     }
     if(ds === 'kan-ikke-brukes'){
-      if(fase1BIsoDato(v.uteAvDriftDato)) fase1BInkr(driftsstatusFraKilder, 'ute-av-drift-dato');
+      if(fase1BIsoDato(v.uteAvDriftDato) || fase1BIsoDato(v.driftsstatusFra)) fase1BInkr(driftsstatusFraKilder, 'ute-av-drift-dato');
       else if(v.uteAvDriftDato) fase1BInkr(driftsstatusFraKilder, 'ugyldig-ute-av-drift-dato');
       else fase1BInkr(driftsstatusFraKilder, 'migreringsdato');
     }else{
@@ -20290,6 +20336,12 @@ function fase1BMigreringForhandsvis(){
     fase1BInkr(verkstedNavn, navn);
     const v = vtVehicle(t);
     const bil = v ? vehicleLabel(v) : (t.vehicleId || 'Ukjent kjøretøy');
+    if(!fase1BFeltTomt(t.status)){
+      if(t.utfort || statusNokkel('verksted', t.status) === 'utfort') fase1BInkr(vtForeslatt, 'utfort');
+      else if(t.dato && t.dato >= idag) fase1BInkr(vtForeslatt, 'planlagt');
+      else fase1BInkr(vtForeslatt, 'historisk');
+      return;
+    }
     if(t.utfort){
       fase1BInkr(vtForeslatt, 'utfort');
       return;
@@ -20328,7 +20380,10 @@ function fase1BMigreringForhandsvis(){
       kanKjores: kanKjores || '',
       alvorlighet: d.alvorlighet || ''
     };
-    if(skadetype && kanKjores){
+    if(!fase1BFeltTomt(d.skadetype) && !fase1BFeltTomt(d.kanKjores)){
+      return;
+    }
+    if(skadetype && kanKjores && fase1BFeltTomt(d.skadetype) && fase1BFeltTomt(d.kanKjores)){
       skadeAuto.push(rad);
       fase1BInkr(skadeAlvorlighetKilde, 'sjafor');
     }else{
@@ -20342,16 +20397,19 @@ function fase1BMigreringForhandsvis(){
   vtHistoriskRader.sort((a, b) => (a.dato || '').localeCompare(b.dato || '') || (a.bil || '').localeCompare(b.bil || '', 'nb'));
   skadeReview.sort((a, b) => (b.dato || '').localeCompare(a.dato || ''));
   const sakFordeling = {lav:0, middels:0, hoy:0, kritisk:0};
+  let sakerTomAlvorlighet = 0;
   (aktiveSaker || []).forEach(s => {
-    const a = sakAlvorlighet(s);
+    const a = statusNokkel('alvorlighet', s.alvorlighet) || sakAlvorlighet(s);
     fase1BInkr(sakFordeling, STATUS.alvorlighet[a] ? a : 'middels');
+    if(fase1BFeltTomt(s.alvorlighet)) sakerTomAlvorlighet++;
   });
   const brukere = (adminUsers || []).map(u => ({
     id: u.id,
     navn: u.rolle || u.brukernavn || u.id,
     brukernavn: u.brukernavn || '',
     tittel: u.tittel || '',
-    tilgangsrolle: 'administrator'
+    tilgangsrolle: u.tilgangsrolle || 'administrator',
+    tomRolle: fase1BFeltTomt(u.tilgangsrolle)
   }));
   const typeavvik = (dbStatusReport && dbStatusReport.ok && dbStatusReport.tables)
     ? dbStatusReport.tables.reduce((l, t) => l.concat((t.typeMismatches || []).map(m => Object.assign({table: t.name}, m))), [])
@@ -20359,10 +20417,11 @@ function fase1BMigreringForhandsvis(){
   const verkstedNavnListe = Object.keys(verkstedNavn).sort((a, b) => verkstedNavn[b] - verkstedNavn[a] || a.localeCompare(b, 'nb'));
   const kjoretoyAntall = kjoretoyOk ? vehicles.length : 0;
   const vtAntall = (verkstedtimer || []).length;
+  const vtAkuttTom = (verkstedtimer || []).filter(t => t.akutt !== true && t.akutt !== false).length;
   const forventet = {
     vehicles: {
-      driftsstatus: kjoretoyAntall,
-      driftsstatusFra: kjoretoyAntall,
+      driftsstatus: vehiclesTomDriftsstatus,
+      driftsstatusFra: vehiclesTomDriftsstatus,
       utfasetDato: 0,
       utfasetArsak: 0
     },
@@ -20370,7 +20429,7 @@ function fase1BMigreringForhandsvis(){
       status: vtForeslatt.utfort + vtForeslatt.planlagt,
       statusHistorikk: vtForeslatt.utfort + vtForeslatt.planlagt,
       statusUtelattHistorisk: vtForeslatt.historisk,
-      akuttFalse: vtAntall,
+      akuttFalse: vtAkuttTom,
       bekreftetDato: 0,
       avlyst: 0,
       workshopId: 0
@@ -20380,8 +20439,8 @@ function fase1BMigreringForhandsvis(){
       utelattReview: skadeReview.length,
       statusHistorikk: 0
     },
-    saker: {alvorlighet: (aktiveSaker || []).length},
-    brukere: {tilgangsrolle: brukere.length}
+    saker: {alvorlighet: sakerTomAlvorlighet},
+    brukere: {tilgangsrolle: brukere.filter(u => u.tomRolle).length}
   };
   return {
     kjoretoyLastestatus: vehiclesLoadStatus,
@@ -20407,6 +20466,377 @@ function fase1BMigreringForhandsvis(){
   };
 }
 window.fase1BMigreringForhandsvis = fase1BMigreringForhandsvis;
+function fase1BDobbeltskrivKjoretoy(v){
+  if(!v) return;
+  if(statusNokkel('driftsstatus', v.driftsstatus) === 'utfaset') return;
+  const ds = fase1BForeslattDriftsstatus(v);
+  v.driftsstatus = ds;
+  if(ds === 'kan-ikke-brukes'){
+    v.uteAvDrift = true;
+    if(fase1BFeltTomt(v.driftsstatusFra)){
+      v.driftsstatusFra = fase1BIsoDato(v.uteAvDriftDato) ? String(v.uteAvDriftDato).slice(0, 10) : todayISO();
+    }
+  } else {
+    v.uteAvDrift = false;
+    if(fase1BFeltTomt(v.driftsstatusFra)) v.driftsstatusFra = todayISO();
+  }
+}
+function fase1BFyllNyVerkstedtime(t){
+  if(!t) return;
+  if(fase1BFeltTomt(t.status)) t.status = 'planlagt';
+  if(t.akutt !== true) t.akutt = false;
+  if(!Array.isArray(t.statusHistorikk) || t.statusHistorikk.length === 0){
+    t.statusHistorikk = [{dato: todayISO(), tidspunkt: nowTimeOslo(), status: t.status || 'planlagt', av: loggedInRole || 'system'}];
+  }
+}
+function fase1BSnapshot1BFelt(){
+  return {
+    vehicles: (vehicles || []).map(v => ({
+      id: v.id,
+      driftsstatus: v.driftsstatus || '',
+      driftsstatusFra: v.driftsstatusFra || '',
+      utfasetDato: v.utfasetDato || '',
+      utfasetAv: v.utfasetAv || '',
+      utfasetArsak: v.utfasetArsak || ''
+    })),
+    damages: (damages || []).map(d => ({
+      id: d.id,
+      skadetype: d.skadetype || '',
+      kanKjores: d.kanKjores || '',
+      alvorlighetKilde: d.alvorlighetKilde || '',
+      statusHistorikk: Array.isArray(d.statusHistorikk) ? JSON.parse(JSON.stringify(d.statusHistorikk)) : []
+    })),
+    verkstedtimer: (verkstedtimer || []).map(t => ({
+      id: t.id,
+      status: t.status || '',
+      statusHistorikk: Array.isArray(t.statusHistorikk) ? JSON.parse(JSON.stringify(t.statusHistorikk)) : [],
+      bekreftetDato: t.bekreftetDato || '',
+      bekreftetAv: t.bekreftetAv || '',
+      avlystDato: t.avlystDato || '',
+      avlystAv: t.avlystAv || '',
+      avlystArsak: t.avlystArsak || '',
+      ombooketFraId: t.ombooketFraId || '',
+      akutt: t.akutt
+    })),
+    aktiveSaker: (aktiveSaker || []).map(s => ({id: s.id, alvorlighet: s.alvorlighet || ''})),
+    adminUsers: (adminUsers || []).map(u => ({id: u.id, tilgangsrolle: u.tilgangsrolle || ''}))
+  };
+}
+function fase1BGjenopprettFraSnapshot(snap){
+  if(!snap) return;
+  const kart = (liste, id) => {
+    const m = {};
+    (liste || []).forEach(r => { if(r && r.id) m[r.id] = r; });
+    return m;
+  };
+  const kv = kart(snap.vehicles);
+  vehicles.forEach(v => {
+    const s = kv[v.id]; if(!s) return;
+    v.driftsstatus = s.driftsstatus; v.driftsstatusFra = s.driftsstatusFra;
+    v.utfasetDato = s.utfasetDato; v.utfasetAv = s.utfasetAv; v.utfasetArsak = s.utfasetArsak;
+  });
+  const kd = kart(snap.damages);
+  damages.forEach(d => {
+    const s = kd[d.id]; if(!s) return;
+    d.skadetype = s.skadetype; d.kanKjores = s.kanKjores;
+    d.alvorlighetKilde = s.alvorlighetKilde; d.statusHistorikk = s.statusHistorikk || [];
+  });
+  const kt = kart(snap.verkstedtimer);
+  verkstedtimer.forEach(t => {
+    const s = kt[t.id]; if(!s) return;
+    t.status = s.status; t.statusHistorikk = s.statusHistorikk || [];
+    t.bekreftetDato = s.bekreftetDato; t.bekreftetAv = s.bekreftetAv;
+    t.avlystDato = s.avlystDato; t.avlystAv = s.avlystAv; t.avlystArsak = s.avlystArsak;
+    t.ombooketFraId = s.ombooketFraId; t.akutt = s.akutt;
+  });
+  const ks = kart(snap.aktiveSaker);
+  aktiveSaker.forEach(s => {
+    const rad = ks[s.id]; if(!rad) return;
+    s.alvorlighet = rad.alvorlighet;
+  });
+  const ku = kart(snap.adminUsers);
+  adminUsers.forEach(u => {
+    const rad = ku[u.id]; if(!rad) return;
+    u.tilgangsrolle = rad.tilgangsrolle;
+  });
+}
+function fase1BSkrivTommeFelt(idag){
+  const skrevet = {vehicles:0, driftsstatusFra:0, verkstedStatus:0, verkstedHistorikk:0, verkstedAkutt:0, skader:0, saker:0, brukere:0, hoppetSkade:0, hoppetHistoriskVt:0};
+  (vehicles || []).forEach(v => {
+    if(!fase1BFeltTomt(v.driftsstatus)) return;
+    const ds = fase1BForeslattDriftsstatus(v);
+    v.driftsstatus = ds;
+    skrevet.vehicles++;
+    if(fase1BFeltTomt(v.driftsstatusFra)){
+      v.driftsstatusFra = (ds === 'kan-ikke-brukes' && fase1BIsoDato(v.uteAvDriftDato)) ? String(v.uteAvDriftDato).slice(0, 10) : idag;
+      skrevet.driftsstatusFra++;
+    }
+  });
+  (verkstedtimer || []).forEach(t => {
+    if(t.akutt !== true && t.akutt !== false){ t.akutt = false; skrevet.verkstedAkutt++; }
+    if(!fase1BFeltTomt(t.status)) return;
+    if(t.utfort) t.status = 'utfort';
+    else if(t.dato && t.dato >= idag) t.status = 'planlagt';
+    else { skrevet.hoppetHistoriskVt++; return; }
+    skrevet.verkstedStatus++;
+    if(!Array.isArray(t.statusHistorikk) || t.statusHistorikk.length === 0){
+      t.statusHistorikk = [{dato: idag, tidspunkt: nowTimeOslo(), status: t.status, av: 'system'}];
+      skrevet.verkstedHistorikk++;
+    }
+  });
+  (damages || []).forEach(d => {
+    if(!fase1BFeltTomt(d.skadetype) && !fase1BFeltTomt(d.kanKjores)) return;
+    if(!fase1BFeltTomt(d.skadetype) || !fase1BFeltTomt(d.kanKjores)){
+      skrevet.hoppetSkade++;
+      return;
+    }
+    const skadetype = fase1BParseSkadetype(d.beskrivelse);
+    const kanKjores = fase1BParseKanKjores(d.kommentar);
+    if(!skadetype || !kanKjores){ skrevet.hoppetSkade++; return; }
+    d.skadetype = skadetype;
+    d.kanKjores = kanKjores;
+    if(fase1BFeltTomt(d.alvorlighetKilde)) d.alvorlighetKilde = 'sjafor';
+    skrevet.skader++;
+  });
+  (aktiveSaker || []).forEach(s => {
+    if(!fase1BFeltTomt(s.alvorlighet)) return;
+    s.alvorlighet = sakAlvorlighet(s);
+    skrevet.saker++;
+  });
+  (adminUsers || []).forEach(u => {
+    if(!fase1BFeltTomt(u.tilgangsrolle)) return;
+    u.tilgangsrolle = 'administrator';
+    skrevet.brukere++;
+  });
+  return skrevet;
+}
+async function lastFase1BMigrering(){
+  try{
+    const raw = await window.storage.get(FASE1B_MIGRERING_KEY, true);
+    if(!raw || !raw.value){ fase1BMigreringBlob = null; return false; }
+    fase1BMigreringBlob = JSON.parse(raw.value);
+    return true;
+  }catch(e){
+    console.error('[lastFase1BMigrering]', e);
+    return false;
+  }
+}
+async function lagreFase1BMigreringBlob(blob){
+  await window.storage.set(FASE1B_MIGRERING_KEY, JSON.stringify(blob), true);
+  fase1BMigreringBlob = blob;
+}
+function fase1BKanMigrere(){
+  if(driverMode || !isAdmin) return {ok:false, grunn:'Kun administrator kan kjøre migreringen.'};
+  if(fase1BMigreringOpptatt) return {ok:false, grunn:'En migrering pågår allerede.'};
+  if(vehiclesLoadStatus === 'lesefeil' || vehiclesLoadStatus === 'laster' || vehiclesLoadStatus === 'ikke-startet'){
+    return {ok:false, grunn:'Kjøretøyregisteret er ikke lastet. Migrering er stoppet.'};
+  }
+  const manglende = fase1BManglende(dbStatusReport);
+  if(!dbStatusReport || !dbStatusReport.ok) return {ok:false, grunn:'Kjør skjemasjekk først (Synkroniser nå).'};
+  if(manglende.length) return {ok:false, grunn:'Mangler ' + manglende.length + ' Fase 1B-kolonner. Opprett dem før migrering.'};
+  return {ok:true};
+}
+function fase1BKompatibilitet(){
+  const b = fase1BMigreringBlob;
+  if(!b || b.status !== 'kjoert' || !b.kompatibilitetFra) return null;
+  const brukt = isoDateDiff(b.kompatibilitetFra, todayISO());
+  if(brukt == null) return {dagerIgjen: FASE1B_KOMPAT_DAGER, fra: b.kompatibilitetFra, til: b.kompatibilitetTil};
+  const igjen = Math.max(0, FASE1B_KOMPAT_DAGER - brukt);
+  return {dagerIgjen: igjen, fra: b.kompatibilitetFra, til: b.kompatibilitetTil || isoDateOffset(b.kompatibilitetFra, FASE1B_KOMPAT_DAGER)};
+}
+function fase1BValiderEtterMigrering(){
+  const p = fase1BMigreringForhandsvis();
+  const avvik = [];
+  (vehicles || []).forEach(v => {
+    if(statusNokkel('driftsstatus', v.driftsstatus) === 'utfaset') return;
+    const derivert = fase1BForeslattDriftsstatus(v);
+    const lagret = statusNokkel('driftsstatus', v.driftsstatus);
+    if(lagret && lagret !== derivert) avvik.push('Kjøretøy ' + vehicleLabel(v) + ': lagret ' + lagret + ', utledet ' + derivert);
+  });
+  (verkstedtimer || []).forEach(t => {
+    if(t.utfort && statusNokkel('verksted', t.status) && statusNokkel('verksted', t.status) !== 'utfort'){
+      avvik.push('Verkstedtime ' + (t.id || '') + ': Utfort er satt, Status er ' + t.status);
+    }
+  });
+  const skjema = dbStatusReport && dbStatusReport.ok ? fase1BManglende(dbStatusReport) : [{name:'skjemasjekk ikke kjørt'}];
+  return {
+    ok: avvik.length === 0 && (!shjemaMangler()),
+    avvik,
+    gjenstaar: {
+      vehicles: p.forventet.vehicles.driftsstatus,
+      verksted: p.forventet.verkstedtimer.status,
+      skaderReview: p.skadeReview.length,
+      saker: p.forventet.saker.alvorlighet,
+      brukere: p.forventet.brukere.tilgangsrolle
+    },
+    manglendeKolonner: dbStatusReport && dbStatusReport.ok ? fase1BManglende(dbStatusReport).map(f => f.table + '.' + f.name) : ['skjemasjekk mangler']
+  };
+  function shjemaMangler(){
+    return !dbStatusReport || !dbStatusReport.ok || fase1BManglende(dbStatusReport).length > 0;
+  }
+}
+async function fase1BLagreAlleLister(){
+  await saveVehiclesOrThrow();
+  await saveDamagesEllerKast();
+  await saveVerkstedtimerEllerKast();
+  await saveAktiveSakerEllerKast();
+  await saveAdminUsersEllerKast();
+}
+async function fase1BKjorMigrering(){
+  const port = fase1BKanMigrere();
+  if(!port.ok){ alert(port.grunn); return; }
+  if(fase1BMigreringBlob && fase1BMigreringBlob.status === 'kjoert'){
+    if(!confirm('Migreringen er allerede kjørt. Kjøre på nytt? Bare tomme Fase 1B-felt skrives.')) return;
+  }else if(!confirm('Kjør Fase 1B-migrering nå?\n\nBare tomme felt skrives. Eldre felt (UteAvDrift, Utfort) beholdes. Deretter starter 14 dagers kompatibilitet med dobbeltskriving.\n\nAvbryt = ingen skriving.')) return;
+  fase1BMigreringOpptatt = true;
+  render();
+  const idag = todayISO();
+  const snapshot = fase1BSnapshot1BFelt();
+  const forhands = fase1BMigreringForhandsvis();
+  const vehiclesKopi = JSON.parse(JSON.stringify(vehicles));
+  const damagesKopi = JSON.parse(JSON.stringify(damages));
+  const vtKopi = JSON.parse(JSON.stringify(verkstedtimer));
+  const sakerKopi = JSON.parse(JSON.stringify(aktiveSaker));
+  const usersKopi = JSON.parse(JSON.stringify(adminUsers));
+  try{
+    if(!krevVehiclesSkriving('fase1B-migrering')) throw new Error('Kjøretøyskriving er stoppet.');
+    const pagar = {
+      version: 1, status: 'pagar', startedAt: new Date().toISOString(),
+      startedBy: loggedInRole || 'Ukjent', snapshot
+    };
+    await lagreFase1BMigreringBlob(pagar);
+    const skrevet = fase1BSkrivTommeFelt(idag);
+    await fase1BLagreAlleLister();
+    dbStatusReport = await window.checkAirtableSchema();
+    const validering = fase1BValiderEtterMigrering();
+    const kompatibilitetFra = idag;
+    const kompatibilitetTil = isoDateOffset(idag, FASE1B_KOMPAT_DAGER);
+    const rapport = {
+      kjoertAt: new Date().toISOString(),
+      kjoertAv: loggedInRole || 'Ukjent',
+      skrevet, forhandsForventet: forhands.forventet,
+      validering, kompatibilitetFra, kompatibilitetTil
+    };
+    fase1BMigreringRapport = rapport;
+    await lagreFase1BMigreringBlob({
+      version: 1, status: 'kjoert', snapshot,
+      kjoertAt: rapport.kjoertAt, kjoertAv: rapport.kjoertAv,
+      rapport, kompatibilitetFra, kompatibilitetTil
+    });
+    window.fase1BMigreringRapport = rapport;
+  }catch(e){
+    console.error('[fase1BKjorMigrering]', e);
+    vehicles.length = 0; Array.prototype.push.apply(vehicles, vehiclesKopi);
+    damages.length = 0; Array.prototype.push.apply(damages, damagesKopi);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtKopi);
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerKopi);
+    adminUsers.length = 0; Array.prototype.push.apply(adminUsers, usersKopi);
+    try{ await fase1BLagreAlleLister(); }catch(e2){ console.error('[fase1BKjorMigrering] rollback-lagring', e2); }
+    try{
+      await lagreFase1BMigreringBlob({
+        version: 1, status: 'feilet', snapshot,
+        feil: (e && e.message) ? e.message : String(e),
+        feiletAt: new Date().toISOString()
+      });
+    }catch(e3){ console.error('[fase1BKjorMigrering] blob', e3); }
+    alert('Migreringen ble avbrutt. Forrige verdier er beholdt der lagringen lyktes å rulle tilbake.\n\n' + ((e && e.message) ? e.message : String(e)));
+  }
+  fase1BMigreringOpptatt = false;
+  render();
+}
+async function fase1BRullTilbake(){
+  if(driverMode || !isAdmin){ alert('Kun administrator kan rulle tilbake.'); return; }
+  const snap = fase1BMigreringBlob && fase1BMigreringBlob.snapshot;
+  if(!snap){ alert('Ingen migreringssnapshot er lagret. Tilbakerulling er ikke mulig.'); return; }
+  if(!confirm('Rull tilbake Fase 1B-feltene til verdiene før migrering?\n\nUteAvDrift, Utfort og øvrige eldre felt røres ikke. Avbryt = ingen skriving.')) return;
+  fase1BMigreringOpptatt = true;
+  render();
+  const vehiclesKopi = JSON.parse(JSON.stringify(vehicles));
+  const damagesKopi = JSON.parse(JSON.stringify(damages));
+  const vtKopi = JSON.parse(JSON.stringify(verkstedtimer));
+  const sakerKopi = JSON.parse(JSON.stringify(aktiveSaker));
+  const usersKopi = JSON.parse(JSON.stringify(adminUsers));
+  try{
+    if(!krevVehiclesSkriving('fase1B-tilbake')) throw new Error('Kjøretøyskriving er stoppet.');
+    fase1BGjenopprettFraSnapshot(snap);
+    await fase1BLagreAlleLister();
+    dbStatusReport = await window.checkAirtableSchema();
+    const validering = fase1BValiderEtterMigrering();
+    fase1BMigreringRapport = {tilbakeAt: new Date().toISOString(), tilbakeAv: loggedInRole || 'Ukjent', validering};
+    await lagreFase1BMigreringBlob({
+      version: 1, status: 'rullt-tilbake', snapshot: snap,
+      tilbakeAt: fase1BMigreringRapport.tilbakeAt, tilbakeAv: fase1BMigreringRapport.tilbakeAv,
+      rapport: fase1BMigreringRapport
+    });
+    window.fase1BMigreringRapport = fase1BMigreringRapport;
+  }catch(e){
+    console.error('[fase1BRullTilbake]', e);
+    vehicles.length = 0; Array.prototype.push.apply(vehicles, vehiclesKopi);
+    damages.length = 0; Array.prototype.push.apply(damages, damagesKopi);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtKopi);
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakerKopi);
+    adminUsers.length = 0; Array.prototype.push.apply(adminUsers, usersKopi);
+    alert('Tilbakerulling feilet. Lokal tilstand er satt tilbake.\n\n' + ((e && e.message) ? e.message : String(e)));
+  }
+  fase1BMigreringOpptatt = false;
+  render();
+}
+function fase1BMigreringRapportHtml(){
+  const b = fase1BMigreringBlob;
+  const r = (b && b.rapport) || fase1BMigreringRapport;
+  const komp = fase1BKompatibilitet();
+  const admin = !driverMode && isAdmin;
+  const port = fase1BKanMigrere();
+  const knapper = admin ? `
+    <div class="row2" style="margin-top:12px;gap:8px;">
+      <button type="button" class="btn" id="fase1b-kjor-migrering-btn" ${fase1BMigreringOpptatt || !port.ok ? 'disabled' : ''}>${luc('play')} Kjør migrering</button>
+      <button type="button" class="btn secondary" id="fase1b-rull-tilbake-btn" ${fase1BMigreringOpptatt || !(b && b.snapshot) ? 'disabled' : ''}>${luc('undo-2')} Rull tilbake</button>
+    </div>
+    ${!port.ok ? `<p class="required-hint">${esc(port.grunn)}</p>` : '<p class="required-hint">Kjører ikke automatisk. Bekreftelse kreves. Bare tomme Fase 1B-felt skrives.</p>'}` : '<p class="required-hint">Migrering er kun tilgjengelig for administrator.</p>';
+  let statusTekst = 'Ikke kjørt. Forhåndsvisningen under viser hva som vil skrives.';
+  if(b && b.status === 'pagar') statusTekst = 'Ufullstendig forsøk. Kjør migrering på nytt, eller rull tilbake.';
+  if(b && b.status === 'feilet') statusTekst = 'Siste forsøk feilet' + (b.feil ? ': ' + b.feil : '.') + ' Ingen automatisk kjøring.';
+  if(b && b.status === 'rullt-tilbake') statusTekst = 'Rullet tilbake ' + (b.tilbakeAt ? esc(b.tilbakeAt) : '') + '.';
+  if(b && b.status === 'kjoert') statusTekst = 'Kjørt ' + (r && r.kjoertAt ? r.kjoertAt : '') + ' av ' + esc((r && r.kjoertAv) || '');
+  let kompHtml = '';
+  if(komp){
+    kompHtml = `<p class="required-hint"><strong>Kompatibilitetsperiode:</strong> ${komp.dagerIgjen} av ${FASE1B_KOMPAT_DAGER} dager gjenstår (${esc(fmt(komp.fra))}–${esc(fmt(komp.til))}). Dobbeltskriving av Driftsstatus/UteAvDrift og Status/Utfort er på. Kompatibilitetsmappinger er ikke fjernet.</p>`;
+  }
+  let tallHtml = '';
+  if(r && r.skrevet){
+    const s = r.skrevet;
+    tallHtml = fase1BPreviewTabell(['Hva', 'Rader skrevet'], [
+      `<tr><td>Vehicles.Driftsstatus</td><td class="tall">${s.vehicles}</td></tr>`,
+      `<tr><td>Vehicles.DriftsstatusFra</td><td class="tall">${s.driftsstatusFra}</td></tr>`,
+      `<tr><td>WorkshopAppointments.Status</td><td class="tall">${s.verkstedStatus}</td></tr>`,
+      `<tr><td>WorkshopAppointments.StatusHistorikk</td><td class="tall">${s.verkstedHistorikk}</td></tr>`,
+      `<tr><td>WorkshopAppointments.Akutt (false)</td><td class="tall">${s.verkstedAkutt}</td></tr>`,
+      `<tr><td>Damages (skadetype + kan kjøres)</td><td class="tall">${s.skader}</td></tr>`,
+      `<tr><td>Skader utelatt (beslutning C)</td><td class="tall">${s.hoppetSkade}</td></tr>`,
+      `<tr><td>Historiske verkstedtimer uten Status (A)</td><td class="tall">${s.hoppetHistoriskVt}</td></tr>`,
+      `<tr><td>AktiveSaker.Alvorlighet</td><td class="tall">${s.saker}</td></tr>`,
+      `<tr><td>Users.Tilgangsrolle</td><td class="tall">${s.brukere}</td></tr>`
+    ]);
+  }
+  let valHtml = '';
+  if(r && r.validering){
+    const v = r.validering;
+    valHtml = `<h4>Validering etter migrering</h4>
+      <p class="required-hint">${v.ok ? 'Ingen avvik mellom lagret Driftsstatus og utledet verdi (utfaset unntatt). Skjema komplett.' : 'Avvik eller manglende kolonner.'}</p>
+      ${v.manglendeKolonner && v.manglendeKolonner.length ? `<p class="required-hint">Kolonner: ${esc(v.manglendeKolonner.join(', '))}</p>` : ''}
+      ${v.avvik && v.avvik.length ? `<div class="required-hint">${v.avvik.map(a => esc(a)).join('<br>')}</div>` : ''}
+      ${v.gjenstaar ? `<p class="required-hint">Gjenstår tomme felt: kjøretøy ${v.gjenstaar.vehicles}, verksted Status ${v.gjenstaar.verksted}, saker ${v.gjenstaar.saker}, brukere ${v.gjenstaar.brukere}. Skader i gjennomgang: ${v.gjenstaar.skaderReview}.</p>` : ''}`;
+  }
+  return `
+    <div class="panel mig-preview">
+      <h3>${luc('database')} Fase 1B — migrering</h3>
+      <p class="required-hint">${esc(statusTekst)}</p>
+      ${kompHtml}
+      ${tallHtml}
+      ${valHtml}
+      ${knapper}
+    </div>`;
+}
 function fase1BPreviewTabell(headers, rader){
   if(!rader.length) return '<p class="required-hint">Ingen rader.</p>';
   return `<div style="overflow-x:auto;"><table class="mig-preview-tab"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>${rader.join('')}</tbody></table></div>`;
@@ -20431,14 +20861,14 @@ function fase1BFordelingHtml(domene, fordeling, rekkefolge){
 }
 function fase1BMigreringPreviewHtml(){
   if(vehiclesLoadStatus === 'lesefeil'){
-    return `
+    return fase1BMigreringRapportHtml() + `
     <div class="panel mig-preview" role="status">
       <h3>${luc('clipboard-list')} Migrering til skjema v2 — forhåndsvisning</h3>
       <p class="required-hint">Kjøretøyregisteret kunne ikke leses. Forhåndsvisningen vises ikke med nullverdier — last på nytt og prøv igjen. Ingen rader er skrevet.</p>
     </div>`;
   }
   if(vehiclesLoadStatus === 'laster' || vehiclesLoadStatus === 'ikke-startet'){
-    return `
+    return fase1BMigreringRapportHtml() + `
     <div class="panel mig-preview" role="status">
       <h3>${luc('clipboard-list')} Migrering til skjema v2 — forhåndsvisning</h3>
       <p class="required-hint">Venter på at kjøretøyregisteret er lastet. Ingen rader skrives.</p>
@@ -20447,22 +20877,22 @@ function fase1BMigreringPreviewHtml(){
   const p = fase1BMigreringForhandsvis();
   const f = p.forventet;
   const beslutninger = [
-    {id:'A', tittel:'Historiske verkstedtimer', tekst: p.vtForeslatt.historisk + ' ikke-utførte timer med passert eller manglende dato får ikke Status «forfalt». Tellere vises under. Ingen Status skrives på disse radene i en senere migrering uten ny beslutning.'},
-    {id:'B', tittel:'Reserve og kan ikke brukes', tekst: p.beslutningB.length ? (p.beslutningB.length + ' kjøretøy har både reserve-kategori og UteAvDrift. Foreslått Driftsstatus er «kan ikke brukes» (beslutning B).') : 'Ingen kjøretøy har både reserve-kategori og UteAvDrift.'},
-    {id:'C', tittel:'Skader uten parse', tekst: p.skadeReview.length + ' skader mangler skadetype og/eller «kan kjøres» og går til manuell gjennomgang. De får ikke Skadetype, KanKjores eller AlvorlighetKilde automatisk.'},
-    {id:'D', tittel:'Utfaset', tekst: 'Utfaset settes aldri automatisk. Foreslått fordeling har ' + p.driftsstatusFordeling.utfaset + ' utfaset. UtfasetDato og UtfasetArsak forblir tomme.'},
-    {id:'E', tittel:'Brukere', tekst: p.brukere.length + ' eksisterende brukere ville få Tilgangsrolle «administrator».'},
-    {id:'F', tittel:'Felt-type', tekst: 'Godkjent type er single select med interne nøkler. ' + (p.typeavvik.length ? ('Skjemasjekken viser ' + p.typeavvik.length + ' typeavvik — de endres ikke her.') : 'Ingen typeavvik i siste skjemasjekk (eller sjekken er ikke kjørt).')},
-    {id:'G', tittel:'Verksted-matching', tekst: 'WorkshopId venter til Workshops-tabellen finnes. ' + p.verkstedNavnListe.length + ' unike verkstednavn i eksisterende timer. Ingen matching kjøres.'}
+    {id:'A', tittel:'Historiske verkstedtimer (godkjent)', tekst: p.vtForeslatt.historisk + ' ikke-utførte timer med passert eller manglende dato får ikke Status. Ingen spesiell håndtering. Forfalt skrives ikke.'},
+    {id:'B', tittel:'Reserve og kan ikke brukes (godkjent)', tekst: p.beslutningB.length ? (p.beslutningB.length + ' kjøretøy har både reserve-kategori og UteAvDrift. Driftsstatus = «kan ikke brukes».') : 'Ingen kjøretøy har både reserve-kategori og UteAvDrift.'},
+    {id:'C', tittel:'Skader uten parse (godkjent)', tekst: p.skadeReview.length + ' skader i manuell gjennomgang. Ingen automatisk klassifisering.'},
+    {id:'D', tittel:'Utfaset (godkjent)', tekst: 'Utfaset settes kun manuelt. UtfasetDato og UtfasetArsak forblir tomme ved migrering.'},
+    {id:'E', tittel:'Brukere (godkjent)', tekst: p.brukere.length + ' eksisterende brukere får Tilgangsrolle «administrator» der feltet er tomt.'},
+    {id:'F', tittel:'Felt-type (godkjent)', tekst: 'Single select med interne nøkler. ' + (p.typeavvik.length ? ('Skjemasjekken viser ' + p.typeavvik.length + ' typeavvik — de endres ikke her.') : 'Ingen typeavvik i siste skjemasjekk (eller sjekken er ikke kjørt).')},
+    {id:'G', tittel:'Verksted-matching (godkjent)', tekst: 'WorkshopId forblir tom til Workshops finnes. ' + p.verkstedNavnListe.length + ' unike verkstednavn. Ingen matching.'}
   ];
   const historiskAlderRader = FASE1B_VERKSTED_ALDER.map(k =>
     `<tr><td>${esc(FASE1B_VERKSTED_ALDER_LABEL[k])}</td><td class="tall">${p.vtHistoriskAlder[k] || 0}</td></tr>`);
   const verkstedNavnRader = p.verkstedNavnListe.map(n =>
     `<tr><td>${esc(n)}</td><td class="tall">${p.verkstedNavn[n]}</td></tr>`);
-  return `
+  return fase1BMigreringRapportHtml() + `
     <div class="panel mig-preview">
       <h3>${luc('clipboard-list')} Migrering til skjema v2 — forhåndsvisning</h3>
-      <p class="required-hint">Tørrkjøring mot data som allerede er lastet i appen. Ingen Airtable-skriving, ingen migrering og ingen dobbeltskriving. Fase 1B-feltene forblir inaktive. Oppdatert ${esc(fmt(p.migreringsdato))} (operativ dato).</p>
+      <p class="required-hint">Viser hva som skrives ved «Kjør migrering»: bare tomme Fase 1B-felt. Eldre felt beholdes. Utfaset, WorkshopId og historiske åpne verkstedtimer (A) skrives ikke. Skader uten parse (C) forblir i gjennomgangslisten. Oppdatert ${esc(fmt(p.migreringsdato))} (operativ dato).</p>
       <h4>Forventede radendringer</h4>
       ${fase1BPreviewTabell(['Tabell', 'Felt', 'Rader som ville få verdi'], [
         `<tr><td>Vehicles</td><td>Driftsstatus</td><td class="tall">${f.vehicles.driftsstatus}</td></tr>`,
@@ -20520,7 +20950,7 @@ function fase1BMigreringPreviewHtml(){
         p.brukere,
         r => [esc(r.navn), esc(r.brukernavn), esc(r.tittel || '–'), esc(r.tilgangsrolle)]
       ) : '<p class="required-hint">Ingen brukere lastet.</p>'}
-      <h4>Beslutninger som krever gjennomgang</h4>
+      <h4>Godkjente beslutninger A–G</h4>
       ${beslutninger.map(b => `<div class="required-hint" style="margin-bottom:8px;"><strong>${esc(b.id)}. ${esc(b.tittel)}</strong><br>${esc(b.tekst)}</div>`).join('')}
       ${p.beslutningB.length ? `<h4>Reserve og UteAvDrift (beslutning B)</h4>` + fase1BPreviewListe(
         ['Bil', 'Årsak', 'UteAvDriftDato'],

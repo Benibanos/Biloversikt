@@ -15,6 +15,14 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-25
 
+### Fase 1B — migrering (manuell, tomme felt)
+
+1. `storage.airtable.js` v2.25.0 → **v2.26.0**. De 19 Fase 1B-feltene er `aktiv:true` (single select med interne nøkler). Eldre felt (`UteAvDrift`, `Utfort`, `Kategori`) beholdes. `STATUS_ALIAS` er uendret.
+2. Optimaliseringer → Airtable: «Kjør migrering» og «Rull tilbake» (kun administrator, bekreftelse, ingen automatisk kjøring). Skriver bare tomme Fase 1B-felt. Snapshot i Settings `fase1B-migrering`. Validering etter kjøring. Rapport med skrevne rader og 14 dagers kompatibilitetsperiode.
+3. Godkjente beslutninger: A ingen Status på historiske åpne timer; B reserve+UteAvDrift → `kan-ikke-brukes`; C skader uten parse i gjennomgang (ikke auto); D Utfaset aldri automatisk; E alle brukere → `administrator`; F single select; G WorkshopId tom.
+4. Dobbeltskriving: `fase1BDobbeltskrivKjoretoy()` ved Kan ikke brukes / tilbake i drift; nye verkstedtimer får `Status`/`Akutt`/`StatusHistorikk`; Utført skriver `Utfort` og `Status`; nye skader og saker får 1B-felt. Verkstedlivsløp Bekreft/Avlys/Utfas/Forfalt-dagskille er ikke innført. Fase 2, flåtehelse og datakvalitetsmotor er ikke innført.
+5. App-/cacheversjon 131 → **132**; `?v=2.26.0`; `kontroll.html` = `index.html`.
+
 ### Fase 1B — tørrkjøring av migrering (ingen skriving)
 
 1. Optimaliseringer → Airtable viser «Migrering til skjema v2 — forhåndsvisning»: forventede radendringer, statusfordeling (kjøretøy og verksted), verkstednavn, skader til gjennomgang, sak-alvorlighet, brukere og beslutning A–G.
