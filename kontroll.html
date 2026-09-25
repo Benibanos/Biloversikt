@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.24.0"></script>
+<script src="storage.airtable.js?v=2.25.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -4351,6 +4351,8 @@ function attachOptimaliseringInnholdListeners(root){
   if(!root) return;
   const dbCheckBtn = root.querySelector('#db-check-btn');
   if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); synkroniserAirtableNaa(); });
+  const dbOpprett1BBtn = root.querySelector('#db-opprett-1b-btn');
+  if(dbOpprett1BBtn) dbOpprett1BBtn.addEventListener('click', (e) => { e.stopPropagation(); opprettManglendeFase1BFelt(); });
   const hardRefreshBtn = root.querySelector('#hard-refresh-btn');
   if(hardRefreshBtn) hardRefreshBtn.addEventListener('click', (e) => { e.stopPropagation(); hardRefreshApp(); });
   const pwaSettingsInstallBtn = root.querySelector('#pwa-settings-install-btn');
@@ -20142,19 +20144,49 @@ async function runDatabaseCheck(){
   dbStatusReport = await window.checkAirtableSchema();
   render();
 }
+// Fase 1B skjemasynk: «Synkroniser nå» (og «Oppdater og synkroniser alt») SJEKKER skjemaet og
+// viser forhåndsvisningen — den oppretter aldri felt selv. Felt opprettes kun av
+// opprettManglendeFase1BFelt() etter eksplisitt bekreftelse fra administrator.
 async function runDatabaseSync(){
-  dbStatusSyncing = true; dbStatusSyncLog = null; render();
+  dbStatusSyncing = true; render();
   try{
-    let report = await window.checkAirtableSchema();
-    if(report.ok){
-      const harMangler = report.tables.some(t => !t.exists || t.missingFields.length > 0);
-      if(harMangler){
-        dbStatusSyncLog = await window.autoFixAirtableSchema(report);
-      }
-    }
     dbStatusReport = await window.checkAirtableSchema();
   }catch(e){
     console.error('[runDatabaseSync] Feilet', e);
+  }
+  dbStatusSyncing = false;
+  render();
+}
+function fase1BManglende(report){
+  if(!report || !report.ok) return [];
+  return report.tables.reduce((liste, t) => liste.concat((t.missingFase1B || []).map(f => Object.assign({table: t.name}, f))), []);
+}
+// Oppretter KUN manglende fase 1B-kolonner (tomme). Ingen raddata skrives eller migreres.
+async function opprettManglendeFase1BFelt(){
+  if(dbStatusSyncing) return;
+  const forRapport = await window.checkAirtableSchema();
+  if(!forRapport.ok){ dbStatusReport = forRapport; render(); return; }
+  const plan = fase1BManglende(forRapport);
+  if(plan.length === 0){ dbStatusReport = forRapport; dbStatusSyncLog = []; render(); return; }
+  const tekst = 'Opprett ' + plan.length + ' manglende Fase 1B-felt i Airtable?\n\n'
+    + plan.map(f => '• ' + f.table + ' → ' + f.name + ' (' + f.airtableType + ')').join('\n')
+    + '\n\nKun tomme kolonner opprettes. Ingen felt slettes, omdøpes eller endres, og ingen raddata skrives eller migreres.';
+  if(!confirm(tekst)) return; // Avbryt = ingen skriving
+  dbStatusSyncing = true; dbStatusSyncLog = null; render();
+  try{
+    const forsok = await window.autoFixAirtableSchema(forRapport, {bekreftet: true});
+    dbStatusReport = await window.checkAirtableSchema();
+    const fortsattManglende = fase1BManglende(dbStatusReport);
+    dbStatusSyncLog = forsok;
+    dbStatusSyncLog.oppsummering = {
+      opprettet: forsok.filter(r => r.ok).map(r => r.table + '.' + r.field),
+      feilet: forsok.filter(r => !r.ok).map(r => r.table + '.' + r.field + ' (' + (r.error || 'ukjent feil') + ')'),
+      fantesFra: window.storageSkjemaInfo.fase1B.length - plan.length,
+      gjenstaar: fortsattManglende.map(f => f.table + '.' + f.name)
+    };
+  }catch(e){
+    console.error('[opprettManglendeFase1BFelt] Feilet', e);
+    alert('Opprettelsen ble avbrutt: ' + ((e && e.message) ? e.message : String(e)));
   }
   dbStatusSyncing = false;
   render();
@@ -20300,37 +20332,76 @@ function databaseStatusHtml(){
         <button class="btn small" id="db-check-btn">${luc('refresh-cw')} Prøv igjen</button>
       `;
     }
-    const manglendeTabeller = dbStatusReport.tables.filter(t => !t.exists);
-    const totaltManglendeFelt = dbStatusReport.tables.reduce((sum, t) => sum + t.missingFields.length, 0);
-    const altOk = manglendeTabeller.length === 0 && totaltManglendeFelt === 0;
+    // Fase 1B skjemasynk: rapporten skiller eksisterende felt, manglende eksisterende felt,
+    // manglende fase 1B-felt (forhåndsvisning + bekreftelse), utsatte Del 2-felt og typeavvik.
+    const tabeller = dbStatusReport.tables;
+    const manglendeTabeller = tabeller.filter(t => !t.exists);
+    const manglendeEksisterende = tabeller.reduce((l, t) => l.concat((t.missingFields || []).map(f => t.name + '.' + f)), []);
+    const eksisterendeAntall = tabeller.reduce((s, t) => s + (t.existingFields || []).length, 0);
+    const fase1BAlle = (window.storageSkjemaInfo && window.storageSkjemaInfo.fase1B) || [];
+    const fase1BMangler = fase1BManglende(dbStatusReport);
+    const manglerSett = new Set(fase1BMangler.map(f => f.table + '.' + f.name));
+    const typeavvik = tabeller.reduce((l, t) => l.concat((t.typeMismatches || []).map(m => Object.assign({table: t.name}, m))), []);
+    const utsatte = tabeller.reduce((l, t) => l.concat((t.deferredFields || []).map(d => Object.assign({table: t.name}, d))), [])
+      .concat((dbStatusReport.deferredTables || []).map(d => ({table: d.name, name: '(hele tabellen)', exists: d.exists})));
+    const oppsummering = dbStatusSyncLog && dbStatusSyncLog.oppsummering;
     return versjonHtml + korruptStatusHtml + synkStatusHtml + `
       <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
-      <div class="required-hint" style="margin-bottom:14px;${altOk ? '' : 'background:var(--amber-soft);padding:10px 12px;border-radius:10px;'}">
-        ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}`}
-        &nbsp;·&nbsp;
-        ${totaltManglendeFelt === 0 ? '✅ Felt OK' : `⚠️ Mangler ${totaltManglendeFelt} felt`}
+      <div class="required-hint" style="margin-bottom:14px;">
+        ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}: ${manglendeTabeller.map(t => esc(t.name)).join(', ')}`}
+        &nbsp;·&nbsp; ✅ ${eksisterendeAntall} eksisterende felt
+        &nbsp;·&nbsp; ${manglendeEksisterende.length === 0 ? '✅ Ingen manglende eksisterende felt' : `⚠️ ${manglendeEksisterende.length} manglende eksisterende felt`}
+        &nbsp;·&nbsp; Fase 1B: ${fase1BAlle.length - fase1BMangler.length} av ${fase1BAlle.length} felt finnes
+        &nbsp;·&nbsp; ${typeavvik.length === 0 ? '✅ Ingen typeavvik' : `⚠️ ${typeavvik.length} typeavvik`}
         ${dbStatusReport.checkedAt ? `<br><span style="font-weight:400;">Sist sjekket: ${new Date(dbStatusReport.checkedAt).toLocaleString('nb-NO')}</span>` : ''}
       </div>
-      ${altOk ? '' : `
-      <div class="dmg-list" style="margin-bottom:14px;">
-        ${dbStatusReport.tables.filter(t => !t.exists || t.missingFields.length > 0).map(t => `
-          <div class="dmg-item">
-            <div class="dmg-top">
-              <div class="dmg-text">
-                <div class="main">${t.exists ? '⚠️' : '❌'} ${esc(t.name)}${!t.exists ? ' (tabellen finnes ikke)' : ''}</div>
-                ${t.missingFields.length > 0 ? `<div class="desc">Mangler felt: ${t.missingFields.map(esc).join(', ')}</div>` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>`}
-      ${dbStatusSyncLog ? `
-      <div class="required-hint" style="margin-bottom:14px;">
-        <strong>Siste synkronisering:</strong><br>
-        ${dbStatusSyncLog.length === 0 ? 'Ingenting å opprette.' : dbStatusSyncLog.map(r => `${r.ok ? '✅' : '❌'} ${esc(r.table)}${r.field ? ' — ' + esc(r.field) : ''}${!r.ok ? ' (' + esc(r.error) + ')' : ''}`).join('<br>')}
+
+      ${manglendeEksisterende.length ? `
+      <div class="required-hint" style="margin-bottom:14px;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">
+        <strong>Manglende eksisterende felt</strong> (opprettes ikke av skjemasynken — opprett dem manuelt i Airtable):<br>${manglendeEksisterende.map(esc).join(', ')}
       </div>` : ''}
-      <button class="btn small" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Synkroniserer …' : luc('refresh-cw') + ' Synkroniser nå'}</button>
-      ${!altOk ? `<div class="required-hint" style="margin-top:10px;">Krever at token har scopet «schema.bases:write» for å opprette manglende tabeller/felt automatisk — se AIRTABLE_MIGRATION.md. Uten det scopet vil du få en tydelig feilmelding per felt i stedet, og må opprette dem manuelt.</div>` : ''}
+
+      <div class="ov-label" style="margin:6px 0 8px;">Fase 1B-felt (forhåndsvisning)</div>
+      <div style="overflow-x:auto;margin-bottom:12px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;border-bottom:1.5px solid var(--line);"><th style="padding:8px 10px;">Tabell</th><th style="padding:8px 10px;">Felt</th><th style="padding:8px 10px;">Airtable-type</th><th style="padding:8px 10px;">Tillatte valg</th><th style="padding:8px 10px;">Handling</th></tr></thead>
+          <tbody>
+            ${fase1BAlle.map(f => {
+              const mangler = manglerSett.has(f.table + '.' + f.name);
+              return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px 10px;">${esc(f.table)}</td><td style="padding:6px 10px;"><code>${esc(f.name)}</code></td><td style="padding:6px 10px;">${esc(f.airtableType)}</td><td style="padding:6px 10px;">${f.valg ? f.valg.map(esc).join(' · ') : '—'}</td><td style="padding:6px 10px;">${mangler ? '<span class="badge t-warning">Opprett</span>' : '<span class="badge t-success">Finnes allerede</span>'}</td></tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${fase1BMangler.length ? `
+      <div class="required-hint" style="margin-bottom:10px;">Knappen oppretter kun de ${fase1BMangler.length} tomme kolonnene merket «Opprett». Ingen felt slettes, omdøpes eller endres, og ingen raddata skrives eller migreres. Krever at tokenet har scopet «schema.bases:write».</div>
+      <button class="btn small" id="db-opprett-1b-btn" ${dbStatusSyncing ? 'disabled' : ''}>${luc('database')} Opprett manglende Fase 1B-felt</button>` : `
+      <div class="required-hint" style="margin-bottom:10px;">✅ Alle ${fase1BAlle.length} Fase 1B-felt finnes. Ingenting å opprette.</div>`}
+
+      ${oppsummering ? `
+      <div class="panel" style="margin:14px 0;">
+        <div class="ov-label" style="margin-bottom:8px;">Resultat av siste oppretting</div>
+        <div class="required-hint">
+          Opprettet: ${oppsummering.opprettet.length ? oppsummering.opprettet.map(esc).join(', ') : 'ingen'}<br>
+          Fantes allerede: ${oppsummering.fantesFra}<br>
+          Feilet: ${oppsummering.feilet.length ? '<span style="color:var(--red);">' + oppsummering.feilet.map(esc).join('<br>') + '</span>' : 'ingen'}<br>
+          Gjenstår: ${oppsummering.gjenstaar.length ? oppsummering.gjenstaar.map(esc).join(', ') : 'ingen'}<br>
+          <strong>Ingen raddata er migrert eller endret.</strong> Skjemaet er sjekket på nytt etter opprettingen.
+        </div>
+      </div>` : ''}
+
+      ${typeavvik.length ? `
+      <div class="required-hint" style="margin:14px 0;background:var(--amber-soft);padding:10px 12px;border-radius:10px;">
+        <strong>Typeavvik</strong> (kun rapport — endres aldri automatisk):<br>
+        ${typeavvik.map(m => `${esc(m.table)}.${esc(m.field)}: forventet ${esc(m.expected)}, faktisk ${esc(m.actual)}${m.detail ? ' — ' + esc(m.detail) : ''}`).join('<br>')}
+      </div>` : ''}
+
+      <div class="required-hint" style="margin:14px 0;">
+        <strong>Utsatte felt (Del 2)</strong> — vises kun til orientering, telles ikke som manglende og opprettes ikke:<br>
+        ${utsatte.map(d => `${esc(d.table)}.${esc(d.name)}${d.exists ? ' (finnes)' : ''}`).join(', ')}
+      </div>
+
+      <button class="btn small secondary" id="db-check-btn" ${dbStatusSyncing ? 'disabled' : ''}>${dbStatusSyncing ? 'Arbeider …' : luc('refresh-cw') + ' Synkroniser nå (sjekk og forhåndsvis)'}</button>
     `;
 }
 

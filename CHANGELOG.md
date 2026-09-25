@@ -15,6 +15,17 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-26
 
+### Fase 1B — Skjemasynk for de 19 godkjente feltene (ingen datamigrering)
+
+1. `storage.airtable.js` v2.24.0 → **v2.25.0**. De 19 feltene i `AIRTABLE_MIGRATION.md`, «Del 1», er registrert i `LIST_TABLES` som **planlagte** fase 1B-felt (`fase1B()`, `aktiv:false`): skjemasjekken ser dem, men `toAirtableFields()`/`fromAirtableFields()` hopper over dem. Vanlig lagring og lesing er uendret; ingen raddata skrives.
+2. Ny type `select` → Airtable single select. Valgene er de lagrede nøklene fra statusordboken (beslutning 2026-09-26). Datofeltene er tekst (ISO), som resten av basen. De åtte utsatte feltene i «Del 2» (og tabellen Workshops) er ikke registrert.
+3. `checkAirtableSchema()` rapporterer per tabell: eksisterende felt, manglende eksisterende felt, manglende fase 1B-felt (med type og valg), typeavvik (inkl. manglende valg i single select) og utsatte Del 2-felt (kun til orientering).
+4. `autoFixAirtableSchema(report, {bekreftet:true})` oppretter KUN manglende fase 1B-felt, KUN med eksplisitt bekreftelse, kun via metadata-API-ets «opprett felt». Oppretter ikke tabeller, sletter/omdøper/endrer aldri felt, rører aldri rader, logger hvert forsøk (`window.storageSkjemaLogg`), fortsetter ved feil, prøver ikke på nytt automatisk.
+5. `index.html`: «Synkroniser nå» og «Oppdater og synkroniser alt» sjekker nå bare skjemaet (oppretter ingenting). Optimaliseringer → Airtable viser forhåndsvisning (tabell, felt, Airtable-type, tillatte valg, handling Opprett / Finnes allerede) og knappen «Opprett manglende Fase 1B-felt» med bekreftelsesdialog. Etterpå kjøres sjekken på nytt, og resultatet viser opprettet, fantes allerede, feilet, gjenstår og at ingen raddata er migrert.
+6. Merk: skjemasynken oppretter ikke lenger manglende *eksisterende* felt eller tabeller automatisk; de rapporteres og må opprettes manuelt.
+7. App-/cacheversjon 126 → 127; `?v=2.25.0` i `index.html`/`kontroll.html`.
+8. Testet med falsk Airtable-metadata og falsk `fetch` (ingen kontakt med produksjonsbasen): 19 felt, riktige typer og valg, Del 2 utelatt, ingen rad-API-kall, avbrutt bekreftelse skriver ingenting, delvis feil rapporteres og kun det manglende feltet opprettes ved ny kjøring, tredje kjøring er idempotent, typeavvik rapporteres uten skriving, vanlig lagring/lesing tar ikke med fase 1B-feltene. Knappelogikken i `index.html` testet isolert.
+
 ### Implementeringsfase 1A — Sjåførkommentarer er informasjon, ikke varsler
 
 1. Sjåførkommentarer og sjåførnotater (kommentar på en kontroll) lager ikke lenger varsler. Kategorien «Sjåførkommentarer» er fjernet fra Varslingssenteret.

@@ -139,7 +139,30 @@
   // ---- Tabell-/feltoppsett — se AIRTABLE_MIGRATION.md for samme oversikt ----
   // "id" er alltid appens egen AppId-feltnavn. "type" styrer konvertering
   // til/fra Airtables feltverdier: 'json' = lagres som JSON-tekst (array/objekt),
-  // 'bool' = checkbox, 'num' = tall. Uten type = ren tekst.
+  // 'bool' = checkbox, 'num' = tall, 'select' = single select (verdien er en nøkkel
+  // fra statusordboken, lagret som tekst). Uten type = ren tekst.
+  //
+  // Implementeringsfase 1B (skjemasynk): de 19 godkjente feltene fra AIRTABLE_MIGRATION.md,
+  // «Del 1», er registrert med fase1B(). De er PLANLAGTE (aktiv:false): skjemasjekken ser dem
+  // og «Opprett manglende Fase 1B-felt» kan opprette kolonnene, men toAirtableFields()/
+  // fromAirtableFields() hopper over dem — vanlig lagring og lesing er nøyaktig som før, og
+  // ingen raddata skrives. De aktiveres først av migreringskoden i fase 1B (egen godkjenning).
+  // Valgene i single select er de lagrede NØKLENE fra statusordboken (beslutning 2026-09-26).
+  function fase1B(atNavn, type, valg) {
+    return [atNavn, type, { fase: '1B', aktiv: false, valg: valg || null }];
+  }
+  const FASE1B_VALG = {
+    driftsstatus: ['aktiv', 'reserve', 'kan-ikke-brukes', 'utfaset'],
+    utfasetArsak: ['solgt', 'vraket', 'leie-avsluttet', 'annet'],
+    verkstedStatus: ['planlagt', 'bekreftet', 'pagar', 'utfort', 'avlyst', 'forfalt'],
+    avlystArsak: ['ombooket', 'verksted-stengt', 'ikke-behov', 'utfaset', 'duplikat', 'annet'],
+    skadetype: ['bulk-riper', 'glass', 'sidespeil', 'lys', 'dekk-felg', 'loftebord', 'bremser', 'styring', 'struktur', 'annet'],
+    kanKjores: ['ja', 'usikker', 'nei'],
+    alvorlighetKilde: ['sjafor', 'drift'],
+    alvorlighet: ['lav', 'middels', 'hoy', 'kritisk'],
+    tilgangsrolle: ['flateansvarlig', 'terminalleder', 'verkstedpartner', 'administrator', 'systemadministrator']
+  };
+  function feltErAktivt(spec) { return !(spec[2] && spec[2].aktiv === false); }
   const LIST_TABLES = {
     vehicles: { table: 'Vehicles', fields: {
       id: ['AppId'], bilnummer: ['Bilnummer'], regnr: ['Regnr'], merke: ['Merke'], modell: ['Modell'],
@@ -193,12 +216,22 @@
       aktivSjaforAutoResetTid: ['AktivSjaforAutoResetTid'],
       aktivSjaforAutoResetSisteDato: ['AktivSjaforAutoResetSisteDato'],
       // Prioritet 67: servicenummer er verksted-/faktura-referanse — ikke serviceintervall.
-      servicenummer: ['Servicenummer']
+      servicenummer: ['Servicenummer'],
+      // Fase 1B (planlagt, se fase1B() over): driftsstatus etter statusordboken §1.
+      driftsstatus: fase1B('Driftsstatus', 'select', FASE1B_VALG.driftsstatus),
+      driftsstatusFra: fase1B('DriftsstatusFra', 'text'),
+      utfasetDato: fase1B('UtfasetDato', 'text'),
+      utfasetArsak: fase1B('UtfasetArsak', 'select', FASE1B_VALG.utfasetArsak)
     }},
     damages: { table: 'Damages', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], beskrivelse: ['Beskrivelse'],
       alvorlighet: ['Alvorlighet'], kommentar: ['Kommentar'], status: ['Status'], registrertAv: ['RegistrertAv'],
-      hasPhoto: ['HasPhoto', 'bool'], createdByControlId: ['CreatedByControlId'], estimertKostnad: ['EstimertKostnad', 'num']
+      hasPhoto: ['HasPhoto', 'bool'], createdByControlId: ['CreatedByControlId'], estimertKostnad: ['EstimertKostnad', 'num'],
+      // Fase 1B (planlagt): skadetype, sjåførens svar og kilde for alvorlighet (damage-severity-framework.md).
+      skadetype: fase1B('Skadetype', 'select', FASE1B_VALG.skadetype),
+      kanKjores: fase1B('KanKjores', 'select', FASE1B_VALG.kanKjores),
+      alvorlighetKilde: fase1B('AlvorlighetKilde', 'select', FASE1B_VALG.alvorlighetKilde),
+      statusHistorikk: fase1B('StatusHistorikk', 'json')
     }},
     verkstedtimer: { table: 'WorkshopAppointments', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], verksted: ['Verksted'], dato: ['Dato'], tidspunkt: ['Tidspunkt'],
@@ -217,7 +250,17 @@
       // per bil. `bestillingGruppeId` er felles for bestillingene som ble opprettet samlet for flere
       // biler i ÉN handling («Velg flere biler») — ÉN rad per bil, aldri én rad med flere VehicleId —
       // og lar «Alle utført» fullføre dem samlet. Tom for alle vanlige enkeltbestillinger.
-      dekkRetning: ['DekkRetning'], bestillingGruppeId: ['BestillingGruppeId']
+      dekkRetning: ['DekkRetning'], bestillingGruppeId: ['BestillingGruppeId'],
+      // Fase 1B (planlagt): verkstedstatus og livsløp etter workshop-state-model.md.
+      status: fase1B('Status', 'select', FASE1B_VALG.verkstedStatus),
+      statusHistorikk: fase1B('StatusHistorikk', 'json'),
+      bekreftetDato: fase1B('BekreftetDato', 'text'),
+      bekreftetAv: fase1B('BekreftetAv', 'text'),
+      levertDato: fase1B('LevertDato', 'text'),
+      avlystDato: fase1B('AvlystDato', 'text'),
+      avlystArsak: fase1B('AvlystArsak', 'select', FASE1B_VALG.avlystArsak),
+      ombooketFraId: fase1B('OmbooketFraId', 'text'),
+      akutt: fase1B('Akutt', 'bool')
     }},
     kontroller: { table: 'DriverChecks', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], tidspunkt: ['Tidspunkt'], sjafor: ['Sjafor'],
@@ -241,7 +284,9 @@
       kvittertAv: ['KvittertAv'], createdByControlId: ['CreatedByControlId']
     }},
     'admin-users': { table: 'Users', fields: {
-      id: ['AppId'], rolle: ['Rolle'], tittel: ['Tittel'], brukernavn: ['Brukernavn'], passord: ['Passord']
+      id: ['AppId'], rolle: ['Rolle'], tittel: ['Tittel'], brukernavn: ['Brukernavn'], passord: ['Passord'],
+      // Fase 1B (planlagt): tilgangsrolle (access-control-model.md). Tas i bruk i Sprint 2.
+      tilgangsrolle: fase1B('Tilgangsrolle', 'select', FASE1B_VALG.tilgangsrolle)
     }},
     dekkhistorikk: { table: 'TireChanges', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar']
@@ -277,7 +322,9 @@
       // Prioritet 63: flerbilssak — saker som er ÉN sak for flere biler (én saksrad per bil, egen status/historikk/oppfølging
       // per kjøretøy) deler samme verdi her; tom for vanlige saker. KREVER en ny kolonne «SakGruppeId» (enkel tekst) i AktiveSaker
       // FØR denne filen tas i bruk — Database status → Synkroniser Airtable kan opprette den.
-      sakGruppeId: ['SakGruppeId']
+      sakGruppeId: ['SakGruppeId'],
+      // Fase 1B (planlagt): sakens alvorlighet (høyeste av kildene, sakAlvorlighet() i index.html).
+      alvorlighet: fase1B('Alvorlighet', 'select', FASE1B_VALG.alvorlighet)
     }},
     // Prioritet 49, Del 2: løftebordvedlikehold (smøring, sjåfør) og løftebordkontroll
     // (årlig, admin) — egen tabell, ALDRI blandet med aktiveSaker/kontroller. Ingen
@@ -295,9 +342,11 @@
   // get()/set()/del() under: alt som ikke er en LIST_TABLES-nøkkel eller har
   // "photo:"-prefiks, går automatisk til denne Settings-tabellen).
 
+  // Planlagte (ikke aktiverte) fase 1B-felt skrives og leses IKKE — se fase1B() over.
   function toAirtableFields(config, obj) {
     const out = {};
     Object.keys(config.fields).forEach(appField => {
+      if (!feltErAktivt(config.fields[appField])) return;
       const [atField, type] = config.fields[appField];
       let v = obj[appField];
       if (v === undefined || v === null) v = '';
@@ -311,6 +360,7 @@
   function fromAirtableFields(config, record) {
     const out = { id: record.fields['AppId'] || record.id };
     Object.keys(config.fields).forEach(appField => {
+      if (!feltErAktivt(config.fields[appField])) return;
       const [atField, type] = config.fields[appField];
       let v = record.fields[atField];
       if (type === 'json') { try { v = v ? JSON.parse(v) : []; } catch (e) { v = []; } }
@@ -608,8 +658,10 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.24.0',
-    bygget: '21.09.2026 00:00',
+    versjon: 'v2.25.0',
+    bygget: '26.09.2026 00:00',
+    // v2.25.0 (Fase 1B skjemasynk): 19 planlagte fase 1B-felt i LIST_TABLES (skrives/leses ikke),
+    // type 'select', skjemarapport med fase 1B/utsatte felt/typeavvik, oppretting kun med bekreftelse.
     // Prioritet 66.9: retry/backoff på forbigående Airtable-feil, masseslettingssperre
     // for Vehicles, og fersk lesing av cachen før enhver destruktiv Vehicles-reconcile.
     masseslettVakt: MASSESLETT_VAKT,
@@ -666,27 +718,72 @@
   // Photos (som ikke følger AppId-mønsteret, men lagrer nøkkel/verdi-rader).
   // Dette er bevisst ÉN kilde til sannhet: legger du et nytt felt i
   // LIST_TABLES for en fremtidig funksjon, plukkes det automatisk opp her.
+  // Fase 1B: hvert felt bærer `fase` ('1B' for de planlagte feltene) og `valg` (single select).
   const EXPECTED_SCHEMA = {};
   Object.keys(LIST_TABLES).forEach((key) => {
     const cfg = LIST_TABLES[key];
     EXPECTED_SCHEMA[cfg.table] = Object.keys(cfg.fields).map((f) => {
-      const [atName, kind] = cfg.fields[f];
-      return { name: atName, kind: kind || 'text' };
+      const [atName, kind, opts] = cfg.fields[f];
+      return { name: atName, kind: kind || 'text', fase: (opts && opts.fase) || null, valg: (opts && opts.valg) || null };
     });
   });
-  EXPECTED_SCHEMA['Settings'] = [{ name: 'Key', kind: 'text' }, { name: 'Value', kind: 'json' }];
-  EXPECTED_SCHEMA['Photos'] = [{ name: 'Key', kind: 'text' }, { name: 'Value', kind: 'json' }];
+  EXPECTED_SCHEMA['Settings'] = [{ name: 'Key', kind: 'text', fase: null, valg: null }, { name: 'Value', kind: 'json', fase: null, valg: null }];
+  EXPECTED_SCHEMA['Photos'] = [{ name: 'Key', kind: 'text', fase: null, valg: null }, { name: 'Value', kind: 'json', fase: null, valg: null }];
 
-  function airtableFieldType(kind) {
+  // Utsatte felt (AIRTABLE_MIGRATION.md, «Del 2»). KUN for rapportering: de er ikke i
+  // LIST_TABLES, telles aldri som manglende og opprettes aldri av skjemasynken.
+  const UTSATTE_FELT = {
+    'DriverChecks': ['Avvik', 'Enhet', 'OpprettetLokalt'],
+    'Damages': ['Enhet', 'OpprettetLokalt', 'BildeAntall', 'BildeStatus'],
+    'WorkshopAppointments': ['ForventetFerdig', 'WorkshopId'],
+    'Vehicles': ['GarantiTil', 'GarantiMerke', 'Hjemmebase']
+  };
+  const UTSATTE_TABELLER = ['Workshops'];
+
+  // Airtable-felttype per type i LIST_TABLES (brukes kun ved oppretting av felt). Datoer er
+  // bevisst tekst (ISO-streng), som alle eksisterende datofelt i basen (beslutning 2026-09-26).
+  function airtableFieldType(kindEllerSpec) {
+    const kind = typeof kindEllerSpec === 'string' ? kindEllerSpec : (kindEllerSpec && kindEllerSpec.kind);
     if (kind === 'bool') return { type: 'checkbox', options: { icon: 'check', color: 'greenBright' } };
     if (kind === 'num') return { type: 'number', options: { precision: 0 } };
     if (kind === 'json') return { type: 'multilineText' };
+    if (kind === 'select') {
+      const valg = (kindEllerSpec && kindEllerSpec.valg) || [];
+      return { type: 'singleSelect', options: { choices: valg.map((n) => ({ name: n })) } };
+    }
     return { type: 'singleLineText' };
   }
+  // Hvilke faktiske Airtable-typer som er forenlige med hver type i LIST_TABLES (for
+  // rapportering av typeavvik — endres aldri automatisk).
+  const FORENLIGE_TYPER = {
+    text: ['singleLineText', 'multilineText', 'richText', 'email', 'url', 'phoneNumber'],
+    json: ['multilineText', 'richText'],
+    bool: ['checkbox'],
+    num: ['number', 'currency', 'percent'],
+    select: ['singleSelect']
+  };
+
+  // Logg over ALLE forsøk på skjemaendring i denne økten (vises i Database status).
+  const skjemaLogg = [];
+  window.storageSkjemaLogg = skjemaLogg;
+  window.storageSkjemaInfo = {
+    fase1B: Object.keys(EXPECTED_SCHEMA).reduce((liste, tabell) => liste.concat(
+      EXPECTED_SCHEMA[tabell].filter((f) => f.fase === '1B').map((f) => ({ table: tabell, name: f.name, kind: f.kind, airtableType: airtableFieldType(f).type, valg: f.valg }))), []),
+    utsatteFelt: UTSATTE_FELT,
+    utsatteTabeller: UTSATTE_TABELLER,
+    // Kopi (ikke referanse) av forventet skjema — kun til visning og test.
+    forventet: JSON.parse(JSON.stringify(EXPECTED_SCHEMA))
+  };
 
   // Sammenligner forventet skjema mot det som faktisk finnes i Airtable akkurat
-  // nå. Endrer INGENTING selv — kun lesing. Kalles automatisk ved oppstart
-  // (se index.html) og på nytt av "🔄 Synkroniser Airtable"-knappen.
+  // nå. Endrer INGENTING selv — kun lesing (metadata-API, GET). Kalles i bakgrunnen
+  // ved oppstart og av «Synkroniser nå» (som nå kun sjekker og viser forhåndsvisning).
+  // Rapporten skiller (per tabell):
+  //   existingFields   — forventede felt som finnes
+  //   missingFields    — manglende EKSISTERENDE (ikke fase 1B) felt; opprettes ikke automatisk
+  //   missingFase1B    — manglende fase 1B-felt {name, kind, airtableType, valg}; kan opprettes
+  //   typeMismatches   — {field, expected, actual, detail}; kun rapport
+  //   deferredFields   — utsatte Del 2-felt {name, exists}; aldri manglende, aldri opprettet
   window.checkAirtableSchema = async function () {
     let actualTables;
     try {
@@ -703,52 +800,96 @@
     }
     const byName = {};
     actualTables.forEach((t) => { byName[t.name] = t; });
-    const report = { ok: true, error: null, checkedAt: Date.now(), tables: [] };
+    const report = { ok: true, error: null, checkedAt: Date.now(), tables: [], deferredTables: [] };
+    const fase1BSpec = (f) => ({ name: f.name, kind: f.kind, airtableType: airtableFieldType(f).type, valg: f.valg });
     Object.keys(EXPECTED_SCHEMA).forEach((tableName) => {
       const expectedFields = EXPECTED_SCHEMA[tableName];
       const actual = byName[tableName];
+      const utsatte = UTSATTE_FELT[tableName] || [];
       if (!actual) {
-        report.tables.push({ name: tableName, exists: false, missingFields: expectedFields.map((f) => f.name), airtableTableId: null });
+        report.tables.push({
+          name: tableName, exists: false, airtableTableId: null, existingFields: [],
+          missingFields: expectedFields.filter((f) => f.fase !== '1B').map((f) => f.name),
+          missingFase1B: expectedFields.filter((f) => f.fase === '1B').map(fase1BSpec),
+          typeMismatches: [], deferredFields: utsatte.map((n) => ({ name: n, exists: false }))
+        });
         return;
       }
-      const actualFieldNames = new Set(actual.fields.map((f) => f.name));
-      const missingFields = expectedFields.filter((f) => !actualFieldNames.has(f.name)).map((f) => f.name);
-      report.tables.push({ name: tableName, exists: true, missingFields, airtableTableId: actual.id });
+      const actualByName = {};
+      actual.fields.forEach((f) => { actualByName[f.name] = f; });
+      const existingFields = [], missingFields = [], missingFase1B = [], typeMismatches = [];
+      expectedFields.forEach((f) => {
+        const a = actualByName[f.name];
+        if (!a) {
+          if (f.fase === '1B') missingFase1B.push(fase1BSpec(f));
+          else missingFields.push(f.name);
+          return;
+        }
+        existingFields.push(f.name);
+        const forenlige = FORENLIGE_TYPER[f.kind] || FORENLIGE_TYPER.text;
+        if (forenlige.indexOf(a.type) === -1) {
+          typeMismatches.push({ field: f.name, expected: airtableFieldType(f).type, actual: a.type, detail: '' });
+        } else if (f.kind === 'select' && f.valg) {
+          const finnes = new Set(((a.options && a.options.choices) || []).map((c) => c.name));
+          const mangler = f.valg.filter((v) => !finnes.has(v));
+          if (mangler.length) typeMismatches.push({ field: f.name, expected: 'singleSelect', actual: a.type, detail: 'Mangler valg: ' + mangler.join(', ') });
+        }
+      });
+      report.tables.push({
+        name: tableName, exists: true, airtableTableId: actual.id,
+        existingFields, missingFields, missingFase1B, typeMismatches,
+        deferredFields: utsatte.map((n) => ({ name: n, exists: !!actualByName[n] }))
+      });
     });
+    UTSATTE_TABELLER.forEach((n) => report.deferredTables.push({ name: n, exists: !!byName[n] }));
     return report;
   };
 
-  // Oppretter manglende tabeller/felt automatisk der Airtables metadata-API
-  // tillater det (krever schema.bases:write). Endrer den gitte rapporten i
-  // stedet (fjerner det som ble fikset), og returnerer en logg over hva som
-  // skjedde — inkludert eventuelle feil per tabell/felt, slik at ett mislykket
-  // felt ikke stopper resten.
-  window.autoFixAirtableSchema = async function (report) {
+  // Oppretter KUN manglende fase 1B-felt fra rapporten (report.tables[].missingFase1B), og
+  // KUN når kalleren sender { bekreftet: true } etter at administrator har sett forhånds-
+  // visningen og trykket «Opprett manglende Fase 1B-felt». Sikkerhetsregler:
+  //   • bare POST mot metadata-API-ets /tables/{tabellId}/fields — aldri tabell-oppretting,
+  //     aldri sletting, aldri omdøping, aldri typeendring, aldri rad-API (ingen raddata røres)
+  //   • hvert forsøk logges (storageSkjemaLogg + konsoll); ett feilet felt stopper ikke resten
+  //   • ingen automatisk nytt forsøk; en ny kjøring oppretter bare det som fortsatt mangler
+  // Manglende EKSISTERENDE felt (report.tables[].missingFields) opprettes ikke herfra lenger.
+  // Returnerer en liste {table, field, action:'created-field', ok, error, airtableType}.
+  window.autoFixAirtableSchema = async function (report, valg) {
+    if (!valg || valg.bekreftet !== true) {
+      console.warn('[autoFixAirtableSchema] Avbrutt: mangler eksplisitt bekreftelse. Ingenting er endret.');
+      return [];
+    }
     const results = [];
+    if (!report || !report.ok || !Array.isArray(report.tables)) return results;
+    const logg = (r) => {
+      skjemaLogg.unshift(Object.assign({ tidspunkt: new Date().toISOString() }, r));
+      if (skjemaLogg.length > 100) skjemaLogg.length = 100;
+      console.log('[autoFixAirtableSchema]', r.ok ? 'Opprettet' : 'FEILET', r.table + '.' + r.field, r.airtableType || '', r.error || '');
+    };
     for (const t of report.tables) {
-      if (!t.exists) {
-        const fields = EXPECTED_SCHEMA[t.name].map((f) => Object.assign({ name: f.name }, airtableFieldType(f.kind)));
-        try {
-          const created = await metaFetch('/tables', { method: 'POST', body: JSON.stringify({ name: t.name, fields }) });
-          results.push({ table: t.name, action: 'created-table', ok: true });
-          t.exists = true; t.missingFields = []; t.airtableTableId = created.id;
-        } catch (e) {
-          results.push({ table: t.name, action: 'created-table', ok: false, error: e.message });
-        }
+      const plan = Array.isArray(t.missingFase1B) ? t.missingFase1B.slice() : [];
+      if (!plan.length) continue;
+      if (!t.exists || !t.airtableTableId) {
+        plan.forEach((f) => {
+          const r = { table: t.name, field: f.name, action: 'created-field', ok: false, airtableType: f.airtableType,
+            error: 'Tabellen finnes ikke i Airtable — skjemasynken oppretter ikke tabeller.' };
+          results.push(r); logg(r);
+        });
         continue;
       }
-      for (const fieldName of t.missingFields.slice()) {
-        const spec = EXPECTED_SCHEMA[t.name].find((f) => f.name === fieldName);
+      for (const f of plan) {
+        const spec = EXPECTED_SCHEMA[t.name].find((x) => x.name === f.name && x.fase === '1B');
+        if (!spec) continue; // kun felt som faktisk er registrert som fase 1B
+        const body = Object.assign({ name: spec.name }, airtableFieldType(spec));
+        let r;
         try {
-          await metaFetch('/tables/' + t.airtableTableId + '/fields', {
-            method: 'POST',
-            body: JSON.stringify(Object.assign({ name: fieldName }, airtableFieldType(spec.kind)))
-          });
-          results.push({ table: t.name, field: fieldName, action: 'created-field', ok: true });
-          t.missingFields = t.missingFields.filter((f) => f !== fieldName);
+          await metaFetch('/tables/' + t.airtableTableId + '/fields', { method: 'POST', body: JSON.stringify(body) });
+          r = { table: t.name, field: spec.name, action: 'created-field', ok: true, airtableType: body.type };
+          t.missingFase1B = t.missingFase1B.filter((x) => x.name !== spec.name);
         } catch (e) {
-          results.push({ table: t.name, field: fieldName, action: 'created-field', ok: false, error: e.message });
+          r = { table: t.name, field: spec.name, action: 'created-field', ok: false, airtableType: body.type, error: e.message };
         }
+        results.push(r); logg(r);
       }
     }
     return results;
