@@ -783,7 +783,7 @@ Godkjente beslutninger (2026-09-25): **A** ingen spesiell håndtering, Status sk
 
 ### 4. Migreringskode (K) — levert 2026-09-25 (app 132, storage v2.26.0)
 
-- [x] Del 1-feltene i `LIST_TABLES` med `aktiv:true`; `storage.airtable.js` v2.26.0; `?v=2.26.0`; app-/cacheversjon 132.
+- [x] Del 1-feltene i `LIST_TABLES` med `aktiv:true`; `storage.airtable.js` v2.26.1 (`?v=2.26.1`): tom `select` utelates fra PATCH (aldri `""`). App-/cacheversjon 134.
 - [x] `vehicleDriftsstatus()` leser lagret `Driftsstatus` med fallback til `UteAvDrift`/`Kategori`. `vtStatus()` uendret (visning kan vise forfalt uten at feltet skrives). Nye saker får `Alvorlighet`.
 - [x] Dobbeltskriving: `Driftsstatus` + `UteAvDrift`, `Status` + `Utfort` på mutasjon (ikke på hver tilfeldig `saveVehicles`).
 - [ ] Verkstedlivsløp Bekreft / Pågår / Avlys / Forfalt ved dagskille / Book ny tid — **ikke i Fase 1B**. Utført skriver begge felt.

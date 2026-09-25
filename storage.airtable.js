@@ -140,7 +140,7 @@
   // "id" er alltid appens egen AppId-feltnavn. "type" styrer konvertering
   // til/fra Airtables feltverdier: 'json' = lagres som JSON-tekst (array/objekt),
   // 'bool' = checkbox, 'num' = tall, 'select' = single select (verdien er en nøkkel
-  // fra statusordboken, lagret som tekst). Uten type = ren tekst.
+  // fra statusordboken). Tom select utelates fra skriving (aldri ''). Uten type = ren tekst.
   //
   // Implementeringsfase 1B: de 19 godkjente feltene fra AIRTABLE_MIGRATION.md, «Del 1».
   // fase:'1B' styrer skjemasjekk og «Opprett manglende Fase 1B-felt». aktiv:true betyr at
@@ -341,12 +341,21 @@
   // "photo:"-prefiks, går automatisk til denne Settings-tabellen).
 
   // Fase 1B-felt med aktiv:true skrives og leses. Eldre felt beholdes.
+  // type === 'select': tom verdi sendes ALDRI (ikke '' og ikke null). Feltet utelates
+  // fra PATCH/POST, ellers prøver Airtable å opprette et tomt valg
+  // (INVALID_MULTIPLE_CHOICE_OPTIONS). Fylte nøkler skrives uendret.
   function toAirtableFields(config, obj) {
     const out = {};
     Object.keys(config.fields).forEach(appField => {
       if (!feltErAktivt(config.fields[appField])) return;
       const [atField, type] = config.fields[appField];
       let v = obj[appField];
+      if (type === 'select') {
+        if (v === undefined || v === null) return;
+        if (typeof v === 'string' && v.trim() === '') return;
+        out[atField] = typeof v === 'string' ? v.trim() : v;
+        return;
+      }
       if (v === undefined || v === null) v = '';
       if (type === 'json') v = JSON.stringify(v || []);
       else if (type === 'bool') v = !!v;
@@ -656,8 +665,10 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.26.0',
-    bygget: '26.09.2026 00:00',
+    versjon: 'v2.26.1',
+    bygget: '26.09.2026 00:40',
+    toAirtableFields: toAirtableFields,
+    // v2.26.1: tom single select utelates fra PATCH (ikke ''). Ingen nye Airtable-valg.
     // v2.26.0 (Fase 1B migrering): 19 fase 1B-felt er aktive (leses/skrives). Eldre felt beholdes.
     // v2.25.0 (Fase 1B skjemasynk): 19 planlagte fase 1B-felt i LIST_TABLES (skrives/leses ikke),
     // type 'select', skjemarapport med fase 1B/utsatte felt/typeavvik, oppretting kun med bekreftelse.

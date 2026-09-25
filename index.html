@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.26.0"></script>
+<script src="storage.airtable.js?v=2.26.1"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -1404,6 +1404,23 @@
   .dash-vt-kort:hover{border-color:var(--orange);}
   .dash-w-tall{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;}
   .dash-w-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+  .fh-kort{display:flex;flex-direction:column;gap:8px;padding:12px 14px;}
+  .fh-kort.kompakt{max-height:200px;overflow:hidden;}
+  @media (max-width:640px){ .fh-kort.kompakt{max-height:260px;} }
+  .fh-hode{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .fh-score-knapp{display:flex;align-items:baseline;gap:10px;border:0;background:transparent;padding:8px;margin:-8px;min-height:48px;cursor:pointer;color:inherit;font:inherit;text-align:left;border-radius:8px;}
+  .fh-score-knapp:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+  .fh-score{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;}
+  .fh-nivaa{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px;}
+  .fh-fliser{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  @media (max-width:640px){ .fh-fliser{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  .fh-flis{min-height:48px;padding:8px 10px;border:1.5px solid var(--line-soft);border-radius:10px;background:var(--surface-2);color:var(--ink);font:inherit;text-align:left;cursor:pointer;}
+  .fh-flis:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+  .fh-flis-tall{display:block;font-weight:700;font-variant-numeric:tabular-nums;}
+  .fh-flis-ord{display:block;font-size:12px;color:var(--ink-2);}
+  .fh-detalj{border-top:1px solid var(--line-soft);padding-top:8px;font-size:13px;}
+  .fh-faktor{display:flex;justify-content:space-between;gap:8px;padding:4px 0;}
+  .fh-regel{color:var(--ink-2);margin:0 0 6px;}
   .dash-lb-rad{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;font-size:13.5px;}
   .dash-lb-rad + .dash-lb-rad{border-top:1px solid var(--line-soft);}
   .dash-lb-navn{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ink);}
@@ -2064,6 +2081,8 @@ let operativGrunnlagLagrer = false;
 let operativGrunnlagMelding = null;           // {type:'ok'|'feil', tekst}
 let operativGrunnlagEksternEndring = false;   // grunnlaget er endret av andre mens skjemaet er åpent
 let dashKontrollListeApen = false;            // «Se hvilke» under dagens kontrollstatus (ren visningstilstand)
+let dashFlatehelseDetaljApen = false;         // faktoroppdeling i FleetHealthOverview
+let flatehelseSnapshotDato = '';              // operativ dag vi allerede har skrevet snapshot for i denne økten
 // redigerbare bilkategorier. Lagres som ÉN JSON-blob i den eksisterende
 // Settings-tabellen i Airtable (nøyaktig samme mønster som `verksteder`), ikke som en ny
 // tabell eller et nytt felt: ingen endring i storage.airtable.js, ingen LIST_TABLES-
@@ -2141,7 +2160,7 @@ let filterLoyve = ''; // '' | 'har' | 'mangler'
 // (Dashboard skal kun vise handling). Chipsene ruter nå hit i stedet, til den faktiske
 // Bilregister-siden, filtrert på samme vehicleHovedstatus()-verdi som før (uendret
 // funksjon, kun ny destinasjon — se goToRegisterHovedstatus()).
-let filterHovedstatus = ''; // '' | 'operativ' | 'oppfolging' | 'verksted' | 'ute-av-drift' | 'har-aktiv-sjafor' | 'tilgjengelig'
+let filterHovedstatus = ''; // '' | operativ-nøkler | 'har-aktiv-sjafor' | 'tilgjengelig' (uten aktiv sjåfør) | 'fh-tilgjengelig' | 'fh-pa-verksted' | 'fh-kan-ikke-brukes' | 'fh-reserve'
 // Prioritet 71.9: Reserve og Ute av drift skjules som standard på Biloversikt (mindre støy
 // i daglig drift) — disse to togglene («✅ Vis reserve»/«✅ Vis ute av drift») er den eneste
 // måten å slå visningen på igjen. Nullstilles til false av resetRegisterFiltre() akkurat som
@@ -2817,8 +2836,16 @@ function alvorlighetForSkade(skadetype, kanKjores){
 }
 const ALVORLIGHET_KONTROLLAVVIK = {'styring':'kritisk', 'slitte-bremser':'hoy', 'slitte-dekk':'hoy', 'sidespeil':'hoy',
   'defekt-lys':'hoy', 'feil-pa-kjoretoy':'hoy', 'loftebord':'middels', 'manglende-utstyr':'middels', 'annet-avvik':'middels'};
-const ALVORLIGHET_VARSELLAMPE = {bremse:'hoy', motor:'hoy', abs:'hoy', adblue:'middels', batteri:'middels',
-  dekktrykk:'lav', service:'lav', annet:'lav'};
+// damage-severity-framework.md — varsellampe-matrise. Sjåføren velger aldri alvorlighet.
+const ALVORLIGHET_VARSELLAMPE = {
+  bremse:'kritisk', abs:'kritisk', styring:'kritisk', airbag:'kritisk', trafikkfare:'kritisk',
+  motor:'hoy', dpf:'hoy', adblue:'hoy', girkasse:'hoy',
+  dekktrykk:'middels', batteri:'middels', sensor:'middels', parkering:'middels',
+  service:'lav', spylervasake:'lav', informasjon:'lav', annet:'lav'
+};
+function alvorlighetForVarsellampe(type){
+  return ALVORLIGHET_VARSELLAMPE[type] || 'lav';
+}
 const EU_KONTROLL_VARSEL_DAGER_HASTER = 14; // ≤ 14 dager: Høy, sortert først blant Høy
 function alvorlighetForEu(eu){
   if(!eu) return null;
@@ -2876,7 +2903,7 @@ function alvorlighetForAvvikPunkt(a){
     const d = (typeof damages !== 'undefined' ? damages : []).find(x => x.id === a.sourceId);
     return d && STATUS.alvorlighet[statusNokkel('alvorlighet', d.alvorlighet)] ? statusNokkel('alvorlighet', d.alvorlighet) : 'middels';
   }
-  if(a.caseType === 'varsellampe') return ALVORLIGHET_VARSELLAMPE[a.sourceId] || 'lav';
+  if(a.caseType === 'varsellampe') return alvorlighetForVarsellampe(a.sourceId);
   if(a.caseType === 'kontrollavvik') return ALVORLIGHET_KONTROLLAVVIK[a.sourceId] || 'middels';
   return 'middels';
 }
@@ -3920,6 +3947,7 @@ async function handhevOperativtDogn({rerender = false} = {}){
     // eneste veien inn til saveVehicles() herfra. Ved lesefeil stopper skrivesperren
     // den uansett, uten å påvirke visningen.
     await ryddOppBiloktDagskille();
+    if(loaded) lagreFlatehelseSnapshot().catch(e => console.error('[flatehelse snapshot]', e));
     if(dagSkiftet && rerender && loaded) render();
     return dagSkiftet;
   }catch(e){
@@ -4950,14 +4978,17 @@ function layoutRegistrerAlle(){
 
   // ---------- Desktop Dashboard (12-kolonners rutenett) ----------
   const dash = (id, def) => layoutReg('dashboard.' + id, Object.assign({area:'admin-dashboard', canResize:true, devices:['desktop']}, def));
-  dash('operativ-kontroll', {label:'Operativ kontroll', ikon:'target', beskrivelse:'Kontrollprosent i dag og siste driftsdager (antallet følger valgte driftsdager), aktive biler.',
-    minWidth:4, minHeight:2, renderer:ctx => dashWidgetOperativKontrollHtml(ctx.d), std:{x:0, y:0, width:8, height:2, visible:true}});
+  dash('flatehelse', {label:'Flåtehelse', ikon:'heart-pulse', beskrivelse:'Teknisk tilstand og tilgjengelighet. Ikke kontrollgrad eller EU-frist.',
+    minWidth:6, minHeight:4, canHide:false, critical:true, lockReason:'Flåtehelse kan ikke skjules.',
+    renderer:() => dashWidgetFlatehelseHtml(), std:{x:0, y:0, width:12, height:5, visible:true}});
+  dash('operativ-kontroll', {label:'Operativ etterlevelse', ikon:'target', beskrivelse:'Kontrollgrad i dag, siste driftsdager og EU-kontroll. Ikke del av flåtehelse.',
+    minWidth:4, minHeight:2, renderer:ctx => dashWidgetOperativKontrollHtml(ctx.d), std:{x:0, y:5, width:8, height:2, visible:true}});
   dash('neste-verkstedtime', {label:'Neste verkstedtime', ikon:'factory', beskrivelse:'Nærmeste kommende verkstedtime i hele bilparken.',
-    minWidth:3, minHeight:2, renderer:() => dashWidgetNesteVtHtml(), std:{x:8, y:0, width:4, height:2, visible:true}});
+    minWidth:3, minHeight:2, renderer:() => dashWidgetNesteVtHtml(), std:{x:8, y:5, width:4, height:2, visible:true}});
   dash('bestill', {label:'Bestill tjenester', ikon:'plus', beskrivelse:'Service, EU-kontroll, dekkskift og ruteskift.',
-    minWidth:6, minHeight:3, renderer:() => dashBestillSekHtml(), std:{x:0, y:2, width:12, height:4, visible:true}});
+    minWidth:6, minHeight:3, renderer:() => dashBestillSekHtml(), std:{x:0, y:7, width:12, height:4, visible:true}});
   dash('hurtigoversikt', {label:'Hurtigoversikt', ikon:'layout-list', beskrivelse:'Aktive saker, oppfølging, verksted og varsler i faner.',
-    minWidth:6, minHeight:6, renderer:ctx => dashHurtigoversiktHtml(ctx.d), std:{x:0, y:6, width:12, height:11, visible:true}});
+    minWidth:6, minHeight:6, renderer:ctx => dashHurtigoversiktHtml(ctx.d), std:{x:0, y:11, width:12, height:11, visible:true}});
   dash('aktive-biler', {label:'Aktive biler', ikon:'truck', beskrivelse:'Antall biler med aktiv sjåfør nå.',
     minWidth:2, minHeight:2, renderer:ctx => dashWidgetAktiveBilerHtml(ctx.d), std:{x:0, y:17, width:3, height:2, visible:false}});
   dash('kalender', {label:'Kalender', ikon:'calendar-days', beskrivelse:'Aktiviteter denne uken, åpner full Kalender.',
@@ -4973,6 +5004,7 @@ function layoutRegistrerAlle(){
     minWidth:3, minHeight:2, renderer:() => dashWidgetLoftebordHtml(), std:{x:7, y:17, width:5, height:3, visible:false}});
 
   // ---------- Mobil Dashboard (liste) ----------
+  layoutReg('mobile.flatehelse', {area:'mobile-dashboard', label:'Flåtehelse', ikon:'heart-pulse', devices:['mobile'], canHide:false, critical:true, lockReason:'Flåtehelse kan ikke skjules.', renderer:() => dashWidgetFlatehelseHtml(), std:{}});
   layoutReg('mobile.bestill', {area:'mobile-dashboard', label:'Bestill tjenester', ikon:'plus', devices:['mobile'], std:{}});
   layoutReg('mobile.hurtigoversikt', {area:'mobile-dashboard', label:'Hurtigoversikt', ikon:'layout-list', devices:['mobile'], std:{}});
 
@@ -6448,14 +6480,18 @@ function alvorlighetOptions(valgt){
   return ALVORLIGHET_VALG.map(k => `<option value="${k}" ${v===k?'selected':''}>${statusLabel('alvorlighet', k)}</option>`).join('');
 }
 const VARSELLAMPE_LABEL = {
-  motor:'Motorlampe', adblue:'AdBlue', dekktrykk:'Dekktrykk', bremse:'Bremsevarsel',
-  batteri:'Batteri/Lading', abs:'ABS', service:'Servicevarsel', annet:'Annet'
+  bremse:'Bremsevarsel', abs:'ABS', styring:'Styring', airbag:'Airbag', trafikkfare:'Trafikkfare',
+  motor:'Motorlampe', dpf:'DPF', adblue:'AdBlue', girkasse:'Girkasse',
+  dekktrykk:'Dekktrykk', batteri:'Batteri/Lading', sensor:'Sensorfeil', parkering:'Parkeringssystem',
+  service:'Servicevarsel', spylervasake:'Spylervæske', informasjon:'Informasjonslampe', annet:'Annet'
 };
 const VARSELLAMPE_ICON = {
-  motor:luc('wrench'), adblue:luc('droplet'), dekktrykk:luc('circle-dot'), bremse:luc('octagon-alert'),
-  batteri:luc('battery'), abs:luc('triangle-alert'), service:luc('bell'), annet:'' + luc("help-circle") + ''
+  bremse:luc('octagon-alert'), abs:luc('triangle-alert'), styring:luc('circle-gauge'), airbag:luc('shield-alert'), trafikkfare:luc('siren'),
+  motor:luc('wrench'), dpf:luc('filter'), adblue:luc('droplet'), girkasse:luc('cog'),
+  dekktrykk:luc('circle-dot'), batteri:luc('battery'), sensor:luc('cpu'), parkering:luc('parking-circle'),
+  service:luc('bell'), spylervasake:luc('droplets'), informasjon:luc('info'), annet:'' + luc("help-circle") + ''
 };
-const VARSELLAMPE_ORDER = ['motor','adblue','dekktrykk','bremse','batteri','abs','service','annet'];
+const VARSELLAMPE_ORDER = ['bremse','abs','styring','airbag','trafikkfare','motor','dpf','adblue','girkasse','dekktrykk','batteri','sensor','parkering','service','spylervasake','informasjon','annet'];
 
 // Standard flåtedata som fylles inn automatisk ved førstegangsoppstart (se loadAll()).
 // Erstatter den tidligere importfunksjonen — ingen manuell handling nødvendig.
@@ -6704,6 +6740,7 @@ function oppstartApne(tilSkjerm){
       // (se banneret på Dashboard), oppretter ALDRI noe automatisk uten at en
       // administrator selv trykker «Synkroniser nå» i Optimaliseringer → Airtable.
       runDatabaseCheck().catch(e => console.error('[runDatabaseCheck] Bakgrunnssjekk feilet', e));
+      lagreFlatehelseSnapshot().catch(e => console.error('[flatehelse snapshot]', e));
     }
   };
   if(rot && !redusert){ rot.classList.add('oppstart-ut'); setTimeout(apne, 180); }
@@ -8250,6 +8287,154 @@ function kommendeVerkstedtimer(vehicleId){
 function nesteVerkstedtime(vehicleId){
   return kommendeVerkstedtimer(vehicleId)[0] || null;
 }
+// ================= Flåtehelse v1 (fleet-health-framework.md) =================
+// ENESTE scoring. Måler teknisk tilstand og tilgjengelighet. Kontrollgrad, EU-frist,
+// serviceintervall og administrasjon er operativ etterlevelse (operativEtterlevelse()).
+const FLATEHELSE_MINIMUM_TILGJENGELIGE = 10;
+const FLATEHELSE_SAK_TEKNISK = ['skade', 'varsellampe', 'kontrollavvik', 'dekk'];
+function vehicleErPaVerksted(vehicleId){
+  return (verkstedtimer || []).some(t => t.vehicleId === vehicleId && vtStatus(t) === 'pagar');
+}
+function flatehelseGruppe(v){
+  if(!v || vehicleDriftsstatus(v) === 'utfaset') return 'utfaset';
+  if(vehicleDriftsstatus(v) === 'kan-ikke-brukes') return 'kan-ikke-brukes';
+  if(vehicleErPaVerksted(v.id)) return 'pa-verksted';
+  if(vehicleDriftsstatus(v) === 'reserve' || vehicleHovedstatus(v.id) === 'reserve') return 'reserve';
+  return 'tilgjengelig';
+}
+function vehicleTekniskAlvorlighet(v){
+  if(!v) return null;
+  const liste = [];
+  activeVarsellysForVehicle(v.id).forEach(w => liste.push(alvorlighetForVarsellampe(w.type)));
+  (typeof damages !== 'undefined' ? damages : []).forEach(d => {
+    if(d.vehicleId !== v.id || statusNokkel('skade', d.status) === 'utbedret') return;
+    liste.push(statusNokkel('alvorlighet', d.alvorlighet) || 'middels');
+  });
+  vehicleAktiveSaker(v.id).forEach(s => {
+    if(FLATEHELSE_SAK_TEKNISK.indexOf(s.caseType) >= 0) liste.push(sakAlvorlighet(s));
+  });
+  const h = hoyesteAlvorlighet(liste);
+  return (!h || h === 'lav') ? null : h;
+}
+function vehicleHarTekniskBooking(vehicleId){
+  return (verkstedtimer || []).some(t => t.vehicleId === vehicleId && vtErApen(t));
+}
+function flatehelseNedetidsdager(flateIds, fraIso, tilIso){
+  let dager = 0;
+  (verkstedtimer || []).forEach(t => {
+    if(!flateIds.has(t.vehicleId)) return;
+    const st = vtStatus(t);
+    if(st === 'pagar' && t.dato){
+      const start = t.dato < fraIso ? fraIso : t.dato;
+      const d = isoDateDiff(start, tilIso);
+      if(d != null && d > 0) dager += d;
+      else if(d === 0) dager += 1;
+    }
+    if(st === 'utfort'){
+      const slutt = t.utfortDato || t.dato;
+      if(!slutt || slutt < fraIso || slutt > tilIso) return;
+      const startRaa = t.dato && t.dato > fraIso ? t.dato : fraIso;
+      const d = isoDateDiff(startRaa, slutt);
+      if(d != null && d > 0) dager += d;
+      else if(d === 0) dager += 1;
+    }
+  });
+  return dager;
+}
+function flatehelse(){
+  const synk = synkStatus();
+  if(vehiclesLoadStatus === 'lesefeil'){
+    return {feilet:true, nivaa:null, score:null, synk, tom:false, grupper:{}, faktorer:[], regel:null, n:0, tilgjengelige:0, kanIkke:0, paVerksted:0, reserve:0};
+  }
+  const flate = (vehicles || []).filter(v => vehicleDriftsstatus(v) !== 'utfaset');
+  if(vehiclesLoadStatus === 'bekreftet-tom' || flate.length === 0){
+    return {feilet:false, tom:true, nivaa:null, score:null, synk, grupper:{}, faktorer:[], regel:null, n:0, tilgjengelige:0, kanIkke:0, paVerksted:0, reserve:0};
+  }
+  const grupper = {tilgjengelig:[], 'kan-ikke-brukes':[], 'pa-verksted':[], reserve:[]};
+  flate.forEach(v => {
+    const g = flatehelseGruppe(v);
+    if(grupper[g]) grupper[g].push(v);
+  });
+  const tilgjengelige = grupper.tilgjengelig.length;
+  const kanIkke = grupper['kan-ikke-brukes'].length;
+  const paVerksted = grupper['pa-verksted'].length;
+  const reserve = grupper.reserve.length;
+  const n = flate.length - reserve;
+  const teknisk = {kritisk:0, hoy:0, middels:0};
+  const utenBookingHoy = [];
+  flate.forEach(v => {
+    if(flatehelseGruppe(v) === 'reserve') return;
+    const a = vehicleTekniskAlvorlighet(v);
+    if(a === 'kritisk') teknisk.kritisk++;
+    else if(a === 'hoy') teknisk.hoy++;
+    else if(a === 'middels') teknisk.middels++;
+    if((a === 'kritisk' || a === 'hoy') && !vehicleHarTekniskBooking(v.id)) utenBookingHoy.push(v);
+  });
+  const forfalte = (verkstedtimer || []).filter(t => vtStatus(t) === 'forfalt' && flate.some(v => v.id === t.vehicleId)).length;
+  const idag = todayISO();
+  const nedetid = n > 0 ? flatehelseNedetidsdager(new Set(flate.map(v => v.id)), isoDateOffset(idag, -30), idag) : 0;
+  const klem = x => Math.max(0, Math.min(100, x));
+  const tilScore = n > 0 ? 100 * tilgjengelige / n : 100;
+  const tekScore = n > 0 ? klem(100 - 10 * (25 * teknisk.kritisk + 10 * teknisk.hoy + 3 * teknisk.middels) / n) : 100;
+  const vtScore = n > 0 ? klem(100 - 10 * (20 * forfalte + 5 * utenBookingHoy.length) / n) : 100;
+  const ndScore = n > 0 ? klem(100 - 500 * nedetid / (n * 30)) : 100;
+  const faktorer = [
+    {id:'tilgjengelighet', label:'Tilgjengelighet', vekt:0.40, score:tilScore},
+    {id:'teknisk', label:'Teknisk tilstand', vekt:0.40, score:tekScore, teknisk},
+    {id:'verkstedetterslep', label:'Verkstedetterslep', vekt:0.10, score:vtScore, forfalte, utenBooking:utenBookingHoy.length},
+    {id:'nedetid', label:'Nedetid', vekt:0.10, score:ndScore, dager:nedetid}
+  ];
+  const score = Math.round(faktorer.reduce((s, f) => s + f.score * f.vekt, 0));
+  const tekniskKritiskVarsel = (typeof AlertEngine !== 'undefined' ? AlertEngine.aktive() : []).some(x =>
+    x.alvorlighet === 'kritisk' && x.kategori !== 'eu' && x.kategori !== 'kontroll' && x.kategori !== 'service' && x.kategori !== 'km');
+  let nivaa = score >= 90 ? 'frisk' : score >= 75 ? 'god' : score >= 50 ? 'krever-oppmerksomhet' : 'kritisk';
+  let regel = 'score';
+  if(tilgjengelige < FLATEHELSE_MINIMUM_TILGJENGELIGE){ nivaa = 'kritisk'; regel = 'minimum-tilgjengelige'; }
+  else if(kanIkke > 0 || tekniskKritiskVarsel || teknisk.kritisk > 0){
+    if(nivaa === 'frisk' || nivaa === 'god'){ nivaa = 'krever-oppmerksomhet'; }
+    regel = kanIkke > 0 ? 'kan-ikke-brukes' : 'teknisk-kritisk';
+  }
+  if(score < 50){ nivaa = 'kritisk'; regel = 'score'; }
+  return {
+    feilet:false, tom:false, score, nivaa, regel, synk, n, tilgjengelige, kanIkke, paVerksted, reserve,
+    grupper, faktorer, teknisk, forfalte, utenBookingHoy
+  };
+}
+function operativEtterlevelse(){
+  const idag = operativKontrollStatusIdag();
+  const uke = typeof kontrollrateSisteDriftsdager === 'function' ? kontrollrateSisteDriftsdager() : {ok:false};
+  const flate = (vehicles || []).filter(v => vehicleDriftsstatus(v) !== 'utfaset');
+  let euOk = 0;
+  flate.forEach(v => {
+    const eu = vehicleEuKontrollStatus(v);
+    if(eu.status !== 'forfalt' && eu.status !== 'ukjent') euOk++;
+  });
+  return {
+    kontroll: idag,
+    sisteDriftsdager: uke,
+    euIOrden: flate.length ? {ok:euOk, totalt:flate.length, prosent: operativProsent(euOk, flate.length)} : {ok:0, totalt:0, prosent:null}
+  };
+}
+async function lagreFlatehelseSnapshot(){
+  if(driverMode || !isAdmin || !loggedInRole) return;
+  if(vehiclesLoadStatus !== 'lastet' && vehiclesLoadStatus !== 'bekreftet-tom') return;
+  const dag = todayISO();
+  if(flatehelseSnapshotDato === dag) return;
+  const nokkel = 'flatehelse:' + dag;
+  try{
+    const eksisterende = await window.storage.get(nokkel, true);
+    if(eksisterende && eksisterende.value){ flatehelseSnapshotDato = dag; return; }
+    const h = flatehelse();
+    if(h.feilet || h.tom) return;
+    await window.storage.set(nokkel, JSON.stringify({
+      version:1, dato:dag, score:h.score, nivaa:h.nivaa, n:h.n,
+      tilgjengelige:h.tilgjengelige, kanIkke:h.kanIkke, paVerksted:h.paVerksted,
+      faktorer:h.faktorer.map(f => ({id:f.id, score:Math.round(f.score * 10) / 10, vekt:f.vekt})),
+      beregnetAt: new Date().toISOString(), av: loggedInRole
+    }), true);
+    flatehelseSnapshotDato = dag;
+  }catch(e){ console.error('[flatehelse snapshot]', e); }
+}
 // Delt kort. `o`: visBil (default true), visArsak (true = «beskrivelse» uten etikett,
 // 'merket' = «Årsak:» over), knapp (tekst på åpne-knappen, ingen knapp når utelatt),
 // utenTittel (tittelen står allerede i en seksjonsoverskrift), skjulTom (ingenting når det
@@ -8484,7 +8669,7 @@ function goTo(scr, vehicleId, _isBack){
   // Prioritet 53: ulagrede valg i Operativ kontrollgrunnlag følger ikke med ut av Innstillinger,
   // og «Se hvilke»-listen i Dashboard-banneret starter lukket ved neste besøk.
   if(scr !== 'innstillinger'){ operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false; optimaliseringAktivFane = 'alle'; }
-  if(scr !== 'dashboard'){ dashKontrollListeApen = false; }
+  if(scr !== 'dashboard'){ dashKontrollListeApen = false; dashFlatehelseDetaljApen = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
   if(scr !== 'kontroll'){
@@ -8568,6 +8753,14 @@ function goToRegisterKategori(kategori){
 function goToRegisterHovedstatus(status){
   resetRegisterFiltre();
   filterHovedstatus = status ? statusNokkel('operativ', status) : '';
+  goTo('register');
+}
+function goToFlatehelseGruppe(pop){
+  resetRegisterFiltre();
+  if(pop === 'tilgjengelige') filterHovedstatus = 'fh-tilgjengelig';
+  else if(pop === 'pa-verksted') filterHovedstatus = 'fh-pa-verksted';
+  else if(pop === 'kan-ikke-brukes') filterHovedstatus = 'fh-kan-ikke-brukes';
+  else if(pop === 'reserve') filterHovedstatus = 'fh-reserve';
   goTo('register');
 }
 function goToSkaderFiltered(opts){
@@ -13069,7 +13262,7 @@ function renderMobilHjem(){
   // Prioritet 60: markupen per komponent er uendret; layoutmotoren (område 'mobile-dashboard') velger rekkefølge/synlighet.
   // Mobilforsiden er én stablet kolonne, så hele rekkefølgen fra layouten brukes direkte.
   const delerHtml = {
-    // Prioritet 57: «Neste verkstedtime» ligger nå i banneret (dashBannerVerkstedHtml()), ikke lenger her.
+    'mobile.flatehelse': dashWidgetFlatehelseHtml(),
     'mobile.hurtigoversikt': dashHurtigoversiktHtml(d),
     'mobile.bestill': dashBestillSekHtml()
   };
@@ -13895,7 +14088,10 @@ function goToSakFane(fase){
 // av appen (hDriftCount, kalenderAktiviteterKart(), varslingssenterAktiveListe(), sakFase(),
 // loftebordVedlikeholdStatus()/loftebordKontrollStatus()) — ingen ny beregning eller datamodell.
 function dashWidgetOperativKontrollHtml(d){
-  return `<div class="panel dash-banner">${dashOperativBannerVenstreHtml(d)}</div>`;
+  const et = operativEtterlevelse();
+  const eu = et.euIOrden;
+  const euLinje = eu.totalt ? `<div class="dash-w-sub">EU-kontroll i orden ${eu.ok} av ${eu.totalt}${eu.prosent != null ? ' · ' + eu.prosent + ' %' : ''}</div>` : '';
+  return `<div class="panel dash-banner">${dashOperativBannerVenstreHtml(d)}${euLinje}</div>`;
 }
 function dashWidgetNesteVtHtml(){
   return `<div class="panel dash-banner dash-vt-kort">${dashBannerVerkstedHtml()}</div>`;
@@ -13988,6 +14184,44 @@ function dashWidgetAktiveSakerHtml(){
     <div class="panel">
       <div class="p38-panel-head"><div class="tittel">${luc('triangle-alert', 'ic-yellow')} Aktive saker (${saker.length})</div><button type="button" class="p38-lenke" data-goto-sak-fane="aktiv">Åpne Aktive saker →</button></div>
       ${saker.length ? saker.slice(0, 4).map(s => dashHovSakRadHtml(s, 'aktiv')).join('') : '<div class="empty-note">Ingen saker her nå.</div>'}
+    </div>`;
+}
+function dashWidgetFlatehelseHtml(){
+  const h = flatehelse();
+  if(h.feilet){
+    return `<div class="panel fh-kort" role="alert"><div class="p38-panel-head"><div class="tittel">${luc('heart-pulse')} Flåtehelse</div></div><p>Kunne ikke beregne flåtehelse. Kjøretøyregisteret ble ikke lest. Prøv å synkronisere.</p></div>`;
+  }
+  if(h.tom){
+    return `<div class="panel fh-kort" role="status" aria-live="polite"><div class="p38-panel-head"><div class="tittel">${luc('heart-pulse')} Flåtehelse</div></div><p>Ingen kjøretøy registrert.</p></div>`;
+  }
+  const stale = h.synk === 'forsinket' || h.synk === 'utdatert' || h.synk === 'offline';
+  const klokke = (typeof tidFraIso === 'function' && sisteVellykkedeSynkTidspunkt) ? tidFraIso(sisteVellykkedeSynkTidspunkt) : '';
+  const regelTekst = h.regel === 'minimum-tilgjengelige'
+    ? ('Kritisk: ' + h.tilgjengelige + ' tilgjengelige, under minimum ' + FLATEHELSE_MINIMUM_TILGJENGELIGE)
+    : h.regel === 'kan-ikke-brukes'
+      ? ('Krever oppmerksomhet: ' + h.kanIkke + ' bil' + (h.kanIkke === 1 ? '' : 'er') + ' kan ikke brukes')
+      : h.regel === 'teknisk-kritisk'
+        ? 'Krever oppmerksomhet: kritisk teknisk funn'
+        : '';
+  const flis = (pop, tall, ord) => `<button type="button" class="fh-flis" data-fh-pop="${pop}"><span class="fh-flis-tall">${tall}</span><span class="fh-flis-ord">${ord}</span></button>`;
+  const detalj = !dashFlatehelseDetaljApen ? '' : `<div class="fh-detalj">${h.faktorer.map(f => `<div class="fh-faktor"><span>${esc(f.label)} · ${Math.round(f.vekt * 100)} %</span><span>${Math.round(f.score)}</span></div>`).join('')}</div>`;
+  return `
+    <div class="panel fh-kort${dashFlatehelseDetaljApen ? '' : ' kompakt'}" ${stale ? 'role="status" aria-live="polite"' : ''}>
+      <div class="fh-hode">
+        <button type="button" class="fh-score-knapp" id="fh-score-btn" aria-expanded="${dashFlatehelseDetaljApen ? 'true' : 'false'}">
+          <span class="fh-score">${h.score}</span>
+          <span class="fh-nivaa">${statusIkonHtml('flatehelse', h.nivaa)} ${esc(statusLabel('flatehelse', h.nivaa))}</span>
+        </button>
+        ${stale ? `<span class="required-hint">per ${esc(klokke || 'siste synk')}</span>` : ''}
+      </div>
+      ${regelTekst ? `<p class="fh-regel">${esc(regelTekst)}</p>` : ''}
+      <div class="fh-fliser">
+        ${flis('tilgjengelige', h.tilgjengelige + ' av ' + h.n, 'tilgjengelige')}
+        ${flis('pa-verksted', h.paVerksted, 'på verksted')}
+        ${flis('kan-ikke-brukes', h.kanIkke, 'kan ikke brukes')}
+        ${flis('reserve', h.reserve, 'reserve')}
+      </div>
+      ${detalj}
     </div>`;
 }
 // Flåtestatus for hele flåten (biler som ikke er ute av drift) — teller kun hvor mange biler som står i
@@ -14117,6 +14351,12 @@ function attachDashboardListeners(){
     if(liste) liste.hidden = !dashKontrollListeApen;
     kontrollListeBtn.setAttribute('aria-expanded', dashKontrollListeApen ? 'true' : 'false');
   });
+  const fhScoreBtn = document.getElementById('fh-score-btn');
+  if(fhScoreBtn) fhScoreBtn.addEventListener('click', () => { dashFlatehelseDetaljApen = !dashFlatehelseDetaljApen; render(); });
+  document.querySelectorAll('[data-fh-pop]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goToFlatehelseGruppe(el.dataset.fhPop);
+  }));
   document.querySelectorAll('[data-operativ-konfigurer]').forEach(el => el.addEventListener('click', () => {
     // «Operativ kontrollgrunnlag» ligger NESTET i «⚙️ Systeminnstillinger» — begge nivåer må
     // åpnes (samme grunn som db-warning-banner over).
@@ -14201,14 +14441,12 @@ function renderRegister(){
     // uendret, ingen ny tellelogikk.
     if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
     if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
-    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && vehicleHovedstatus(v.id) !== statusNokkel('operativ', filterHovedstatus)) return false;
-    // Prioritet 71.9: Reserve og Ute av drift skjules som standard for å redusere støy i
-    // daglig drift — kun synlige når brukeren aktivt ber om det, enten via de to nye
-    // hurtigknappene (visReserve/visUteAvDrift) eller ved å eksplisitt velge nettopp den
-    // kategorien/statusen i de vanlige filtrene (da er "aktivt valgt" allerede oppfylt).
-    // Unntatt fra regelen: "🚚 Har aktiv sjåfør" — en reserve-/ute av drift-bil som faktisk
-    // kjøres akkurat nå er relevant informasjon, ikke støy.
-    if(filterHovedstatus !== 'har-aktiv-sjafor'){
+    if(filterHovedstatus === 'fh-tilgjengelig' && flatehelseGruppe(v) !== 'tilgjengelig') return false;
+    if(filterHovedstatus === 'fh-pa-verksted' && flatehelseGruppe(v) !== 'pa-verksted') return false;
+    if(filterHovedstatus === 'fh-kan-ikke-brukes' && flatehelseGruppe(v) !== 'kan-ikke-brukes') return false;
+    if(filterHovedstatus === 'fh-reserve' && flatehelseGruppe(v) !== 'reserve') return false;
+    if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && filterHovedstatus.slice(0, 3) !== 'fh-' && vehicleHovedstatus(v.id) !== statusNokkel('operativ', filterHovedstatus)) return false;
+    if(filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus.slice(0, 3) !== 'fh-'){
       if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
       if(!visUteAvDrift && vehicleDriftsstatus(v) === 'kan-ikke-brukes' && statusNokkel('operativ', filterHovedstatus) !== 'kan-ikke-brukes') return false;
     }
@@ -15101,7 +15339,7 @@ const AlertEngine = {
       liste.push({id:'vl:'+w.id, kategori:'varsellampe', vehicleId:w.vehicleId, tittel:'Varsellampe',
         tekst: (v ? vehicleLabel(v) : 'Ukjent bil') + ' — ' + varsellysLabel(w),
         dato: w.registrertDato, mal:'varsellys', varsellysId:w.id,
-        alvorlighet: ALVORLIGHET_VARSELLAMPE[w.type] || 'lav', varselStatus:'ny'});
+        alvorlighet: alvorlighetForVarsellampe(w.type), varselStatus:'ny'});
     });
     return liste.sort((a,b) => (AlertEngine.sorteringsNokkel(a) - AlertEngine.sorteringsNokkel(b)) || (b.dato||'').localeCompare(a.dato||''));
   },

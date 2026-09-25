@@ -13,6 +13,23 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-26
+
+### Fase 1B — tom single select utelates fra PATCH
+
+1. `toAirtableFields()` i `storage.airtable.js`: felt med `type === 'select'` og verdi `null`/`undefined`/`''` (inkl. bare mellomrom) sendes ikke til Airtable. Fylte nøkler skrives som før. Hindrer `INVALID_MULTIPLE_CHOICE_OPTIONS` når Airtable prøver å opprette valget `""`.
+2. Ingen skjemaendring, ingen nye valg, ingen endring i migreringslogikken i `index.html`.
+3. `storage.airtable.js` v2.26.0 → **v2.26.1**; `?v=2.26.1`; app-/cacheversjon 133 → **134**; `kontroll.html` = `index.html`.
+
+### Flåtehelse v1
+
+1. `flatehelse()` er eneste scoring (`../Dv4/project/fleet-health-framework.md`). Fire faktorer: tilgjengelighet 40 %, teknisk tilstand 40 %, verkstedetterslep 10 %, nedetid 10 %. Mangler kontroll, EU-frist og serviceintervall inngår ikke.
+2. Operativ etterlevelse er eget Dashboard-kort (`dashboard.operativ-kontroll`, `operativEtterlevelse()`): kontrollgrad og EU i orden.
+3. Varsellampe-matrise: bremse/ABS/styring/airbag/trafikkfare = kritisk; motor/DPF/AdBlue/girkasse = høy; TPMS/batteri/sensor/parkering = middels; service/spylervæske/informasjon/annet = lav.
+4. Tilgjengelige inkluderer biler som mangler kontroll. På verksted = `vtStatus() === 'pagar'`. Flisene bruker `fh-tilgjengelig` (ikke filteret «uten aktiv sjåfør»).
+5. Snapshot Settings `flatehelse:YYYY-MM-DD` første adminøkt per operativ dag. Ingen tilbakeutfylling.
+6. `storage.airtable.js` uendret v2.26.0. App-/cacheversjon 132 → **133**; `kontroll.html` = `index.html`.
+
 ## 2026-09-25
 
 ### Fase 1B — migrering (manuell, tomme felt)
@@ -20,7 +37,7 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 1. `storage.airtable.js` v2.25.0 → **v2.26.0**. De 19 Fase 1B-feltene er `aktiv:true` (single select med interne nøkler). Eldre felt (`UteAvDrift`, `Utfort`, `Kategori`) beholdes. `STATUS_ALIAS` er uendret.
 2. Optimaliseringer → Airtable: «Kjør migrering» og «Rull tilbake» (kun administrator, bekreftelse, ingen automatisk kjøring). Skriver bare tomme Fase 1B-felt. Snapshot i Settings `fase1B-migrering`. Validering etter kjøring. Rapport med skrevne rader og 14 dagers kompatibilitetsperiode.
 3. Godkjente beslutninger: A ingen Status på historiske åpne timer; B reserve+UteAvDrift → `kan-ikke-brukes`; C skader uten parse i gjennomgang (ikke auto); D Utfaset aldri automatisk; E alle brukere → `administrator`; F single select; G WorkshopId tom.
-4. Dobbeltskriving: `fase1BDobbeltskrivKjoretoy()` ved Kan ikke brukes / tilbake i drift; nye verkstedtimer får `Status`/`Akutt`/`StatusHistorikk`; Utført skriver `Utfort` og `Status`; nye skader og saker får 1B-felt. Verkstedlivsløp Bekreft/Avlys/Utfas/Forfalt-dagskille er ikke innført. Fase 2, flåtehelse og datakvalitetsmotor er ikke innført.
+4. Dobbeltskriving: `fase1BDobbeltskrivKjoretoy()` ved Kan ikke brukes / tilbake i drift; nye verkstedtimer får `Status`/`Akutt`/`StatusHistorikk`; Utført skriver `Utfort` og `Status`; nye skader og saker får 1B-felt. Verkstedlivsløp Bekreft/Avlys/Utfas/Forfalt-dagskille er ikke innført. Datakvalitetsmotor er ikke innført.
 5. App-/cacheversjon 131 → **132**; `?v=2.26.0`; `kontroll.html` = `index.html`.
 
 ### Fase 1B — tørrkjøring av migrering (ingen skriving)
