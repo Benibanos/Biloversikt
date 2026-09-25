@@ -13,7 +13,35 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-25
+
+### Fase 1B — tørrkjøring av migrering (ingen skriving)
+
+1. Optimaliseringer → Airtable viser «Migrering til skjema v2 — forhåndsvisning»: forventede radendringer, statusfordeling (kjøretøy og verksted), verkstednavn, skader til gjennomgang, sak-alvorlighet, brukere og beslutning A–G.
+2. Historiske åpne verkstedtimer telles etter alder og får ikke Status `forfalt`. Reserve + UteAvDrift → `kan-ikke-brukes`. Utfaset aldri automatisk. Alle brukere → `administrator`. WorkshopId venter. Skader uten parse går til liste.
+3. Ingen Airtable-skriving, ingen migrering, ingen dobbeltskriving. `storage.airtable.js` uendret v2.25.0 (`fase1B` fortsatt inaktiv). App-/cacheversjon 130 → 131; `kontroll.html` = `index.html`.
+
 ## 2026-09-26
+
+### Workshop State Model — felles verkstedstatus
+
+1. `vtStatus()` er eneste lesedefinisjon for verkstedbooking (`workshop-state-model.md` + ordbok §3). Lokale `t.utfort`- og dato-som-status-sjekker i oversikt, historikk, KPI, kort, merge, EU/ruteskift-demping, rapporter og `oppdaterVerkstedStatuser()` leser `vtErApen`/`vtErUtfort`/`vtStatus`.
+2. Kompatibilitet: `Utfort` er fortsatt den persisterte terminalen (fullføring skriver `t.utfort` og in-memory `t.status = 'utfort'`). `STATUS_ALIAS.verksted` oversetter eldre/engelske nøkler. Bekreftet/pågår/avlyst leses hvis de finnes, skrives ikke til Airtable (`Status` forblir fase 1B).
+3. Ingen Airtable-migrering. `storage.airtable.js` uendret. App-/cacheversjon 129 → 130; `kontroll.html` = `index.html`.
+
+### AlertEngine — felles varselklassifisering
+
+1. Ny delt `AlertEngine` i `index.html` (ingen ny fil, ingen Airtable). Bygger listen live etter `alert-classification-matrix.md`: én kilde for Dashboard (`dashboard()` = Kritisk/Høy), Varslingssenter (`senter()`) og Kjøretøyprofil (`forKjoretoy(id)`).
+2. Eksisterende wrappere (`beregnVarslingssenterListe`, `varslingssenterAktiveListe`, `varslingssenterKlokkeListe`) kaller motoren, så øvrige tellere ikke divergerer.
+3. Ingen UI-endring: samme varseltyper, titler, sortering, 48-timers skjul og datakvalitet for km. Matrisens eskaleringstekst og nye tittelord er ikke innført.
+4. `storage.airtable.js` uendret. App-/cacheversjon 128 → 129; `kontroll.html` = `index.html`.
+
+### Statusordbok overalt — ingen lokale statuskart igjen
+
+1. Fjernet de avledede kartene `HOVEDSTATUS_LABEL`/`HOVEDSTATUS_IKON`, `P38_STATUS_STIL`, `SAK_STATUS_LABEL`, `ALVOR_LABEL` og `SKADE_STATUS_LABEL`. Alle visninger, filtre, skaderedigering, Excel og Bilparkrapport leser `STATUS` via `statusLabel()`/`statusEmoji()`/`statusStil()`/`statusOptionsHtml()`/`statusNokler()`. `STATUS_ALIAS` er uendret (`ute-av-drift` → `kan-ikke-brukes`, `verksted` → `verksted-planlagt`).
+2. Ordboken dekker nå også §6 utboks, §8 skadebilde/km-godkjenning/løftebordtype, §10 flåtehelse og §11 datakvalitet. Ingen av disse lagrer nye Airtable-felt.
+3. `HOVEDSTATUS_ORDER` er Trinn A-nøklene `vehicleHovedstatus()` faktisk returnerer (ikke Utfaset/På verksted — de kommer i Trinn B).
+4. Ingen Airtable-migrering, ingen ny funksjon. `storage.airtable.js` uendret. App-/cacheversjon 127 → 128; `kontroll.html` = `index.html`.
 
 ### Fase 1B — Skjemasynk for de 19 godkjente feltene (ingen datamigrering)
 

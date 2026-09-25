@@ -712,54 +712,103 @@ Ingen migrering av eksisterende saker er nødvendig (tomt = ikke del av en flerb
 - `Vehicles.StatusHistorikk` kan få oppføringer med `av: "system"` og `kilde: "skade:<AppId>"` når et Kritisk funn setter bilen til «Kan ikke brukes» (`UteAvDrift = true`).
 - `Vehicles.Status` (ok/oppfolging/verksted) skrives ikke lenger fra kjøretøyskjemaet og leses ikke av appen. Kolonnen og eksisterende verdier skal IKKE slettes.
 
-## Implementeringsfase 1, Trinn B — kolonner som må opprettes
+## Implementeringsfase 1B — Airtable-skjema v2: kolonner og migreringsplan
 
-Kilde: `airtable-schema-v2.md` i Bilpark Design System. **Kolonnene kan opprettes nå**: dagens app skriver kun feltene i `LIST_TABLES`, så tomme ekstra kolonner påvirker ingenting. De MÅ finnes før Trinn B-koden publiseres (da registreres de i `LIST_TABLES`, og alle lagringer til tabellen feiler hvis en kolonne mangler).
+Kilde: `airtable-schema-v2.md`, `workshop-state-model.md` og `status-dictionary.md` i Bilpark Design System. Revidert 2026-09-26 etter gjennomgang (trinn 1 i fase 1B): listen er avgrenset til det fase 1B faktisk bruker. Kolonner for offline-utboks, flere bilder og verkstedkapasitet er flyttet til Del 2, slik at færre nye felt kan få lagringer til å feile.
 
-Alle tekstfelt er «Single line text» med mindre annet står. Opprett dem manuelt, eller med «Synkroniser nå» etter at Trinn B-koden er publisert (krever `schema.bases:write`).
+**Kolonnene kan opprettes nå.** Dagens app (v126) skriver kun feltene i `LIST_TABLES`, så tomme ekstra kolonner påvirker ingenting. De MÅ finnes før fase 1B-koden publiseres: da registreres de i `LIST_TABLES`, og hver lagring skriver alle registrerte felt — mangler én kolonne, feiler alle lagringer til den tabellen.
 
-### Del 1 — nødvendig for Implementeringsfase 1
+Kolonnenavn skrives nøyaktig som under (store/små bokstaver og uten mellomrom). «Single line text» med mindre annet står.
 
-| Tabell | Kolonne | Type | Verdier | Migrering av eksisterende rader |
-|---|---|---|---|---|
-| Vehicles | `Driftsstatus` | Single line text | `aktiv` · `reserve` · `kan-ikke-brukes` · `utfaset` | `UteAvDrift = true` → `kan-ikke-brukes`; ellers `Kategori = reserve` → `reserve`; ellers `aktiv` |
-| Vehicles | `DriftsstatusFra` | Single line text | ISO-tidspunkt | `UteAvDriftDato` hvis satt, ellers migreringstidspunktet |
-| Vehicles | `UtfasetDato` | Single line text | ISO-dato | tom |
-| Vehicles | `UtfasetArsak` | Single line text | `solgt` · `vraket` · `leie-avsluttet` · `annet` | tom |
-| WorkshopAppointments | `Status` | Single line text | `planlagt` · `bekreftet` · `pagar` · `utfort` · `avlyst` · `forfalt` | `Utfort = true` → `utfort`; ellers `Dato` passert → `forfalt`; ellers `planlagt` |
-| WorkshopAppointments | `StatusHistorikk` | Long text | JSON-liste | én oppføring «migrert» med utledet status |
-| WorkshopAppointments | `BekreftetDato`, `BekreftetAv` | Single line text | | tom |
-| WorkshopAppointments | `LevertDato` | Single line text | ISO-tidspunkt | tom |
-| WorkshopAppointments | `AvlystDato` | Single line text | ISO-dato | tom |
-| WorkshopAppointments | `AvlystArsak` | Single line text | `ombooket` · `verksted-stengt` · `ikke-behov` · `utfaset` · `duplikat` · `annet` | tom |
-| WorkshopAppointments | `OmbooketFraId` | Single line text | AppId | tom |
-| WorkshopAppointments | `Akutt` | Checkbox | | usann |
-| WorkshopAppointments | `ForventetFerdig` | Single line text | ISO-tidspunkt | tom (fylles ved ny bestilling) |
-| Damages | `Skadetype` | Single line text | `bulk-riper` · `glass` · `sidespeil` · `lys` · `dekk-felg` · `loftebord` · `bremser` · `styring` · `struktur` · `annet` | tom for eldre skader; for skader fra 2026-09-26 kan typen leses fra starten av `Beskrivelse` |
-| Damages | `KanKjores` | Single line text | `ja` · `usikker` · `nei` | fra linjen «Kan bilen kjøres: …» i `Kommentar` der den finnes |
-| Damages | `AlvorlighetKilde` | Single line text | `sjafor` · `drift` | `sjafor` der `KanKjores` finnes, ellers `drift` |
-| Damages | `StatusHistorikk` | Long text | JSON-liste | tom |
-| Damages | `BildeAntall` | Number (heltall) | 0–10 | antall `photo:damage:<id>`-nøkler |
-| Damages | `BildeStatus` | Single line text | `ingen` · `venter` · `komplett` · `delvis` | `komplett` hvis `HasPhoto`, ellers `ingen` |
-| AktiveSaker | `Alvorlighet` | Single line text | `lav` · `middels` · `hoy` · `kritisk` | beregnes fra sakens kilder (samme regel som appen bruker i dag, `sakAlvorlighet()`) |
-| Users | `Tilgangsrolle` | Single line text | `flateansvarlig` · `terminalleder` · `verkstedpartner` · `administrator` · `systemadministrator` | alle eksisterende brukere → `administrator` |
-| DriverChecks | `Avvik` | Long text | JSON-liste med kontrollavvik-nøkler | tom |
-| DriverChecks | `Enhet`, `OpprettetLokalt` | Single line text | | tom |
-| Damages | `Enhet`, `OpprettetLokalt` | Single line text | | tom |
+### Del 1 — opprettes nå (19 kolonner)
+
+| # | Tabell | Kolonne | Type | Gyldige verdier | Migrering av eksisterende rader |
+|---|---|---|---|---|---|
+| 1 | Vehicles | `Driftsstatus` | Single line text | `aktiv` · `reserve` · `kan-ikke-brukes` · `utfaset` | `UteAvDrift = true` → `kan-ikke-brukes`; ellers `Kategori = reserve` → `reserve`; ellers `aktiv`. Ingen bil blir `utfaset` ved migrering |
+| 2 | Vehicles | `DriftsstatusFra` | Single line text | ISO-dato/-tidspunkt | `UteAvDriftDato` for `kan-ikke-brukes`, ellers migreringsdatoen |
+| 3 | Vehicles | `UtfasetDato` | Single line text | ISO-dato | tom |
+| 4 | Vehicles | `UtfasetArsak` | Single line text | `solgt` · `vraket` · `leie-avsluttet` · `annet` | tom |
+| 5 | WorkshopAppointments | `Status` | Single line text | `planlagt` · `bekreftet` · `pagar` · `utfort` · `avlyst` · `forfalt` | `Utfort = true` → `utfort`; ikke utført og dato ≥ i dag → `planlagt`. Historiske åpne timer (passert/manglende dato) klassifiseres **ikke** automatisk som `forfalt` (beslutning A 2026-09-25); tørrkjøringen rapporterer antall og alder |
+| 6 | WorkshopAppointments | `StatusHistorikk` | Long text | JSON-liste `{fra, til, tid, av, kanal, arsak}` | én oppføring `{til: <status>, av: "system", arsak: "migrering-v2"}` |
+| 7 | WorkshopAppointments | `BekreftetDato` | Single line text | ISO-tidspunkt | tom |
+| 8 | WorkshopAppointments | `BekreftetAv` | Single line text | brukernavn | tom |
+| 9 | WorkshopAppointments | `LevertDato` | Single line text | ISO-tidspunkt | tom |
+| 10 | WorkshopAppointments | `AvlystDato` | Single line text | ISO-dato | tom |
+| 11 | WorkshopAppointments | `AvlystArsak` | Single line text | `ombooket` · `verksted-stengt` · `ikke-behov` · `utfaset` · `duplikat` · `annet` | tom |
+| 12 | WorkshopAppointments | `OmbooketFraId` | Single line text | AppId | tom |
+| 13 | WorkshopAppointments | `Akutt` | Checkbox | | ikke avkrysset |
+| 14 | Damages | `Skadetype` | Single line text | `bulk-riper` · `glass` · `sidespeil` · `lys` · `dekk-felg` · `loftebord` · `bremser` · `styring` · `struktur` · `annet` | fra typeprefikset i `Beskrivelse` («Glass/rute: …») for skader meldt fra v125; ellers tom |
+| 15 | Damages | `KanKjores` | Single line text | `ja` · `usikker` · `nei` | fra linjen «Kan bilen kjøres: …» i `Kommentar`; ellers tom |
+| 16 | Damages | `AlvorlighetKilde` | Single line text | `sjafor` · `drift` | `sjafor` der `KanKjores` ble funnet; ellers `drift` |
+| 17 | Damages | `StatusHistorikk` | Long text | JSON-liste | tom |
+| 18 | AktiveSaker | `Alvorlighet` | Single line text | `lav` · `middels` · `hoy` · `kritisk` | beregnet med `sakAlvorlighet()` (samme regel som appen bruker i dag) |
+| 19 | Users | `Tilgangsrolle` | Single line text | `flateansvarlig` · `terminalleder` · `verkstedpartner` · `administrator` · `systemadministrator` | alle eksisterende → `administrator` (rollene tas i bruk i tilgangsmodellen, Sprint 2) |
 
 Synkstatus lagres IKKE som kolonne, men som Settings-rader `synkstatus:<enhetId>` (samme mønster som `systemkontroll:<enhetId>`). Ingen handling i Airtable.
 
-### Del 2 — for Sprint 2-funksjonene (kan vente)
+### Del 2 — senere (ikke opprett nå)
 
-| Tabell | Kolonne | Type |
+| Brukes av | Tabell | Kolonner |
 |---|---|---|
-| Vehicles | `GarantiTil`, `GarantiMerke`, `Hjemmebase` | Single line text |
-| **Workshops** (ny tabell) | `AppId`, `Navn`, `Verkstedtype`, `Betjener` (Long text, JSON), `Kompetanse` (Long text, JSON), `AutorisertMerker` (Long text, JSON), `KapasitetPerDag` (Number), `ReserverteSlots` (Number), `AkuttSlots` (Number), `Apningstider` (Long text, JSON), `Stengt` (Long text, JSON), `Adresse`, `AvstandKm` (Number), `Kontaktperson`, `Telefon`, `Aktiv` (Checkbox) | se skjema |
-| WorkshopAppointments | `WorkshopId` | Single line text |
+| Offline-utboks | DriverChecks | `Avvik` (Long text), `Enhet`, `OpprettetLokalt` |
+| Offline-utboks | Damages | `Enhet`, `OpprettetLokalt` |
+| Flere bilder per skade | Damages | `BildeAntall` (Number), `BildeStatus` |
+| Verkstedkapasitet | WorkshopAppointments | `ForventetFerdig`, `WorkshopId` |
+| Verkstedfordeling | Vehicles | `GarantiTil`, `GarantiMerke`, `Hjemmebase` |
+| Verkstedfordeling | **Workshops** (ny tabell) | se `airtable-schema-v2.md` |
 
-### Rekkefølge
+## Migreringssjekkliste — fase 1B
 
-1. Opprett Del 1-kolonnene (tomme).
-2. Si fra; Trinn B-koden registrerer dem i `LIST_TABLES` (ny `storage.airtable.js`-versjon), og får en migreringsfunksjon under Innstillinger → Optimaliseringer som viser hvor mange rader som får hvilken verdi før noe skrives.
-3. Publiser Trinn B. Kjør migreringen én gang som administrator.
-4. De gamle feltene (`UteAvDrift`, `Utfort`) skrives parallelt i to uker, deretter leses de ikke lenger. Ingen kolonner slettes.
+Hvem: **A** = administrator (deg), **K** = kode (Claude). Ingenting skrives til Airtable av koden før punkt 5.
+
+### 1. Før kolonnene opprettes
+
+- [ ] **A** Ta sikkerhetskopi: eksporter tabellene Vehicles, WorkshopAppointments, Damages, AktiveSaker og Users til CSV (Airtable: visning → «Download CSV»), og/eller ta et base-snapshot hvis planen har det. Noter dato.
+- [ ] **A** Bekreft at tokenet har `schema.bases:read` (skjemasjekken i Optimaliseringer → Airtable er grønn).
+
+### 2. Opprett kolonnene (A)
+
+- [ ] Opprett de 19 kolonnene i Del 1, tomme, med nøyaktig navn og type.
+- [ ] Åpne appen (v126) → Optimaliseringer → Airtable: skjemasjekken skal fortsatt være grønn (nye kolonner er ikke registrert ennå, så de påvirker ikke sjekken).
+- [ ] Lagre én vilkårlig endring (f.eks. en kommentar) og bekreft at lagring virker som før.
+- [ ] Si fra til Claude.
+
+### 3. Tørrkjøring (K bygger, A kjører) — ingen skriving
+
+- [x] **K** Legger til «Migrering til skjema v2 — forhåndsvisning» under Optimaliseringer → Airtable (appversjon 131). Den leser dagens data og viser per tabell hvor mange rader som får hvilken verdi, og lister hver rad som krever en beslutning. Den skriver ingenting og bruker ikke de nye feltene. Beslutning A–G er bakken i beregningen.
+- [ ] **A** Kjør forhåndsvisningen og send resultatet (tall + eventuelle rader under «krever beslutning»).
+- [ ] **A** Ta beslutning A og B under basert på tallene.
+
+### 4. Migreringskode (K)
+
+- [ ] Registrer Del 1-feltene i `LIST_TABLES`; øk `storage.airtable.js` til v2.25.0 og `?v=` i `index.html`/`kontroll.html`; app-/cacheversjon +1.
+- [ ] Les de lagrede feltene: `vehicleDriftsstatus()` leser `Driftsstatus`, `vtStatus()` leser `Status` (gir også Bekreftet, Pågår og Avlyst), `alvorlighetForAvvikPunkt()` bruker lagret skadedata, `sakAlvorlighet()` skriver `AktiveSaker.Alvorlighet` når saken lagres.
+- [ ] Skriv begge modeller parallelt i kontrollperioden: `Driftsstatus` + `UteAvDrift`, `Status` + `Utfort`.
+- [ ] Verkstedlivsløpet etter `workshop-state-model.md`: Bekreft, Levert/Pågår (automatisk ved booket tid for Bekreftet), Utført, Avlys med årsak (erstatter sletting av verkstedtimer), Forfalt ved dagskillet, «Book ny tid» som ny rad med `OmbooketFraId`. Alle overganger logges i `StatusHistorikk`.
+- [ ] Sjåførens skademelding lagrer `Skadetype`, `KanKjores` og `AlvorlighetKilde = sjafor`; administratorens endring av alvorlighet lagrer `AlvorlighetKilde = drift` og historikk (nedgradering krever årsak).
+- [ ] Kjøretøyprofil: «Sett til Kan ikke brukes», «Sett i drift» og (administrator) «Utfas» med årsak. Utfasing avlyser fremtidige verkstedtimer (`AvlystArsak = utfaset`) og krever at åpne saker er lukket.
+- [ ] Migreringsfunksjon «Kjør migrering» (administrator): samme beregning som forhåndsvisningen, skriver kun tomme felt (idempotent — kan kjøres flere ganger), leser tilbake og viser avvik.
+- [ ] Syntaks- og regeltester; testplan for fase 1B i `ROADMAP.md`.
+
+### 5. Migrering (A)
+
+- [ ] Publiser fase 1B-koden. Kontroller at skjemasjekken er grønn og at lagring virker.
+- [ ] Optimaliseringer → Airtable → «Kjør migrering». Sammenlign tallene med forhåndsvisningen fra punkt 3.
+- [ ] Stikkprøve i Airtable: 3 biler, 5 verkstedtimer, 3 skader, 3 saker.
+- [ ] Kjør testplanen for fase 1B.
+
+### 6. Kontrollperiode (2 uker)
+
+- [ ] Appen skriver gamle og nye felt parallelt. En daglig konsistenssjekk (Datakvalitet) viser rader der `Driftsstatus` og `UteAvDrift`, eller `Status` og `Utfort`, ikke stemmer.
+- [ ] Ingen avvik i 14 dager → gå videre.
+
+### 7. Fjern midlertidige kompatibilitetsmappinger (K, etter kontrollperioden)
+
+- [ ] Slutt å lese `UteAvDrift`, `Utfort` og `Kategori = reserve` som statuskilde; `STATUS_ALIAS.operativ` fjernes når ingen lagrede filtre bruker gamle nøkler.
+- [ ] De gamle feltene beholdes i `LIST_TABLES` så lenge de skrives; når skrivingen stopper, blir kolonnene liggende urørt i Airtable (slettes aldri, jf. «Dataintegritet»).
+- [ ] Oppdater `CLAUDE.md`, `CHANGELOG.md` og denne filen.
+
+### Beslutninger som tas etter tørrkjøringen
+
+- **A · Gamle, ikke-utførte verkstedtimer.** `Utfort`-feltet kom i Prioritet 70 (2026-09-16). Timer med passert dato fra før det kan være utført uten å være markert. Regelen «dato passert → forfalt» vil gi dem status Forfalt og et Høy-varsel hver. Forhåndsvisningen viser hvor mange det gjelder, fordelt på alder. Alternativer: (1) alle blir `forfalt` og behandles manuelt, (2) timer eldre enn en valgt grense blir `utfort` med `arsak: "migrering-antatt-utfort"` i historikken, (3) de blir `avlyst` med `AvlystArsak = annet`. Ingen nye statuser i noen av alternativene.
+- **B · Reservebiler som ikke kan brukes.** En bil med `Kategori = reserve` og `UteAvDrift = true` blir `kan-ikke-brukes` (stopp-status går foran). Forhåndsvisningen lister dem; bekreft at det stemmer.
