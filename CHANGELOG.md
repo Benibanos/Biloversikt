@@ -15,6 +15,25 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-26
 
+### Dashboard V4 · W1 (kun layout)
+
+1. Standard desktop-rekkefølge: Flåtehelse → Operativ etterlevelse | Neste verkstedtime → Bestill → Hurtigoversikt → Verkstedoppfølging → Siste aktivitet. `dashboard.aktivitet` har `std.y` 28, under oppfølging.
+2. Operativ etterlevelse og Verkstedoppfølging er låst synlige (`canHide:false`), samme mønster som Flåtehelse. Gjelder desktop og mobil. I Dashboard-rutenettet står «Låst» i stedet for «Skjul».
+3. Mobilforsiden tegner ikke lenger `dashOperativBannerHtml()` utenfor layoutlisten. Etterlevelse og neste verkstedtime er layoutkort. Standardrekkefølge: helse → etterlevelse → neste time → hurtigoversikt → bestill → oppfølging.
+4. En allerede publisert `bilpark-layout-config-v2` beholder plassering til administrator tilbakestiller Desktop Dashboard og Mobil Dashboard og publiserer. Innstillinger → Layout Editor sier det.
+5. Motorene `flatehelse()`, `operativEtterlevelse()`, `WorkshopFollowupEngine`, `AlertEngine` og `aktivitetsHendelser()` er urørt. `storage.airtable.js` uendret v2.26.1. App-/cacheversjon 135 → **136**. `kontroll.html` = `index.html`.
+
+### Workshop Follow-up Engine v1
+
+1. Ny delt, skrivefri `WorkshopFollowupEngine` (`alle` / `kreverOppfolging` / `forKjoretoy` / `forSak` / `koblingsforslag`). Verkstedstatus kommer kun fra `vtStatus()`. Oppfølgingsstater er avledet (ordbok §12), aldri lagret og aldri egne verkstedstatuser.
+2. Regler P1–P9: mangler-kobling, avventer-verksted, pa-verksted, krever-oppfolging, klar-til-avslutning, fullfort. P2 (pagar + passert forventet ferdig) brukes bare når `forventetFerdig` allerede finnes i minnet — feltet er ikke mappet i `LIST_TABLES`.
+3. Koblingsassistent: foreslår eksisterende timer (samme bil, ikke utført/avlyst), skriver begge veier med snapshot/rollback, `vtSlaTyperSammen` uten duplikatoppgaver, bevarer sakens alvorlighet og beskrivelse. Ingen automatisk bestilling eller verkstedsvalg. Offline/utdatert sperrer kobling.
+4. `AlertEngine` utvidet med høy/middels oppfølgingsrader. Informasjonshendelser (kobling, oppgave, bekreftet, pagar, utført, sak lukket) går kun i `aktivitetsHendelser`.
+5. Dashboard-kort `dashboard.verkstedoppfolging` og `mobile.verkstedoppfolging` (synlige som standard, flyttbare/skjulbare). Verkstedoversikt: fanene Krever oppfølging · På verksted · Kommende · Klar til avslutning · Historikk · Biler. Åpner Krever når den har rader, ellers Kommende. Kompakt seksjon på kjøretøyprofil.
+6. Avlys beholder saken og viser avlysning; slettet time rydder lenken via `deleteVT()`. Ingen automatisk sakslukking eller «tilbake i drift».
+7. Isolert test `scripts/test-workshop-followup-engine.js`: 12 scenarier + identisk status på Dashboard/oversikt/profil + ingen verkstedsvalg — alle bestått.
+8. `storage.airtable.js` uendret v2.26.1. App-/cacheversjon 134 → **135**; `kontroll.html` = `index.html`.
+
 ### Fase 1B — tom single select utelates fra PATCH
 
 1. `toAirtableFields()` i `storage.airtable.js`: felt med `type === 'select'` og verdi `null`/`undefined`/`''` (inkl. bare mellomrom) sendes ikke til Airtable. Fylte nøkler skrives som før. Hindrer `INVALID_MULTIPLE_CHOICE_OPTIONS` når Airtable prøver å opprette valget `""`.

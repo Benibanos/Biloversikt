@@ -1404,6 +1404,9 @@
   .dash-vt-kort:hover{border-color:var(--orange);}
   .dash-w-tall{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;}
   .dash-w-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+  .wfe-sammendrag{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:var(--ink);margin:0 0 10px;}
+  .wfe-sammendrag b{font-variant-numeric:tabular-nums;}
+  .wfe-stale{font-size:12.5px;color:var(--amber);margin:0 0 8px;}
   .fh-kort{display:flex;flex-direction:column;gap:8px;padding:12px 14px;}
   .fh-kort.kompakt{max-height:200px;overflow:hidden;}
   @media (max-width:640px){ .fh-kort.kompakt{max-height:260px;} }
@@ -2241,7 +2244,7 @@ let vtFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
 let vtFilterSakStatus = ''; // '' | 'apen' | 'lukket' — filtrerer på status til tilknyttet Aktiv Sak (Fase 3)
 let showVtFilterMeny = false;
 let vtGrupperApen = false;
-let vtOversiktFane = 'kommende'; // 'kommende' | 'biler' | 'historikk' — Prioritet 75, default Kommende
+let vtOversiktFane = 'kommende'; // 'krever-oppfolging' | 'pa-verksted' | 'kommende' | 'klar-til-avslutning' | 'historikk' | 'biler'
 
 let sakFilterBil = '';
 let sakFilterType = '';
@@ -2743,6 +2746,15 @@ const STATUS = {
     'ufullstendig': {label:'Ufullstendig', tone:'warning', ikon:'circle-alert'},
     'forsinket':    {label:'Forsinket', tone:'warning', ikon:'history'},
     'feilet':       {label:'Feilet', tone:'danger', ikon:'octagon-alert'}
+  },
+  // §12 Verkstedoppfølging (avledet, aldri lagret). Ikke verkstedstatus.
+  verkstedOppfolging: {
+    'mangler-kobling':     {label:'Mangler kobling', tone:'info', ikon:'link'},
+    'avventer-verksted':   {label:'Avventer verksted', tone:'info', ikon:'calendar'},
+    'pa-verksted':         {label:'På verksted', tone:'workshop', ikon:'wrench'},
+    'krever-oppfolging':   {label:'Krever oppfølging', tone:'warning', ikon:'triangle-alert'},
+    'klar-til-avslutning': {label:'Klar til avslutning', tone:'warning', ikon:'clipboard-check'},
+    'fullfort':            {label:'Fullført', tone:'success', ikon:'circle-check'}
   }
 };
 // Eldre nøkler som fortsatt kan forekomme (lagrede filtre, eldre kode, historiske data). De
@@ -4982,13 +4994,17 @@ function layoutRegistrerAlle(){
     minWidth:6, minHeight:4, canHide:false, critical:true, lockReason:'Flåtehelse kan ikke skjules.',
     renderer:() => dashWidgetFlatehelseHtml(), std:{x:0, y:0, width:12, height:5, visible:true}});
   dash('operativ-kontroll', {label:'Operativ etterlevelse', ikon:'target', beskrivelse:'Kontrollgrad i dag, siste driftsdager og EU-kontroll. Ikke del av flåtehelse.',
-    minWidth:4, minHeight:2, renderer:ctx => dashWidgetOperativKontrollHtml(ctx.d), std:{x:0, y:5, width:8, height:2, visible:true}});
+    minWidth:4, minHeight:2, canHide:false, critical:true, lockReason:'Operativ etterlevelse kan ikke skjules.',
+    renderer:ctx => dashWidgetOperativKontrollHtml(ctx.d), std:{x:0, y:5, width:8, height:2, visible:true}});
   dash('neste-verkstedtime', {label:'Neste verkstedtime', ikon:'factory', beskrivelse:'Nærmeste kommende verkstedtime i hele bilparken.',
     minWidth:3, minHeight:2, renderer:() => dashWidgetNesteVtHtml(), std:{x:8, y:5, width:4, height:2, visible:true}});
   dash('bestill', {label:'Bestill tjenester', ikon:'plus', beskrivelse:'Service, EU-kontroll, dekkskift og ruteskift.',
     minWidth:6, minHeight:3, renderer:() => dashBestillSekHtml(), std:{x:0, y:7, width:12, height:4, visible:true}});
   dash('hurtigoversikt', {label:'Hurtigoversikt', ikon:'layout-list', beskrivelse:'Aktive saker, oppfølging, verksted og varsler i faner.',
     minWidth:6, minHeight:6, renderer:ctx => dashHurtigoversiktHtml(ctx.d), std:{x:0, y:11, width:12, height:11, visible:true}});
+  dash('verkstedoppfolging', {label:'Verkstedoppfølging', ikon:'wrench', beskrivelse:'Kobling, forfalt time og avslutning av verkstedarbeid. Ingen verkstedsvalg.',
+    minWidth:6, minHeight:4, canHide:false, critical:true, lockReason:'Verkstedoppfølging kan ikke skjules.',
+    renderer:() => dashWidgetVerkstedoppfolgingHtml(), std:{x:0, y:22, width:12, height:6, visible:true}});
   dash('aktive-biler', {label:'Aktive biler', ikon:'truck', beskrivelse:'Antall biler med aktiv sjåfør nå.',
     minWidth:2, minHeight:2, renderer:ctx => dashWidgetAktiveBilerHtml(ctx.d), std:{x:0, y:17, width:3, height:2, visible:false}});
   dash('kalender', {label:'Kalender', ikon:'calendar-days', beskrivelse:'Aktiviteter denne uken, åpner full Kalender.',
@@ -4999,14 +5015,17 @@ function layoutRegistrerAlle(){
     minWidth:4, minHeight:3, renderer:ctx => dashWidgetAktiveSakerHtml(ctx.d), std:{x:6, y:21, width:6, height:5, visible:false}});
   // Fase 1A: informasjonshendelser (sjåførkommentarer og -notater) — aldri varsler.
   dash('aktivitet', {label:'Siste aktivitet', ikon:'activity', beskrivelse:'Sjåførkommentarer og sjåførnotater siste 7 dager. Informasjon, ikke varsler.',
-    minWidth:4, minHeight:3, renderer:() => dashWidgetAktivitetHtml(), std:{x:0, y:17, width:12, height:5, visible:true}});
+    minWidth:4, minHeight:3, renderer:() => dashWidgetAktivitetHtml(), std:{x:0, y:28, width:12, height:5, visible:true}});
   dash('loftebord', {label:'Løftebordstatus', ikon:'arrow-up-down', beskrivelse:'Vedlikehold og årlig kontroll av løftebord, hele flåten.',
     minWidth:3, minHeight:2, renderer:() => dashWidgetLoftebordHtml(), std:{x:7, y:17, width:5, height:3, visible:false}});
 
   // ---------- Mobil Dashboard (liste) ----------
   layoutReg('mobile.flatehelse', {area:'mobile-dashboard', label:'Flåtehelse', ikon:'heart-pulse', devices:['mobile'], canHide:false, critical:true, lockReason:'Flåtehelse kan ikke skjules.', renderer:() => dashWidgetFlatehelseHtml(), std:{}});
-  layoutReg('mobile.bestill', {area:'mobile-dashboard', label:'Bestill tjenester', ikon:'plus', devices:['mobile'], std:{}});
+  layoutReg('mobile.operativ-kontroll', {area:'mobile-dashboard', label:'Operativ etterlevelse', ikon:'target', devices:['mobile'], canHide:false, critical:true, lockReason:'Operativ etterlevelse kan ikke skjules.', renderer:ctx => dashWidgetOperativKontrollHtml(ctx && ctx.d), std:{}});
+  layoutReg('mobile.neste-verkstedtime', {area:'mobile-dashboard', label:'Neste verkstedtime', ikon:'factory', devices:['mobile'], renderer:() => dashWidgetNesteVtHtml(), std:{}});
   layoutReg('mobile.hurtigoversikt', {area:'mobile-dashboard', label:'Hurtigoversikt', ikon:'layout-list', devices:['mobile'], std:{}});
+  layoutReg('mobile.bestill', {area:'mobile-dashboard', label:'Bestill tjenester', ikon:'plus', devices:['mobile'], std:{}});
+  layoutReg('mobile.verkstedoppfolging', {area:'mobile-dashboard', label:'Verkstedoppfølging', ikon:'wrench', devices:['mobile'], canHide:false, critical:true, lockReason:'Verkstedoppfølging kan ikke skjules.', renderer:() => dashWidgetVerkstedoppfolgingHtml(), std:{}});
 
   // ---------- Sidemeny (liste, primær/sekundær) ----------
   // `screen` er siden menypunktet åpner (skjuling sletter aldri siden — den ligger alltid under «Alle sider»).
@@ -5031,6 +5050,7 @@ function layoutRegistrerAlle(){
   const bil = (id, def) => layoutReg('vehicle.' + id, Object.assign({area:'vehicle-profile', widths:[6,12], std:{width:12}}, def));
   bil('bilkort', {label:'Bilkort', ikon:'car', beskrivelse:'Bilnummer, regnr, modell, løyve, servicenr, aktiv sjåfør, neste verkstedtime og mobilitetsstatus.', std:{width:12}});
   bil('neste-verkstedtime', {label:'Neste verkstedtime', ikon:'factory', beskrivelse:'Flyttet inn i bilkortet (Prioritet 67). Skjult som standard.', std:{width:6, visible:false}});
+  bil('verkstedoppfolging', {label:'Verkstedoppfølging', ikon:'wrench', beskrivelse:'Kompakt oppfølging av verkstedtime og sak for denne bilen.', std:{width:12, visible:true}});
   bil('statusrad', {label:'Statusrad', ikon:'gauge', beskrivelse:'Kilometerstand, siste service, EU-kontroll, dekk og løftebord.', collapsible:'wrapper', std:{width:12}});
   bil('operativ-status', {label:'Operativ status', ikon:'clipboard-check', beskrivelse:'Kontrollstatus, varsellamper, skader og aktive saker.', collapsible:'wrapper', std:{width:12}});
   bil('bestill', {label:'Bestill tjenester', ikon:'plus', beskrivelse:'Service, EU-kontroll, dekkskift og ruteskift for denne bilen.', collapsible:'wrapper', std:{width:12}});
@@ -5794,6 +5814,8 @@ function layoutGridEndre(id, modus, dx, dy){
   if(layoutDraftEndre(d => { layoutSett(d.layouts, LAYOUT_GRID, ny); })) layoutGridFokus(id);
 }
 function layoutGridSkjul(id){
+  const def = LAYOUT_COMPONENTS[id];
+  if(def && !def.canHide){ layoutOpMelding(def.lockReason || ('«' + def.label + '» kan ikke skjules.')); render(); return; }
   layoutDraftEndre(d => {
     const liste = layoutKlon(layoutHent(d.layouts, LAYOUT_GRID));
     const w = liste.find(x => x.widgetId === id);
@@ -6021,7 +6043,7 @@ function layoutGridEditorHtml(liste){
             <div class="dash-edit-kontroller">
               <span>Bredde <button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:-1:0" aria-label="Smalere">−</button><button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:1:0" aria-label="Bredere">+</button></span>
               <span>Høyde <button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:0:-1" aria-label="Lavere">−</button><button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:0:1" aria-label="Høyere">+</button></span>
-              <button type="button" class="dash-edit-mini" data-dash-skjul="${id}" title="Skjul kortet (dataene røres ikke)">${luc('eye-off')} Skjul</button>
+              ${def.canHide ? `<button type="button" class="dash-edit-mini" data-dash-skjul="${id}" title="Skjul kortet (dataene røres ikke)">${luc('eye-off')} Skjul</button>` : `<span class="lay-laas" title="${esc(def.lockReason || 'Låst')}">${luc('lock')} Låst</span>`}
             </div>
             <div class="dash-edit-resize" data-dash-resize="${id}" title="Dra for å endre størrelse"></div>
           </div>`;
@@ -6315,6 +6337,8 @@ function layoutInnstillingerHtml(){
       Layout Editor styrer plassering, rekkefølge, synlighet, kortstørrelse, seksjonsbredde, starttilstand og standardfane — aldri forretningslogikk,
       datamodell, kontrollregler, saksmotor, verkstedlogikk, kilometerlogikk, lagringslogikk eller HMS-validering. Endringer gjøres i et lokalt utkast
       og lagres først når du trykker «Publiser». Innstillingen er felles for hele bilparken, ikke personlig.
+      En tidligere publisert Dashboard-layout beholder plassering til du tilbakestiller Desktop Dashboard og Mobil Dashboard og publiserer.
+      Flåtehelse, Operativ etterlevelse og Verkstedoppfølging kan ikke skjules.
     </div>
     <div class="required-hint" style="margin-bottom:12px;font-weight:600;">${layoutStatusTekst()}</div>
     <div class="lay-innst-knapper">
@@ -8287,6 +8311,353 @@ function kommendeVerkstedtimer(vehicleId){
 function nesteVerkstedtime(vehicleId){
   return kommendeVerkstedtimer(vehicleId)[0] || null;
 }
+
+// ================= WorkshopFollowupEngine v1 =================
+// Avledet oppfølging av sak + verkstedtime. Ikke verkstedsvalg, ikke booking, ikke
+// automatisk lukking eller tilbake i drift. vtStatus() er eneste verkstedstatus.
+// ForventetFerdig er ikke i LIST_TABLES (utsatt Del 2): regel 2 kjører kun når verdien
+// allerede ligger på objektet (tester / senere felt).
+const WFE_SAK_TYPER = ['skade', 'kontrollavvik', 'varsellampe', 'dekk', 'service', 'annet'];
+const WFE_LISTE_REKKEFOLGE = ['krever-oppfolging', 'klar-til-avslutning', 'mangler-kobling', 'pa-verksted', 'avventer-verksted'];
+function sakErVerkstedrelatert(s){
+  return !!(s && WFE_SAK_TYPER.indexOf(s.caseType) >= 0);
+}
+function vtForventetFerdigIso(t){
+  if(!t) return '';
+  const raw = t.forventetFerdig || t.ForventetFerdig || '';
+  const s = String(raw).trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+function verkstedDataFerskhet(){
+  const synk = typeof synkStatus === 'function' ? synkStatus() : null;
+  const load = typeof vehiclesLoadStatus !== 'undefined' ? vehiclesLoadStatus : 'ikke-startet';
+  const lastet = load === 'lastet' || load === 'bekreftet-tom';
+  const stale = synk === 'offline' || synk === 'utdatert';
+  const lesefeil = load === 'lesefeil';
+  return {
+    synk, load, lastet, stale, lesefeil,
+    kanKoble: lastet && !stale && !lesefeil,
+    sistSynk: typeof sisteVellykkedeSynkTidspunkt !== 'undefined' ? sisteVellykkedeSynkTidspunkt : null,
+    advarsel: !lastet ? 'Verksteddata er ikke ferdig lastet.' : (lesefeil ? 'Siste synk feilet. Oppfølgingsstatus kan være utdatert.' : (stale ? 'Dataene kan være utdatert. Kobling er sperret til synken er gyldig.' : ''))
+  };
+}
+function sakHarGyldigVerkstedkobling(s){
+  if(!s || !s.linkedVtId) return false;
+  const t = (verkstedtimer || []).find(x => x.id === s.linkedVtId);
+  if(!t) return false;
+  const st = vtStatus(t);
+  return st !== 'avlyst';
+}
+function wfeVtInkompatibelForSak(t, sak){
+  if(!t || !sak) return true;
+  if(t.vehicleId !== sak.vehicleId) return true;
+  const st = vtStatus(t);
+  if(st === 'utfort' || st === 'avlyst') return true;
+  if(t.sakId){
+    const annen = (aktiveSaker || []).find(x => x.id === t.sakId);
+    if(annen && annen.vehicleId && annen.vehicleId !== sak.vehicleId) return true;
+  }
+  return false;
+}
+function wfeSakerForTime(t){
+  if(!t) return [];
+  return (aktiveSaker || []).filter(s => s.linkedVtId === t.id);
+}
+function wfeByggRad(del){
+  const v = (vehicles || []).find(x => x.id === del.vehicleId);
+  return Object.assign({
+    vehicleId: del.vehicleId || '',
+    bilTekst: v && typeof vehicleLabel === 'function' ? vehicleLabel(v) : '',
+    vtId: del.vtId || '',
+    sakIds: del.sakIds || [],
+    caseIds: del.caseIds || [],
+    vtStatus: del.vtStatus || null,
+    dato: del.dato || '',
+    tidspunkt: del.tidspunkt || '',
+    verksted: del.verksted || '',
+    oppgaver: del.oppgaver || [],
+    sakAntall: (del.sakIds || []).length,
+    oppfolging: del.oppfolging,
+    regel: del.regel || 0,
+    visning: del.visning || 'info',
+    alvorlighet: del.alvorlighet || null,
+    requiresManualReview: !!del.requiresManualReview,
+    manglerFelt: del.manglerFelt || [],
+    kreverSikkerhetsvurdering: !!del.kreverSikkerhetsvurdering,
+    tekst: del.tekst || ''
+  }, del);
+}
+function wfeVurderTime(t){
+  const st = vtStatus(t);
+  const mangler = [];
+  if(!t) return wfeByggRad({id:'vt:ukjent', oppfolging:'krever-oppfolging', requiresManualReview:true, manglerFelt:['time'], visning:'hoy', regel:0, tekst:'Verkstedtime mangler.'});
+  if(!t.vehicleId) mangler.push('vehicleId');
+  if(!t.dato && st !== 'utfort' && st !== 'avlyst' && st !== 'pagar') mangler.push('dato');
+  const saker = wfeSakerForTime(t);
+  const apne = saker.filter(s => typeof sakErApen === 'function' ? sakErApen(s) : !['utfort','avslatt','lukket'].includes(s.status));
+  const kritisk = apne.some(s => sakAlvorlighet(s) === 'kritisk');
+  const v = (vehicles || []).find(x => x.id === t.vehicleId);
+  const kanIkke = v && typeof vehicleDriftsstatus === 'function' && vehicleDriftsstatus(v) === 'kan-ikke-brukes';
+  const resultatMangler = st === 'utfort' && saker.length > 0 && saker.every(s => !s.verkstedResultat);
+  const oppgaver = typeof vtTyperListe === 'function' ? vtTyperListe(t) : [];
+  const base = {
+    id: 'vt:' + t.id, kind:'appointment', vtId: t.id, vehicleId: t.vehicleId,
+    sakIds: saker.map(s => s.id), caseIds: saker.map(s => s.caseId).filter(Boolean),
+    vtStatus: st, dato: t.dato || '', tidspunkt: t.tidspunkt || '', verksted: t.verksted || '',
+    oppgaver, sakAntall: saker.length,
+    alvorlighet: hoyesteAlvorlighet(apne.map(s => sakAlvorlighet(s)))
+  };
+  if(st === 'avlyst'){
+    return null;
+  }
+  if(mangler.length){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'krever-oppfolging', regel:0, visning:'hoy', requiresManualReview:true,
+      manglerFelt: mangler, tekst:'Mangler ' + mangler.join(', ') + '. Oppfølging er ikke gjettet.'
+    }));
+  }
+  if(st === 'utfort' && kritisk){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'klar-til-avslutning', regel:1, visning:'hoy',
+      tekst:'Kritisk sak er fortsatt åpen etter utført verkstedarbeid.'
+    }));
+  }
+  if(st === 'utfort' && kanIkke){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'klar-til-avslutning', regel:1, visning:'hoy', kreverSikkerhetsvurdering:true,
+      tekst:'Bilen står som kan ikke brukes etter utført verkstedarbeid og krever eksplisitt vurdering.'
+    }));
+  }
+  if(st === 'pagar'){
+    const ferdig = vtForventetFerdigIso(t);
+    if(ferdig && ferdig < todayISO()){
+      return wfeByggRad(Object.assign({}, base, {
+        oppfolging:'krever-oppfolging', regel:2, visning:'hoy',
+        tekst:'Pågående verkstedarbeid har passert forventet ferdig.'
+      }));
+    }
+  }
+  if(st === 'forfalt' || ((st === 'planlagt' || st === 'bekreftet') && t.dato && t.dato < todayISO())){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'krever-oppfolging', regel:3, visning:'hoy',
+      tekst:'Verkstedtimen har passert uten registrert resultat.'
+    }));
+  }
+  if(st === 'utfort' && resultatMangler){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'klar-til-avslutning', regel:4, visning:'hoy',
+      tekst:'Verkstedarbeid er utført, men verkstedresultat mangler.'
+    }));
+  }
+  if(st === 'utfort' && apne.length){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'klar-til-avslutning', regel:6, visning:'middels',
+      tekst:'Verkstedarbeid er utført, men saken er fortsatt åpen.'
+    }));
+  }
+  if(st === 'planlagt' || st === 'bekreftet'){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'avventer-verksted', regel:7, visning:'info',
+      tekst:'Verkstedtime er planlagt.'
+    }));
+  }
+  if(st === 'pagar'){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'pa-verksted', regel:8, visning:'info',
+      tekst:'Verkstedarbeid pågår.'
+    }));
+  }
+  if(st === 'utfort'){
+    return wfeByggRad(Object.assign({}, base, {
+      oppfolging:'fullfort', regel:9, visning:'historikk',
+      tekst:'Verkstedarbeid og sak er fulgt opp.'
+    }));
+  }
+  return wfeByggRad(Object.assign({}, base, {
+    oppfolging:'krever-oppfolging', regel:0, visning:'hoy', requiresManualReview:true,
+    manglerFelt:['status'], tekst:'Verkstedstatus kunne ikke avledes.'
+  }));
+}
+function wfeVurderSakUtenKobling(s){
+  const v = (vehicles || []).find(x => x.id === s.vehicleId);
+  return wfeByggRad({
+    id: 'sak:' + s.id, kind:'case', vehicleId: s.vehicleId, sakIds:[s.id], caseIds:[s.caseId].filter(Boolean),
+    oppfolging:'mangler-kobling', regel:5, visning:'middels',
+    alvorlighet: sakAlvorlighet(s),
+    tekst:'Åpen verkstedrelatert sak uten koblet verkstedtime.',
+    dato: s.reportedAt || '', verksted:''
+  });
+}
+const WorkshopFollowupEngine = {
+  alle(){
+    const sett = [];
+    const settIds = new Set();
+    (verkstedtimer || []).forEach(t => {
+      const rad = wfeVurderTime(t);
+      if(!rad) return;
+      sett.push(rad);
+      settIds.add(rad.id);
+    });
+    (aktiveSaker || []).forEach(s => {
+      if(!sakErVerkstedrelatert(s)) return;
+      if(!(typeof sakErApen === 'function' ? sakErApen(s) : true)) return;
+      if(sakHarGyldigVerkstedkobling(s)) return;
+      const rad = wfeVurderSakUtenKobling(s);
+      if(!settIds.has(rad.id)) sett.push(rad);
+    });
+    const rang = k => WFE_LISTE_REKKEFOLGE.indexOf(k);
+    return sett.sort((a,b) => {
+      const ra = rang(a.oppfolging); const rb = rang(b.oppfolging);
+      const ia = ra < 0 ? 99 : ra; const ib = rb < 0 ? 99 : rb;
+      if(ia !== ib) return ia - ib;
+      return String(a.dato||'').localeCompare(String(b.dato||''));
+    });
+  },
+  kreverOppfolging(){ return this.alle().filter(r => r.oppfolging === 'krever-oppfolging'); },
+  forKjoretoy(vehicleId){ return this.alle().filter(r => r.vehicleId === vehicleId); },
+  forSak(caseId){
+    if(!caseId) return [];
+    const s = (aktiveSaker || []).find(x => x.id === caseId || x.caseId === caseId);
+    if(!s) return [];
+    return this.alle().filter(r => (r.sakIds || []).indexOf(s.id) >= 0 || (r.caseIds || []).indexOf(s.caseId) >= 0);
+  },
+  koblingsforslag(caseId){
+    const s = (aktiveSaker || []).find(x => x.id === caseId || x.caseId === caseId);
+    const ferskhet = verkstedDataFerskhet();
+    if(!s || !(typeof sakErApen === 'function' ? sakErApen(s) : true) || sakHarGyldigVerkstedkobling(s)){
+      return {sak:s || null, forslag:[], foretrukket:null, kanKoble:false, ferskhet};
+    }
+    const onsket = typeof sakTilVtType === 'function' ? sakTilVtType(s) : 'reparasjon';
+    const idag = todayISO();
+    const naa = typeof vtOsloNaa === 'function' ? vtOsloNaa() : {dato:idag, tid:'00:00'};
+    const forslag = (verkstedtimer || []).filter(t => !wfeVtInkompatibelForSak(t, s)).map(t => {
+      const st = vtStatus(t);
+      const typeMatch = typeof vtHarType === 'function' ? vtHarType(t, onsket) : false;
+      const nøkkel = (t.dato || '') + (t.tidspunkt || '');
+      let dist = 2;
+      if(st === 'pagar') dist = 0;
+      else if((t.dato || '') > idag || ((t.dato || '') === idag && (t.tidspunkt || '99:99') >= naa.tid)) dist = 1;
+      return {id:t.id, dato:t.dato, tidspunkt:t.tidspunkt, verksted:t.verksted, type:t.type, oppgaver: typeof vtOppgaverTekst === 'function' ? vtOppgaverTekst(t) : '', vtStatus:st, typeMatch, dist, nøkkel};
+    }).sort((a,b) => (a.dist - b.dist) || (b.typeMatch - a.typeMatch) || a.nøkkel.localeCompare(b.nøkkel));
+    return {sak:s, forslag, foretrukket:forslag[0] || null, kanKoble:ferskhet.kanKoble, ferskhet};
+  },
+  oppsummering(){
+    const alle = this.alle().filter(r => r.oppfolging !== 'fullfort');
+    const n = k => alle.filter(r => r.oppfolging === k).length;
+    return {
+      kreverOppfolging: n('krever-oppfolging'),
+      klarTilAvslutning: n('klar-til-avslutning'),
+      manglerKobling: n('mangler-kobling'),
+      paVerksted: n('pa-verksted'),
+      avventerVerksted: n('avventer-verksted'),
+      ferskhet: verkstedDataFerskhet()
+    };
+  }
+};
+window.WorkshopFollowupEngine = WorkshopFollowupEngine;
+function wfeAapneRad(r){
+  if(!r) return;
+  if(r.kind === 'case' && r.sakIds && r.sakIds[0] && typeof goToVarselSak === 'function') return goToVarselSak(r.sakIds[0]);
+  if(r.vtId && typeof apneVerkstedAvtale === 'function') return apneVerkstedAvtale(r.vtId);
+  if(r.sakIds && r.sakIds[0] && typeof goToVarselSak === 'function') return goToVarselSak(r.sakIds[0]);
+}
+function wfeRadHtml(r, opt){
+  opt = opt || {};
+  const pille = statusPilleHtml('verkstedOppfolging', r.oppfolging);
+  const meta = [r.dato ? fmt(r.dato) : '', r.tidspunkt || '', r.verksted || ''].filter(Boolean).join(' · ');
+  const oppgaver = Array.isArray(r.oppgaver) && r.oppgaver.length ? vtOppgaverTekst({type: r.oppgaver.join(',')}) : '';
+  return `<button type="button" class="p38-case" data-wfe-aapne="${esc(r.id)}"${r.vtId ? ` data-vt-rad="${esc(r.vtId)}"` : ''} title="${esc(r.tekst || '')}">
+      <span class="flis sm" style="--tint:var(--orange-soft);color:var(--orange);">${luc('wrench')}</span>
+      <span>
+        <b>${esc(r.bilTekst || 'Ukjent bil')} ${pille}</b>
+        <span>${esc(r.tekst || '')}${meta ? ' · ' + esc(meta) : ''}${oppgaver ? ' · ' + esc(oppgaver) : ''}${r.sakAntall ? ' · ' + r.sakAntall + ' sak' + (r.sakAntall === 1 ? '' : 'er') : ''}</span>
+      </span>
+    </button>`;
+}
+function dashWidgetVerkstedoppfolgingHtml(){
+  const s = WorkshopFollowupEngine.oppsummering();
+  const liste = WorkshopFollowupEngine.alle().filter(r => WFE_LISTE_REKKEFOLGE.indexOf(r.oppfolging) >= 0);
+  const fersk = s.ferskhet;
+  return `
+    <div class="panel">
+      <div class="p38-panel-head"><div class="tittel">${luc('wrench', 'ic-orange')} Verkstedoppfølging</div><button type="button" class="p38-lenke" data-quick-page="verksted">Åpne Verksted →</button></div>
+      ${fersk.advarsel ? `<p class="wfe-stale" role="status" aria-live="polite">${esc(fersk.advarsel)}${fersk.sistSynk ? ' Sist synk ' + esc(tidFraIso(fersk.sistSynk) || fersk.sistSynk) : ''}</p>` : ''}
+      <div class="wfe-sammendrag">
+        <span><b>${s.kreverOppfolging}</b> krever oppfølging</span>
+        <span><b>${s.klarTilAvslutning}</b> klare til avslutning</span>
+        <span><b>${s.manglerKobling}</b> mangler kobling</span>
+        <span><b>${s.paVerksted}</b> på verksted</span>
+        <span><b>${s.avventerVerksted}</b> avventer verksted</span>
+      </div>
+      ${liste.length ? liste.slice(0, 8).map(r => wfeRadHtml(r)).join('') : '<div class="empty-note" role="status">Alt verkstedarbeid er fulgt opp.</div>'}
+    </div>`;
+}
+function vtOppfolgingListeHtml(nokkel){
+  const rader = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === nokkel);
+  if(!rader.length){
+    return `<div class="empty-note">${nokkel === 'krever-oppfolging' ? 'Alt verkstedarbeid er fulgt opp.' : 'Ingen treff i denne fanen.'}</div>`;
+  }
+  return rader.map(r => wfeRadHtml(r, {oversikt:true})).join('');
+}
+function wfeProfilSekHtml(v){
+  if(!v) return '';
+  const rader = WorkshopFollowupEngine.forKjoretoy(v.id).filter(r => r.oppfolging !== 'fullfort');
+  const neste = nesteVerkstedtime(v.id);
+  const primaer = rader[0] || (neste ? WorkshopFollowupEngine.alle().find(r => r.vtId === neste.id) : null);
+  const fersk = verkstedDataFerskhet();
+  const t = primaer && primaer.vtId ? verkstedtimer.find(x => x.id === primaer.vtId) : neste;
+  const st = t ? vtStatus(t) : null;
+  const oppgaver = t ? vtOppgaverTekst(t) : '';
+  const sakN = primaer ? primaer.sakAntall : 0;
+  const folgOpp = primaer && (primaer.oppfolging === 'krever-oppfolging' || primaer.oppfolging === 'klar-til-avslutning');
+  const sikkerhet = primaer && primaer.kreverSikkerhetsvurdering;
+  const apneKritiske = (primaer && primaer.sakIds || []).map(id => aktiveSaker.find(s => s.id === id)).filter(s => s && sakErApen(s) && sakAlvorlighet(s) === 'kritisk');
+  return `<div class="panel">
+    <div class="p38-panel-head"><div class="tittel">${luc('wrench', 'ic-orange')} Verkstedoppfølging</div></div>
+    ${fersk.advarsel ? `<p class="wfe-stale" role="status">${esc(fersk.advarsel)}</p>` : ''}
+    ${!t && !primaer ? `<div class="empty-note">Ingen aktiv verkstedoppfølging.</div>` : `
+      <div class="sj-row"><span class="l">Neste time</span><span>${t && t.dato ? fmt(t.dato) : '–'}${t && t.tidspunkt ? ' kl. ' + esc(t.tidspunkt) : ''}</span></div>
+      <div class="sj-row"><span class="l">Verkstedstatus</span><span>${st ? statusPilleHtml('verksted', st) : '–'}</span></div>
+      <div class="sj-row"><span class="l">Verksted</span><span>${t && t.verksted ? esc(t.verksted) : '–'}</span></div>
+      <div class="sj-row"><span class="l">Arbeid</span><span>${oppgaver ? esc(oppgaver) : '–'}</span></div>
+      <div class="sj-row"><span class="l">Koblede saker</span><span>${sakN}</span></div>
+      <div class="sj-row"><span class="l">Oppfølging</span><span>${primaer ? statusPilleHtml('verkstedOppfolging', primaer.oppfolging) : '–'}</span></div>
+      ${folgOpp ? `<p class="required-hint">Verkstedtimen har passert uten registrert resultat.</p>` : ''}
+      <div class="panel-actions">
+        ${t ? `<button type="button" class="btn small" data-apne-vt="${t.id}">Åpne verkstedtime</button>` : ''}
+        ${folgOpp && t ? `<button type="button" class="btn small" data-apne-vt="${t.id}">Følg opp</button>` : ''}
+        ${apneKritiske.map(s => `<button type="button" class="btn small" data-wfe-kontroller-sak="${s.id}">Kontroller saken</button>
+          <button type="button" class="btn secondary small" data-wfe-lukk-sak="${s.id}">Lukk saken</button>`).join('')}
+        ${sikkerhet ? `<button type="button" class="btn secondary small" data-wfe-tilbake-drift="${v.id}">Sett tilbake i drift</button>` : ''}
+      </div>`}
+  </div>`;
+}
+function attachWfeListeners(root){
+  const el = root || document;
+  el.querySelectorAll('[data-wfe-aapne]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const r = WorkshopFollowupEngine.alle().find(x => x.id === btn.dataset.wfeAapne);
+    wfeAapneRad(r);
+  }));
+  el.querySelectorAll('[data-wfe-koble-sak]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation(); visVerkstedKoblingDialog(btn.dataset.wfeKobleSak);
+  }));
+  el.querySelectorAll('[data-wfe-kontroller-sak]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation(); goToVarselSak(btn.dataset.wfeKontrollerSak);
+  }));
+  el.querySelectorAll('[data-wfe-lukk-sak]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.wfeLukkSak;
+    if(!confirm('Lukk saken? Verkstedtimen endres ikke, og bilen settes ikke automatisk tilbake i drift.')) return;
+    markerSakUtfort(id);
+  }));
+  el.querySelectorAll('[data-wfe-tilbake-drift]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.wfeTilbakeDrift;
+    if(!confirm('Sett bilen tilbake i drift? Dette er en eksplisitt sikkerhetsvurdering. Verkstedoppfølging lukker aldri dette automatisk.')) return;
+    settTilbakeIDrift(id);
+  }));
+}
 // ================= Flåtehelse v1 (fleet-health-framework.md) =================
 // ENESTE scoring. Måler teknisk tilstand og tilgjengelighet. Kontrollgrad, EU-frist,
 // serviceintervall og administrasjon er operativ etterlevelse (operativEtterlevelse()).
@@ -8587,10 +8958,14 @@ function vtHistorikkListeHtml(){
   return `<div class="vt-plan-gruppe"><div class="vt-plan-gruppe-tittel">Utført</div>${vtPlanDatoGrupperHtml(poster, {historikk:true})}</div>`;
 }
 function vtOversiktFanerHtml(){
+  const n = k => WorkshopFollowupEngine.alle().filter(r => r.oppfolging === k).length;
   const faner = [
+    {id:'krever-oppfolging', label:'Krever oppfølging' + (n('krever-oppfolging') ? ' (' + n('krever-oppfolging') + ')' : ''), ikon:'triangle-alert'},
+    {id:'pa-verksted', label:'På verksted' + (n('pa-verksted') ? ' (' + n('pa-verksted') + ')' : ''), ikon:'wrench'},
     {id:'kommende', label:'Kommende', ikon:'calendar-clock'},
-    {id:'biler', label:'Biler', ikon:'truck'},
-    {id:'historikk', label:'Historikk', ikon:'history'}
+    {id:'klar-til-avslutning', label:'Klar til avslutning' + (n('klar-til-avslutning') ? ' (' + n('klar-til-avslutning') + ')' : ''), ikon:'clipboard-check'},
+    {id:'historikk', label:'Historikk', ikon:'history'},
+    {id:'biler', label:'Biler', ikon:'truck'}
   ];
   return `<div class="profil-tabs" role="tablist">
     ${faner.map(f => `<button type="button" class="profil-tab ${vtOversiktFane === f.id ? 'active' : ''}" data-vt-fane="${f.id}" role="tab" aria-selected="${vtOversiktFane === f.id}">${luc(f.ikon)} ${f.label}</button>`).join('')}
@@ -8603,7 +8978,10 @@ function apneVerkstedAvtale(id){
   if(!t) return;
   vtFilterBil = ''; vtFilterVerksted = ''; vtFilterType = ''; vtFilterPeriode = ''; vtFilterSakStatus = '';
   showVtFilterMeny = false; showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = '';
-  vtOversiktFane = vtErUtfort(t) ? 'historikk' : 'kommende';
+  const rad = WorkshopFollowupEngine.alle().find(r => r.vtId === t.id);
+  if(vtErUtfort(t) && (!rad || rad.oppfolging === 'fullfort')) vtOversiktFane = 'historikk';
+  else if(rad && (rad.oppfolging === 'krever-oppfolging' || rad.oppfolging === 'klar-til-avslutning' || rad.oppfolging === 'pa-verksted')) vtOversiktFane = rad.oppfolging;
+  else vtOversiktFane = 'kommende';
   vtGrupperApen = true;
   vtOversiktOpenVehicles = new Set([t.vehicleId]);
   editingVTId = t.id;
@@ -8651,6 +9029,7 @@ function goTo(scr, vehicleId, _isBack){
   // retur til/fra innloggingssiden, og når målet er nøyaktig samme skjerm/bil som nå
   // (unngår tomme duplikatoppføringer, f.eks. ved å trykke samme menyvalg to ganger).
   const erSammeMal = screen === scr && (vehicleId === undefined || vehicleId === currentVehicleId);
+  const forrigeScreen = screen;
   if(!_isBack && !erSammeMal && screen !== 'login' && scr !== 'login'){
     screenHistory.push({screen, vehicleId: currentVehicleId});
     if(screenHistory.length > SCREEN_HISTORY_MAX) screenHistory.shift();
@@ -8662,6 +9041,9 @@ function goTo(scr, vehicleId, _isBack){
   pendingPhotoData = null;
   headerMenuOpen = false;
   if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; editingVTId = null; showVtFilterMeny = false; vtOversiktFane = 'kommende'; }
+  else if(forrigeScreen !== 'verksted' && !editingVTId){
+    vtOversiktFane = WorkshopFollowupEngine.kreverOppfolging().length ? 'krever-oppfolging' : 'kommende';
+  }
   if(scr !== 'skader'){ showAddSkade = false; skadePrefillVehicleId = ''; }
   if(scr !== 'dekkoversikt'){ showAddDekkkostnad = false; }
   if(scr !== 'aktivesaker'){ showAddSak = false; sakPrefillVehicleId = ''; nyeKommentarerApen = false; sakUtenVerkstedPanelId = null; }
@@ -9345,7 +9727,9 @@ function sakHandlingHtml(s, fase){
     ? `<button type="button" class="btn small" data-godta-sak="${s.id}">${luc('check')} Godta</button>
        <button type="button" class="btn secondary small" data-avsla-sak="${s.id}">${luc('x')} Avslå</button>`
     : fase === 'oppfolging'
-    ? `<button type="button" class="btn small" data-bestill-vt-sak="${s.id}">${luc('calendar-days')} Bestill verkstedtime</button>
+    ? `${(!sakHarGyldigVerkstedkobling(s)
+        ? `<button type="button" class="btn small" data-wfe-koble-sak="${s.id}">${luc('link')} Koble til verkstedtime</button>`
+        : `<button type="button" class="btn small" data-apne-vt="${s.linkedVtId}">${luc('wrench')} Åpne verkstedtime</button>`)}
        <button type="button" class="btn secondary small" data-uv-toggle-sak="${s.id}">${luc('check')} Utført uten verkstedbesøk</button>
        ${uvPanelApen ? sakUtenVerkstedPanelHtml(s) : ''}`
     : `<button type="button" class="btn small" data-sak-utfort="${s.id}">${luc('check')} Arbeid utført</button>`;
@@ -10048,6 +10432,144 @@ function vtKobleSakTilOrdre(sak, vtId){
     sak.avvik.forEach(a => { if(valgteIder.has(a.id)) a.linkedVtId = vtId; });
   }
   sak.updatedAt = new Date().toISOString();
+}
+async function kobleSakTilEksisterendeVerkstedtime(sakId, vtId){
+  const fersk = verkstedDataFerskhet();
+  if(!fersk.kanKoble){
+    alert(fersk.advarsel || 'Kobling er sperret til dataene er gyldige.');
+    return;
+  }
+  const s = aktiveSaker.find(x => x.id === sakId);
+  const t = verkstedtimer.find(x => x.id === vtId);
+  if(!s || !sakErApen(s) || !t){
+    alert('Saken eller verkstedtimen finnes ikke lenger.');
+    return;
+  }
+  if(sakHarGyldigVerkstedkobling(s) && s.linkedVtId === vtId) return;
+  if(wfeVtInkompatibelForSak(t, s)){
+    alert('Denne verkstedtimen kan ikke kobles til saken.');
+    return;
+  }
+  const sakSnap = JSON.parse(JSON.stringify(aktiveSaker));
+  const vtSnap = JSON.parse(JSON.stringify(verkstedtimer));
+  const alvorFoer = s.alvorlighet;
+  const descFoer = s.description;
+  const typeFoer = t.type;
+  const sakType = sakTilVtType(s);
+  t.type = vtSlaTyperSammen(t.type, sakType);
+  t.beskrivelse = vtOppgaverTekst(t);
+  if(!t.sakId) t.sakId = s.id;
+  if(!t.caseId) t.caseId = s.caseId || '';
+  vtKobleSakTilOrdre(s, t.id);
+  s.alvorlighet = alvorFoer;
+  s.description = descFoer;
+  if(!Array.isArray(s.historikk)) s.historikk = [];
+  s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', hendelse: 'verksted-kobling', kommentar: 'Saken er koblet til eksisterende verkstedtime.'});
+  if(t.type !== typeFoer){
+    s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', hendelse: 'verksted-oppgave', kommentar: 'Arbeidsoppgave lagt til på eksisterende verkstedordre uten duplikat.'});
+  }
+  try{
+    await saveVerkstedtimerEllerKast();
+    await saveAktiveSakerEllerKast();
+  } catch(e){
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakSnap);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnap);
+    console.error('[kobleSakTilEksisterendeVerkstedtime] Feilet', e);
+    alert('Kunne ikke koble saken. Endringen er tilbakestilt lokalt.');
+    render();
+    return;
+  }
+  render();
+}
+function visVerkstedKoblingDialog(sakId){
+  const fersk = verkstedDataFerskhet();
+  if(!fersk.kanKoble){
+    alert(fersk.advarsel || 'Kobling er sperret til dataene er gyldige.');
+    return;
+  }
+  const res = WorkshopFollowupEngine.koblingsforslag(sakId);
+  const gammel = document.getElementById('vt-kobling-overlay');
+  if(gammel) gammel.remove();
+  const f = res.foretrukket;
+  const el = document.createElement('div');
+  el.className = 'modal-overlay open';
+  el.id = 'vt-kobling-overlay';
+  const detalj = f
+    ? `${f.dato ? fmt(f.dato) : ''}${f.tidspunkt ? ' kl. ' + f.tidspunkt : ''}\n${f.verksted || ''}\n${f.oppgaver || ''}`
+    : 'Ingen passende verkstedtime er funnet for denne bilen.';
+  el.innerHTML = `
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="vt-kobling-tittel">
+      <div class="modal-title" id="vt-kobling-tittel">Denne saken mangler verkstedkobling.</div>
+      <p style="font-size:14.5px;line-height:1.5;margin-bottom:8px;">${f ? 'Du har allerede en verkstedtime:' : 'Ingen eksisterende verkstedtime matcher saken.'}</p>
+      <div class="required-hint" style="margin-bottom:16px;white-space:pre-line;">${esc(detalj)}</div>
+      <div class="panel-actions" style="justify-content:flex-end;flex-wrap:wrap;gap:8px;">
+        ${f ? `<button type="button" class="btn" id="vt-kobling-denne">Koble til denne</button>` : ''}
+        <button type="button" class="btn secondary" id="vt-kobling-annen">Velg en annen</button>
+        <button type="button" class="btn secondary" id="vt-kobling-ingen">Ingen verkstedtime</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  const lukk = () => { document.removeEventListener('keydown', esc_); el.remove(); };
+  const esc_ = (e) => { if(e.key === 'Escape') lukk(); };
+  document.addEventListener('keydown', esc_);
+  el.addEventListener('click', (e) => { if(e.target === el) lukk(); });
+  const denne = el.querySelector('#vt-kobling-denne');
+  if(denne) denne.addEventListener('click', async () => {
+    denne.disabled = true;
+    try{ await kobleSakTilEksisterendeVerkstedtime(sakId, f.id); } finally { lukk(); }
+  });
+  el.querySelector('#vt-kobling-annen').addEventListener('click', () => {
+    const resten = (res.forslag || []).filter(x => !f || x.id !== f.id);
+    if(!resten.length){
+      alert('Ingen annen eksisterende verkstedtime matcher. Ingen ny time opprettes herfra.');
+      return;
+    }
+    const liste = resten.map(x => `<button type="button" class="btn secondary small" data-vt-kobling-valg="${x.id}">${esc((x.dato ? fmt(x.dato) : '') + (x.tidspunkt ? ' kl. ' + x.tidspunkt : '') + ' · ' + (x.verksted || '') + ' · ' + (x.oppgaver || ''))}</button>`).join('');
+    el.querySelector('.modal-sheet').innerHTML = `
+      <div class="modal-title">Velg en annen verkstedtime</div>
+      <p style="font-size:14.5px;line-height:1.5;margin-bottom:8px;">Kun eksisterende timer. Ingen verksted anbefales eller bookes.</p>
+      <div class="panel-actions" style="flex-direction:column;align-items:stretch;gap:8px;">${liste}
+        <button type="button" class="btn secondary" id="vt-kobling-ingen-2">Ingen verkstedtime</button>
+      </div>`;
+    el.querySelectorAll('[data-vt-kobling-valg]').forEach(btn => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try{ await kobleSakTilEksisterendeVerkstedtime(sakId, btn.dataset.vtKoblingValg); } finally { lukk(); }
+    }));
+    el.querySelector('#vt-kobling-ingen-2').addEventListener('click', lukk);
+  });
+  el.querySelector('#vt-kobling-ingen').addEventListener('click', lukk);
+}
+async function avlysVerkstedtime(id){
+  const t = verkstedtimer.find(x => x.id === id);
+  if(!t || vtErUtfort(t) || vtErAvlyst(t)) return;
+  if(!confirm('Avlyse verkstedtimen? Koblede saker beholdes og går tilbake til oppfølging. Ingen nytt verksted foreslås.')) return;
+  const sakSnap = JSON.parse(JSON.stringify(aktiveSaker));
+  const vtSnap = JSON.parse(JSON.stringify(verkstedtimer));
+  t.status = 'avlyst';
+  t.avlystDato = todayISO();
+  t.avlystAv = loggedInRole || 'Ukjent';
+  if(!Array.isArray(t.statusHistorikk)) t.statusHistorikk = [];
+  t.statusHistorikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), status: 'avlyst', av: loggedInRole || 'Ukjent'});
+  const linket = aktiveSaker.filter(s => s.linkedVtId === id);
+  linket.forEach(s => {
+    if(s.status === 'verksted-bestilt' || s.status === 'utfort-venter-bekreftelse') s.status = 'under-oppfolging';
+    s.updatedAt = new Date().toISOString();
+    if(!Array.isArray(s.historikk)) s.historikk = [];
+    s.historikk.push({dato: todayISO(), tidspunkt: nowTimeOslo(), av: loggedInRole || 'Ukjent', hendelse: 'verksted-avlyst', kommentar: 'Verkstedtimen er avlyst. Saken er åpen for oppfølging.'});
+  });
+  try{
+    await saveVerkstedtimerEllerKast();
+    if(linket.length) await saveAktiveSakerEllerKast();
+  } catch(e){
+    aktiveSaker.length = 0; Array.prototype.push.apply(aktiveSaker, sakSnap);
+    verkstedtimer.length = 0; Array.prototype.push.apply(verkstedtimer, vtSnap);
+    console.error('[avlysVerkstedtime] Feilet', e);
+    alert('Kunne ikke avlyse verkstedtimen. Endringen er tilbakestilt lokalt.');
+    render();
+    return;
+  }
+  editingVTId = null;
+  render();
 }
 function vtFinnSakTilNyOrdre(vehicleId){
   let sak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
@@ -13251,11 +13773,8 @@ function renderLoginShell(){
 //  KPI-kortene → Aktive saker / Kalender (samme klikkmål som desktop)
 //  Bestill-kortene → bestillService/bestillEuKontroll/bestillDekkskift/bestillRuteskift
 // Kontroll og Registrer avvik ligger nå på Min bil, Kjøretøyprofil og i ☰ Mer.
-// Prioritet 50, akseptansekriterium 14: mobil skal fungere IDENTISK til desktop —
-// samme banner (dashOperativBannerHtml) og samme Hurtigoversikt-modul
-// (dashHurtigoversiktHtml), begge delte funksjoner, ingen parallell mobilversjon. Kommende
-// oppgaver/Bilpark status/Krever handling nå/den gamle KPI-raden/sakFaseTellereHtml er
-// fjernet herfra i sin helhet, akkurat som på desktop.
+// V4 W1: mobilforsiden er én layoutliste. Etterlevelse og neste verkstedtime er egne
+// kort (samme renderere som desktop), ikke et ekstra banner utenfor listen.
 function renderMobilHjem(){
   const d = dashboardBeregning();
   const aktiveVarslerAntall = varslingssenterKlokkeAntall();
@@ -13264,7 +13783,8 @@ function renderMobilHjem(){
   const delerHtml = {
     'mobile.flatehelse': dashWidgetFlatehelseHtml(),
     'mobile.hurtigoversikt': dashHurtigoversiktHtml(d),
-    'mobile.bestill': dashBestillSekHtml()
+    'mobile.bestill': dashBestillSekHtml(),
+    'mobile.verkstedoppfolging': dashWidgetVerkstedoppfolgingHtml()
   };
 
   return `
@@ -13293,9 +13813,7 @@ function renderMobilHjem(){
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
 
-    ${dashOperativBannerHtml(d)}
-
-    ${layoutListeHtml('mobile-dashboard', {parts:delerHtml})}
+    ${layoutListeHtml('mobile-dashboard', {parts:delerHtml, d})}
 
     ${d.totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
   `;
@@ -13809,9 +14327,8 @@ function dashboardBeregning(){
 // Prioritet 44) — IKKE en Layout Editor-styrt komponent — nøyaktig samme, delte funksjon
 // brukes av BÅDE renderDashboard() (desktop) og renderMobilHjem() (mobil), slik at de to
 // alltid viser identisk innhold (akseptansekriterium 14) uten noen parallell versjon.
-// Prioritet 57: banneret er nå to kolonner — VENSTRE = kontrollstatus (denne funksjonen, uendret
-// innhold og logikk fra Prioritet 50/52/53, kun uten egen .panel-ramme) og HØYRE = «Neste
-// verkstedtime» (dashBannerVerkstedHtml()). Rammen bygges av dashOperativBannerHtml() under.
+// V4: kontrollstatus (denne funksjonen) og neste verkstedtime er egne layoutkort.
+// dashOperativBannerHtml() setter dem ved siden av hverandre; mobil og desktop bruker kortene hver for seg.
 function operativAktiveCount(){
   const t = operativGrunnlagTilstand();
   if(!t.ok) return vehicles.filter(v => !!vehicleAktivSjafor(v.id)).length;
@@ -13985,6 +14502,7 @@ function dashHovVarselRadHtml(x){
   if(detalj.length > 90) detalj = detalj.slice(0, 89).trimEnd() + '…';
   let attr = '', lenke = 'Åpne';
   if(x.kategori === 'km' || x.kategori === 'varsellampe'){ attr = `data-goto-varsel-senter="${x.kategori}"`; lenke = 'Behandle'; }
+  else if(x.mal === 'apne-vt' && x.vtId){ attr = `data-apne-vt="${x.vtId}"`; lenke = 'Åpne verkstedtime'; }
   else if(x.mal === 'sak' && x.sakId){ attr = `data-goto-varsel-sak="${x.sakId}"`; lenke = 'Åpne sak'; }
   else if(x.mal === 'kommentaroversikt'){ attr = 'data-goto-varsel-kommentarer="1"'; }
   else if(x.vehicleId){ attr = `data-goto-varsel-bilkort="${x.vehicleId}"`; lenke = 'Åpne bil'; }
@@ -14069,6 +14587,10 @@ function attachHovInnholdListeners(root){
     varslingssenterAktivKategori = el.dataset.gotoVarselSenter;
     goTo('varsler');
   }));
+  root.querySelectorAll('[data-apne-vt]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    apneVerkstedAvtale(el.dataset.apneVt);
+  }));
 }
 
 // goToSakFane() er UENDRET og fortsatt i bruk (Hurtigoversikt sine "se alle"-lenker, se
@@ -14144,15 +14666,56 @@ function kalenderUkeWidgetHtml(){
 // aldri varsler, teller aldri i klokken og har ingen alvorlighet.
 function aktivitetsHendelser(maks){
   const fra = isoDateOffset(todayISO(), -6);
-  return nyeKommentarerListe()
+  const liste = nyeKommentarerListe()
     .filter(k => (k.dato || '') >= fra)
-    .slice(0, maks || 10)
     .map(k => ({
       id: k.kilde + ':' + k.id, vehicleId: k.vehicleId, dato: k.dato, tidspunkt: k.tidspunkt,
       type: k.kilde === 'kontroll' ? 'Sjåførnotat' : 'Sjåførkommentar',
       ikon: k.kilde === 'kontroll' ? 'notebook-pen' : 'message-square',
       bil: k.bilTekst, sjafor: k.sjafor, tekst: k.kommentar, lest: k.lest
     }));
+  const sakHendelser = {
+    'verksted-kobling': {type:'Sak koblet til verkstedtime', ikon:'link'},
+    'verksted-oppgave': {type:'Arbeidsoppgave lagt til på verkstedordre', ikon:'wrench'},
+    'verksted-avlyst': {type:'Verkstedtime avlyst', ikon:'circle-x'}
+  };
+  (aktiveSaker || []).forEach(s => {
+    const v = sakVehicle(s);
+    (s.historikk || []).forEach((h, i) => {
+      const def = sakHendelser[h.hendelse];
+      if(!def || (h.dato || '') < fra) return;
+      liste.push({
+        id: 'sakhist:' + s.id + ':' + i, vehicleId: s.vehicleId, dato: h.dato, tidspunkt: h.tidspunkt || '',
+        type: def.type, ikon: def.ikon, bil: v ? vehicleLabel(v) : '', sjafor: h.av || '', tekst: h.kommentar || def.type, lest: true
+      });
+    });
+    if(s.resolvedAt && String(s.resolvedAt).slice(0, 10) >= fra && !sakErApen(s)){
+      liste.push({
+        id: 'saklukk:' + s.id, vehicleId: s.vehicleId, dato: String(s.resolvedAt).slice(0, 10), tidspunkt: '',
+        type: 'Sak lukket etter verkstedbesøk', ikon: 'circle-check',
+        bil: v ? vehicleLabel(v) : '', sjafor: s.resolvedBy || '', tekst: sakKortOverskrift(s), lest: true
+      });
+    }
+  });
+  const vtHendelser = {
+    bekreftet: {type:'Verkstedtime bekreftet', ikon:'calendar-check'},
+    pagar: {type:'Verkstedtime satt til pågår', ikon:'wrench'},
+    utfort: {type:'Verkstedtime utført', ikon:'circle-check'}
+  };
+  (verkstedtimer || []).forEach(t => {
+    const v = vtVehicle(t);
+    (t.statusHistorikk || []).forEach((h, i) => {
+      const st = statusNokkel('verksted', h.status);
+      const def = vtHendelser[st];
+      if(!def || (h.dato || '') < fra) return;
+      liste.push({
+        id: 'vthist:' + t.id + ':' + i, vehicleId: t.vehicleId, dato: h.dato, tidspunkt: h.tidspunkt || '',
+        type: def.type, ikon: def.ikon, bil: v ? vehicleLabel(v) : '', sjafor: h.av || '', tekst: vtOppgaverTekst(t), lest: true
+      });
+    });
+  });
+  liste.sort((a, b) => ((b.dato || '') + (b.tidspunkt || '')).localeCompare((a.dato || '') + (a.tidspunkt || '')));
+  return liste.slice(0, maks || 10);
 }
 function dashWidgetAktivitetHtml(){
   const hendelser = aktivitetsHendelser(8);
@@ -14247,7 +14810,7 @@ function dashWidgetLoftebordHtml(){
 // layoutregisteret (LAYOUT_COMPONENTS, ids «dashboard.*»), plassert av det 12-kolonners rutenettet fra den publiserte
 // layouten. Standardlayouten gir samme Dashboard som før (Operativ kontroll + Neste verkstedtime øverst, deretter Bestill
 // tjenester og Hurtigoversikt). Redigering skjer i Innstillinger → Layout Editor (et lokalt utkast, aldri på selve Dashboard).
-// Mobil (renderMobilHjem()) bruker det samlede banneret (dashOperativBannerHtml()) og layoutlisten 'mobile-dashboard'.
+// Mobil (renderMobilHjem()) bruker layoutlisten 'mobile-dashboard' (helse, etterlevelse, neste time, hurtigoversikt, bestill, oppfølging).
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   // Mobil får en helt annen forside her — ingen av
@@ -14270,6 +14833,7 @@ function renderDashboard(){
 
 function attachDashboardListeners(){
   attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne» på widgeten Neste verkstedtime
+  attachWfeListeners();
   // hurtigbestillingskortene og de nye "Kommende oppgaver"-radene bruker de
   // SAMME data-attributtene og navigasjonsfunksjonene som Planlegging allerede bruker.
   attachBestillListeners('');
@@ -15320,11 +15884,7 @@ const AlertEngine = {
       const v = sakVehicle(s);
       const bilTekst = v ? vehicleLabel(v) : 'Ukjent bil';
       const alv = sakAlvorlighet(s);
-      if(fase === 'verksted'){
-        liste.push({id:'sak:'+s.id, kategori:'verksted', vehicleId:s.vehicleId, tittel:'Verkstedoppfølging',
-          tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — ' + (s.status === 'utfort-venter-bekreftelse' ? 'venter bekreftelse på utført arbeid' : 'verksted bestilt'),
-          dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id, alvorlighet: alv, varselStatus: AlertEngine.sakVarselStatus(s)});
-      } else if(fase === 'aktiv' && s.caseType === 'skade'){
+      if(fase === 'aktiv' && s.caseType === 'skade'){
         liste.push({id:'sak:'+s.id, kategori:'skade', vehicleId:s.vehicleId, tittel: alv === 'kritisk' ? 'Kritisk skade' : 'Ny skade',
           tekst: bilTekst + ' — ' + sakKortOverskrift(s), dato: s.reportedAt || todayISO(), mal:'sak', sakId:s.id,
           alvorlighet: alv, varselStatus: AlertEngine.sakVarselStatus(s)});
@@ -15333,6 +15893,16 @@ const AlertEngine = {
           tekst: bilTekst + ' — ' + sakKortOverskrift(s) + ' — frist ' + fmt(s.followUpDate),
           dato: s.followUpDate || todayISO(), mal:'sak', sakId:s.id, alvorlighet: alv, varselStatus: AlertEngine.sakVarselStatus(s)});
       }
+    });
+    WorkshopFollowupEngine.alle().filter(r => r.visning === 'hoy' || r.visning === 'middels').forEach(r => {
+      const alv = r.visning === 'hoy' ? (r.alvorlighet === 'kritisk' ? 'kritisk' : 'hoy') : 'middels';
+      liste.push({
+        id: 'wfe:' + r.id, kategori:'verksted', vehicleId: r.vehicleId, tittel: statusLabel('verkstedOppfolging', r.oppfolging),
+        tekst: (r.bilTekst || 'Ukjent bil') + ' — ' + (r.tekst || ''),
+        dato: r.dato || todayISO(), mal: r.kind === 'case' ? 'sak' : 'apne-vt',
+        sakId: r.sakIds && r.sakIds[0], vtId: r.vtId,
+        alvorlighet: alv, varselStatus:'ny'
+      });
     });
     allActiveVarsellys().filter(w => w.status === 'aktiv').forEach(w => {
       const v = vehicles.find(x => x.id === w.vehicleId);
@@ -15367,6 +15937,7 @@ function goToVarselSak(sakId){
 }
 function varslingssenterGaTilKnapp(x){
   if((x.mal === 'bilkort' || x.mal === 'varsellys') && x.vehicleId) return `<button type="button" class="btn small" data-goto-varsel-bilkort="${x.vehicleId}">Åpne bilkort</button>`;
+  if(x.mal === 'apne-vt' && x.vtId) return `<button type="button" class="btn small" data-apne-vt="${x.vtId}">Åpne verkstedtime</button>`;
   if(x.mal === 'sak' && x.sakId) return `<button type="button" class="btn small" data-goto-varsel-sak="${x.sakId}">Åpne sak</button>`;
   if(x.mal === 'kommentaroversikt') return `<button type="button" class="btn small" data-goto-varsel-kommentarer="1">Åpne kommentarer</button>`;
   return '';
@@ -15429,6 +16000,7 @@ function renderVarslerOversikt(){
   `;
 }
 function attachVarslerOversiktListeners(){
+  attachNesteVerkstedtimeListeners();
   const markerAlleBtn = document.getElementById('varsler-marker-alle-btn');
   if(markerAlleBtn) markerAlleBtn.addEventListener('click', () => {
     const idListe = AlertEngine.senter().map(x => x.id);
@@ -16200,13 +16772,14 @@ function renderBilkort(){
           <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
           <button class="btn danger" id="del-vehicle">🗑️ Slett bil</button>
         `)}
-    `, '')}${(bilDeler['vehicle.historikk'] = bilkortHistorikkSekHtml(v), '')}
+    `, '')}${(bilDeler['vehicle.verkstedoppfolging'] = wfeProfilSekHtml(v), '')}${(bilDeler['vehicle.historikk'] = bilkortHistorikkSekHtml(v), '')}
 
     ${layoutFlowHtml('vehicle-profile', {parts:bilDeler})}
   `;
 }
 function attachBilkortListeners(){
   attachNesteVerkstedtimeListeners();   // Prioritet 54: «Åpne avtale» på Neste verkstedtime
+  attachWfeListeners();
   const v = vehicles.find(x => x.id === currentVehicleId);
   document.getElementById('back-to-register').addEventListener('click', () => goBack('register'));
   // Prioritet 59: Historikk-fanene (Kontroller/Skader/Varsellamper/Verkstedhistorikk/Kommentarer) bytter
@@ -17804,6 +18377,8 @@ function attachAktiveSakerListeners(){
   document.querySelectorAll('[data-godta-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); godtaSak(el.dataset.godtaSak); }));
   document.querySelectorAll('[data-avsla-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaSak(el.dataset.avslaSak); }));
   document.querySelectorAll('[data-bestill-vt-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); bestillVerkstedForSak(el.dataset.bestillVtSak); }));
+  attachWfeListeners();
+  attachNesteVerkstedtimeListeners();
   document.querySelectorAll('[data-sak-utfort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerSakUtfort(el.dataset.sakUtfort); }));
   // Prioritet 71.2 — «✅ Utført uten verkstedbesøk»: åpne/lukk årsak-panelet, vis/skjul
   // "Beskriv"-feltet når "Annet" velges, og selve bekreftelsen (leser valgt årsak +
@@ -18190,12 +18765,14 @@ function renderVerksted(){
   // gruppert arbeidsliste). Biler = tidligere per-bil-gruppering. Historikk = utførte jobber.
   const nesteVT = nesteVerkstedtime();
   const kpi = vtOversiktKpi(visning);
-  const fane = (vtOversiktFane === 'biler' || vtOversiktFane === 'historikk') ? vtOversiktFane : 'kommende';
+  const fane = vtOversiktFane;
   let faneInnhold = '';
   if(fane === 'historikk') faneInnhold = vtHistorikkListeHtml();
   else if(fane === 'biler'){
     const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nesteVT ? nesteVT.id : null, true);
     faneInnhold = oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody;
+  } else if(fane === 'krever-oppfolging' || fane === 'pa-verksted' || fane === 'klar-til-avslutning'){
+    faneInnhold = vtOppfolgingListeHtml(fane);
   } else {
     faneInnhold = visning.length === 0
       ? `<div class="empty-note">Ingen planlagte verkstedtimer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>`
@@ -18443,6 +19020,7 @@ function vtCard(t, upcoming, isNext){
         <div class="panel-actions">
           <button class="btn small" id="vt-save-${t.id}">Lagre endringer</button>
           ${vtErApen(t) ? `<button class="btn small" id="vt-fullfor-${t.id}">✅ Utført arbeid</button>` : ''}
+          ${vtErApen(t) ? `<button class="btn secondary small" id="vt-avlys-${t.id}">Avlys</button>` : ''}
           <button class="btn secondary small" id="vt-cancel-${t.id}">Avbryt</button>
           <button class="btn danger-outline small" id="vt-delete-${t.id}">Slett</button>
         </div>
@@ -18453,6 +19031,7 @@ function vtCard(t, upcoming, isNext){
 
 function attachVerkstedListeners(){
   attachNesteVerkstedtimeListeners();   // Prioritet 54/75: «Åpne» på Neste verksted og Kommende-rader
+  attachWfeListeners();
   document.querySelectorAll('[data-vt-fane]').forEach(el => el.addEventListener('click', () => {
     vtOversiktFane = el.dataset.vtFane || 'kommende';
     if(vtOversiktFane === 'biler') vtGrupperApen = true;
@@ -18647,6 +19226,8 @@ function attachVerkstedListeners(){
     if(delBtn) delBtn.addEventListener('click', beskyttKlikk('deleteVT:'+t.id, delBtn, (e) => { e.stopPropagation(); return deleteVT(t.id); }));
     const fullforBtn = document.getElementById('vt-fullfor-'+t.id);
     if(fullforBtn) fullforBtn.addEventListener('click', beskyttKlikk('fullforVT:'+t.id, fullforBtn, (e) => { e.stopPropagation(); return fullforVerkstedbestilling(t.id); }));
+    const avlysBtn = document.getElementById('vt-avlys-'+t.id);
+    if(avlysBtn) avlysBtn.addEventListener('click', beskyttKlikk('avlysVT:'+t.id, avlysBtn, (e) => { e.stopPropagation(); return avlysVerkstedtime(t.id); }));
   });
 }
 

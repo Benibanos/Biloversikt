@@ -1,8 +1,10 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-26 (storage v2.26.1: tom single select utelates fra PATCH. Appversjon 134. Flåtehelse v1. Datakvalitetsmotor ikke startet. Fase 1B manuell migrering.).
+Sist oppdatert: 2026-09-26 (Dashboard V4 W1, appversjon 136. storage uendret v2.26.1. Workshop Follow-up Engine v1. Flåtehelse v1. Datakvalitetsmotor ikke startet.).
 
 ## Implementeringsfase 1 — status (2026-09-26)
+
+**Workshop Follow-up Engine v1 — levert (appversjon 135).** Avledet oppfølging av sak + verkstedtime etter at timen er booket utenfor Bilpark. Ingen verkstedsvalg, ingen automatisk booking/lukking/tilbake i drift. Se `CHANGELOG.md` 2026-09-26.
 
 **Flåtehelse v1 — levert (appversjon 133).** Teknisk tilstand + tilgjengelighet. Mangler kontroll / EU / serviceintervall telles ikke i scoren. Se `../Dv4/project/fleet-health-framework.md`.
 

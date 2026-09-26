@@ -1,0 +1,160 @@
+---
+description: Bilpark and DriverControl development rules (design system, status dictionary, data model, states, tokens, accessibility)
+alwaysApply: true
+---
+
+> Source: `cursor-rules.md` in the Bilpark Design System (local copy `../Dv4/project/`, published at https://claude.ai/artifact/3pJXmZiskARdRJoLZX7e7v). The design-system documents referred to below live in `../Dv4/project/`, next to this repository. Update this file when that one changes.
+
+# Bilpark · Cursor Development Rules
+
+Rules for anyone (Cursor, Claude, a developer) changing Bilpark or DriverControl. They force one way of building. `CLAUDE.md` in the app repository remains binding for app code; these rules add the design-system and operational-model rules on top. Where the two seem to conflict, stop and ask.
+
+## Sources of truth (read before changing anything)
+
+| Question | Only answer |
+|---|---|
+| How the parts fit together | `../Dv4/project/system-overview.md` |
+| Which statuses exist, their words, tones, icons | `../Dv4/project/status-dictionary.md` |
+| Which fields and values exist in Airtable | `../Dv4/project/airtable-schema-v2.md` + `LIST_TABLES` in `storage.airtable.js` |
+| How a booking moves | `../Dv4/project/workshop-state-model.md` |
+| Which severity something gets | `../Dv4/project/damage-severity-framework.md` |
+| Which alerts exist | `../Dv4/project/alert-classification-matrix.md` |
+| How a screen is laid out | `../Dv4/project/design-system-v4.md`, `../Dv4/project/dashboard-blueprint.md`, `../Dv4/project/vehicle-profile-blueprint.md`, `../Dv4/project/driver-control-extension.md` |
+| Fleet health vs compliance | `../Dv4/project/fleet-health-framework.md` |
+| Workshop follow-up (derived) | `../Dv4/project/workshop-state-model.md` Follow-up · dictionary §12 |
+| Which states a component has | `../Dv4/project/component-states.md` |
+| Which numbers may be shown | `../Dv4/project/operational-kpi-framework.md` |
+
+**Never** define a status, tone, icon or severity mapping in code comments, a new constant, or a new document. Add it to the dictionary first, then implement.
+
+## Architecture (fixed)
+
+- GitHub Pages → Airtable from the browser. No backend, proxy, worker, server or new service.
+- App: `index.html` (UI and logic), `kontroll.html` (driver entry), `storage.airtable.js` (the only Airtable layer), `sw.js`, manifests, `icons/`. No build step, no framework, no npm dependencies in the app.
+- Design system: `project/` (tokens, brand book, components in `components/bundle.js` under the `Bilpark` namespace).
+
+## Folder structure
+
+```
+Biloversikt-main/               the app (repository)
+  index.html                    UI + logic; new code goes next to the code it belongs to
+  kontroll.html                 driver entry (same app)
+  storage.airtable.js           Airtable only; bump versjon + ?v= on every change
+  sw.js                         bump CACHE_VERSION when app-shell files change
+  AIRTABLE_MIGRATION.md         update on every field change
+  CLAUDE.md · ROADMAP.md · CHANGELOG.md
+Dv4/project/                    design system (this documentation)
+  *.md                          brand book and specifications (max 24 sections)
+  tokens.json                   tokens
+  components/<Name>/README.md   component guideline
+  components/<Name>/preview.html
+  components/bundle.js · bundle.css · index.d.ts
+```
+
+Do not add files to the app repository without a reason recorded in `CHANGELOG.md`.
+
+## Allowed components
+
+Build every screen from these, in this order of preference:
+
+1. Foundations: `Icon`, `Button`, `StatusBadge`, `Card`, `KpiCard`, `VehicleCard`, `DataTable`.
+2. Fleet Operations: `AppShell`, `Sidebar`, `OperationalHeader`, `FilterChip`, `FleetHealthOverview`, `ComplianceCard`, `FollowUpSummary`, `FollowUpRow`, `FollowUpPanel`, `AlertCard`, `WorkshopCard`, `WorkshopScheduler`, `VehicleTimeline`, `CaseCard`, `CalendarEvent`, `ActivityFeed`, `LinkDialog`.
+3. States: `EmptyState`, `LoadingState`, `ErrorState`, `StaleDataIndicator`.
+4. DriverControl: `DriverHeader`, `QuickActions`, `InspectionWizard`, `DamageWizard`, `PhotoCapture`, `SyncStatus`, `OfflineBanner`.
+
+`VehicleHealth` is not a new chrome: it is statusrad + §4 chips on the vehicle profile. Do not add a second health score.
+
+A new component is allowed only when none of these can carry the content, and only after its README (purpose, states, accessibility, tokens) exists in `project/components/`.
+
+## Forbidden
+
+- Third-party UI kits, calendar or chart libraries with their own styling.
+- A second icon set, emoji in the UI, hand-drawn SVG icons. Lucide only.
+- Cards with a coloured left border; gradients other than the hero gradient; glow, neon, glossy effects.
+- `storage.set()` on a list table from DriverControl offline code (it deletes rows; use `upsertRow`).
+- Deleting a booking, damage, control or case from the UI (change status instead).
+- Charts, trends or sparklines above `FleetHealthOverview`.
+- Merging Flåtehelse, Operativ etterlevelse and Verkstedoppfølging into one card or one percentage.
+- Workshop follow-up that books, auto-closes cases, or sets Driftsstatus to `aktiv`.
+- Any metric about a person (see the KPI framework).
+- Reading or writing retired fields (`Vehicles.Status`, `AktiveSaker.Priority`).
+
+## Naming conventions
+
+| Thing | Convention | Example |
+|---|---|---|
+| Stored status value | lowercase kebab, Norwegian, from the dictionary | `kan-ikke-brukes`, `pagar` |
+| Airtable column | PascalCase Norwegian (existing style) | `Driftsstatus`, `ForventetFerdig` |
+| App field (`LIST_TABLES` key) | camelCase of the column | `driftsstatus`, `forventetFerdig` |
+| App functions | Norwegian, descriptive, existing style | `vehicleHovedstatus()`, `sakErApen()`, `flatehelse()` |
+| Constants | UPPER_SNAKE, Norwegian | `EU_KONTROLL_VARSEL_DAGER_HASTER` |
+| Design-system components | PascalCase English | `WorkshopCard` |
+| Settings keys | lowercase kebab; per-item keys `prefix:<id>` | `standard-nedetid`, `synkstatus:<enhetId>` |
+| UI text | Norwegian bokmål, sentence case, «du», no exclamation marks | «Neste verksted» |
+
+## Token usage
+
+- **Never hardcode colours.** Hex values live only in token definitions.
+- **Design system**: use the tokens in `tokens.json` (`bg`, `surface`, `ink`, `ink-muted`, `border`, the six status tones and their `-soft` fills, `accent`).
+- **App (`index.html`)**: the app has its own custom properties in `:root` and theme blocks. Use them, never literals. They map to the design-system tones as follows, and new code must use the tone that the dictionary gives:
+
+| Dictionary tone | App variable |
+|---|---|
+| `success` | `--green` / `--green-soft` (text: `--green-ink`) |
+| `warning` | `--amber` / `--amber-soft` |
+| `danger` | `--red` / `--red-soft` |
+| `info` | `--blue` / `--blue-soft` |
+| `workshop` | `--orange` / `--orange-soft` |
+| `neutral` | `--muted` / `--surface-3` |
+
+  `--purple` and `--teal` are for driftslag grouping only, never for status.
+- Spacing, radius and type from the token scales; no one-off pixel values in new code.
+
+## State handling
+
+Every data-driven view or component must implement:
+
+| State | Implementation |
+|---|---|
+| Loading | `LoadingState` skeleton shaped like the content; never zeros; label after 6 s; `ErrorState` after 20 s |
+| Empty | `EmptyState` with `verifiedAt`, only with fresh data |
+| Error | `ErrorState` scoped to the failing section, with last good time and retry |
+| Offline / stale | Last known values + `StaleDataIndicator`; `EmptyState stale` for empty lists; writes disabled in admin, queued in DriverControl |
+
+Plus the component's own states from `component-states.md`. A pull request that adds a view without all four is incomplete.
+
+Status values come from the stored field or the dictionary's derivation function, never from a string typed in a template.
+
+## Data rules (from CLAUDE.md, repeated because they break things)
+
+- A new Airtable field is added to `LIST_TABLES` in the same change that starts using it, and to `airtable-schema-v2.md` and `AIRTABLE_MIGRATION.md`.
+- `v.km` is the only authoritative km; it is never lowered.
+- Every stored-status change appends to `StatusHistorikk`; never rewrite history.
+- Rules that depend on time run in the day-boundary pass (`handhevOperativtDogn()`), not in timers.
+- Dual writes during migration: `UteAvDrift` with `Driftsstatus`, `Utfort` with `Status`.
+
+## Responsiveness
+
+- Works at 375 px wide: 16 px side gutter, no horizontal page scroll, cards stack to one column in blueprint order.
+- Two-column layouts from 1024 px.
+- Touch targets ≥ 48 × 48 px; DriverControl QuickActions and wizard answers ≥ 64 px tall.
+- Test desktop, mobile and DriverControl after every relevant change (CLAUDE.md).
+
+## Accessibility
+
+- Status is never colour alone: icon + word (`StatusBadge` does this).
+- Visible focus ring: 2 px `accent`, 2 px offset, on every interactive element.
+- Contrast: body text ≥ 4.5:1; focus ring and icons ≥ 3:1. `neutral` is never used for text.
+- Real buttons and links; clickable cards are buttons with an accessible name.
+- `role="alert"` only on Critical `AlertCard` and `ErrorState`; `role="status"` + `aria-live="polite"` on stale and empty states.
+- Honour `prefers-reduced-motion`.
+- Form fields have labels; errors are text next to the field.
+
+## Before you finish
+
+- [ ] No new status, tone, icon or severity outside the dictionary.
+- [ ] No hardcoded colour.
+- [ ] Four universal states implemented.
+- [ ] Works at 375 px.
+- [ ] `LIST_TABLES`, schema doc and migration doc updated for any field change; `versjon` and `?v=` bumped; `CACHE_VERSION` bumped if the app shell changed.
+- [ ] `CHANGELOG.md` updated.
