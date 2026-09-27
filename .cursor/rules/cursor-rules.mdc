@@ -20,6 +20,7 @@ Rules for anyone (Cursor, Claude, a developer) changing Bilpark or DriverControl
 | Which severity something gets | `../Dv4/project/damage-severity-framework.md` |
 | Which alerts exist | `../Dv4/project/alert-classification-matrix.md` |
 | How a screen is laid out | `../Dv4/project/design-system-v4.md`, `../Dv4/project/dashboard-blueprint.md`, `../Dv4/project/vehicle-profile-blueprint.md`, `../Dv4/project/driver-control-extension.md` |
+| How it looks (colour, type, borders, radius, shadow, icons) | `../Dv4/project/visual-language-v4.md` and the V4 tokens (`tokens.json` = the `:root` block in `index.html`). Overrides every visual statement in `design-system-v4.md` |
 | Fleet health vs compliance | `../Dv4/project/fleet-health-framework.md` |
 | Workshop follow-up (derived) | `../Dv4/project/workshop-state-model.md` Follow-up · dictionary §12 |
 | Which states a component has | `../Dv4/project/component-states.md` |
@@ -92,23 +93,73 @@ A new component is allowed only when none of these can carry the content, and on
 | Settings keys | lowercase kebab; per-item keys `prefix:<id>` | `standard-nedetid`, `synkstatus:<enhetId>` |
 | UI text | Norwegian bokmål, sentence case, «du», no exclamation marks | «Neste verksted» |
 
-## Token usage
+## Design tokens (V4)
 
-- **Never hardcode colours.** Hex values live only in token definitions.
-- **Design system**: use the tokens in `tokens.json` (`bg`, `surface`, `ink`, `ink-muted`, `border`, the six status tones and their `-soft` fills, `accent`).
-- **App (`index.html`)**: the app has its own custom properties in `:root` and theme blocks. Use them, never literals. They map to the design-system tones as follows, and new code must use the tone that the dictionary gives:
+**Main rule:** the V4 tokens are the authoritative design source. They are defined once in `:root` at the top of `index.html`, with values identical to `tokens.json` (see `visual-language-v4.md` and `V4_TOKEN_MIGRATION.md`). Every new component, new screen, new CSS rule and new design change uses the V4 tokens **directly**. The transition aliases exist only for backwards compatibility and are never used in new code.
 
-| Dictionary tone | App variable |
+### Required V4 token set
+
+| Group | Tokens |
 |---|---|
-| `success` | `--green` / `--green-soft` (text: `--green-ink`) |
-| `warning` | `--amber` / `--amber-soft` |
-| `danger` | `--red` / `--red-soft` |
-| `info` | `--blue` / `--blue-soft` |
-| `workshop` | `--orange` / `--orange-soft` |
-| `neutral` | `--muted` / `--surface-3` |
+| Background and surfaces | `--bg`, `--surface`, `--surface-elevated` |
+| Text | `--ink`, `--ink-muted` |
+| Border | `--border`, `--border-strong` |
+| Interaction | `--hover`, `--accent`, `--on-accent` |
+| Status | `--success` / `--success-soft`, `--warning` / `--warning-soft`, `--danger` / `--danger-soft`, `--danger-strong` / `--on-danger`, `--info` / `--info-soft`, `--workshop` / `--workshop-soft`, `--neutral` / `--neutral-soft` |
+| Radius | `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-pill` |
+| Shadows | `--shadow-card`, `--shadow-overlay` |
 
-  `--purple` and `--teal` are for driftslag grouping only, never for status.
-- Spacing, radius and type from the token scales; no one-off pixel values in new code.
+The token block also holds `--surface-gradient-start` / `--surface-gradient-end` (the fleet-health hero only), `--font-sans`, `--space-1` … `--space-12` and `--icon-table` / `--icon-standard` / `--icon-nav` / `--icon-kpi`. Use them in the same way.
+
+### Forbidden variables in new code
+
+Do **not** introduce new references to:
+
+```
+--surface-2   --surface-3   --ink-2   --muted
+--line        --line-soft
+--red         --red-soft
+--amber       --amber-soft
+--green       --green-soft   --green-ink
+--orange      --orange-soft
+--blue        --blue-soft
+--chrome-bg   --chrome-text
+--radius
+--sh-card     --sh-hover
+```
+
+These are transition aliases and are phased out during the migration. `--purple`, `--teal` and `--plate-blue` have no V4 equivalent and are being removed; never use them in new code either.
+
+### CSS rules
+
+- Never use a hard-coded colour value when a matching token exists.
+- Never add new hex colours in components. Hex values live only in the V4 token block.
+- Never add a new local colour variable when a matching V4 token exists.
+- Never add a new local design token for colour, border, radius or shadow when a matching V4 token already exists.
+- Never add a new shadow literal when a matching V4 token exists (`--shadow-card`, `--shadow-overlay`).
+- Never add a new radius literal when a matching V4 token exists (`--radius-sm` / `-md` / `-lg` / `-pill`).
+- Spacing, type and icon sizes come from the token scales; no one-off pixel values in new code.
+
+### Focus style
+
+- Focus styles use `outline: 2px solid var(--accent);` with `outline-offset: 2px`.
+- Do not use your own focus colours.
+- Do not introduce alternative focus styles without an explicit design decision.
+
+### Status system
+
+- Status is always represented with the six tones `success`, `warning`, `danger`, `info`, `workshop` and `neutral`. Which tone a status gets comes from the status dictionary.
+- Do not create new concept colours.
+- Do not create parallel status systems.
+- Do not introduce new status colours without an explicit decision.
+
+### Migration rule
+
+- W0 established the V4 tokens as the new visual truth.
+- The aliases exist only to allow gradual migration of existing code.
+- The aliases are phased out during W1–W10 (`v4-foundation-migration.md`).
+- New code is never built on the aliases.
+- New code is written as if the aliases do not exist.
 
 ## State handling
 
@@ -153,7 +204,9 @@ Status values come from the stored field or the dictionary's derivation function
 ## Before you finish
 
 - [ ] No new status, tone, icon or severity outside the dictionary.
-- [ ] No hardcoded colour.
+- [ ] No hardcoded colour, shadow or radius literal where a V4 token exists.
+- [ ] No new reference to a transition alias (`--line`, `--muted`, `--red` … see «Forbidden variables in new code»).
+- [ ] Focus = `2px solid var(--accent)`, offset 2 px.
 - [ ] Four universal states implemented.
 - [ ] Works at 375 px.
 - [ ] `LIST_TABLES`, schema doc and migration doc updated for any field change; `versjon` and `?v=` bumped; `CACHE_VERSION` bumped if the app shell changed.

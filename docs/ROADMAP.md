@@ -1,6 +1,6 @@
 # ROADMAP.md — Bilpark Operativsystem
 
-Sist oppdatert: 2026-09-26 (Dashboard V4 W1, appversjon 136. storage uendret v2.26.1. Workshop Follow-up Engine v1. Flåtehelse v1. Datakvalitetsmotor ikke startet.).
+Sist oppdatert: 2026-09-26 (Dashboard V4 W2, appversjon 137. Dashboard V4 W1, appversjon 136. storage uendret v2.26.1. Workshop Follow-up Engine v1. Flåtehelse v1. Datakvalitetsmotor ikke startet.).
 
 ## Implementeringsfase 1 — status (2026-09-26)
 

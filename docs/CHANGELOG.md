@@ -13,7 +13,137 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-27
+
+### V4 Foundation · W10 (opprydding, kun visuelt)
+
+1. Rapport `Dv4/project/V4_W10_REPORT.md`. Overgangsaliasene (`--line`, `--muted`, `--red`, `--green`, `--amber`, `--blue`, `--orange`, `--chrome-*`, `--surface-2/3`, `--ink-2`, `--radius`, `--sh-card`, `--sh-hover` og `-soft`-variantene) er erstattet med V4-tokenene og slettet fra `:root`. `STATUS_TONE` leser V4-navnene. Utseendet følger aliasenes verdier.
+2. Død CSS uten treff i markup eller script er fjernet, blant annet gamle piller (`.badge`, `.vl-card`, `.dash-chip`), KPI-klassen `.dash40-kpi`, flåteflisene `.fh-flis` og ubrukte hilsenkort. `bp-*`-reglene fra W1 står, også der klassen settes sammen i script (`bp-badge-${tone}`).
+3. Gjenværende avvik er dokumentert i rapporten. Emoji er ikke rørt (W2b etter W10). `--plate-blue` står (C7).
+4. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 148 → **149**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W9 (skjemaer, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §4 og §12; rapport `Dv4/project/V4_W9_REPORT.md`. Beslutning D6: sjåførens minstehøyder beholdes.
+2. Valg-brikker (varsellampe og kontrollavvik i DriverControl) er `bp-chip` i sjåførhøyde (minst 56 px). Valgt = `surface-elevated` og accent-kant. Aktiv varsellampe får statusmerke fra ordboken (`varsellampe.aktiv`), ikke grønn flate.
+3. Ja/nei (`.chip-yn`) er et segmentert spor. Svarene er minst 64 px. Verkstedets type- og dekkretning-valg er minst 48 px, samme valgte tilstand.
+4. Felt (`input`, `select`, `textarea`) har 1 px `border`, radius 8, minst 48 px, hover `border-strong`, fokus accent. Avkrysning og radio bruker accent. Innstillinger: tema-valg og operativt grunnlag har minst 48 px trykkflate.
+5. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 147 → **148**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W8 (navigasjon, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §8 og §12; rapport `Dv4/project/V4_W8_REPORT.md`.
+2. Sidemeny: `bp-nav-item`. Aktivt punkt er `surface-elevated`, inset `border`, vekt 600 og accent-ikon. Sekundære punkter 36 px. Sammenklappet bredde 72 px under 1200 px. Samme `data-desktop-nav`.
+3. Drawer: samme aktive tilstand, 48 px trykkflate, panel `min(300px, 86vw)`, `shadow-overlay`, 55 % scrim. Menyen åpnes fortsatt fra høyre. Grønn prikk på aktivt punkt er borte.
+4. Faner (kjøretøyprofil, verksted, varslingssenter, register, hurtigoversikt) er `bp-seg`: nedsenket spor, aktivt segment hevet. Samme `data-*` og `active`.
+5. Klokkeknappene er 40 px ikonknapper med eksisterende `bp-count`. Bunnmenyene beholdes (D2); aktivt punkt bruker accent-ikon, ikke grønn tekst.
+6. Verkstedoppfølgingens tellere er sammendragschips. Klikkmålene er uendret.
+7. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 146 → **147**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W7 (KPI-kort, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §7 (KPI-kort og flåtehelse-hero) og artefaktens `KpiCard` / `FleetHealthOverview`; rapport `Dv4/project/V4_W7_REPORT.md`.
+2. Ny presentasjonshjelper `bpKpiHtml()`: 44 px toneflis, verdi 28/32 tabular, etikett 13/18, valgfri undertekst 12/16. Tallet leder. Klikk og `data-*` beholdes.
+3. Verkstedoversiktens tre KPI-kort (I dag / Denne uken / Forfalt) er `bp-kpi`. Forfalt leser `verksted.forfalt` (danger, `clock`); null forfalte er success. Ingen `--orange` / `--blue` / `--red` i markupen.
+4. Dashboard-widgeten «Aktive biler» er ett KPI-kort (nøytral flis). Samme filter `har-aktiv-sjafor`.
+5. Flåtehelse er V4-hero (`bp-fh`): 56 px score, nivå fra ordboken, søyle og forklaring av de fire eksisterende populasjonene, fliser med verdi før etikett. `flatehelse()` er urørt.
+6. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 145 → **146**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W6 (rader og varsler, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §7 og artefaktens `AlertCard`; rapport `Dv4/project/V4_W6_REPORT.md`.
+2. Nye presentasjonshjelpere `bpAlertHtml()` (`bp-alert`: critical | high | medium | low), `bpAlertNivaFraAlvorlighet()` (ordbokens alvorlighet → nivå/tone/ikon) og `bpMetaHtml()`. Kun kritisk får `role="alert"`, `danger-soft`-flate, `danger`-kant, 44 px flis og primærknapp; øvrige nivåers primærknapper tegnes som sekundære (som artefakten).
+3. Varslingssenter: hver hendelse er et AlertCard (tidligere `.vl-card`) med alvorlighet + varselstatus som badger, tekst og dato som metalinje, samme knapper og data-attributter.
+4. Dashboard «Varsler»: varselradene er AlertCards (uten skygge inne i kortet), klikkbare via samme data-attributt, «→ Åpne …» som accent-lenke.
+5. Varsellamper (`varsellysCard`, bilkort/dashboard): AlertCard — aktiv = høy (ordbokens `varsellampe.aktiv` = warning), kvittert = lav og lukket; 🚨/✅ i tittelen erstattet av statusflis.
+6. Radsystemet (`.p38-case`, `.p38-task`): 13/600 navn, 12/500 `ink-muted` metalinje, hårlinje mellom rader, hover-flate. Rettet: `.p38-case span`-regelen gjorde statusbadger i radene grå — badger har nå egen tone. «Åpne»-lenker i rader er accent (ikke fane-/tonefarget).
+7. Aktive saker: sakskort har statusbadge (`sak`) + alvorlighet, kant etter alvorlighet (kritisk = `danger`, høy = `warning-soft`), V4-typografi; dashboardets saksrader viser sak-status som badge (status var farge alene).
+8. Verkstedoppfølging: radene følger radsystemet, badger i egen tone; skjelett `surface-elevated`, «stale»-tekst i `warning`.
+9. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 144 → **145**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W5b (knapper, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §10–§12 og artefaktens `Button` (`bp-btn`: 40 px, radius 12, Inter 500 13/18); rapport `Dv4/project/V4_W5B_REPORT.md`.
+2. Alle 218 `.btn` har `bp-btn` + variant: `btn`/`btn small` → `bp-btn-primary` (96), `secondary` → `bp-btn-secondary` (93), `danger` → `bp-btn-danger` (1), `danger-outline` → `bp-btn-secondary` med danger-tekst (20), veksleknapper (`? '' : 'secondary'`) → `bp-btn-primary`/`bp-btn-secondary` (8). `.btn`/`.secondary`/`.small` er kun kroker.
+3. Tilbakeknapper (19) = `bp-btn-secondary`; «I dag» i datovelgeren = `bp-btn-secondary`; systemkontroll-knappen = `bp-btn-primary` (accent i stedet for statusgrønn, beholder 54 px); «Ring» og «Smør løftebord» = `bp-btn-secondary` (ingen rød/statusfarget pille). Store valgknapper i bunnark = sekundær i 56 px-format, destruktivt valg = `danger-strong`.
+4. Trykkflater: 44 px på berøringsskjerm (eksisterende krav), 48 px i sjåførmodus (D6).
+5. Installasjonsstripen (PWA) er en rolig banner (`surface-elevated`) — «Installer» var accent på accent og usynlig (også før W5b).
+6. Kun klasse-strenger i markup + CSS endret; ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1). App-/cacheversjon 143 → **144**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W5 (kort, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §4, §6, §7; rapport `Dv4/project/V4_W5_REPORT.md`.
+2. Alle 105 `.panel` er `bp-card panel` (utseendet eies av `bp-card`: surface, 1 px border, radius 16, `shadow-card`, 20 px luft / 16 px under 720 px). `.panel` er kun layoutkrok (avstand). Flåtehelse = `bp-card-hero` (135°-gradient); «Alle sider»-kort = `bp-card-click`. Varianter som stolte på egen padding (`dash-group-card`, `dash-banner`, `fh-kort`, `alle-sider-kort`) har fått `.panel`-prefiks så de beholder layouten.
+3. Kort i kort = innfelt panel (`surface-elevated`, radius 12, ingen skygge). Ingen skygge på kort inne i et kort (gcard, vt-card, acc-row m.fl.).
+4. Kortoverskrifter (19): `bp-card-head` med 36 px `bp-tile` (accent-ikon) + tittel 18/26; flåtehelse som overline uten flis. Overskriften brytes pent på smal skjerm. `.panel > h3:first-child` = korttittel 18/26.
+5. Knapperader (`.panel-actions`) inne i kort = kortfot med hårlinje over og 8 px mellom knapper. «Se alle»-lenker (`.p38-lenke`) = V4-lenke (accent, understreket).
+6. Kortfamilier på V4: `gcard` (hover-flate, ingen skygge i kort), bestillingskort (hover-flate), `sj-card`/`ringeliste-group`/`ringeliste-quick-card` og handlingskort i sjåførmodus (radius 16, `shadow-card`, hover), `vt-card` (neste time = inset accent-kant i stedet for blå flate), `acc-row`, `sak-horisontal-kort`, `dmg-item`, `kt-history-card`. Sjåførmodusens flate `.panel`-unntak er fjernet.
+7. Fargekonsistens service/«Forfalt»: tekst, ikon og tone fra samme kilde som serviceflisen (`serviceStatusTone()` → ordbokens alvorlighet). Profil: «Forfalt» som StatusBadge (warning, samme ikon som alvorligheten) + km som verditekst; nær-grense-verdier som badge. Service-skjermen: statuslinjen som samme badge, kortet med `warning-soft`-kant i stedet for rød/gul fylt flate. Tallverdiene for varsellamper/skader/saker i profilen er `ink` (flisen bærer tonen).
+8. Rettet under kontrollen: `button.p38-case` (verkstedoppfølging på Dashboard) fikk nettleserens grå knappeflate etter W1 (`color-scheme: dark`) — nå V4-rad uten flate. Profilens statusrutenett hadde 3 kolonner på mobil (media-rekkefølgefeil, også i v142) og fløt ut av kortet — nå 2 kolonner under 641 px, `minmax(0,1fr)`.
+9. Ingen statuslogikk, beregning, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 142 → **143**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W4 (tomtilstander, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §8 (state panel) og artefaktens `EmptyState`; rapport `Dv4/project/V4_W4_REPORT.md`.
+2. Ny presentasjonshjelper `bpTomTilstandHtml(tittel, melding, kompakt)` → `bp-state bp-state-empty` (`role="status"`): stiplet `border-strong`, radius 16, 48 × 24 luft, nøytral 44 px-flis, tittel 15/600, melding 14/20 `ink-muted`. Påstår ikke «kontrollert mot fersk data» — når tomtilstand vises styres fortsatt av eksisterende logikk.
+3. De tre `.empty`-panelene (Biler: ingen i drift / ingen treff / ingen registrert; profil: fant ikke kjøretøyet) er `bp-state`.
+4. `.empty-note` (75): inne i kort = V4-meldingstekst (14/20, `ink-muted`, ingen boks); direkte i skjermområdet (`.app-shell-main > .empty-note`) = kompakt `bp-state` (stiplet `border-strong`, radius 16, 24 × 16, sentrert). Kun CSS, ingen markup endret.
+5. Små tomtekster (`dash-kl-tom`, `nvt-tom-tekst`, `dash-edit-tom`, `dash-banner-vt-tom`) på V4-tokens; stiplede tomrammer i profilen bruker `border-strong`.
+6. Ingen logikk, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 141 → **142**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W3 (fliser og D4, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md` §7 og §11; rapport `Dv4/project/V4_W3_REPORT.md`.
+2. Nye presentasjonshjelpere `bpTileHtml(tone, ikon, stor)`, `bpStatusTileHtml(domene, nøkkel, stor)` og `toneFraTint(tint)` (leser `STATUS_TONE`, endrer den ikke). Statusflis = `bp-otile` 32 px (ikon 16) / `bp-otile-lg` 44 px (ikon 24), som artefaktens `Tile()`.
+3. Alle 20 `.flis` er erstattet. Tone kommer fra ordboken: identitetsflis på bilkort og profil = bilens operative status (før: statusfyll med blått bilikon), profilens statusrad (service, EU-kontroll, løftebord, kontroll i dag, varsellamper, skader, saker), saksrader (`sak`-status i stedet for fane-farge), verkstedoppfølging (`verkstedOppfolging`), varslingssenter og historikk (`STATUS_TONE`-tint → tone). Kilometerstand og dekk er nøytrale (ikke status). Kalenderens verkstedavtaler = workshop (EU-kontroll alene = info), som artefaktens hendelsestyper.
+4. D4: de fem bestillingskortene er nøytrale — nøytral 44 px-flis, ingen `--tint`/`--tone`, nøytral pil. Ruteskift er ikke lenger rødt.
+5. Flåtehelse-flisene er V4 hero-fliser: `surface-elevated`, radius 12, 12 px luft, statusflis fra ordboken (operativ / på verksted / kan ikke brukes / reserve), 22 px verdi, 12 px etikett i `ink-muted`.
+6. Sjåførmodus: skjermtittel-fliser er strukturelle (`surface-elevated` + accent-ikon); radikoner nøytrale 32 px, statusrader (kontroll i dag, løftebord) med ordboktone; handlingsikoner og «Avslutt»-ikon nøytrale; Home Delivery/Veihjelp nøytral flis i stedet for heldekkende grønn/blå. Døde inline `--tint`/`--tone` fjernet (32).
+7. Ingen forretningslogikk, statusberegning, Fleet Health-beregning, AlertEngine, WorkshopFollowupEngine, Airtable eller `storage.airtable.js` (v2.26.1) endret. Ingen emoji-opprydding (W2b). App-/cacheversjon 140 → **141**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W2 (statusspråk, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md`; rapport `Dv4/project/V4_W2_REPORT.md`.
+2. `statusPilleHtml()` tegner V4 StatusBadge (`bp-badge bp-badge-{tone}`, Lucide-ikon 16 px + ord), tone og ikon fra ordboken. Ny presentasjonshjelper `bpBadgeHtml(tone, ikon, innhold)` for avledede tilstander (aktiv sjåfør, antall, «Skjult i menyen»); tone er alltid én av de seks ordboktonene. `STATUS`/`STATUS_TONE` urørt.
+3. Alle gamle piller er erstattet: `.badge` (10), `.p38-pill` (6), `.sj-pill` (2), `.vl-status-badge` (1). Emoji i disse pillene (⚪ ✅ ⚠️ 🔴 ⛔ 🚐 📷 🟢🟡🔴) er byttet til Lucide-ikoner. Toner følger ordboken: varsellampe-antall = `varsellampe.aktiv` (warning), skader = `skade.registrert`/`utbedret`, reserve = `driftsstatus.reserve` (nøytral), mangler kontroll = `operativ.ikke-kontrollert`.
+4. Tellere → `bp-count`: sidemeny (`bp-count-danger`), varselklokke og «Mer» i bunnmenyen (`bp-count-dot`), filterknappen i Biler (`bp-count-neutral`).
+5. `statusEmoji()` er fjernet fra skjermbildet (Min Bil, statusfilter, tittel-tooltips, rapportfilter og rapporttabeller). Excel-eksport og datafeltene i `vehicleEuKontrollStatus()`/`rapportRuteglassRader()` er urørt.
+6. Konseptfargene `ic-*` er fjernet (24 bruk + 7 CSS-regler); strukturelle ikoner arver tekstfargen.
+7. D3: driftslag er nøytrale (grå prikk, tekstetikett); `P48_DRIFTSLAG_FARGE` og driftslag-emoji i Operativt grunnlag er fjernet; `--purple`/`--teal` er fjernet (0 bruk). Seksjonstitler i sjåførmodus i `ink-muted`. Ringeliste: aktive = success, ingen aktive = warning, ledelse = nøytral.
+8. D5: `.badge.verksted` er ikke i bruk; verkstedpiller kommer fra ordboken. «Innen 7 dager» (tidshint, ikke status) er nøytral.
+9. D6: gruppeoverskrifter i DriverControl (`.ringeliste-group-head`, `.sj-card-head`) har `min-height: 48px` (var 45 px, også i v137).
+10. Ingen forretningslogikk, statusberegning, Fleet Health, AlertEngine, WorkshopFollowupEngine, Airtable eller `storage.airtable.js` (v2.26.1) endret. App-/cacheversjon 139 → **140**. `kontroll.html` = `index.html`.
+
 ## 2026-09-26
+
+### V4 Foundation · W1 (grunnleggende CSS, kun visuelt)
+
+1. Kilde `Dv4/project/visual-language-v4.md`; rapport `Dv4/project/V4_W1_REPORT.md`.
+2. Typografi: kun Inter 400/500/600 (`@import` uten Space Grotesk). Alle `font-family` → `var(--font-sans)` (49 Space Grotesk + 10 Inter). `font-weight` 650/700/800 → 600 (165, inkl. inline-stiler). `h1–h4`, `b`, `strong`, `th` = 600.
+3. Kanter: `1.5px` → `1px` (95). Ingen ensidige aksentkanter: `border-left` 4/5 px (gcard, acc-row, vt-card, kt-history-card, sj-card, ringeliste-group, p48-kort, sak-gruppe-panel) og `sk-kort` 4 px topp → 1 px `--border`; 15 tonede `border-left-color` → `--border`; `.dash40-kpi::after`-stripe fjernet; aktiv sidemeny `inset 3px` grønn → `inset 0 0 0 1px var(--border)`. Feilpanelet ved oppstart: 1 px `--danger`.
+4. Skygger: kort `--shadow-card`, overlegg (dato-/tidsvelger, drawer, modal, sjåfør-toast) `--shadow-overlay`, 16 literale skygger fjernet/erstattet, hover gir ikke lenger større skygge, 3 px ringer fjernet, bunnmeny og ringeliste-hurtiglinje uten skygge. Layout Editor-slippindikator beholdt (funksjonell), nå `--accent`.
+5. Hover-kant `--ink`/`--muted` → `--border-strong` (13). Trykk-skalering (`transform:scale` på `:active`) fjernet (10).
+6. Radius 8/12/16/100/999 px → `--radius-sm/md/lg/pill` (113, ingen visuell endring). Øvrige radiusverdier tas i komponentbølgene.
+7. Lucide strek 1.75 → 2. Merkestripe-gradient på `.shell-top` fjernet. Lightbox-knapper `--border-strong`/`--ink`. Drawer-scrim 0.55. `color-scheme: dark`.
+8. `bp-*`-anatomien fra `Dv4/project/components/bundle.css` er kopiert uendret inn nederst i `<style>` (brukes ikke av noen skjerm ennå).
+9. Ingen funksjonskropp endret; kun `<style>` og inline `style`-strenger (vekt, font, kantbredde). Fleet Health, AlertEngine, WorkshopFollowupEngine, statusordbok, Airtable og `storage.airtable.js` (v2.26.1) urørt. App-/cacheversjon 138 → **139**. `kontroll.html` = `index.html`.
+
+### V4 Foundation · W0 (tokens, kun visuelt)
+
+1. Visuell kilde er `Dv4/project/visual-language-v4.md`; plan i `Dv4/project/V4_TOKEN_MIGRATION.md`, rapport i `Dv4/project/V4_W0_REPORT.md`.
+2. Lokal `--accent` (sjåførkort `sj-card`, `ringeliste-group`, `p48-action-card`/`p48-checkout-card`) omdøpt til `--p48-kant` — 21 forekomster (7 i CSS, 14 inline-stiler). Ingen visuell endring; hindrer kollisjon med V4 `--accent`.
+3. Alle V4-tokens fra `tokens.json` er CSS-variabler i `:root` (flater, linjer, `hover`, `accent`/`on-accent`, `ink`/`ink-muted`, seks statustoner + `-soft`, `danger-strong`/`on-danger`, `font-sans`, `space-*`, `radius-*`, `shadow-card`/`shadow-overlay`, `icon-*`).
+4. Gamle variabler er overgangsaliaser for V4-tokens (`--red`→`--danger`, `--line`→`--border`, `--muted`→`--ink-muted`, `--chrome-bg`→`--accent`, `--radius`→`--radius-lg`, `--sh-card`/`--sh-hover`→`--shadow-card` …). Lys-blokken og `:root[data-theme="dark"]` er erstattet av én V4 Dark-palett: lys, mørk og system viser det samme (D1). Temainnstillingen og `resolveTheme()` er urørt. `--purple`/`--teal`/`--plate-blue` uendret til W2 (D3) / C7.
+5. Kontrast: tellere, `.btn.danger`, varselprikker og bunnmeny-teller bruker `--danger-strong` + `--on-danger` (4,8:1, var 3,4:1). Oppdateringsstripe og `sk-knapp` bruker `--on-accent`; «Ny»-merket i kommentarer `--warning`.
+6. Fokusringer (11) er `2px solid var(--accent)`, offset 2 px; fokuserte felt får `accent`-kant.
+7. `theme-color` (meta + begge manifester, også `background_color`) = `#0B1210`.
+8. Ingen funksjonskropp endret. Fleet Health, AlertEngine, WorkshopFollowupEngine, `STATUS`/`STATUS_TONE`, Airtable og `storage.airtable.js` (v2.26.1) er urørt. App-/cacheversjon 137 → **138**. `kontroll.html` = `index.html`.
+
+### Dashboard V4 · W2 (verkstedoppfølging, kun UI)
+
+1. Sammendraget på Dashboard er knapper i `.wfe-sammendrag`. Én mapping: krever oppfølging og mangler kobling → fanen `krever-oppfolging`, klare til avslutning → `klar-til-avslutning`, på verksted → `pa-verksted`, avventer verksted → `kommende`. `goTo('verksted')` bruker engangsvalget `vtOversiktFaneOnsket` slik at standardvalget (Krever når den har rader, ellers Kommende) ikke visker det ut. Vanlig åpning av Verksted er uendret.
+2. Samme kort har fire tilstander fra `verkstedDataFerskhet()`: skjelett uten tall mens data lastes (etikett etter 6 s, feil etter 20 s), tomtekst med sist bekreftet tid kun når data er ferske, seksjonsfeil med sist synk og «Prøv igjen», og siste kjente liste med utdatert-linje. Tom og utdatert sier ikke at alt er fulgt opp.
+3. `WorkshopFollowupEngine`, `AlertEngine`, booking og Airtable er urørt. Profilkortet er uendret (W3). `storage.airtable.js` uendret v2.26.1. App-/cacheversjon 136 → **137**. `kontroll.html` = `index.html`.
 
 ### Dashboard V4 · W1 (kun layout)
 
