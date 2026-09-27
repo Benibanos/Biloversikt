@@ -15,6 +15,38 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-27
 
+### UX-5 · DriverControl som sjåførapp
+
+1. Rapport `Dv4/project/UX5_REPORT.md`. Min Bil er et kontrollkort: bil, det som må gjøres, dagens kontroll, handlinger, ringeliste. Kilometerstand og løftebord ligger under. Sjekk ut blir stående nederst.
+2. Ingen kontrollmotor, sjåførflyt eller Airtable endret. App-/cacheversjon 154 → **155**. `kontroll.html` = `index.html`.
+
+### UX-4 · Kalender som planleggingstavle
+
+1. Rapport `Dv4/project/UX4_REPORT.md`. Kalenderen viser verkstedkapasitet, krever planlegging og tidslinje før månedsgitteret. Historikk ligger nederst.
+2. `kalenderAktiviteterKart()` er urørt. App-/cacheversjon 153 → **154**. `kontroll.html` = `index.html`.
+
+### UX-3 · Kjøretøyprofil som kontrollkort
+
+1. Rapport `Dv4/project/UX3_REPORT.md`. Profilen er et kontrollkort: operativ status, krever handling, neste aktiviteter, aktiv sjåfør, aktive saker. Historikk og dokumentasjon ligger under.
+2. Ingen motor, statusordbok eller Airtable endret. App-/cacheversjon 152 → **153**. `kontroll.html` = `index.html`.
+
+### UX-2 · Verksted som operativ arbeidsflate
+
+1. Rapport `Dv4/project/UX2_REPORT.md`. Verksted er én stabel uten faner: status, krever handling, kommende, på verksted, klar til avslutning, historikk. Registrering er knapp i toppen og seksjon nederst.
+2. Tallene er `vtOversiktKpi()` og `WorkshopFollowupEngine.oppsummering()`. Ingen ny motor. App-/cacheversjon 151 → **152**. `kontroll.html` = `index.html`.
+
+### UX-1 · Operativ kapasitet (Bring)
+
+1. Heroen viser `flatehelse()` som biler i drift, reservebiler tilgjengelig og biler på verksted. Utfasing («Kan ikke brukes») er tatt ut av hero og kjøretøylisten. Reserve leses som kapasitet.
+2. Varselseksjonen heter «Krever handling». Samme `AlertEngine.dashboard()`, maks 3. App-/cacheversjon 150 → **151**. `kontroll.html` = `index.html`.
+
+### UX-1 · Dashboard som operativ kontrollsentral
+
+1. Rapport `Dv4/project/UX1_REPORT.md`. Forsiden (desktop og mobil) er en fast stabel: tilgjengelige biler, kritiske varsler, kommende verksted, aktive saker, kjøretøystatus, siste aktivitet.
+2. Hero-tallet er `flatehelse().tilgjengelige` av hele flåten. Poeng, faktorforklaring og regeltekst er tatt av forsiden. Beregningen er uendret.
+3. Bestill tjenester, operativ etterlevelse, hurtigoversikt, verkstedoppfølging, neste-enkelt-time, kostnader og historikkvisninger er tatt av forsiden. De ligger på egne sider. Layout-rutenettet publiseres ikke lenger til forsiden.
+4. Ingen Airtable, Fleet Health-beregning, AlertEngine, WorkshopFollowupEngine eller statusordbok endret. `storage.airtable.js` uendret v2.26.1. App-/cacheversjon 149 → **150**. `kontroll.html` = `index.html`.
+
 ### V4 Foundation · W10 (opprydding, kun visuelt)
 
 1. Rapport `Dv4/project/V4_W10_REPORT.md`. Overgangsaliasene (`--line`, `--muted`, `--red`, `--green`, `--amber`, `--blue`, `--orange`, `--chrome-*`, `--surface-2/3`, `--ink-2`, `--radius`, `--sh-card`, `--sh-hover` og `-soft`-variantene) er erstattet med V4-tokenene og slettet fra `:root`. `STATUS_TONE` leser V4-navnene. Utseendet følger aliasenes verdier.

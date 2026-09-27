@@ -1890,7 +1890,7 @@
 .bp-kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:var(--space-3); margin-bottom:var(--space-4); }
 
 /* Vehicle card */
-.bp-vcard { padding:var(--space-4) var(--space-5); }
+.bp-vcard { display:flex; flex-direction:column; padding:var(--space-4) var(--space-5); }
 .bp-vcard-head { display:flex; align-items:center; gap:var(--space-3); }
 .bp-status-dot { width:10px; height:10px; border-radius:var(--radius-pill); flex:none; }
 .bp-bg-success { background:var(--success); } .bp-bg-warning { background:var(--warning); }
@@ -2300,6 +2300,17 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .bp-card.bp-fh{padding:var(--space-6);}
   .bp-fh-lbl > span{display:inline-flex;}
   @media (max-width:720px){ .bp-card.bp-fh{padding:var(--space-5) var(--space-4);} }
+  /* UX-1: operativ kontrollsentral. Én stabel, 24 px mellom seksjoner. */
+  .ux1-stack{display:flex;flex-direction:column;gap:var(--space-6);}
+  .ux1-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-3);}
+  .ux1-head .bp-overline{margin:0;}
+  .ux1-alerts,.ux1-col,.ux1-gruppe{display:flex;flex-direction:column;gap:var(--space-3);min-width:0;}
+  .ux1-gruppe{gap:var(--space-2);}
+  .ux1-gruppe-tittel{margin:0;font:600 11px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+  .ux1-pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);align-items:start;}
+  .ux1-vgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3);}
+  button.bp-wcard,button.bp-vcard,button.bp-case,button.bp-feed-item{cursor:pointer;font:inherit;color:inherit;width:100%;}
+  @media (max-width:720px){ .ux1-pair,.ux1-vgrid{grid-template-columns:1fr;} }
   /* W6: AlertCard og rader i appens markup */
   .bp-alert .bp-alert-type{margin:0;}
   .bp-alert.is-click{cursor:pointer;transition:border-color .12s, background-color .12s;}
@@ -2849,7 +2860,7 @@ let editingKontaktType = null; // null | 'homeDelivery' | 'veihjelp'
 // måtte lukke to andre grupper først. Nullstilles til nøyaktig denne standarden hver gang
 // skjermen faktisk åpnes fra bunnmenyen (se attachDriverBunnmenyListeners()), ikke bare
 // ved appstart.
-let driverRingelisteLukket = new Set(['ingen-aktive', 'ledelse']);
+let driverRingelisteLukket = new Set(['ingen-aktive']);
 // Prioritet 71.9: Reserve og Ute av drift skjules som standard i sjåførens Ringeliste også
 // (mindre støy — en sjåfør som ringer rundt trenger sjelden en reservebil eller en bil som
 // står ute av drift). Egne variabler, adskilt fra administrasjonens visReserve/
@@ -3258,9 +3269,11 @@ function bpTomTilstandHtml(tittel, melding, kompakt){
 function bpAlertHtml(o){
   const niva = ['critical', 'high', 'medium', 'low'].includes(o.niva) ? o.niva : 'low';
   const handlinger = o.handlingerHtml ? (niva === 'critical' ? o.handlingerHtml : o.handlingerHtml.replace(/bp-btn-primary/g, 'bp-btn-secondary')) : '';
+  const anbefalt = o.anbefaling ? `<p class="bp-alert-rec">${luc('arrow-right')}<span><strong>Anbefalt: </strong>${esc(o.anbefaling)}</span></p>` : '';
+  const foot = (anbefalt || handlinger) ? `<div class="bp-alert-foot">${anbefalt}${handlinger ? `<div class="bp-row-actions">${handlinger}</div>` : ''}</div>` : '';
   return `<article class="bp-alert bp-alert-${niva}${o.attr ? ' is-click' : ''}${o.lukket ? ' is-lukket' : ''}"${niva === 'critical' ? ' role="alert"' : ''}${o.attr ? ' ' + o.attr : ''}>
       <div class="bp-alert-head">${bpTileHtml(o.tone, o.ikon, niva === 'critical')}<div class="bp-alert-title">${o.linjeHtml ? `<div class="bp-alert-line">${o.linjeHtml}</div>` : ''}<h3 class="bp-alert-type">${o.tittel}</h3>${o.metaHtml ? `<div class="bp-alert-meta">${o.metaHtml}</div>` : ''}</div></div>
-      ${handlinger ? `<div class="bp-alert-foot"><div class="bp-row-actions">${handlinger}</div></div>` : ''}
+      ${foot}
     </article>`;
 }
 // Nivå fra ordbokens alvorlighet (kritisk/hoy/middels/lav). Mangler alvorlighet → low, nøytral.
@@ -6732,8 +6745,8 @@ function renderLayoutEditor(){
   let kropp;
   if(modus === 'grid'){
     if(mobil) kropp = `<div class="empty-note">Rutenett-editoren for Desktop Dashboard krever desktopvisning (minst 768 px bredde). Åpne appen på en bredere skjerm — de øvrige undersidene kan redigeres her.</div>`;
-    else if(forhaand) kropp = `<div class="dash-edit-hjelp">${luc('eye')} Forhåndsvisning: slik ser Dashboard ut med utkastet ditt. Ingenting er publisert ennå.</div>${layoutGridHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID), dashboardBeregning(), true)}`;
-    else kropp = `<div class="dash-edit-hjelp">Dra i kortets tittel for å flytte, i hjørnet for å endre størrelse — eller bruk piltastene (Skift + piltaster endrer størrelse). Kortene kan ikke overlappe. Ingenting lagres før du trykker «Publiser».</div>
+    else if(forhaand) kropp = `<div class="dash-edit-hjelp">${luc('eye')} Forhåndsvisning av rutenettet. Forsiden er den faste kontrollsentralen og leser ikke dette utkastet.</div>${layoutGridHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID), dashboardBeregning(), true)}`;
+    else kropp = `<div class="dash-edit-hjelp">Forsiden er den faste operativ kontrollsentralen. Dette rutenettet publiseres ikke dit. Dra i kortets tittel for å flytte bibliotekkort, i hjørnet for å endre størrelse — eller bruk piltastene (Skift + piltaster endrer størrelse).</div>
       ${layoutGridBibliotekHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID))}${layoutGridEditorHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID))}`;
   } else if(forhaand){
     kropp = `<div class="dash-edit-hjelp">${luc('eye')} Skjematisk forhåndsvisning av «${esc(layoutGruppeLabel(g))}» med utkastet ditt — kun rekkefølge, bredde og starttilstand. Ingenting er publisert ennå.</div>${layoutSkjematiskHtml(g)}`;
@@ -6743,7 +6756,7 @@ function renderLayoutEditor(){
       'vehicle-profile':'Endre rekkefølge, skjul/vis seksjoner, velg halv eller full bredde og om seksjonen starter åpen eller lukket. Historikk har egne faner (rekkefølge, synlighet og standardfane).',
       'driver-min-bil':'Rekkefølge, synlighet og starttilstand — aldri fri bredde eller høyde. Bilkort, løftebord, Registrer skade, Registrer varsellampe og Sjekk ut bil er låst. «Starter åpen» gjelder ett panel om gangen (det første i lista).',
       'driver-control':'Begrenset redigering: rekkefølgen er låst (kilometerstand, varsellamper, kontrollavvik, kommentar til avvik, kommentar fra sjåfør, nye skader, send). Kommentarfeltene kan skjules. Løftebord håndteres på Min Bil. Validering og lagringsrekkefølge endres aldri.',
-      'mobile-dashboard':'Rekkefølge og synlighet for Mobil Dashboard.'
+      'mobile-dashboard':'Mobilforsiden er den samme kontrollsentralen som desktop. Denne listen publiseres ikke dit.'
     }[layoutEditorGruppe] || 'Seksjonsrekkefølge, synlighet, starttilstand og standardfane. Skjemaer, tabeller, kalenderceller og modaler kan ikke flyttes fritt.';
     kropp = `<div class="dash-edit-hjelp">${hint}</div>${layoutListeEditorHtml(g)}`;
   }
@@ -13573,7 +13586,7 @@ function attachDriverBunnmenyListeners(){
     // sjåfører synlig), ikke huske forrige økts åpne/lukkede grupper. Prioritet 71.9:
     // samme for Vis reserve/Vis ute av drift — alltid skjult ved fersk åpning.
     if(key === 'ringeliste'){
-      driverRingelisteLukket = new Set(['ingen-aktive', 'ledelse']);
+      driverRingelisteLukket = new Set(['ingen-aktive']);
       driverRingelisteVisReserve = false;
       driverRingelisteVisUteAvDrift = false;
     }
@@ -13696,6 +13709,32 @@ function attachDriverVelgBilListeners(){
 // En bil som allerede er kontrollert i dag åpnes rett i Min Bil, se driverApneKontrollertBil().
 
 // Steg 3: Min Bil — sjåførens arbeidsflate resten av den operative dagen.
+function ux5MaGjores(v){
+  const ut = [];
+  if(v && !isKontrollertIdag(v.id) && !vehicleErReserveUnntatt(v.id)) ut.push({kind:'kontroll'});
+  AlertEngine.forKjoretoy(v.id).filter(x => x.alvorlighet).forEach(x => {
+    if(ut.length < 5) ut.push({kind:'varsel', x});
+  });
+  return ut.slice(0, 5);
+}
+function ux5LedelseSortert(){
+  return (ringelisteEkstra.ledelse || []).slice().sort((a, b) => {
+    const at = /transport/i.test(a.rolle || '') ? 0 : 1;
+    const bt = /transport/i.test(b.rolle || '') ? 0 : 1;
+    return at - bt;
+  });
+}
+function ux5RingKortHtml(){
+  const rader = ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), esc(k.rolle || 'Ledelse'), k.telefon));
+  const vei = ringelisteEkstra.veihjelp || {};
+  const home = ringelisteEkstra.homeDelivery || {};
+  rader.push(ringelisteRowHtml('headphones', esc(vei.navn || 'Veihjelp'), esc(vei.beskrivelse || 'Assistanse'), vei.telefon));
+  rader.push(ringelisteRowHtml('truck', esc(home.navn || 'Home Delivery'), esc(home.beskrivelse || ''), home.telefon));
+  return rader.join('');
+}
+function ux5KontrollKnapp(){
+  return `<button type="button" class="bp-btn bp-btn-primary btn small" data-ux5-kontroll="1">Start kontroll</button>`;
+}
 function renderDriverMinBil(){
   const v = vehicles.find(x => x.id === driverActiveVehicleId);
   if(!v){ driverScreen = 'velg-bil'; return renderDriverVelgBil(); }
@@ -13930,18 +13969,68 @@ function renderDriverMinBil(){
         <span class="p48-checkout-text"><span class="p48-checkout-title">Sjekk ut bil</span><span class="p48-checkout-sub">Avslutt arbeidsdagen og frigjør bilen</span></span>
       </button>`
   });
-  let handlingerTittelVist = false;
-  return layoutSynligeTopp('driver-min-bil').map(e => {
-    const def = LAYOUT_COMPONENTS[e.widgetId];
-    const html = layoutDelHtml(e, def, {parts:delerHtml});
-    if(!html) return '';
-    if(def.collapsible === 'aksjon' || ['driver.ringeliste', 'driver.kommentarer', 'driver.sjekk-ut'].includes(def.id)){
-      const tittel = handlingerTittelVist ? '' : '<div class="sj-section-title" style="margin-top:6px;">Handlinger</div>';
-      handlingerTittelVist = true;
-      return `${tittel}<div class="sj-akt" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;">${html}</div>`;
+  const neste = nesteVerkstedtime(v.id);
+  const gjore = ux5MaGjores(v);
+  const gjoreHtml = gjore.map(p => {
+    if(p.kind === 'kontroll'){
+      return bpAlertHtml({
+        niva:'high', tone:'warning', ikon:'clipboard-check',
+        linjeHtml: statusPilleHtml('operativ', 'ikke-kontrollert'),
+        tittel: esc(vehicleLabel(v)),
+        metaHtml: '<span class="bp-meta">Dagens kontroll er ikke utført.</span>',
+        anbefaling: 'Utfør kontrollen.',
+        handlingerHtml: ux5KontrollKnapp()
+      });
     }
-    return html;
+    return ux1VarselKortHtml(p.x);
   }).join('');
+  return `
+    <section class="bp-card bp-vcard" aria-labelledby="ux5-hero">
+      <div class="bp-vcard-head">
+        <span class="bp-vcard-title"><span class="bp-vcard-name" id="ux5-hero">${esc(v.bilnummer || 'Min bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>
+        ${statusPilleHtml('operativ', hovedstatus)}
+      </div>
+      <div class="bp-vcard-rows">
+        <div class="bp-vrow"><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></div>
+        <div class="bp-vrow"><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${esc(mbAktivSjafor || driverNavn || 'Ingen')}</span></div>
+      </div>
+      ${mbOverfort ? '<p class="required-hint">Bilen er overført. Du står ikke lenger som aktiv sjåfør.</p>' : ''}
+    </section>
+    <section aria-labelledby="ux5-na" style="margin-top:var(--space-4);">
+      <h2 id="ux5-na" class="bp-overline">Må gjøres nå</h2>
+      ${gjoreHtml || bpTomTilstandHtml('Ingenting å gjøre nå', 'Ingen åpen kontroll, varsel eller skade.', true)}
+    </section>
+    <section class="bp-card" aria-labelledby="ux5-k" style="margin-top:var(--space-4);">
+      <h2 id="ux5-k" class="bp-card-title">Dagens kontroll</h2>
+      ${bilkortRader['driver.kontrollstatus']}
+      ${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}
+    </section>
+    <section aria-labelledby="ux5-h" style="margin-top:var(--space-4);">
+      <h2 id="ux5-h" class="bp-overline">Handlinger</h2>
+      <div class="sj-akt" style="display:flex;flex-direction:column;gap:var(--space-3);">
+        ${delerHtml['driver.varsel']}
+        ${delerHtml['driver.skade']}
+        <div class="bp-card">${nesteVerkstedtimeHtml(neste, {rad:true}) || '<div class="empty-note">Ingen planlagt verkstedtime.</div>'}</div>
+        ${delerHtml['driver.kommentarer']}
+        ${delerHtml['driver.avvik']}
+        ${delerHtml['driver.kontakt']}
+        ${delerHtml['driver.nysjafor']}
+      </div>
+    </section>
+    <section aria-labelledby="ux5-ring" style="margin-top:var(--space-4);">
+      <div class="ux1-head"><h2 id="ux5-ring" class="bp-overline">Ringeliste</h2><button type="button" class="bp-link-btn" data-driverbunn="ringeliste">Alle kontakter</button></div>
+      ${ux5RingKortHtml()}
+    </section>
+    <section aria-labelledby="ux5-info" style="margin-top:var(--space-6);">
+      <h2 id="ux5-info" class="bp-overline">Informasjon</h2>
+      <div class="bp-card">
+        ${bilkortRader['driver.kilometerstand']}
+        ${bilkortRader['driver.loftebord']}
+        <div class="bp-vrow"><span class="bp-vrow-label">Modell</span><span class="bp-vrow-value">${esc([v.merke, v.modell].filter(Boolean).join(' ') || 'Ikke satt')}</span></div>
+      </div>
+    </section>
+    <div style="margin-top:var(--space-4);">${delerHtml['driver.sjekk-ut']}</div>
+  `;
 }
 function attachDriverMinBilListeners(){
   const skadeBtn = document.getElementById('mb-skade-btn');
@@ -13973,6 +14062,13 @@ function attachDriverMinBilListeners(){
     }
     await overforAktivSjafor(driverActiveVehicleId, navn);
     minBilNySjaforMsg = '✅ Bilen er overført til ' + navn + '.';
+    render();
+  }));
+  document.querySelectorAll('[data-ux5-kontroll]').forEach(el => el.addEventListener('click', () => {
+    kontrollFormVehicleId = driverActiveVehicleId;
+    kontrollFormSjaforNavn = driverNavn;
+    syncKontrollAnnetFromActive(kontrollFormVehicleId);
+    driverScreen = 'kontroll';
     render();
   }));
   const sjekkUtBtn = document.getElementById('mb-sjekk-ut-btn');
@@ -14121,14 +14217,14 @@ function renderDriverRingeliste(){
       <button type="button" class="bp-btn btn small ${driverRingelisteVisUteAvDrift ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-ute-btn">✅ Vis «Kan ikke brukes»</button>
     </div>
     <div class="ringeliste-scroll">
+      ${ringelisteGroupHtml('ledelse', 'Ledelse', '--neutral', ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon)))}
       ${ringelisteGroupHtml('aktive', 'Aktive sjåfører', '--success', aktiveRader)}
-      ${ringelisteGroupHtml('ingen-aktive', 'Ingen aktive sjåfører', '--warning', ingenAktiveRader)}
-      ${ringelisteGroupHtml('ledelse', 'Ledelse', '--neutral', ledelseRader)}
+      ${ringelisteGroupHtml('ingen-aktive', 'Andre kontakter', '--warning', ingenAktiveRader)}
     </div>
     <div class="ringeliste-fixed-quick">
       <div class="ringeliste-quick-grid">
-        ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--success)')}
         ${ringelisteQuickCardHtml('veihjelp', 'headphones', 'var(--info)')}
+        ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--success)')}
       </div>
     </div>
   `;
@@ -14344,16 +14440,7 @@ function renderLoginShell(){
 // V4 W1: mobilforsiden er én layoutliste. Etterlevelse og neste verkstedtime er egne
 // kort (samme renderere som desktop), ikke et ekstra banner utenfor listen.
 function renderMobilHjem(){
-  const d = dashboardBeregning();
   const aktiveVarslerAntall = varslingssenterKlokkeAntall();
-  // Prioritet 60: markupen per komponent er uendret; layoutmotoren (område 'mobile-dashboard') velger rekkefølge/synlighet.
-  // Mobilforsiden er én stablet kolonne, så hele rekkefølgen fra layouten brukes direkte.
-  const delerHtml = {
-    'mobile.flatehelse': dashWidgetFlatehelseHtml(),
-    'mobile.hurtigoversikt': dashHurtigoversiktHtml(d),
-    'mobile.bestill': dashBestillSekHtml(),
-    'mobile.verkstedoppfolging': dashWidgetVerkstedoppfolgingHtml()
-  };
 
   return `
     <div class="p41-head">
@@ -14381,9 +14468,9 @@ function renderMobilHjem(){
       <button type="button" id="mobil-sok-btn">Søk</button>
     </div>
 
-    ${layoutListeHtml('mobile-dashboard', {parts:delerHtml, d})}
+    ${ux1KontrollsentralHtml()}
 
-    ${d.totalVehicles === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
+    ${vehicles.length === 0 ? `<div class="empty-note">Ingen kjøretøy registrert ennå. Gå til Biler for å legge til den første bilen.</div>` : ''}
   `;
 }
 // Mobilforsidens EGNE lyttere. Alle de delte data-attributtene (data-bestill,
@@ -15326,49 +15413,36 @@ function dashWidgetFlatehelseHtml(){
   }
   const stale = h.synk === 'forsinket' || h.synk === 'utdatert' || h.synk === 'offline';
   const klokke = (typeof tidFraIso === 'function' && sisteVellykkedeSynkTidspunkt) ? tidFraIso(sisteVellykkedeSynkTidspunkt) : '';
-  const regelTekst = h.regel === 'minimum-tilgjengelige'
-    ? ('Kritisk: ' + h.tilgjengelige + ' tilgjengelige, under minimum ' + FLATEHELSE_MINIMUM_TILGJENGELIGE)
-    : h.regel === 'kan-ikke-brukes'
-      ? ('Krever oppmerksomhet: ' + h.kanIkke + ' bil' + (h.kanIkke === 1 ? '' : 'er') + ' kan ikke brukes')
-      : h.regel === 'teknisk-kritisk'
-        ? 'Krever oppmerksomhet: kritisk teknisk funn'
-        : '';
-  // V4 · W7: hero-anatomi (bp-fh). Samme tall som flatehelse() — søyle og forklaring tegner bare de fire populasjonene.
-  const FH_FLIS_STATUS = {'tilgjengelige':['operativ','operativ'], 'pa-verksted':['operativ','pa-verksted'], 'kan-ikke-brukes':['driftsstatus','kan-ikke-brukes'], 'reserve':['driftsstatus','reserve']};
-  const flateN = h.n + h.reserve;
+  // UX-1 Bring: tre eksisterende flatehelse-tall. Utfasing (kan ikke brukes) vises ikke her.
+  const FH_FLIS_STATUS = {'tilgjengelige':['operativ','operativ'], 'pa-verksted':['operativ','pa-verksted'], 'reserve':['driftsstatus','reserve']};
   const flisTone = pop => { const st = FH_FLIS_STATUS[pop]; const s = st ? statusDef(st[0], st[1]) : null; return s ? s.tone : 'neutral'; };
-  const seg = (antall, tone) => antall ? `<span class="bp-fh-seg bp-bg-${tone}" style="width:${flateN ? (antall / flateN * 100) : 0}%"></span>` : '';
+  const kapasitet = h.tilgjengelige + h.paVerksted + h.reserve;
+  const seg = (antall, tone) => antall ? `<span class="bp-fh-seg bp-bg-${tone}" style="width:${kapasitet ? (antall / kapasitet * 100) : 0}%"></span>` : '';
   const flis = (pop, tall, ord, sub) => `<li><button type="button" class="bp-fh-tile bp-sum-click" data-fh-pop="${pop}">${FH_FLIS_STATUS[pop] ? bpStatusTileHtml(FH_FLIS_STATUS[pop][0], FH_FLIS_STATUS[pop][1]) : ''}<span class="bp-fh-tx"><span class="bp-fh-tv">${tall}</span><span class="bp-fh-tl">${ord}</span>${sub ? `<span class="bp-fh-ts">${sub}</span>` : ''}</span></button></li>`;
-  const detalj = !dashFlatehelseDetaljApen ? '' : `<div class="fh-detalj">${h.faktorer.map(f => `<div class="fh-faktor"><span>${esc(f.label)} · ${Math.round(f.vekt * 100)} %</span><span>${Math.round(f.score)}</span></div>`).join('')}</div>`;
   return `
     <section class="bp-card bp-card-hero bp-fh panel" aria-labelledby="bp-fh-title"${stale ? ' role="status" aria-live="polite"' : ''}>
       <div class="bp-fh-main">
         <div class="bp-fh-head">
-          <h2 id="bp-fh-title" class="bp-overline">Flåtehelse</h2>
+          <h2 id="bp-fh-title" class="bp-overline">Operativ status</h2>
           ${stale ? `<span class="required-hint">per ${esc(klokke || 'siste synk')}</span>` : ''}
         </div>
-        <button type="button" class="bp-fh-big" id="fh-score-btn" aria-expanded="${dashFlatehelseDetaljApen ? 'true' : 'false'}">
-          <span class="bp-fh-num">${h.score}</span>
-          <span class="bp-fh-lbl">${statusPilleHtml('flatehelse', h.nivaa)}</span>
+        <button type="button" class="bp-fh-big" data-fh-pop="tilgjengelige">
+          <span class="bp-fh-num">${h.tilgjengelige}</span>
+          <span class="bp-fh-lbl"><span class="bp-status-dot bp-bg-${flisTone('tilgjengelige')}" aria-hidden="true"></span>biler i drift</span>
         </button>
-        ${regelTekst ? `<p class="fh-regel">${esc(regelTekst)}</p>` : ''}
-        <div class="bp-fh-bar" role="img" aria-label="${h.tilgjengelige} tilgjengelige, ${h.paVerksted} på verksted, ${h.kanIkke} kan ikke brukes, ${h.reserve} reserve">
-          ${seg(h.tilgjengelige, flisTone('tilgjengelige'))}${seg(h.paVerksted, flisTone('pa-verksted'))}${seg(h.kanIkke, flisTone('kan-ikke-brukes'))}${seg(h.reserve, flisTone('reserve'))}
+        <div class="bp-fh-bar" role="img" aria-label="${h.tilgjengelige} biler i drift, ${h.reserve} reservebiler tilgjengelig, ${h.paVerksted} biler på verksted">
+          ${seg(h.tilgjengelige, flisTone('tilgjengelige'))}${seg(h.reserve, flisTone('reserve'))}${seg(h.paVerksted, flisTone('pa-verksted'))}
         </div>
         <ul class="bp-fh-legend">
-          <li><span class="bp-dot bp-bg-${flisTone('tilgjengelige')}"></span>Tilgjengelig ${h.tilgjengelige}</li>
-          <li><span class="bp-dot bp-bg-${flisTone('pa-verksted')}"></span>Verksted ${h.paVerksted}</li>
-          <li><span class="bp-dot bp-bg-${flisTone('kan-ikke-brukes')}"></span>Kan ikke brukes ${h.kanIkke}</li>
+          <li><span class="bp-dot bp-bg-${flisTone('tilgjengelige')}"></span>I drift ${h.tilgjengelige}</li>
           <li><span class="bp-dot bp-bg-${flisTone('reserve')}"></span>Reserve ${h.reserve}</li>
+          <li><span class="bp-dot bp-bg-${flisTone('pa-verksted')}"></span>Verksted ${h.paVerksted}</li>
         </ul>
       </div>
       <ul class="bp-fh-tiles">
-        ${flis('tilgjengelige', h.tilgjengelige, 'tilgjengelige', 'av ' + h.n)}
-        ${flis('pa-verksted', h.paVerksted, 'på verksted')}
-        ${flis('kan-ikke-brukes', h.kanIkke, 'kan ikke brukes')}
-        ${flis('reserve', h.reserve, 'reserve')}
+        ${flis('reserve', h.reserve, 'reservebiler', 'tilgjengelig')}
+        ${flis('pa-verksted', h.paVerksted, 'på verksted', '')}
       </ul>
-      ${detalj}
     </section>`;
 }
 // Flåtestatus for hele flåten (biler som ikke er ute av drift) — teller kun hvor mange biler som står i
@@ -15390,17 +15464,192 @@ function dashWidgetLoftebordHtml(){
     </div>`;
 }
 
-// Prioritet 58/60: Desktop Dashboard består UTELUKKENDE av kortene som er registrert for området 'admin-dashboard' i
-// layoutregisteret (LAYOUT_COMPONENTS, ids «dashboard.*»), plassert av det 12-kolonners rutenettet fra den publiserte
-// layouten. Standardlayouten gir samme Dashboard som før (Operativ kontroll + Neste verkstedtime øverst, deretter Bestill
-// tjenester og Hurtigoversikt). Redigering skjer i Innstillinger → Layout Editor (et lokalt utkast, aldri på selve Dashboard).
-// Mobil (renderMobilHjem()) bruker layoutlisten 'mobile-dashboard' (helse, etterlevelse, neste time, hurtigoversikt, bestill, oppfølging).
+// UX-1: forsiden er en fast operativ stabel. Samme markup på desktop og mobil.
+// Layoutmotorens dashboard-rutenett publiseres ikke hit. Ingen ny beregning:
+// tallene kommer fra flatehelse(), AlertEngine.dashboard(), kommendeVerkstedtimer(),
+// sakAlvorlighet(), vehicleHovedstatus(), nesteVerkstedtime(), vehicleAktivSjafor()
+// og flateHistorikkTidslinje().
+function ux1UkeSlutt(idag){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(idag || '');
+  if(!m) return idag || '';
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  const ukedagIdx = (dt.getUTCDay() + 6) % 7;
+  return isoDateOffset(idag, 6 - ukedagIdx);
+}
+function ux1VerkstedGrupper(){
+  const idag = todayISO();
+  const slutt = ux1UkeSlutt(idag);
+  const iDag = [], uke = [], forfalt = [];
+  kommendeVerkstedtimer().forEach(t => {
+    const st = vtStatus(t);
+    if(st === 'forfalt') forfalt.push(t);
+    else if(t.dato === idag) iDag.push(t);
+    else if(t.dato && t.dato > idag && t.dato <= slutt) uke.push(t);
+  });
+  return {iDag, uke, forfalt};
+}
+function ux1Saker(maks){
+  return (aktiveSaker || []).filter(s => {
+    const a = sakAlvorlighet(s);
+    return sakErApen(s) && (a === 'kritisk' || a === 'hoy' || a === 'middels');
+  }).sort((a, b) => (alvorlighetRang(sakAlvorlighet(a)) - alvorlighetRang(sakAlvorlighet(b))) || ((b.reportedAt || '').localeCompare(a.reportedAt || '')))
+    .slice(0, maks == null ? 5 : maks);
+}
+function ux1KritiskeVarsler(maks){
+  const liste = (typeof AlertEngine !== 'undefined') ? AlertEngine.dashboard() : [];
+  return liste.slice(0, maks == null ? 3 : maks);
+}
+function ux1Kjoretoy(){
+  const orden = {tilgjengelig:0, reserve:1, 'pa-verksted':2};
+  return (vehicles || []).filter(v => orden[flatehelseGruppe(v)] !== undefined)
+    .sort((a, b) => (orden[flatehelseGruppe(a)] - orden[flatehelseGruppe(b)]) || String(a.bilnummer || '').localeCompare(String(b.bilnummer || ''), 'nb'));
+}
+function ux1KjoretoyStatus(v){
+  const g = flatehelseGruppe(v);
+  if(g === 'reserve') return {domene:'driftsstatus', key:'reserve', tekst:'Tilgjengelig'};
+  if(g === 'pa-verksted') return {domene:'operativ', key:'pa-verksted', tekst:''};
+  return {domene:'operativ', key:'operativ', tekst:'I drift'};
+}
+function ux1AktivitetListe(maks){
+  return flateHistorikkTidslinje().filter(h => {
+    if(h.type === 'kontroll') return true;
+    if(h.type === 'skade') return String(h.tekst || '').indexOf('Skade registrert') === 0;
+    if(h.type === 'sak') return String(h.tekst || '').indexOf('Sak opprettet') === 0;
+    if(h.type === 'verksted') return String(h.tekst || '').indexOf('Verkstedtime') === 0;
+    return false;
+  }).slice(0, maks == null ? 8 : maks);
+}
+function ux1Lenke(side, tekst){
+  return `<button type="button" class="bp-link-btn" data-quick-page="${side}">${tekst}</button>`;
+}
+function ux1Sek(id, tittel, lenkeHtml, innhold){
+  return `<section class="ux1-sek" aria-labelledby="${id}"><div class="ux1-head"><h2 id="${id}" class="bp-overline">${tittel}</h2>${lenkeHtml || ''}</div>${innhold}</section>`;
+}
+function ux1VarselAnbefaling(x){
+  if(x.sakId){
+    const s = (aktiveSaker || []).find(a => a.id === x.sakId);
+    if(s && (s.nextAction || '').trim()) return s.nextAction.trim();
+  }
+  if(x.mal === 'apne-vt') return 'Åpne verkstedtimen.';
+  if(x.mal === 'sak') return 'Åpne saken.';
+  if(x.kategori === 'varsellampe') return 'Se varsellampen på bilkortet.';
+  if(x.kategori === 'service') return 'Se servicestatus på bilen.';
+  if(x.kategori === 'eu') return 'Se EU-kontroll på bilen.';
+  return 'Åpne og vurder.';
+}
+function ux1VarselKortHtml(x){
+  const v = vehicles.find(b => b.id === x.vehicleId);
+  const bil = v ? vehicleLabel(v) : 'Ukjent bil';
+  let detalj = x.tekst || '';
+  if(detalj.indexOf(bil) === 0) detalj = detalj.slice(bil.length).replace(/^[\s—·:-]+/, '');
+  if(detalj.length > 90) detalj = detalj.slice(0, 89).trimEnd() + '…';
+  const a = bpAlertNivaFraAlvorlighet(x.alvorlighet);
+  return bpAlertHtml({
+    niva: a.niva, tone: a.tone, ikon: VARSLINGSSENTER_KATEGORI_IKON[x.kategori] || a.ikon,
+    linjeHtml: a.pille,
+    tittel: esc(bil),
+    metaHtml: detalj ? `<span class="bp-meta">${esc(detalj)}</span>` : '',
+    anbefaling: ux1VarselAnbefaling(x),
+    handlingerHtml: varslingssenterGaTilKnapp(x)
+  });
+}
+function ux1VerkstedKortHtml(t){
+  const st = vtStatus(t);
+  const klasse = st === 'forfalt' ? 'is-overdue' : (st === 'pagar' ? 'is-in-progress' : (st === 'avlyst' ? 'is-cancelled' : (st === 'utfort' ? 'is-completed' : '')));
+  const v = vtVehicle(t);
+  const idag = todayISO();
+  const dato = t.dato === idag ? 'I dag' : (fmt(t.dato).slice(0, 5));
+  const artIkon = {eu:'shield-check', ruteskift:'car-front', service:'wrench', dekk:'circle-dot', verksted:'factory', 'eu-ruteskift':'shield-check'}[vtTypeArt(t)] || 'wrench';
+  return `<button type="button" class="bp-card bp-wcard bp-card-click ${klasse}" data-apne-vt="${esc(t.id)}">
+    <span class="bp-wcard-when"><span class="bp-wcard-date">${esc(dato)}</span><span class="bp-wcard-time">${esc(t.tidspunkt || 'Hele dagen')}</span></span>
+    <span class="bp-wcard-body">
+      <span class="bp-wcard-top"><span class="bp-wcard-vehicle">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'}</span>${statusPilleHtml('verksted', st)}</span>
+      <span class="bp-wcard-type">${bpTileHtml('workshop', artIkon)}<span>${esc(vtTypeTittel(t))}</span></span>
+      <span class="bp-alert-meta">${bpMetaHtml('factory', esc(t.verksted || 'Verksted ikke satt'))}</span>
+    </span>
+  </button>`;
+}
+function ux1SakKortHtml(s){
+  const v = sakVehicle(s);
+  const alv = sakAlvorlighet(s);
+  const a = bpAlertNivaFraAlvorlighet(alv);
+  const neste = (s.nextAction || '').trim() || 'Neste handling mangler';
+  return `<button type="button" class="bp-card bp-case bp-case-${a.niva} bp-card-click" data-goto-sak="${esc(s.id)}">
+    <span class="bp-case-top"><span class="bp-case-no">${esc(s.caseId || '')}</span>${a.pille}${statusPilleHtml('sak', s.status)}</span>
+    <span class="bp-case-title">${esc(SAK_TYPE_LABEL[s.caseType] || 'Sak')}</span>
+    <span class="bp-alert-meta">${bpMetaHtml('car', esc(v ? vehicleLabel(v) : 'Ukjent bil'))}</span>
+    <span class="bp-case-next">${luc('arrow-right')}<span><span class="bp-case-next-l">Neste handling</span>${esc(neste)}</span></span>
+  </button>`;
+}
+function ux1KjoretoyKortHtml(v){
+  const vis = ux1KjoretoyStatus(v);
+  const s = statusDef(vis.domene, vis.key);
+  const tone = s ? s.tone : 'neutral';
+  const neste = nesteVerkstedtime(v.id);
+  const sjafor = vehicleAktivSjafor(v.id);
+  return `<button type="button" class="bp-card bp-vcard bp-card-click" data-goto-bilkort="${esc(v.id)}">
+    <span class="bp-vcard-head"><span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
+    <span class="bp-vcard-rows">
+      <span class="bp-vrow"><span class="bp-vrow-icon">${luc('user-round')}</span><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${esc(sjafor || 'Ingen aktiv sjåfør')}</span></span>
+      <span class="bp-vrow"><span class="bp-vrow-icon">${luc('wrench')}</span><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>
+    </span>
+  </button>`;
+}
+function ux1AktivitetHtml(){
+  const etikett = {kontroll:'Kontroll utført', skade:'Skade registrert', sak:'Sak opprettet', verksted:'Verksted registrert'};
+  const ikon = {kontroll:'clipboard-check', skade:'triangle-alert', sak:'folder-plus', verksted:'factory'};
+  const tone = {kontroll:'success', skade:'danger', sak:'warning', verksted:'workshop'};
+  const idag = todayISO();
+  const liste = ux1AktivitetListe(8);
+  const rader = liste.map(h => {
+    const v = vehicles.find(x => x.id === h.vehicleId);
+    const bil = v ? vehicleLabel(v) : 'Ukjent bil';
+    const tid = h.dato === idag ? (h.tid || 'I dag') : fmt(h.dato).slice(0, 5);
+    return `<li><button type="button" class="bp-feed-item bp-sum-click" data-goto-bilkort="${esc(h.vehicleId || '')}">
+      ${bpTileHtml(tone[h.type] || 'neutral', ikon[h.type] || 'circle')}
+      <span class="bp-feed-main"><span class="bp-feed-title"><strong>${esc(bil)}</strong> · ${esc(etikett[h.type] || h.type)}</span><span class="bp-feed-sub">${esc(h.av || '')}</span></span>
+      <time class="bp-feed-time">${esc(tid)}</time>
+    </button></li>`;
+  }).join('');
+  return `<section class="bp-card bp-feed" aria-label="Siste aktivitet">
+    <header class="bp-card-head"><h3 class="bp-card-title">Siste aktivitet</h3>${ux1Lenke('historikk', 'Vis alle')}</header>
+    ${rader ? `<ul class="bp-feed-list">${rader}</ul>` : bpTomTilstandHtml('Ingen aktivitet', 'Ingen kontroll, verksted, sak eller skade er registrert.', true)}
+  </section>`;
+}
+function ux1VerkstedSekHtml(){
+  const g = ux1VerkstedGrupper();
+  const blokk = (tittel, liste) => liste.length ? `<div class="ux1-gruppe"><h3 class="ux1-gruppe-tittel">${tittel}</h3>${liste.map(ux1VerkstedKortHtml).join('')}</div>` : '';
+  const kropp = blokk('I dag', g.iDag) + blokk('Denne uka', g.uke) + blokk('Forfalt', g.forfalt);
+  return ux1Sek('ux1-verksted', 'Kommende verksted', ux1Lenke('verksted', 'Åpne verksted'),
+    kropp || bpTomTilstandHtml('Ingenting å planlegge nå', 'Ingen timer i dag, denne uka eller forfalt.', true));
+}
+function ux1KontrollsentralHtml(){
+  const varsler = ux1KritiskeVarsler(3);
+  const saker = ux1Saker(5);
+  const biler = ux1Kjoretoy();
+  const varselKropp = varsler.length
+    ? `<div class="ux1-alerts">${varsler.map(ux1VarselKortHtml).join('')}</div>`
+    : bpTomTilstandHtml('Ingenting krever handling', 'Ingen kritiske eller høye varsler nå.', true);
+  const sakKropp = saker.length
+    ? `<div class="ux1-col">${saker.map(ux1SakKortHtml).join('')}</div>`
+    : bpTomTilstandHtml('Ingen aktive saker', 'Ingen kritiske, høye eller middels saker.', true);
+  const bilKropp = biler.length
+    ? `<div class="ux1-vgrid">${biler.map(ux1KjoretoyKortHtml).join('')}</div>`
+    : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true);
+  return `<div class="ux1-stack">
+    ${dashWidgetFlatehelseHtml()}
+    ${ux1Sek('ux1-varsler', 'Krever handling', ux1Lenke('varsler', 'Varslingssenter'), varselKropp)}
+    <div class="ux1-pair">
+      ${ux1VerkstedSekHtml()}
+      ${ux1Sek('ux1-saker', 'Aktive saker', ux1Lenke('aktivesaker', 'Alle saker'), sakKropp)}
+    </div>
+    ${ux1Sek('ux1-biler', 'Kjøretøystatus', ux1Lenke('register', 'Alle biler'), bilKropp)}
+    ${ux1AktivitetHtml()}
+  </div>`;
+}
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
-  // Mobil får en helt annen forside her — ingen av
-  // kortene/logikken under kjøres i det hele tatt for mobil, kun for desktop.
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
-  const d = dashboardBeregning();
 
   return `
     ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
@@ -15408,7 +15657,7 @@ function renderDashboard(){
       ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : ''}
 
-    ${layoutGridHtml(layoutEntries('admin-dashboard'), d, false)}
+    ${ux1KontrollsentralHtml()}
 
     ${vehicles.length === 0 ? `<div class="empty-note" style="margin-top:8px;">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : ''}
   `;
@@ -17000,6 +17249,86 @@ function attachBilkortHistorikkListeners(root){
   if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
   attachDamageCardListeners(vehicleDamages(currentVehicleId));
 }
+function ux3StatusVis(v){
+  const g = flatehelseGruppe(v);
+  if(g === 'kan-ikke-brukes') return {domene:'driftsstatus', key:'kan-ikke-brukes', tekst:''};
+  if(g === 'utfaset') return {domene:'driftsstatus', key:'utfaset', tekst:''};
+  return ux1KjoretoyStatus(v);
+}
+function ux3KreverHandling(v){
+  return AlertEngine.forKjoretoy(v.id).filter(x => x.alvorlighet).slice(0, 5);
+}
+function ux3SakerForBil(v){
+  return ux1Saker(99).filter(s => s.vehicleId === v.id).slice(0, 5);
+}
+function ux3HeroHtml(v){
+  const vis = ux3StatusVis(v);
+  const neste = nesteVerkstedtime(v.id);
+  const sjafor = vehicleAktivSjafor(v.id);
+  const pagar = (verkstedtimer || []).find(t => t.vehicleId === v.id && vtStatus(t) === 'pagar');
+  const pa = flatehelseGruppe(v) === 'pa-verksted';
+  const ferdig = pagar ? vtForventetFerdigIso(pagar) : '';
+  const imorgen = ferdig && ferdig === isoDateOffset(todayISO(), 1);
+  const hoyre = pa ? `
+    <li><div class="bp-fh-tile">${bpStatusTileHtml('operativ', 'pa-verksted')}<span class="bp-fh-tx"><span class="bp-fh-tl">Verksted</span><span class="bp-fh-tv">${esc((pagar && pagar.verksted) || 'Ikke satt')}</span></span></div></li>
+    <li><div class="bp-fh-tile">${bpTileHtml('workshop', 'clock')}<span class="bp-fh-tx"><span class="bp-fh-tl">Forventet tilbake</span><span class="bp-fh-tv">${ferdig ? (imorgen ? 'I morgen' : esc(fmt(ferdig))) : 'Ikke satt'}</span></span></div></li>` : `
+    <li>${neste ? `<button type="button" class="bp-fh-tile bp-sum-click" data-apne-vt="${esc(neste.id)}">` : '<div class="bp-fh-tile">'}${bpTileHtml('workshop', 'factory')}<span class="bp-fh-tx"><span class="bp-fh-tl">Neste verksted</span><span class="bp-fh-tv">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>${neste ? '</button>' : '</div>'}</li>
+    <li><div class="bp-fh-tile">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tl">Aktiv sjåfør</span><span class="bp-fh-tv">${esc(sjafor || 'Ingen')}</span></span></div></li>`;
+  return `<section class="bp-card bp-card-hero bp-fh" aria-labelledby="ux3-hero">
+    <div class="bp-fh-main">
+      <h2 id="ux3-hero" class="bp-overline">Operativ status</h2>
+      <div class="bp-fh-num">${esc(v.regnr || v.bilnummer || '–')}</div>
+      <div class="bp-fh-lbl">${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</div>
+    </div>
+    <ul class="bp-fh-tiles">${hoyre}</ul>
+  </section>`;
+}
+function ux3NesteHtml(v){
+  const neste = nesteVerkstedtime(v.id);
+  const ss = vehicleServiceStatus(v);
+  const eu = vehicleEuKontrollStatus(v);
+  const rad = (label, verdi) => `<div class="bp-vrow"><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
+  return `<section class="bp-card" aria-labelledby="ux3-neste"><div class="bp-card-head"><h2 id="ux3-neste" class="bp-card-title">Neste aktiviteter</h2></div>
+    <div class="bp-vcard-rows">
+      ${rad('Verksted', neste ? esc(fmt(neste.dato) + (neste.tidspunkt ? ' · ' + neste.tidspunkt : '')) : 'Ingen planlagt')}
+      ${rad('Service', esc(ss.tekst || 'Ikke satt'))}
+      ${rad('EU-kontroll', esc(eu.tekst || 'Ikke satt'))}
+    </div>
+  </section>`;
+}
+function ux3SjaforHtml(v){
+  const navn = vehicleAktivSjafor(v.id);
+  const sist = lastKontrollForVehicle(v.id);
+  const kontrollert = isKontrollertIdag(v.id);
+  const status = vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (kontrollert ? 'Kontrollert i dag' : 'Mangler kontroll');
+  const tel = (v.telefon || '').trim();
+  const telHtml = tel ? `<a href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(tel)}</a>` : 'Ikke satt';
+  const rad = (label, verdi) => `<div class="bp-vrow"><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
+  return `<section class="bp-card" aria-labelledby="ux3-sjafor"><div class="bp-card-head"><h2 id="ux3-sjafor" class="bp-card-title">Aktiv sjåfør</h2></div>
+    <div class="bp-vcard-rows">
+      ${rad('Navn', esc(navn || 'Ingen aktiv sjåfør'))}
+      ${rad('Telefon', telHtml)}
+      ${rad('Siste kontroll', sist ? esc(fmt(sist.dato) + (sist.sjafor ? ' · ' + sist.sjafor : '')) : 'Ingen kontroll registrert')}
+      ${rad('Kontrollstatus', esc(status))}
+    </div>
+  </section>`;
+}
+function ux3KontrollkortHtml(v){
+  const handling = ux3KreverHandling(v);
+  const saker = ux3SakerForBil(v);
+  return `<div class="ux1-stack">
+    ${ux3HeroHtml(v)}
+    <section aria-labelledby="ux3-handling"><div class="ux1-head"><h2 id="ux3-handling" class="bp-overline">Krever handling</h2></div>
+      ${handling.length ? `<div class="ux1-alerts">${handling.map(ux1VarselKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting krever handling', 'Ingen åpen oppfølging på denne bilen.', true)}
+    </section>
+    ${ux3NesteHtml(v)}
+    ${ux3SjaforHtml(v)}
+    <section aria-labelledby="ux3-saker"><div class="ux1-head"><h2 id="ux3-saker" class="bp-overline">Aktive saker</h2></div>
+      ${saker.length ? `<div class="ux1-col">${saker.map(ux1SakKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingen aktive saker', 'Ingen kritiske, høye eller middels saker.', true)}
+    </section>
+    ${wfeProfilSekHtml(v)}
+  </div>`;
+}
 function renderBilkort(){
   const v = vehicles.find(x => x.id === currentVehicleId);
   if(!v) return bpTomTilstandHtml('Fant ikke kjøretøyet', '');
@@ -17231,35 +17560,21 @@ function renderBilkort(){
         ? {ikon:'⚪', tekst:'Helårsdekk', tint:'var(--neutral-soft)', tone:'var(--ink-muted)'}
         : {ikon:'⚪', tekst:'Ikke satt', tint:'var(--neutral-soft)', tone:'var(--ink-muted)'};
 
-  // Prioritet 60: seksjonene under registreres som komponenter i bilDeler (uttrykkene gir tom streng) og tegnes nederst av
-  // layoutmotoren (område 'vehicle-profile'): rekkefølge, synlighet, halv/full bredde og starttilstand styres av publisert layout.
-  // «Tilbake», ute av drift-varselet, km-avviket og redigeringspanelet er FASTE — de kan aldri skjules av en layout. Markup og
-  // data per seksjon er uendret.
-  const bilDeler = {};
-  const detaljerSkjult = !layoutErSynlig('vehicle-profile', 'vehicle.kjoretoydetaljer');
+  // UX-3: kontrollkort øverst. Historikk, tekniske data og registrering ligger under. Layoutrekkefølgen publiseres ikke hit.
   return `
     <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>
-    ${detaljerSkjult ? `<div class="panel-actions" style="margin:-4px 0 12px;"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-rediger-btn-2">${showBilinfoRediger ? 'Lukk redigering' : luc("pencil") + ' Rediger informasjon'}</button></div>` : ''}
 
-    ${(bilDeler['vehicle.bilkort'] = `
-    <div class="profil-ident">
-      <div class="profil-ident-venstre">
-        ${bpTileHtml(toneFraTint(p38HovedStil.tint), v.kategori === 'lastebil' ? 'truck' : 'car', true)}
-        <div style="min-width:0;flex:1;">
-          <div class="profil-ident-navn">${esc(v.bilnummer || '–')}${v.regnr ? ' · ' + esc(v.regnr) : ''} <span class="p48-dot" style="background:${p38HovedStil.tone};vertical-align:middle;margin-left:4px;" title="${statusLabel('operativ', hovedstatus)}"></span><span class="profil-mob-ikon" title="Mobilitetsgaranti">${mobAktiv ? '🟢 Aktiv' : '🔴 Ikke aktiv'}</span></div>
-          <div class="profil-ident-meta"><span>${esc([v.merke, v.modell].filter(Boolean).join(' ')) || 'Modell ikke satt'}</span></div>
-          <div class="profil-ident-meta"><span>${v.loyvenummer ? 'Løyve: ' + esc(v.loyvenummer) : '⚠️ Løyve mangler'}<span class="profil-loyve-skille">│</span>${v.servicenummer ? 'Servicenr: ' + esc(v.servicenummer) : 'Servicenr: –'}</span></div>
-          <div class="profil-ident-meta">
-            ${bpBadgeHtml(p38SjaforNa ? 'info' : 'neutral', 'user-round', p38SjaforNa ? esc(p38SjaforNa) + (tidFraIso(v.aktivSjaforSiden) ? ' · siden ' + tidFraIso(v.aktivSjaforSiden) : '') : 'Ingen aktiv sjåfør', !p38SjaforNa && p38SisteKontrollor ? `title="Sist kontrollert av ${esc(p38SisteKontrollor)}"` : '')}
-          </div>
-          <div class="profil-ident-inneni">${dashBannerVerkstedHtml(v.id)}</div>
-        </div>
-      </div>
-    </div>`, '')}${(bilDeler['vehicle.neste-verkstedtime'] = '', '')}
+    ${ux3KontrollkortHtml(v)}
 
-    ${v.uteAvDrift ? `<div class="required-hint" style="margin:0 0 16px;background:var(--danger-soft);color:var(--danger);padding:13px 16px;border-radius:14px;font-weight:600;border:1px solid var(--danger);">⛔ Kan ikke brukes${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
+    ${v.uteAvDrift ? `<div class="required-hint" style="margin:var(--space-4) 0 0;background:var(--danger-soft);color:var(--danger);padding:13px 16px;border-radius:var(--radius-md);font-weight:600;border:1px solid var(--danger);">${luc('octagon-alert')} Kan ikke brukes${v.uteAvDriftArsak ? ': ' + esc(v.uteAvDriftArsak) : ''}${v.uteAvDriftDato ? ' (siden ' + fmt(v.uteAvDriftDato) + ')' : ''}</div>` : ''}
 
-    ${(bilDeler['vehicle.statusrad'] = `
+    <section class="ux1-sek" aria-labelledby="ux3-hist" style="margin-top:var(--space-6);">
+      <div class="ux1-head"><h2 id="ux3-hist" class="bp-overline">Historikk</h2></div>
+      ${bilkortHistorikkSekHtml(v)}
+    </section>
+
+    <section class="ux1-sek" aria-labelledby="ux3-dok" style="margin-top:var(--space-6);">
+      <div class="ux1-head"><h2 id="ux3-dok" class="bp-overline">Dokumentasjon</h2></div>
     <div class="profil-stat5">
       <div>
         ${bpTileHtml('neutral', 'gauge', true)}
@@ -17289,9 +17604,7 @@ function renderBilkort(){
           <span class="s" style="font-weight:600;color:var(--ink-muted);">${vLbVedlikehold.ikon} ${LB_VEDL_TEKST[vLbVedlikehold.status]}</span>
         </span>
       </div>
-    </div>`, '')}
-
-    ${(bilDeler['vehicle.operativ-status'] = `
+    </div>
     <div class="profil-stat4">
       <div>
         ${vKontrollertIdag ? bpTileHtml('success', 'clipboard-check', true) : (vehicleErReserveUnntatt(v.id) ? bpStatusTileHtml('driftsstatus', 'reserve', true) : bpStatusTileHtml('operativ', 'ikke-kontrollert', true))}
@@ -17309,22 +17622,12 @@ function renderBilkort(){
         ${bpTileHtml(vAktiveSakerListe.length > 0 ? 'warning' : 'success', 'folder-open', true)}
         <span><span class="l">Aktive saker</span><span class="v">${vAktiveSakerListe.length}</span><span class="s">${vAktiveSakerListe.length === 0 ? 'Ingen åpne saker' : (vForfalteOppfolginger.length > 0 ? '⏰ ' + vForfalteOppfolginger.length + ' forfalt →' : (vNesteOppfolging && vNesteOppfolging.followUpDate ? 'Neste ' + fmt(vNesteOppfolging.followUpDate) + ' →' : 'Åpne saksliste →'))}</span></span>
       </div>
-    </div>`, '')}
-
-    ${(bilDeler['vehicle.bestill'] = `
-    <div class="ov-label" style="margin-bottom:10px;">➕ Bestill tjenester for ${esc(vehicleLabel(v))}</div>
+    </div>
+    <div class="ov-label" style="margin-bottom:10px;">Bestill tjenester for ${esc(vehicleLabel(v))}</div>
     <div class="dash40-grid4-bestill">
       ${bestillTjenesterKortHtml(v.id)}
-    </div>`, '')}
-
-    ${detaljerSkjult && showBilinfoRediger ? `
-    <div class="bp-card panel" id="bilinfo-panel" style="margin-bottom:18px;">
-      <div class="p38-panel-head bp-card-head"><span class="bp-tile">${luc('pencil')}</span><div class="tittel bp-card-title">Rediger bilinformasjon</div></div>
-      ${infoBody}
-    </div>` : ''}
-
-    ${(bilDeler['vehicle.kjoretoydetaljer'] = `
-        ${bilkortAccordionRow('detaljer', '🚐 Kjøretøydetaljer', null, `
+    </div>
+        ${bilkortAccordionRow('detaljer', 'Kjøretøydetaljer', null, `
           ${showBilinfoRediger ? infoBody : `
             <div class="detalj-grid">
               <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
@@ -17339,18 +17642,15 @@ function renderBilkort(){
             <div class="panel-actions"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
           `}
         `)}
-    `, '')}${(bilDeler['vehicle.aktive-saker'] = '', '')}${(bilDeler['vehicle.avanserte-handlinger'] = `
-        ${bilkortAccordionRow('avansert', '⚙️ Avanserte handlinger', null, `
-          <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? '«Kan ikke brukes» er en driftskritisk markering.' : 'Sett til «Kan ikke brukes» eller slett kjøretøyet permanent — begge er spesielle handlinger som krever ekstra bekreftelse.'}</p>
+        ${bilkortAccordionRow('avansert', 'Avanserte handlinger', null, `
+          <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? '«Kan ikke brukes» er en driftskritisk markering.' : 'Sett til «Kan ikke brukes» eller slett kjøretøyet permanent. Begge krever ekstra bekreftelse.'}</p>
           <div style="margin-bottom:16px;">
             ${uteAvDriftBody}
           </div>
           <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
-          <button class="bp-btn bp-btn-danger btn danger" id="del-vehicle">🗑️ Slett bil</button>
+          <button class="bp-btn bp-btn-danger btn danger" id="del-vehicle">${luc('trash-2')} Slett bil</button>
         `)}
-    `, '')}${(bilDeler['vehicle.verkstedoppfolging'] = wfeProfilSekHtml(v), '')}${(bilDeler['vehicle.historikk'] = bilkortHistorikkSekHtml(v), '')}
-
-    ${layoutFlowHtml('vehicle-profile', {parts:bilDeler})}
+    </section>
   `;
 }
 function attachBilkortListeners(){
@@ -18561,6 +18861,56 @@ function kalenderSkiftMnd(retning){
   kalenderValgtDato = '';
   render();
 }
+function ux4VenterBekreftelse(){
+  return (verkstedtimer || []).filter(t => vtErApen(t) && vtStatus(t) === 'planlagt').length;
+}
+function ux4KreverPlanlegging(maks){
+  const grense = maks == null ? 5 : maks;
+  const ut = ux2KreverHandling(grense).map(r => ({kind:'wfe', r}));
+  if(ut.length >= grense) return ut;
+  AlertEngine.aktive().filter(x => x.kategori === 'eu' && x.alvorlighet).forEach(x => {
+    if(ut.length < grense) ut.push({kind:'eu', x});
+  });
+  return ut;
+}
+function ux4Ukedag(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if(!m) return '';
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return KAL_UKEDAG_KORT[(dt.getUTCDay() + 6) % 7] || '';
+}
+function ux4Tidslinje(kart){
+  const idag = todayISO();
+  const imorgen = isoDateOffset(idag, 1);
+  const slutt = isoDateOffset(isoUkeStart(idag), 6);
+  const merk = (dato, liste) => (liste || []).map(a => Object.assign({dato}, a));
+  const ukeKart = {};
+  Object.keys(kart || {}).filter(d => d > imorgen && d <= slutt).sort().forEach(d => { ukeKart[d] = merk(d, kart[d]); });
+  return {iDag: merk(idag, kart[idag]), morgen: merk(imorgen, kart[imorgen]), ukeKart};
+}
+function ux4Historikk(kart, maks){
+  const idag = todayISO();
+  const liste = [];
+  Object.keys(kart || {}).filter(d => d < idag).sort().reverse().forEach(d => {
+    kart[d].forEach(a => liste.push(Object.assign({dato:d}, a)));
+  });
+  return liste.slice(0, maks == null ? 8 : maks);
+}
+function ux4KapasitetHtml(){
+  const kpi = vtOversiktKpi(verkstedtimer);
+  const forfalt = statusDef('verksted', 'forfalt');
+  const forfaltAktiv = kpi.forfalt > 0;
+  return `<div class="bp-kpi-row">
+    ${bpKpiHtml({tone:'workshop', ikon:'wrench', verdi:kpi.idag, label:'I dag', attr:'data-kal-kpi="idag"'})}
+    ${bpKpiHtml({tone:'info', ikon:'calendar-days', verdi:kpi.uke, label:'Denne uka', attr:'data-kal-kpi="uke"'})}
+    ${bpKpiHtml({tone:'warning', ikon:'calendar-clock', verdi:ux4VenterBekreftelse(), label:'Venter bekreftelse', attr:'data-kal-kpi="venter"'})}
+    ${bpKpiHtml({tone:forfaltAktiv ? forfalt.tone : 'success', ikon:forfaltAktiv ? forfalt.ikon : 'circle-check', verdi:kpi.forfalt, label:forfalt.label, attr:'data-kal-kpi="forfalt"'})}
+  </div>`;
+}
+function ux4TidGruppe(id, tittel, rader, visDato){
+  if(!rader || !rader.length) return '';
+  return `<div class="ux1-gruppe"${id ? ` id="${id}"` : ''}><h3 class="ux1-gruppe-tittel">${tittel}</h3><ul class="dmg-simple-list">${rader.map(a => kalenderRadHtml(a, visDato)).join('')}</ul></div>`;
+}
 function renderKalender(){
   const kart = kalenderAktiviteterKart();
   const idag = todayISO();
@@ -18587,44 +18937,50 @@ function renderKalender(){
       </button>`);
   }
 
-  // Prioritet 72.0: detaljene for valgt dato (og «I dag»/«Senere») vises nå i et
-  // SIDEPANEL ved siden av selve månedsgriden (.kal-split, samme responsive
-  // to-kolonnersmønster som .dash40-split — kollapser til én stablet kolonne på smal
-  // skjerm), i stedet for stablet under kalenderen. Ingen ny datakilde eller navigasjon —
-  // kun plasseringen er endret.
-  // Prioritet 60: månedskalender, valgt dato og «I dag/Senere» er komponenter i layoutmotoren (område
-  // 'admin-standard-pages:kalender') — rekkefølge og synlighet styres av publisert layout; kalenderen selv er låst synlig.
-  const kalDeler = {};
-  // Prioritet 72: ingen ← Tilbake på Kalender (primær side).
+  const linje = ux4Tidslinje(kart);
+  const ukeHtml = Object.keys(linje.ukeKart).map(d => ux4TidGruppe('', ux4Ukedag(d) + ' ' + fmt(d).slice(0, 5), linje.ukeKart[d], false)).join('');
+  const plan = ux4KreverPlanlegging(5);
+  const hist = ux4Historikk(kart, 8);
   return `
-    <h2 style="font-size:19px;margin-bottom:6px;">${luc('calendar-days')} Kalender</h2>
-    <div class="required-hint" style="margin-bottom:16px;">Service, dekkskift, EU-kontroll, verkstedtimer og oppfølginger — alt planlagt arbeid på ett sted. ${antallIMnd} aktivitet${antallIMnd===1?'':'er'} denne måneden.</div>
-
-    ${(kalDeler['kalender.maned'] = `
-      <div class="bp-card panel" style="margin-bottom:16px;">
-        <div class="kal-topp">
-          <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-forrige">← Forrige</button>
-          <div class="kal-mnd">${KAL_MANED_NAVN[m-1]} ${ar}</div>
-          <div style="display:flex;gap:6px;">
-            <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-idag">I dag</button>
-            <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-neste">Neste →</button>
-          </div>
+    <h2 class="bp-h1" style="margin-bottom:var(--space-4);">Kalender</h2>
+    <div class="ux1-stack">
+      <section aria-labelledby="ux4-kap"><h2 id="ux4-kap" class="bp-overline">Verkstedkapasitet</h2>${ux4KapasitetHtml()}</section>
+      <section id="ux4-venter" aria-labelledby="ux4-plan"><div class="ux1-head"><h2 id="ux4-plan" class="bp-overline">Krever planlegging</h2></div>
+        ${plan.length ? `<div class="ux1-alerts">${plan.map(p => p.kind === 'eu' ? ux1VarselKortHtml(p.x) : ux2AlertHtml(p.r)).join('')}</div>` : bpTomTilstandHtml('Ingenting å planlegge', 'Ingen forfalt time, manglende bekreftelse eller EU-kontroll som krever handling.', true)}
+      </section>
+      <section id="ux4-uke" aria-labelledby="ux4-tid"><div class="ux1-head"><h2 id="ux4-tid" class="bp-overline">Tidslinje</h2></div>
+        <div class="ux1-col">
+          ${ux4TidGruppe('ux4-idag', 'I dag', linje.iDag, false)}
+          ${ux4TidGruppe('ux4-imorgen', 'I morgen', linje.morgen, false)}
+          ${ukeHtml}
+          ${linje.iDag.length + linje.morgen.length + Object.keys(linje.ukeKart).length ? '' : bpTomTilstandHtml('Ingen aktiviteter denne uka', 'Ingenting er lagt på i dag, i morgen eller resten av uka.', true)}
         </div>
-        <div class="kal-ukedager">${KAL_UKEDAG_KORT.map(u => `<div class="kal-ukedag">${u}</div>`).join('')}</div>
-        <div class="kal-grid">${celler.join('')}</div>
-        <div class="required-hint" style="margin-top:10px;">🔧 Service · 🛞 Dekkskift · 🏭 Reparasjon · 🚦 EU-kontroll · 📋 Oppfølging — trykk på en dato for å se alt som skjer den dagen.</div>
-      </div>
-    `, '')}
-    ${(kalDeler['kalender.valgt-dato'] = `
-        <div class="bp-card panel" style="margin-bottom:16px;">
-          <div class="p38-panel-head bp-card-head"><span class="bp-tile">${luc('calendar-clock')}</span><div class="tittel bp-card-title">${valgt ? fmt(valgt) : 'Velg en dato'}</div></div>
-          ${!valgt ? `<div class="empty-note">Trykk på en dato i kalenderen for å se alle planlagte aktiviteter den dagen.</div>`
-            : (valgteAkt.length === 0 ? `<div class="empty-note">Ingen planlagte aktiviteter ${fmt(valgt)}.</div>`
+      </section>
+      <section aria-labelledby="ux4-mnd"><div class="ux1-head"><h2 id="ux4-mnd" class="bp-overline">Månedskalender</h2></div>
+        <div class="bp-card">
+          <div class="kal-topp">
+            <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-forrige">Forrige</button>
+            <div class="kal-mnd">${KAL_MANED_NAVN[m-1]} ${ar}</div>
+            <div style="display:flex;gap:var(--space-2);">
+              <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-idag">I dag</button>
+              <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-neste">Neste</button>
+            </div>
+          </div>
+          <div class="kal-ukedager">${KAL_UKEDAG_KORT.map(u => `<div class="kal-ukedag">${u}</div>`).join('')}</div>
+          <div class="kal-grid">${celler.join('')}</div>
+          <p class="bp-kpi-sub" style="margin-top:var(--space-3);">${antallIMnd} aktivitet${antallIMnd===1?'':'er'} denne måneden. Service, dekkskift, reparasjon, EU-kontroll og oppfølging. Trykk på en dato.</p>
+        </div>
+        <div class="bp-card" style="margin-top:var(--space-3);">
+          <div class="bp-card-head"><h3 class="bp-card-title">${valgt ? fmt(valgt) : 'Velg en dato'}</h3></div>
+          ${!valgt ? bpTomTilstandHtml('Velg en dato', 'Trykk på en dato i måneden for å se aktivitetene.', true)
+            : (valgteAkt.length === 0 ? bpTomTilstandHtml('Ingen aktiviteter', 'Ingenting er planlagt ' + fmt(valgt) + '.', true)
             : `<ul class="dmg-simple-list">${valgteAkt.map(a => kalenderRadHtml(a, false)).join('')}</ul>`)}
-        </div>`, '')}
-    ${(kalDeler['kalender.i-dag-senere'] = kalenderIDagSenereHtml(), '')}
-
-    ${layoutFlowHtml('admin-standard-pages:kalender', {parts:kalDeler}, 'lay-kal')}
+        </div>
+      </section>
+      <section aria-labelledby="ux4-hist"><div class="ux1-head"><h2 id="ux4-hist" class="bp-overline">Historikk</h2></div>
+        ${hist.length ? `<ul class="dmg-simple-list">${hist.map(a => kalenderRadHtml(a, true)).join('')}</ul>` : bpTomTilstandHtml('Ingen tidligere aktiviteter', 'Ingenting ligger bak dagens dato.', true)}
+      </section>
+    </div>
   `;
 }
 // Prioritet 71.9: «📋 Alle kommende aktiviteter» (planleggingSeksjonHtml(), fjernet) viste i
@@ -18676,6 +19032,11 @@ function attachKalenderListeners(){
   document.querySelectorAll('[data-kal-dato]').forEach(el => el.addEventListener('click', () => {
     kalenderValgtDato = kalenderValgtDato === el.dataset.kalDato ? '' : el.dataset.kalDato;
     render();
+  }));
+  document.querySelectorAll('[data-kal-kpi]').forEach(el => el.addEventListener('click', () => {
+    const id = {idag:'ux4-idag', uke:'ux4-uke', venter:'ux4-venter', forfalt:'ux4-venter'}[el.dataset.kalKpi];
+    const g = id && document.getElementById(id);
+    if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
   }));
   // Navigasjon videre til samlet Verksted og detaljer.
   document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
@@ -19335,57 +19696,135 @@ async function fullforVerkstedbestillinger(ids){
     render();
   }
 }
+function ux2Anbefaling(r){
+  if(r.oppfolging === 'mangler-kobling') return 'Koble saken til en verkstedtime.';
+  if(r.vtStatus === 'planlagt') return 'Bekreft verkstedtimen.';
+  if(r.requiresManualReview) return 'Rett opp manglende opplysninger.';
+  if(r.oppfolging === 'krever-oppfolging') return 'Følg opp verkstedtimen.';
+  if(r.oppfolging === 'klar-til-avslutning') return 'Avslutt oppfølgingen.';
+  return 'Åpne og vurder.';
+}
+function ux2KreverHandling(maks){
+  return WorkshopFollowupEngine.alle().filter(r => {
+    if(r.oppfolging === 'krever-oppfolging' || r.oppfolging === 'mangler-kobling') return true;
+    if(r.oppfolging === 'avventer-verksted' && r.vtStatus === 'planlagt') return true;
+    return !!r.requiresManualReview;
+  }).slice(0, maks == null ? 5 : maks);
+}
+function ux2KommendeGrupper(liste){
+  const idag = todayISO();
+  const slutt = isoDateOffset(isoUkeStart(idag), 6);
+  const iDag = [], uke = [], bekreftet = [], venter = [];
+  (liste || []).forEach(t => {
+    if(!vtErApen(t)) return;
+    const st = vtStatus(t);
+    if(st === 'pagar' || st === 'forfalt' || st === 'utfort' || st === 'avlyst') return;
+    if(t.dato === idag) iDag.push(t);
+    else if(t.dato && t.dato > idag && t.dato <= slutt) uke.push(t);
+    else if(st === 'bekreftet') bekreftet.push(t);
+    else if(st === 'planlagt') venter.push(t);
+  });
+  return {iDag, uke, bekreftet, venter};
+}
+function ux2AlertHtml(r){
+  const a = r.alvorlighet ? bpAlertNivaFraAlvorlighet(r.alvorlighet) : {niva: r.visning === 'hoy' ? 'high' : 'medium', tone: 'warning', ikon: 'triangle-alert', pille: ''};
+  const knapp = r.vtId
+    ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-apne-vt="${esc(r.vtId)}">Åpne</button>`
+    : `<button type="button" class="bp-btn bp-btn-primary btn small" data-wfe-aapne="${esc(r.id)}">Åpne</button>`;
+  return bpAlertHtml({
+    niva: a.niva, tone: a.tone, ikon: a.ikon,
+    linjeHtml: (r.alvorlighet ? a.pille : '') + statusPilleHtml('verkstedOppfolging', r.oppfolging),
+    tittel: esc(r.bilTekst || 'Ukjent bil'),
+    metaHtml: r.tekst ? `<span class="bp-meta">${esc(r.tekst)}</span>` : '',
+    anbefaling: ux2Anbefaling(r),
+    handlingerHtml: knapp
+  });
+}
+function ux2PaRadHtml(r){
+  const t = r.vtId ? verkstedtimer.find(x => x.id === r.vtId) : null;
+  const ferdig = t ? vtForventetFerdigIso(t) : '';
+  const ansvar = t && (t.kontaktperson || '').trim();
+  return `<button type="button" class="bp-card bp-card-click" data-apne-vt="${esc(r.vtId)}" style="margin-bottom:var(--space-3);">
+    <span class="bp-vcard-head"><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(r.bilTekst || 'Ukjent bil')}</span><span class="bp-vcard-reg">${esc(r.verksted || 'Verksted ikke satt')}</span></span>${r.vtStatus ? statusPilleHtml('verksted', r.vtStatus) : ''}</span>
+    <span class="bp-vcard-rows">
+      <span class="bp-vrow"><span class="bp-vrow-label">Nedetid</span><span class="bp-vrow-value">${ferdig ? esc(fmt(ferdig)) : 'Ikke satt'}</span></span>
+      <span class="bp-vrow"><span class="bp-vrow-label">Ansvarlig</span><span class="bp-vrow-value">${esc(ansvar || 'Ikke satt')}</span></span>
+    </span>
+  </button>`;
+}
+function ux2StatusHtml(kpi){
+  const s = WorkshopFollowupEngine.oppsummering();
+  const pa = statusDef('verkstedOppfolging', 'pa-verksted');
+  const klar = statusDef('verkstedOppfolging', 'klar-til-avslutning');
+  const forfalt = statusDef('verksted', 'forfalt');
+  const forfaltAktiv = kpi.forfalt > 0;
+  return `<div class="bp-kpi-row">
+    ${bpKpiHtml({tone:'workshop', ikon:'wrench', verdi:kpi.idag, label:'I dag', attr:'data-vt-kpi="idag"'})}
+    ${bpKpiHtml({tone:'info', ikon:'calendar-days', verdi:kpi.uke, label:'Denne uka', attr:'data-vt-kpi="uke"'})}
+    ${bpKpiHtml({tone:forfaltAktiv ? forfalt.tone : 'success', ikon:forfaltAktiv ? forfalt.ikon : 'circle-check', verdi:kpi.forfalt, label:forfalt.label, attr:'data-vt-kpi="forfalt"'})}
+    ${bpKpiHtml({tone:pa ? pa.tone : 'workshop', ikon:pa ? pa.ikon : 'wrench', verdi:s.paVerksted, label:'På verksted', attr:'data-vt-kpi="pa-verksted"'})}
+    ${bpKpiHtml({tone:klar ? klar.tone : 'warning', ikon:klar ? klar.ikon : 'clipboard-check', verdi:s.klarTilAvslutning, label:'Klar til avslutning', attr:'data-vt-kpi="klar"'})}
+  </div>`;
+}
+function ux2Gruppe(id, tittel, html){
+  if(!html) return '';
+  return `<div class="ux1-gruppe" id="${id}"><h3 class="ux1-gruppe-tittel">${tittel}</h3>${html}</div>`;
+}
+function ux2ArbeidsflateHtml(visning){
+  const handling = ux2KreverHandling(5);
+  const kommende = ux2KommendeGrupper(visning);
+  const pa = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === 'pa-verksted');
+  const klar = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === 'klar-til-avslutning');
+  const redigering = editingVTId ? verkstedtimer.find(t => t.id === editingVTId) : null;
+  return `<div class="ux1-stack">
+    <section aria-labelledby="ux2-status"><h2 id="ux2-status" class="bp-overline">Verkstedstatus</h2>${ux2StatusHtml(vtOversiktKpi(visning))}</section>
+    ${redigering ? vtCard(redigering, vtErApen(redigering), false) : ''}
+    <section id="ux2-forfalt" aria-labelledby="ux2-handling"><div class="ux1-head"><h2 id="ux2-handling" class="bp-overline">Krever handling</h2></div>
+      ${handling.length ? `<div class="ux1-alerts">${handling.map(ux2AlertHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting krever handling', 'Ingen forfalte timer, manglende bekreftelse eller manglende kobling.', true)}
+    </section>
+    <section aria-labelledby="ux2-kommende"><div class="ux1-head"><h2 id="ux2-kommende" class="bp-overline">Kommende verksted</h2></div>
+      <div class="ux1-col">
+        ${ux2Gruppe('ux2-idag', 'I dag', kommende.iDag.map(ux1VerkstedKortHtml).join(''))}
+        ${ux2Gruppe('ux2-uke', 'Denne uka', kommende.uke.map(ux1VerkstedKortHtml).join(''))}
+        ${ux2Gruppe('ux2-bekreftet', 'Bekreftet', kommende.bekreftet.map(ux1VerkstedKortHtml).join(''))}
+        ${ux2Gruppe('ux2-venter', 'Venter bekreftelse', kommende.venter.map(ux1VerkstedKortHtml).join(''))}
+        ${kommende.iDag.length + kommende.uke.length + kommende.bekreftet.length + kommende.venter.length ? '' : bpTomTilstandHtml('Ingenting å planlegge nå', 'Ingen kommende timer i dag, denne uka eller senere.', true)}
+      </div>
+    </section>
+    <section id="ux2-pa" aria-labelledby="ux2-pa-tittel"><div class="ux1-head"><h2 id="ux2-pa-tittel" class="bp-overline">På verksted</h2></div>
+      ${pa.length ? pa.map(ux2PaRadHtml).join('') : bpTomTilstandHtml('Ingen biler på verksted', 'Ingen pågående verkstedjobber.', true)}
+    </section>
+    <section id="ux2-klar" aria-labelledby="ux2-klar-tittel"><div class="ux1-head"><h2 id="ux2-klar-tittel" class="bp-overline">Klar til avslutning</h2></div>
+      ${klar.length ? `<div class="ux1-alerts">${klar.map(ux2AlertHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting å avslutte', 'Ingen utført jobb venter på avslutning.', true)}
+    </section>
+    <section aria-labelledby="ux2-hist"><div class="ux1-head"><h2 id="ux2-hist" class="bp-overline">Historikk</h2></div>${vtHistorikkListeHtml()}</section>
+  </div>`;
+}
 function renderVerksted(){
   const visning = getFilteredVerkstedtimer();
-  // Prioritet 75: KPI og kompakt «Neste verksted» øverst. Standardfane er Kommende (dato-
-  // gruppert arbeidsliste). Biler = tidligere per-bil-gruppering. Historikk = utførte jobber.
-  const nesteVT = nesteVerkstedtime();
-  const kpi = vtOversiktKpi(visning);
-  const fane = vtOversiktFane;
-  let faneInnhold = '';
-  if(fane === 'historikk') faneInnhold = vtHistorikkListeHtml();
-  else if(fane === 'biler'){
-    const oversiktBody = verkstedGroupedSection(visning, vtOversiktOpenVehicles, 'toggle-vto-vehicle', nesteVT ? nesteVT.id : null, true);
-    faneInnhold = oversiktBody === null ? `<div class="empty-note">Ingen verkstedregistreringer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>` : oversiktBody;
-  } else if(fane === 'krever-oppfolging' || fane === 'pa-verksted' || fane === 'klar-til-avslutning'){
-    faneInnhold = vtOppfolgingListeHtml(fane);
-  } else {
-    faneInnhold = visning.length === 0
-      ? `<div class="empty-note">Ingen planlagte verkstedtimer${[vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length > 0 ? ' med gjeldende filter':''}.</div>`
-      : vtKommendeListeHtml(visning);
-  }
   const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length;
-  // Prioritet 60: seksjonene (neste time, registrer/filtrer, liste) tegnes av layoutmotoren i publisert rekkefølge (område
-  // 'admin-standard-pages:verksted'). «Registrer og filtrer» og selve listen er låst synlige; skjemaet og filterpanelet følger «Registrer og filtrer».
-  const vtDeler = {};
 
-  // Prioritet 72: ingen ← Tilbake på Verksted (primær side).
+  // UX-2: fast arbeidsflate. Registrering ligger nederst. Layoutrekkefølgen for verksted publiseres ikke hit.
   return `
-    <h2 style="font-size:19px;margin-bottom:16px;">🔧 Verkstedoversikt</h2>
+    <div class="ux1-head" style="margin-bottom:var(--space-4);">
+      <h2 class="bp-h1">Verksted</h2>
+      <span class="bp-row-actions">
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="vt-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="add-vt-btn">${showAddVT ? 'Avbryt' : 'Registrer verkstedtime'}</button>
+      </span>
+    </div>
 
     ${vtFlerBilResultatHtml()}
 
-    ${(vtDeler['verksted.neste-time'] = vtOversiktKpiHtml(kpi) + vtNesteKompaktHtml(nesteVT), '')}
+    ${ux2ArbeidsflateHtml(visning)}
 
-    ${(vtDeler['verksted.verktoy'] = `
-    <div class="bp-card panel" style="padding:0;overflow:hidden;margin-bottom:16px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;">
-        <button type="button" id="add-vt-btn" style="padding:16px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
-          <div style="font-family:var(--font-sans);font-weight:600;font-size:16px;">${showAddVT ? 'Avbryt' : '🔧 Registrer verkstedtime'}</div>
-        </button>
-        <button type="button" id="vt-filter-toggle-btn" style="padding:8px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
-          <div style="font-size:12px;font-weight:600;">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</div>
-        </button>
+    <section class="ux1-sek" aria-labelledby="ux2-reg" style="margin-top:var(--space-6);">
+      <div class="ux1-head"><h2 id="ux2-reg" class="bp-overline">Registrer</h2></div>
+      <div class="bp-row-actions">
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="registrer-service-btn">Registrer service</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="registrer-tidligere-service-btn">Registrer tidligere service</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);">
-        <button type="button" id="registrer-service-btn" style="padding:12px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
-          <div style="font-weight:600;font-size:13px;">🔧 Registrer service</div>
-        </button>
-        <button type="button" id="registrer-tidligere-service-btn" style="padding:12px 14px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;color:inherit;">
-          <div style="font-weight:600;font-size:13px;">Registrer tidligere service</div>
-        </button>
-      </div>
-    </div>
+    </section>
 
     ${showAddVT ? (() => {
       const linkedSak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
@@ -19541,11 +19980,6 @@ function renderVerksted(){
       </div>
     </div>` : ''}
 
-    `, '')}
-
-    ${(vtDeler['verksted.liste'] = vtOversiktFanerHtml() + `<div class="vt-oversikt-innhold" style="margin-top:12px;">${faneInnhold}</div>`, '')}
-
-    ${layoutFlowHtml('admin-standard-pages:verksted', {parts:vtDeler})}
   `;
 }
 
@@ -19614,13 +20048,9 @@ function attachVerkstedListeners(){
     render();
   }));
   document.querySelectorAll('[data-vt-kpi]').forEach(el => el.addEventListener('click', () => {
-    vtOversiktFane = 'kommende';
-    const maal = el.dataset.vtKpi;
-    render();
-    setTimeout(() => {
-      const g = document.getElementById('vt-gruppe-' + (maal === 'uke' ? 'uke' : maal));
-      if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
-    }, 40);
+    const id = {idag:'ux2-idag', uke:'ux2-uke', forfalt:'ux2-forfalt', 'pa-verksted':'ux2-pa', klar:'ux2-klar'}[el.dataset.vtKpi];
+    const g = (id && document.getElementById(id)) || document.getElementById('ux2-kommende');
+    if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
   }));
   document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
