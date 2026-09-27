@@ -2175,6 +2175,9 @@ button.bp-tl-btn:hover .bp-tl-title { color:var(--accent); }
 
 /* 8. Case card */
 .bp-case { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-4) var(--space-5); }
+.bp-case.is-compact { gap:var(--space-1); padding:var(--space-3) var(--space-4); }
+.bp-case.is-compact .bp-case-title { font:600 14px/20px var(--font-sans); }
+.bp-case.is-compact .bp-case-next { margin-top:0; padding:var(--space-1) var(--space-2); }
 .bp-case-critical { border-color:var(--danger); }
 .bp-case.is-closed { box-shadow:none; }
 .bp-case.is-closed .bp-case-title { color:var(--ink-muted); }
@@ -2301,8 +2304,11 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .bp-fh-lbl > span{display:inline-flex;}
   @media (max-width:720px){ .bp-card.bp-fh{padding:var(--space-5) var(--space-4);} }
   /* UX-1: operativ kontrollsentral. Én stabel, 24 px mellom seksjoner. */
-  .ux1-stack{display:flex;flex-direction:column;gap:var(--space-6);}
-  .ux1-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-3);}
+  .ux1-stack{display:flex;flex-direction:column;gap:var(--space-4);}
+  .ux1-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-2);}
+  .ux1-stack .bp-state.is-compact{padding:var(--space-3) var(--space-4);}
+  .ux1-stack .bp-vcard,.ux1-stack .bp-wcard,.ux1-stack .bp-alert{padding:var(--space-3) var(--space-4);}
+  .bp-card.bp-fh{padding:var(--space-5);}
   .ux1-head .bp-overline{margin:0;}
   .ux1-alerts,.ux1-col,.ux1-gruppe{display:flex;flex-direction:column;gap:var(--space-3);min-width:0;}
   .ux1-gruppe{gap:var(--space-2);}
@@ -6878,9 +6884,16 @@ const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':
 // bruker nå en fargeprikk (CSS) i stedet for DRIFTSLAG_IKON sin emoji, nettopp for å kunne
 // gi CURBSIDE en egen farge i stedet for å dele 🔵 med LAG 3 (bestilt eksplisitt). DRIFTSLAG_IKON
 // selv er UENDRET — kun denne ene visningen (dot-fargen) er lagt til ved siden av, ikke i stedet.
-// V4 · W2 · D3: driftslag er gruppering, ikke status — ingen egen farge. Alle lag vises nøytralt
-// med tekstetikett (tidligere P48_DRIFTSLAG_FARGE med grønn/rød/blå/gul/turkis/lilla/oransje).
-function p48DriftslagFarge(navn){ return 'var(--neutral)'; }
+// UX-finpuss: Lag 1–4 er nøkkelknippe-farger (success, danger, info, warning) som små prikker.
+// Curbside, Montering og Lastebil forblir nøytrale. Ingen stor flate.
+function p48DriftslagFarge(navn){
+  return {'Lag 1':'var(--success)', 'Lag 2':'var(--danger)', 'Lag 3':'var(--info)', 'Lag 4':'var(--warning)'}[navn] || 'var(--neutral)';
+}
+function driftslagPrikkHtml(v){
+  const g = v ? vehicleDriftslagGruppe(v) : '';
+  if(!g || g === 'Ikke satt') return '';
+  return `<span class="bp-status-dot" style="background:${p48DriftslagFarge(g)}" title="${esc(g)}" aria-label="${esc(g)}"></span>`;
+}
 // "Pick Up Point Larvik" skal ALDRI vises ved bilvalg i Sjåførkontroll — uansett om det
 // står skrevet med andre mellomrom/store-små bokstaver, sammenlignes normalisert.
 const DRIFTSLAG_SKJULT_I_KONTROLL = ['pick up point larvik'];
@@ -13724,12 +13737,20 @@ function ux5LedelseSortert(){
     return at - bt;
   });
 }
-function ux5RingKortHtml(){
-  const rader = ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), esc(k.rolle || 'Ledelse'), k.telefon));
+function ux5MittLag(v){
+  const lag = v ? vehicleDriftslagGruppe(v) : '';
+  if(!lag || lag === 'Ikke satt') return {lag:'', biler:[]};
+  const biler = (vehicles || []).filter(x => x.id !== v.id && vehicleDriftslagGruppe(x) === lag && vehicleAktivSjafor(x.id));
+  return {lag, biler};
+}
+function ux5RingKortHtml(v){
+  const mitt = ux5MittLag(v);
+  const rader = mitt.biler.map(x => ringelisteRowHtml('truck', driftslagPrikkHtml(x) + esc(vehicleLabel(x)), esc(vehicleAktivSjafor(x.id) || ''), x.telefon));
   const vei = ringelisteEkstra.veihjelp || {};
   const home = ringelisteEkstra.homeDelivery || {};
   rader.push(ringelisteRowHtml('headphones', esc(vei.navn || 'Veihjelp'), esc(vei.beskrivelse || 'Assistanse'), vei.telefon));
   rader.push(ringelisteRowHtml('truck', esc(home.navn || 'Home Delivery'), esc(home.beskrivelse || ''), home.telefon));
+  ux5LedelseSortert().forEach(k => rader.push(ringelisteRowHtml('user-round', esc(k.navn), esc(k.rolle || 'Ledelse'), k.telefon)));
   return rader.join('');
 }
 function ux5KontrollKnapp(){
@@ -13970,24 +13991,13 @@ function renderDriverMinBil(){
       </button>`
   });
   const neste = nesteVerkstedtime(v.id);
-  const gjore = ux5MaGjores(v);
-  const gjoreHtml = gjore.map(p => {
-    if(p.kind === 'kontroll'){
-      return bpAlertHtml({
-        niva:'high', tone:'warning', ikon:'clipboard-check',
-        linjeHtml: statusPilleHtml('operativ', 'ikke-kontrollert'),
-        tittel: esc(vehicleLabel(v)),
-        metaHtml: '<span class="bp-meta">Dagens kontroll er ikke utført.</span>',
-        anbefaling: 'Utfør kontrollen.',
-        handlingerHtml: ux5KontrollKnapp()
-      });
-    }
-    return ux1VarselKortHtml(p.x);
-  }).join('');
+  const ss = vehicleServiceStatus(v);
+  const eu = vehicleEuKontrollStatus(v);
+  const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
   return `
     <section class="bp-card bp-vcard" aria-labelledby="ux5-hero">
       <div class="bp-vcard-head">
-        <span class="bp-vcard-title"><span class="bp-vcard-name" id="ux5-hero">${esc(v.bilnummer || 'Min bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>
+        ${driftslagPrikkHtml(v)}<span class="bp-vcard-title"><span class="bp-vcard-name" id="ux5-hero">${esc(v.bilnummer || 'Min bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>
         ${statusPilleHtml('operativ', hovedstatus)}
       </div>
       <div class="bp-vcard-rows">
@@ -13996,11 +14006,19 @@ function renderDriverMinBil(){
       </div>
       ${mbOverfort ? '<p class="required-hint">Bilen er overført. Du står ikke lenger som aktiv sjåfør.</p>' : ''}
     </section>
-    <section aria-labelledby="ux5-na" style="margin-top:var(--space-4);">
-      <h2 id="ux5-na" class="bp-overline">Må gjøres nå</h2>
-      ${gjoreHtml || bpTomTilstandHtml('Ingenting å gjøre nå', 'Ingen åpen kontroll, varsel eller skade.', true)}
+    <section class="bp-card" aria-labelledby="ux5-bil" style="margin-top:var(--space-3);">
+      <h2 id="ux5-bil" class="bp-card-title">Bilinformasjon</h2>
+      ${bilkortRader['driver.kilometerstand']}
+      <div class="bp-vrow"><span class="bp-vrow-label">Service</span><span class="bp-vrow-value">${esc(ss.tekst || 'Ikke satt')}</span></div>
+      <div class="bp-vrow"><span class="bp-vrow-label">EU-kontroll</span><span class="bp-vrow-value">${esc(eu.tekst || 'Ikke satt')}</span></div>
+      <div class="bp-vrow"><span class="bp-vrow-label">Dekk</span><span class="bp-vrow-value">${esc(dekk)}</span></div>
+      ${bilkortRader['driver.loftebord']}
     </section>
-    <section class="bp-card" aria-labelledby="ux5-k" style="margin-top:var(--space-4);">
+    <section class="bp-card" aria-labelledby="ux5-drift" style="margin-top:var(--space-3);">
+      <h2 id="ux5-drift" class="bp-card-title">Driftsmelding</h2>
+      <p class="bp-kpi-sub" style="margin:0;">Ingen driftsmeldinger.</p>
+    </section>
+    <section class="bp-card" aria-labelledby="ux5-k" style="margin-top:var(--space-3);">
       <h2 id="ux5-k" class="bp-card-title">Dagens kontroll</h2>
       ${bilkortRader['driver.kontrollstatus']}
       ${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}
@@ -14019,15 +14037,7 @@ function renderDriverMinBil(){
     </section>
     <section aria-labelledby="ux5-ring" style="margin-top:var(--space-4);">
       <div class="ux1-head"><h2 id="ux5-ring" class="bp-overline">Ringeliste</h2><button type="button" class="bp-link-btn" data-driverbunn="ringeliste">Alle kontakter</button></div>
-      ${ux5RingKortHtml()}
-    </section>
-    <section aria-labelledby="ux5-info" style="margin-top:var(--space-6);">
-      <h2 id="ux5-info" class="bp-overline">Informasjon</h2>
-      <div class="bp-card">
-        ${bilkortRader['driver.kilometerstand']}
-        ${bilkortRader['driver.loftebord']}
-        <div class="bp-vrow"><span class="bp-vrow-label">Modell</span><span class="bp-vrow-value">${esc([v.merke, v.modell].filter(Boolean).join(' ') || 'Ikke satt')}</span></div>
-      </div>
+      ${ux5RingKortHtml(v)}
     </section>
     <div style="margin-top:var(--space-4);">${delerHtml['driver.sjekk-ut']}</div>
   `;
@@ -14194,7 +14204,9 @@ function renderDriverRingeliste(){
   const andre = sortedVehicles(vehicles).filter(x => !egenBil || x.id !== egenBil.id)
     .filter(x => driverRingelisteVisReserve || x.kategori !== 'reserve')
     .filter(x => driverRingelisteVisUteAvDrift || !x.uteAvDrift);
-  const aktive = andre.filter(x => vehicleAktivSjafor(x.id));
+  const mitt = ux5MittLag(egenBil);
+  const mittIder = new Set(mitt.biler.map(x => x.id));
+  const aktive = andre.filter(x => vehicleAktivSjafor(x.id) && !mittIder.has(x.id));
   const ingenAktive = andre.filter(x => !vehicleAktivSjafor(x.id));
   const aktiveRader = aktive.map(x => ringelisteRowHtml('truck',
     esc(vehicleLabel(x)),
@@ -14217,15 +14229,16 @@ function renderDriverRingeliste(){
       <button type="button" class="bp-btn btn small ${driverRingelisteVisUteAvDrift ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-ute-btn">✅ Vis «Kan ikke brukes»</button>
     </div>
     <div class="ringeliste-scroll">
-      ${ringelisteGroupHtml('ledelse', 'Ledelse', '--neutral', ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon)))}
-      ${ringelisteGroupHtml('aktive', 'Aktive sjåfører', '--success', aktiveRader)}
-      ${ringelisteGroupHtml('ingen-aktive', 'Andre kontakter', '--warning', ingenAktiveRader)}
-    </div>
-    <div class="ringeliste-fixed-quick">
-      <div class="ringeliste-quick-grid">
-        ${ringelisteQuickCardHtml('veihjelp', 'headphones', 'var(--info)')}
-        ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--success)')}
+      ${mitt.lag ? ringelisteGroupHtml('mitt-lag', 'Mitt lag · ' + mitt.lag, '--success', mitt.biler.map(x => ringelisteRowHtml('truck', driftslagPrikkHtml(x) + esc(vehicleLabel(x)), esc(vehicleAktivSjafor(x.id) || ''), x.telefon))) : '<p class="required-hint">Ingen driftslag på bilen. Medsjåfører kan ikke skilles ut.</p>'}
+      <div class="ringeliste-fixed-quick">
+        <div class="ringeliste-quick-grid">
+          ${ringelisteQuickCardHtml('veihjelp', 'headphones', 'var(--info)')}
+          ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--success)')}
+        </div>
       </div>
+      ${ringelisteGroupHtml('ledelse', 'Ledelse', '--neutral', ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon)))}
+      ${ringelisteGroupHtml('aktive', 'Andre aktive sjåfører', '--success', aktiveRader)}
+      ${ringelisteGroupHtml('ingen-aktive', 'Andre kontakter', '--warning', ingenAktiveRader)}
     </div>
   `;
 }
@@ -15574,10 +15587,10 @@ function ux1SakKortHtml(s){
   const alv = sakAlvorlighet(s);
   const a = bpAlertNivaFraAlvorlighet(alv);
   const neste = (s.nextAction || '').trim() || 'Neste handling mangler';
-  return `<button type="button" class="bp-card bp-case bp-case-${a.niva} bp-card-click" data-goto-sak="${esc(s.id)}">
+  return `<button type="button" class="bp-card bp-case bp-case-${a.niva} bp-card-click is-compact" data-goto-sak="${esc(s.id)}">
     <span class="bp-case-top"><span class="bp-case-no">${esc(s.caseId || '')}</span>${a.pille}${statusPilleHtml('sak', s.status)}</span>
-    <span class="bp-case-title">${esc(SAK_TYPE_LABEL[s.caseType] || 'Sak')}</span>
-    <span class="bp-alert-meta">${bpMetaHtml('car', esc(v ? vehicleLabel(v) : 'Ukjent bil'))}</span>
+    <span class="bp-case-title">${esc(SAK_TYPE_LABEL[s.caseType] || 'Sak')} · ${esc(v ? vehicleLabel(v) : 'Ukjent bil')}</span>
+    <span class="bp-alert-meta">${bpMetaHtml('calendar', esc(s.reportedAt ? fmt(s.reportedAt) : 'Uten dato'))}</span>
     <span class="bp-case-next">${luc('arrow-right')}<span><span class="bp-case-next-l">Neste handling</span>${esc(neste)}</span></span>
   </button>`;
 }
@@ -15588,7 +15601,7 @@ function ux1KjoretoyKortHtml(v){
   const neste = nesteVerkstedtime(v.id);
   const sjafor = vehicleAktivSjafor(v.id);
   return `<button type="button" class="bp-card bp-vcard bp-card-click" data-goto-bilkort="${esc(v.id)}">
-    <span class="bp-vcard-head"><span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
+    <span class="bp-vcard-head">${driftslagPrikkHtml(v)}<span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
     <span class="bp-vcard-rows">
       <span class="bp-vrow"><span class="bp-vrow-icon">${luc('user-round')}</span><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${esc(sjafor || 'Ingen aktiv sjåfør')}</span></span>
       <span class="bp-vrow"><span class="bp-vrow-icon">${luc('wrench')}</span><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>
@@ -16027,7 +16040,7 @@ function galleryCard(v, erMinAktiveBil){
       <div class="gcard-head">
         ${bpTileHtml(toneFraTint(st.tint), v.kategori === 'lastebil' ? 'truck' : 'car', true)}
         <div style="flex:1;min-width:0;">
-          <div class="gcard-navn">${esc(v.bilnummer || '–')}${erMinAktiveBil ? ' ⭐' : ''}</div>
+          <div class="gcard-navn">${driftslagPrikkHtml(v)}${esc(v.bilnummer || '–')}${erMinAktiveBil ? ' ⭐' : ''}</div>
           <div class="gcard-sub">${esc(modellTekst) || 'Modell ikke satt'} • ${esc(v.regnr)}</div>
           <div class="gcard-sub">${v.loyvenummer ? 'Løyve ' + esc(v.loyvenummer) : '<span class="gcard-loyve mangler">⚠️ Løyve mangler</span>'} • ${kmTekst}</div>
         </div>
@@ -17278,7 +17291,7 @@ function ux3HeroHtml(v){
     <div class="bp-fh-main">
       <h2 id="ux3-hero" class="bp-overline">Operativ status</h2>
       <div class="bp-fh-num">${esc(v.regnr || v.bilnummer || '–')}</div>
-      <div class="bp-fh-lbl">${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</div>
+      <div class="bp-fh-lbl">${driftslagPrikkHtml(v)}${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</div>
     </div>
     <ul class="bp-fh-tiles">${hoyre}</ul>
   </section>`;
@@ -17313,11 +17326,29 @@ function ux3SjaforHtml(v){
     </div>
   </section>`;
 }
+function ux3BilinfoHtml(v){
+  const ss = vehicleServiceStatus(v);
+  const siste = vehicleSisteService(v.id);
+  const eu = vehicleEuKontrollStatus(v);
+  const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
+  const lb = loftebordVedlikeholdStatus(v.id);
+  const rad = (label, verdi, attr) => `<div class="bp-vrow"${attr ? ' ' + attr : ''}><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
+  return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
+    <div class="bp-vcard-rows">
+      ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
+      ${rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')), `data-apne-service="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')))}
+      ${rad('Dekk', esc(dekk), `data-apne-dekk="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${rad('Løftebord', esc(lb.tekst || 'Ikke satt'))}
+    </div>
+  </section>`;
+}
 function ux3KontrollkortHtml(v){
   const handling = ux3KreverHandling(v);
   const saker = ux3SakerForBil(v);
   return `<div class="ux1-stack">
     ${ux3HeroHtml(v)}
+    ${ux3BilinfoHtml(v)}
     <section aria-labelledby="ux3-handling"><div class="ux1-head"><h2 id="ux3-handling" class="bp-overline">Krever handling</h2></div>
       ${handling.length ? `<div class="ux1-alerts">${handling.map(ux1VarselKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting krever handling', 'Ingen åpen oppfølging på denne bilen.', true)}
     </section>
@@ -17575,36 +17606,6 @@ function renderBilkort(){
 
     <section class="ux1-sek" aria-labelledby="ux3-dok" style="margin-top:var(--space-6);">
       <div class="ux1-head"><h2 id="ux3-dok" class="bp-overline">Dokumentasjon</h2></div>
-    <div class="profil-stat5">
-      <div>
-        ${bpTileHtml('neutral', 'gauge', true)}
-        <span><span class="l">Kilometerstand</span><span class="v">${v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'}</span><span class="s">Oppdatert fra siste kontroll</span></span>
-      </div>
-      <div style="cursor:pointer;" data-apne-service="${v.id}" title="Åpne servicehistorikk">
-        ${bpTileHtml(toneFraTint(serviceTone.tint), 'wrench', true)}
-        <span>
-          <span class="l">Sist service</span><span class="v">${vSisteService ? fmt(vSisteService.dato) : 'Ingen registrert'}</span>
-          <span class="stat-skille" aria-hidden="true"></span>
-          <span class="l">Km igjen til service</span><span class="v">${vServiceStatus.status === 'forfalt' && vServiceStatus.gjenstaende !== undefined ? serviceBadgeHtml(vServiceStatus, 'Forfalt') + ' ' + esc(Math.abs(vServiceStatus.gjenstaende).toLocaleString('nb-NO') + ' km over') : (['snart-rod', 'snart-gul'].includes(vServiceStatus.status) ? serviceBadgeHtml(vServiceStatus, kmIgjenTekst) : esc(kmIgjenTekst))}</span>
-        </span>
-      </div>
-      <div>
-        ${bpTileHtml(toneFraTint(euKontrollTone.tint), 'shield-check', true)}
-        <span><span class="l">Godkjent til</span><span class="v">${v.euGodkjentTil ? fmt(v.euGodkjentTil) : 'Mangler registrering'}</span><span class="s">${euKontrollStatus.ikon} ${esc(euKontrollStatus.tekst)}</span></span>
-      </div>
-      <div style="cursor:pointer;" data-apne-dekk="${v.id}" title="Åpne dekkinformasjon">
-        ${bpTileHtml('neutral', 'circle-dot', true)}
-        <span><span class="l">Dekk</span><span class="v">${dekkKort.ikon} ${esc(dekkKort.tekst)}</span><span class="s">Åpne dekkinformasjon →</span></span>
-      </div>
-      <div>
-        ${bpTileHtml({gronn:'success', gul:'warning', rod:'danger'}[lbVerst], 'arrow-up-down', true)}
-        <span>
-          <span class="l">Løftebord</span><span class="v" style="font-size:14px;">${vLbKontrollStatus.ikon} ${LB_KONTROLL_TEKST[vLbKontrollStatus.status] || vLbKontrollStatus.tekst}</span>
-          <span class="s">Sist smurt: ${vLbVedlikehold.siste ? fmt(vLbVedlikehold.siste.dato) : 'Aldri'}</span>
-          <span class="s" style="font-weight:600;color:var(--ink-muted);">${vLbVedlikehold.ikon} ${LB_VEDL_TEKST[vLbVedlikehold.status]}</span>
-        </span>
-      </div>
-    </div>
     <div class="profil-stat4">
       <div>
         ${vKontrollertIdag ? bpTileHtml('success', 'clipboard-check', true) : (vehicleErReserveUnntatt(v.id) ? bpStatusTileHtml('driftsstatus', 'reserve', true) : bpStatusTileHtml('operativ', 'ikke-kontrollert', true))}
@@ -18866,8 +18867,8 @@ function ux4VenterBekreftelse(){
 }
 function ux4KreverPlanlegging(maks){
   const grense = maks == null ? 5 : maks;
-  const ut = ux2KreverHandling(grense).map(r => ({kind:'wfe', r}));
-  if(ut.length >= grense) return ut;
+  const ut = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === 'avventer-verksted' && r.vtStatus === 'planlagt')
+    .slice(0, grense).map(r => ({kind:'wfe', r}));
   AlertEngine.aktive().filter(x => x.kategori === 'eu' && x.alvorlighet).forEach(x => {
     if(ut.length < grense) ut.push({kind:'eu', x});
   });
@@ -19696,14 +19697,22 @@ async function fullforVerkstedbestillinger(ids){
     render();
   }
 }
-function ux2Anbefaling(r){
-  if(r.oppfolging === 'mangler-kobling') return 'Koble saken til en verkstedtime.';
-  if(r.vtStatus === 'planlagt') return 'Bekreft verkstedtimen.';
-  if(r.requiresManualReview) return 'Rett opp manglende opplysninger.';
-  if(r.oppfolging === 'krever-oppfolging') return 'Følg opp verkstedtimen.';
-  if(r.oppfolging === 'klar-til-avslutning') return 'Avslutt oppfølgingen.';
-  return 'Åpne og vurder.';
+function ux2Handling(r){
+  const sakId = r.sakIds && r.sakIds[0];
+  const sakKnapp = sakId ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-wfe-lukk-sak="${esc(sakId)}">Lukk saken</button>` : '';
+  const kople = sakId ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-wfe-koble-sak="${esc(sakId)}">Koble sak</button>` : '';
+  const avtale = r.vtId ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-apne-vt="${esc(r.vtId)}">Åpne avtale</button>` : '';
+  const utfort = r.vtId ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-fullfor-vt="${esc(r.vtId)}">Utført</button>` : '';
+  const drift = r.vehicleId ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-wfe-tilbake-drift="${esc(r.vehicleId)}">Sett tilbake i drift</button>` : '';
+  if(r.oppfolging === 'mangler-kobling') return {tekst:'Koble saken til en verkstedtime.', knapp: kople || avtale};
+  if(r.kreverSikkerhetsvurdering) return {tekst:'Sett bilen tilbake i drift når den er vurdert. Oppfølgingen lukkes ikke av seg selv.', knapp: drift};
+  if(r.oppfolging === 'klar-til-avslutning') return {tekst:'Lukk saken. Det registrerer verkstedresultat og avslutter oppfølgingen.', knapp: sakKnapp || avtale};
+  if(r.vtStatus === 'planlagt') return {tekst:'Åpne avtalen og bekreft timen der.', knapp: avtale};
+  if(r.oppfolging === 'krever-oppfolging') return {tekst:'Registrer arbeidet som utført.', knapp: utfort || avtale};
+  if(r.requiresManualReview) return {tekst:'Åpne avtalen og fyll inn det som mangler.', knapp: avtale};
+  return {tekst:'Åpne avtalen og vurder neste steg.', knapp: avtale || kople};
 }
+function ux2Anbefaling(r){ return ux2Handling(r).tekst; }
 function ux2KreverHandling(maks){
   return WorkshopFollowupEngine.alle().filter(r => {
     if(r.oppfolging === 'krever-oppfolging' || r.oppfolging === 'mangler-kobling') return true;
@@ -19728,16 +19737,14 @@ function ux2KommendeGrupper(liste){
 }
 function ux2AlertHtml(r){
   const a = r.alvorlighet ? bpAlertNivaFraAlvorlighet(r.alvorlighet) : {niva: r.visning === 'hoy' ? 'high' : 'medium', tone: 'warning', ikon: 'triangle-alert', pille: ''};
-  const knapp = r.vtId
-    ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-apne-vt="${esc(r.vtId)}">Åpne</button>`
-    : `<button type="button" class="bp-btn bp-btn-primary btn small" data-wfe-aapne="${esc(r.id)}">Åpne</button>`;
+  const handling = ux2Handling(r);
   return bpAlertHtml({
     niva: a.niva, tone: a.tone, ikon: a.ikon,
     linjeHtml: (r.alvorlighet ? a.pille : '') + statusPilleHtml('verkstedOppfolging', r.oppfolging),
     tittel: esc(r.bilTekst || 'Ukjent bil'),
     metaHtml: r.tekst ? `<span class="bp-meta">${esc(r.tekst)}</span>` : '',
-    anbefaling: ux2Anbefaling(r),
-    handlingerHtml: knapp
+    anbefaling: handling.tekst,
+    handlingerHtml: handling.knapp
   });
 }
 function ux2PaRadHtml(r){

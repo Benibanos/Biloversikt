@@ -27,8 +27,10 @@ function extractFn(name) {
 
 assert(html === kontroll, 'index.html og kontroll.html er identiske');
 const side = extractFn('renderDriverMinBil');
-const rekk = ['id="ux5-hero"', 'id="ux5-na"', 'id="ux5-k"', 'id="ux5-h"', 'id="ux5-ring"', 'id="ux5-info"'].map(t => side.indexOf(t));
+const rekk = ['id="ux5-hero"', 'id="ux5-bil"', 'id="ux5-drift"', 'id="ux5-k"', 'id="ux5-h"', 'id="ux5-ring"'].map(t => side.indexOf(t));
 assert(rekk.every((n, i) => n > (i ? rekk[i - 1] : -1)) && rekk[5] < side.lastIndexOf("delerHtml['driver.sjekk-ut']"), 'Min Bil står i operativ rekkefølge');
+assert(!side.includes('Må gjøres nå'), 'Må gjøres nå er borte');
+assert(side.includes('Ingen driftsmeldinger.'), 'driftsmelding er en plassholder');
 const handling = side.indexOf("delerHtml['driver.varsel']");
 assert(handling < side.indexOf("delerHtml['driver.skade']") && side.indexOf("delerHtml['driver.skade']") < side.indexOf("delerHtml['driver.kommentarer']"), 'varsel, skade og kommentarer er i den rekkefølgen');
 assert(!side.includes('layoutSynligeTopp'), 'Min Bil leser ikke layoutrekkefølgen');

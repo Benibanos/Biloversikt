@@ -42,7 +42,10 @@ const sandbox = {
   },
   isoUkeStart(){ return '2026-09-21'; },
   KAL_UKEDAG_KORT: ['Man','Tir','Ons','Tor','Fre','Lør','Søn'],
-  ux2KreverHandling(){ return [{id:'forfalt'}, {id:'venter'}]; },
+  WorkshopFollowupEngine: { alle(){ return [
+    {id:'forfalt', oppfolging:'krever-oppfolging', vtStatus:'forfalt'},
+    {id:'venter', oppfolging:'avventer-verksted', vtStatus:'planlagt'}
+  ]; } },
   AlertEngine: { aktive(){ return [{id:'eu1', kategori:'eu', alvorlighet:'hoy'}, {id:'sak', kategori:'skade', alvorlighet:'kritisk'}, {id:'eu2', kategori:'eu', alvorlighet:null}]; } }
 };
 vm.createContext(sandbox);
@@ -62,7 +65,7 @@ assert(vm.runInContext("ux4Ukedag('2026-09-23')", sandbox) === 'Ons', 'onsdag le
 const hist = vm.runInContext('ux4Historikk(' + JSON.stringify(kart) + ', 8)', sandbox);
 assert(hist.map(a => a.tittel).join() === 'Gammel', 'historikk er bare datoer før i dag');
 const plan = vm.runInContext('ux4KreverPlanlegging(5)', sandbox);
-assert(plan.map(p => p.kind + ':' + (p.r ? p.r.id : p.x.id)).join() === 'wfe:forfalt,wfe:venter,eu:eu1', 'planlegging tar verkstedoppfølging og EU med alvorlighet');
+assert(plan.map(p => p.kind + ':' + (p.r ? p.r.id : p.x.id)).join() === 'wfe:venter,eu:eu1', 'kalenderen tar ubekreftet time og EU, ikke verkstedets forfalt-liste');
 
 if (fails.length) {
   console.error(fails.length + ' feilet');

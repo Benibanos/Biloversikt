@@ -15,6 +15,16 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-27
 
+### UX-finpuss 2 · drift hos Bring
+
+1. Rapport `Dv4/project/UX_FINPUSS_2_REPORT.md`. Min Bil har driftsmelding i stedet for «Må gjøres nå». Bilinformasjon ligger rett under status. Ringelisten starter med eget lag, deretter veihjelp, Home Delivery og ledelse.
+2. Ingen motor, Airtable eller ny meldingstabell. App-/cacheversjon 156 → **157**. `kontroll.html` = `index.html`.
+
+### UX-finpuss · tettere kort og tydelig handling
+
+1. Rapport `Dv4/project/UX_FINPUSS_REPORT.md`. Sakskort er kompakte. «Avslutt oppfølgingen» er byttet til knappen som finnes. Bilinformasjon ligger over historikk. Lag 1–4 har små fargeprikker. Kalenderen viser ikke lenger verkstedets forfalt-liste.
+2. Ingen motor eller Airtable endret. App-/cacheversjon 155 → **156**. `kontroll.html` = `index.html`.
+
 ### UX-5 · DriverControl som sjåførapp
 
 1. Rapport `Dv4/project/UX5_REPORT.md`. Min Bil er et kontrollkort: bil, det som må gjøres, dagens kontroll, handlinger, ringeliste. Kilometerstand og løftebord ligger under. Sjekk ut blir stående nederst.
