@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-28
 
+### Layout Editor 2.0
+
+1. Widgets plasseres fritt i ledige celler og endrer størrelse ved å dra i kanten. Andre kort flyttes ikke. Hver av Dashboard, Verksted, Kalender, Aktive saker, Analyse og Rapporter har eget oppsett.
+2. Widgets deler samme kortflate. Krever handling og Aktive saker har diskré tekstlenke. App-/cacheversjon 161 → **162**. `kontroll.html` = `index.html`.
+
 ### UX-polish
 
 1. Filter- og varselpanel har mørkere flate, sterkere kant, skygge og blur. Varselkort og popup bruker ikon for «Marker som sett» og «Åpne», med forklaring i tooltip.
