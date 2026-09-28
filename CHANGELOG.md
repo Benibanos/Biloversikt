@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-28
 
+### UI-opprydding
+
+1. Verksted, Kalender, Aktive saker og Varslingssenter har ikke lenger dobbel sidetittel. Filter på verksted åpnes som et panel over innholdet. Bjellen viser fem siste varsler. Ny sak og «Marker alle» ligger på fanelinjen.
+2. Dashboardet har «Rediger layout» for administrator. Oppsettet lagres per bruker i nettleseren. Kjøretøystatus er uendret til layouten lagres. App-/cacheversjon 159 → **160**. `kontroll.html` = `index.html`.
+
 ### Kjøretøystatus gruppert etter drift
 
 1. Kjøretøystatus har fanene Driftslag, Montering, Lastebil og Reserve, med antall. Lag 1–4 står i to kolonner, med sammendrag for biler, aktive sjåfører og ledige. En bil i reserve-status blir i laget sitt. Fargene er grønn, rød, blå, gul, turkis for PUDO, lilla for lastebil, oliven for montering og grå for reserve.
