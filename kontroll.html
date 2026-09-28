@@ -2346,15 +2346,16 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux1-lik-kropp{display:flex;flex-direction:column;gap:var(--space-2);flex:1;}
   .ux1-lik-kropp .bp-case,.ux1-lik-kropp .bp-alert{min-height:76px;}
   .ux1-diskret{display:flex;justify-content:flex-end;margin-top:auto;padding-top:var(--space-2);}
-  .ux-canvas{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:72px;gap:12px;align-items:stretch;}
-  .ux-canvas.is-edit{grid-template-rows:repeat(var(--rader),72px);background-image:linear-gradient(to right, rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.07) 1px, transparent 1px);background-size:calc((100% - 132px) / 12 + 12px) 84px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;padding:0;position:relative;}
-  .ux-widget{grid-column:var(--gx) / span var(--gw);grid-row:var(--gy) / span var(--gh);min-width:0;min-height:0;position:relative;}
+  .ux-canvas{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:minmax(72px, auto);gap:12px;align-items:stretch;}
+  .ux-canvas.is-edit{grid-template-rows:repeat(var(--rader), minmax(72px, auto));background-image:linear-gradient(to right, rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.07) 1px, transparent 1px);background-size:calc((100% - 132px) / 12 + 12px) 84px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;padding:0;position:relative;}
+  .ux-widget{grid-column:var(--gx) / span var(--gw);grid-row:var(--gy) / span var(--gh);min-width:0;min-height:min-content;position:relative;overflow:visible;}
   .ux-canvas.is-edit .ux-widget{outline:1px dashed rgba(255,255,255,.4);outline-offset:-1px;border-radius:12px;}
   .ux-canvas.is-edit .ux-widget.er-ok{outline-color:var(--accent);}
   .ux-canvas.is-edit .ux-widget.er-opptatt{outline-color:var(--danger);}
-  .ux-wramme{height:100%;overflow:auto;box-sizing:border-box;padding:12px;border-radius:12px;background:linear-gradient(135deg, var(--surface-gradient-start), var(--surface-gradient-end));border:1px solid var(--border);box-shadow:0 0 0 1px rgba(32,201,151,.12), var(--shadow-card);}
+  .ux-wramme{height:auto;min-height:100%;overflow:visible;box-sizing:border-box;padding:12px;border-radius:12px;background:linear-gradient(135deg, var(--surface-gradient-start), var(--surface-gradient-end));border:1px solid var(--border);box-shadow:0 0 0 1px rgba(32,201,151,.12), var(--shadow-card);}
   .ux-wramme:hover{border-color:var(--border-strong);}
-  .ux-wramme > .bp-card,.ux-wramme > .ux1-sek,.ux-wramme > section{background:transparent;box-shadow:none;border:0;height:100%;}
+  .ux-wramme > .bp-card,.ux-wramme > .ux1-sek,.ux-wramme > section{background:transparent;box-shadow:none;border:0;height:auto;min-height:100%;overflow:visible;}
+  .ux-min-hint{position:absolute;left:8px;bottom:8px;z-index:3;padding:2px 8px;border-radius:999px;background:rgba(6,10,9,.9);color:var(--ink);font:500 11px/16px var(--font-sans);pointer-events:none;}
   .ux-grip,.ux-skjul,.ux-resize{position:absolute;z-index:2;}
   .ux-grip{top:6px;left:6px;}
   .ux-skjul{top:6px;right:6px;}
@@ -13411,6 +13412,7 @@ function render(){
   // mobilforsiden bruker de SAMME delte lytterne som Dashboard (bestilling,
   // navigasjon, filtre, varselklokke) — attachMobilHjemListeners() legger kun til søket og
   // 👤 Konto på toppen av dem. Ingen duplisert navigasjonskode.
+  try{
   if(screen === 'dashboard'){ attachDashboardListeners(); if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); }
   else if(screen === 'register') attachRegisterListeners();
   else if(screen === 'bilkort') attachBilkortListeners();
@@ -13434,8 +13436,12 @@ function render(){
   else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
   else if(screen === 'allesider') attachAlleSiderListeners();
   else if(screen === 'layouteditor') attachLayoutEditorListeners();
-  attachUxLayoutListeners();
-  refreshLucideIcons();
+  } catch(e){ console.error('[render] sidelistere feilet', e); }
+  try{
+    attachUxLayoutListeners();
+  } finally {
+    refreshLucideIcons();
+  }
 }
 
 // ================= Mobilmeny (drawer) =================
@@ -15946,23 +15952,36 @@ function uxLayoutNormaliser(liste, side){
     return {widgetId:k.id, visible:!!r.visible, x, y, width, height};
   });
 }
+function uxLayoutPageId(side){
+  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter'}[side] || side;
+}
 function uxLayoutLes(side){
+  const pageId = uxLayoutPageId(side);
   const bruker = uxLayoutAlle()[uxLayoutBruker()];
-  const liste = bruker && bruker.sider && bruker.sider[side];
-  return Array.isArray(liste) ? uxLayoutNormaliser(liste, side) : null;
+  if(!bruker || typeof bruker !== 'object') return null;
+  let post = bruker[pageId];
+  if(!post && bruker.sider && Array.isArray(bruker.sider[side])) post = {widgets:bruker.sider[side], layoutVersion:1};
+  if(!post && bruker.sider && Array.isArray(bruker.sider[pageId])) post = {widgets:bruker.sider[pageId], layoutVersion:1};
+  const widgets = post && Array.isArray(post.widgets) ? post.widgets : (Array.isArray(post) ? post : null);
+  if(!widgets || (post && post.layoutVersion > 2)) return null;
+  return uxLayoutNormaliser(widgets, side);
 }
 function uxLayoutSkriv(side, liste){
   const alle = uxLayoutAlle();
-  const id = uxLayoutBruker();
-  if(!alle[id] || typeof alle[id] !== 'object') alle[id] = {sider:{}};
-  if(!alle[id].sider) alle[id].sider = {};
-  alle[id].sider[side] = uxLayoutNormaliser(liste, side);
+  const userId = uxLayoutBruker();
+  const pageId = uxLayoutPageId(side);
+  if(!alle[userId] || typeof alle[userId] !== 'object' || Array.isArray(alle[userId])) alle[userId] = {};
+  alle[userId][pageId] = {userId, pageId, layoutVersion:2, widgets:uxLayoutNormaliser(liste, side)};
   localStorage.setItem(UX_LAYOUT_KEY, JSON.stringify(alle));
 }
 function uxLayoutSlett(side){
   const alle = uxLayoutAlle();
-  const id = uxLayoutBruker();
-  if(alle[id] && alle[id].sider) delete alle[id].sider[side];
+  const userId = uxLayoutBruker();
+  const pageId = uxLayoutPageId(side);
+  if(alle[userId] && typeof alle[userId] === 'object'){
+    delete alle[userId][pageId];
+    if(alle[userId].sider){ delete alle[userId].sider[side]; delete alle[userId].sider[pageId]; }
+  }
   localStorage.setItem(UX_LAYOUT_KEY, JSON.stringify(alle));
 }
 function uxLayoutKladd(side){
@@ -16002,23 +16021,31 @@ function uxLayoutToppHtml(side){
 }
 function uxLayoutKortHtml(w, rediger){
   const html = `<div class="ux-wramme">${uxWidgetHtml(w.widgetId)}</div>`;
-  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button><button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
+  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button><button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button><span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
   return `<div class="ux-widget" data-ux-kort="${w.widgetId}" style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
 }
 function uxLayoutVisHtml(liste){
   const synlige = liste.filter(w => w.visible);
   const rader = uxLayoutRader(synlige, 0);
-  return `<div class="ux-canvas" style="grid-template-rows:repeat(${rader}, ${UX_LAYOUT_RAD_PX}px)">${synlige.map(w => uxLayoutKortHtml(w, false)).join('')}</div>`;
+  return `<div class="ux-canvas" style="grid-template-rows:repeat(${rader}, minmax(${UX_LAYOUT_RAD_PX}px, auto))">${synlige.map(w => uxLayoutKortHtml(w, false)).join('')}</div>`;
 }
 function uxLayoutEditorHtml(liste, side){
   const synlige = liste.filter(w => w.visible);
   const skjulte = liste.filter(w => !w.visible);
   const kat = uxWidgetKatalog();
   const rader = uxLayoutRader(synlige, 8);
+  const prio = uxLayoutStandard(side).filter(w => w.visible).map(w => w.widgetId);
+  skjulte.sort((a, b) => {
+    const ia = prio.indexOf(a.widgetId), ib = prio.indexOf(b.widgetId);
+    if(ia < 0 && ib < 0) return a.widgetId.localeCompare(b.widgetId, 'nb');
+    if(ia < 0) return 1;
+    if(ib < 0) return -1;
+    return ia - ib;
+  });
   const panel = uxWidgetMeny ? `<div class="ux-bib-panel" id="ux-bib-panel">${skjulte.length ? skjulte.map(w => { const d = kat.find(k => k.id === w.widgetId); return `<button type="button" class="dash-edit-chip" data-ux-vis="${w.widgetId}">${luc(d.ikon)} ${esc(d.label)}</button>`; }).join('') : '<span class="dash-edit-tom">Alle widgets ligger på siden.</span>'}</div>` : '';
   return `${uxLayoutToppHtml(side)}
     <div class="ux-bib"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-widget-apne">${luc('plus')} Widget</button>${panel}</div>
-    <div class="ux-canvas is-edit" id="ux-canvas" style="--rader:${rader};grid-template-rows:repeat(${rader}, ${UX_LAYOUT_RAD_PX}px)">${synlige.map(w => uxLayoutKortHtml(w, true)).join('')}</div>`;
+    <div class="ux-canvas is-edit" id="ux-canvas" style="--rader:${rader};grid-template-rows:repeat(${rader}, minmax(${UX_LAYOUT_RAD_PX}px, auto))">${synlige.map(w => uxLayoutKortHtml(w, true)).join('')}</div>`;
 }
 function uxLayoutSett(liste, side){
   uxLayoutDraft = uxLayoutNormaliser(liste, side || uxLayoutSide);
@@ -16076,6 +16103,32 @@ function uxLayoutStartDrag(e, id){
   handle.addEventListener('pointerup', opp);
   handle.addEventListener('pointercancel', avbryt);
 }
+function uxLayoutMinHoyde(id){
+  const kort = document.querySelector('[data-ux-kort="' + id + '"]');
+  const ramme = kort && kort.querySelector('.ux-wramme');
+  if(!ramme) return UX_LAYOUT_MIN_H;
+  const barn = ramme.firstElementChild;
+  const hoyde = (barn ? barn.scrollHeight : ramme.scrollHeight) + 24;
+  return Math.max(UX_LAYOUT_MIN_H, Math.min(UX_LAYOUT_MAX_H, Math.ceil(hoyde / (UX_LAYOUT_RAD_PX + UX_LAYOUT_GAP))));
+}
+function uxLayoutLofterTilInnhold(){
+  if(!uxLayoutModus || !uxLayoutDraft) return;
+  let endret = false;
+  uxLayoutDraft.forEach(w => {
+    if(!w.visible) return;
+    const minH = uxLayoutMinHoyde(w.widgetId);
+    const el = document.querySelector('[data-ux-kort="' + w.widgetId + '"]');
+    if(el) el.dataset.minH = String(minH);
+    if(w.height < minH){ w.height = minH; endret = true; if(el) el.style.setProperty('--gh', minH); }
+  });
+  if(!endret) return;
+  const canvas = document.getElementById('ux-canvas');
+  if(canvas){
+    const rader = uxLayoutRader(uxLayoutDraft, 8);
+    canvas.style.setProperty('--rader', rader);
+    canvas.style.gridTemplateRows = 'repeat(' + rader + ', minmax(' + UX_LAYOUT_RAD_PX + 'px, auto))';
+  }
+}
 function uxLayoutStartResize(e, id, kant){
   if(e.button !== undefined && e.button !== 0 || !uxLayoutDraft) return;
   e.preventDefault();
@@ -16091,14 +16144,17 @@ function uxLayoutStartResize(e, id, kant){
     const celle = uxLayoutCelle(grid, ev.clientX, ev.clientY);
     let x = start.x, y = start.y, width = start.width, height = start.height;
     if(kant.indexOf('e') >= 0) width = Math.max(UX_LAYOUT_MIN_W, Math.min(12 - x, start.width + (celle.x - opphav.x)));
-    if(kant.indexOf('s') >= 0) height = Math.max(UX_LAYOUT_MIN_H, Math.min(UX_LAYOUT_MAX_H, start.height + (celle.y - opphav.y)));
+    const minH = kant.indexOf('s') >= 0 ? uxLayoutMinHoyde(id) : UX_LAYOUT_MIN_H;
+    if(kant.indexOf('s') >= 0) height = Math.max(minH, Math.min(UX_LAYOUT_MAX_H, start.height + (celle.y - opphav.y)));
     const kandidat = {x, y, width, height, visible:true};
     const ledig = !uxLayoutTreff(uxLayoutDraft, kandidat, id);
     siste = ledig ? kandidat : null;
     const el = grid.querySelector('[data-ux-kort="' + id + '"]');
     if(!el) return;
     el.style.setProperty('--gw', ledig ? width : start.width);
-    el.style.setProperty('--gh', ledig ? height : start.height);
+    el.style.setProperty('--gh', ledig ? height : Math.max(start.height, minH));
+    const hint = el.querySelector('.ux-min-hint');
+    if(hint && kant.indexOf('s') >= 0){ hint.hidden = false; hint.textContent = 'Minimumshøyde: ' + minH + ' rader'; }
     el.classList.toggle('er-ok', ledig);
     el.classList.toggle('er-opptatt', !ledig);
   };
@@ -16165,6 +16221,7 @@ function attachUxLayoutListeners(){
   }));
   document.querySelectorAll('.ux-canvas [data-quick-page]').forEach(el => { if(screen !== 'dashboard') el.addEventListener('click', () => goTo(el.dataset.quickPage)); });
   document.querySelectorAll('.ux-canvas [data-goto-analyse]').forEach(el => el.addEventListener('click', () => { if(typeof goToAnalyse === 'function') goToAnalyse(el.dataset.gotoAnalyse); }));
+  uxLayoutLofterTilInnhold();
 }
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
@@ -19574,9 +19631,12 @@ function kalenderIDagSenereHtml(){
   `;
 }
 function attachKalenderListeners(){
-  document.getElementById('kal-forrige').addEventListener('click', () => kalenderSkiftMnd(-1));
-  document.getElementById('kal-neste').addEventListener('click', () => kalenderSkiftMnd(1));
-  document.getElementById('kal-idag').addEventListener('click', () => {
+  const forrige = document.getElementById('kal-forrige');
+  const neste = document.getElementById('kal-neste');
+  const idag = document.getElementById('kal-idag');
+  if(forrige) forrige.addEventListener('click', () => kalenderSkiftMnd(-1));
+  if(neste) neste.addEventListener('click', () => kalenderSkiftMnd(1));
+  if(idag) idag.addEventListener('click', () => {
     kalenderMnd = todayISO().slice(0,7); kalenderValgtDato = todayISO(); render();
   });
   document.querySelectorAll('[data-kal-dato]').forEach(el => el.addEventListener('click', () => {
@@ -19896,7 +19956,8 @@ function attachAktiveSakerListeners(){
     const wrap = document.getElementById('sak-uv-annet-wrap-' + id);
     if(wrap) wrap.style.display = (el.value === 'annet') ? '' : 'none';
   }));
-  document.getElementById('add-sak-btn').addEventListener('click', () => {
+  const addSakBtn = document.getElementById('add-sak-btn');
+  if(addSakBtn) addSakBtn.addEventListener('click', () => {
     showAddSak = !showAddSak;
     if(!showAddSak) sakPrefillVehicleId = '';
     render();
@@ -20612,7 +20673,7 @@ function attachVerkstedListeners(){
     const g = (id && document.getElementById(id)) || document.getElementById('ux2-kommende');
     if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
   }));
-  document.getElementById('add-vt-btn').addEventListener('click', () => {
+  document.getElementById('add-vt-btn') && document.getElementById('add-vt-btn').addEventListener('click', () => {
     showAddVT = !showAddVT;
     vtFlereDetaljerApen = false;
     if(!showAddVT){ vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; }
@@ -20753,7 +20814,8 @@ function attachVerkstedListeners(){
     if(!confirm('Marker dekkskift som utført på alle ' + ider.length + ' biler i denne bestillingen? Dekkstatus og historikk oppdateres separat på hver bil.')) return;
     return fullforVerkstedbestillinger(ider);
   })));
-  document.getElementById('vt-filter-toggle-btn').addEventListener('click', (e) => {
+  const vtFilterBtn = document.getElementById('vt-filter-toggle-btn');
+  if(vtFilterBtn) vtFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     showVtFilterMeny = !showVtFilterMeny;
     render();
