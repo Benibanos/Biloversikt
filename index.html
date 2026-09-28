@@ -81,6 +81,10 @@
     --workshop-soft:rgba(249,115,22,0.14);
     --neutral:#64748B;
     --neutral-soft:rgba(100,116,139,0.18);
+    /* Identifikasjon, ikke status: PUDO, lastebil og montering. */
+    --id-pudo:#14B8A6;
+    --id-lastebil:#8B5CF6;
+    --id-montering:#6B8F3C;
     /* ---- V4: typografi ---- */
     --font-sans:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     /* ---- V4: avstand ---- */
@@ -2316,8 +2320,16 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux1-gruppe-tittel{margin:0;font:600 11px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
   .ux1-pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);align-items:start;}
   .ux1-vgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3);}
+  .ux1-lag-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start;}
+  .ux1-lag-kol{display:flex;flex-direction:column;gap:var(--space-2);min-width:0;}
+  .ux1-lag-hode{display:flex;align-items:center;gap:var(--space-2);margin:0;font:600 11px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;}
+  .ux1-lag-sum{margin-left:auto;font:500 12px/16px var(--font-sans);letter-spacing:0;text-transform:none;color:var(--ink-muted);font-weight:500;}
+  .ux1-lag-tom{margin:0;color:var(--ink-muted);font:400 13px/18px var(--font-sans);}
+  .ux1-kat .ux1-lag-kol{gap:var(--space-2);}
+  .ux1-bil-faner{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-3);}
+  .ux1-bil-fane.is-valgt{border-color:currentColor;font-weight:600;}
   button.bp-wcard,button.bp-vcard,button.bp-case,button.bp-feed-item{cursor:pointer;font:inherit;color:inherit;width:100%;}
-  @media (max-width:720px){ .ux1-pair,.ux1-vgrid{grid-template-columns:1fr;} }
+  @media (max-width:720px){ .ux1-pair,.ux1-vgrid,.ux1-lag-grid{grid-template-columns:1fr;} }
   /* W6: AlertCard og rader i appens markup */
   .bp-alert .bp-alert-type{margin:0;}
   .bp-alert.is-click{cursor:pointer;transition:border-color .12s, background-color .12s;}
@@ -2756,6 +2768,7 @@ let sakAktivFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted'
 // (Aktive saker/Oppfølging/Verksted/Varsler) — ren visningstilstand, samme mønster som
 // sakAktivFane/bilkortAktivFane/registerAktivFane, ALDRI lagret.
 let dashHurtigoversiktFane = 'aktiv'; // 'aktiv' | 'oppfolging' | 'verksted' | 'varsler'
+let ux1BilFane = 'driftslag'; // 'driftslag' | 'montering' | 'lastebil' | 'reserve'
 let showAddVT = false;
 let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
@@ -6885,10 +6898,18 @@ const DRIFTSLAG_IKON = {'Lag 1':'🟢', 'Lag 2':'🔴', 'Lag 3':'🔵', 'Lag 4':
 // bruker nå en fargeprikk (CSS) i stedet for DRIFTSLAG_IKON sin emoji, nettopp for å kunne
 // gi CURBSIDE en egen farge i stedet for å dele 🔵 med LAG 3 (bestilt eksplisitt). DRIFTSLAG_IKON
 // selv er UENDRET — kun denne ene visningen (dot-fargen) er lagt til ved siden av, ikke i stedet.
-// UX-finpuss: Lag 1–4 er nøkkelknippe-farger (success, danger, info, warning) som små prikker.
-// Curbside, Montering og Lastebil forblir nøytrale. Ingen stor flate.
+// UX-finpuss: identifikasjonsfarger for nøkkelknipper og kjøretøygrupper. Ikke statustoner.
 function p48DriftslagFarge(navn){
-  return {'Lag 1':'var(--success)', 'Lag 2':'var(--danger)', 'Lag 3':'var(--info)', 'Lag 4':'var(--warning)'}[navn] || 'var(--neutral)';
+  const n = String(navn || '').trim().toLowerCase();
+  if(n === 'lag 1') return 'var(--success)';
+  if(n === 'lag 2') return 'var(--danger)';
+  if(n === 'lag 3') return 'var(--info)';
+  if(n === 'lag 4') return 'var(--warning)';
+  if(n === 'curbside' || n === 'pudo' || n.indexOf('pick up') === 0) return 'var(--id-pudo)';
+  if(n === 'lastebil') return 'var(--id-lastebil)';
+  if(n === 'montering') return 'var(--id-montering)';
+  if(n === 'reserve') return 'var(--neutral)';
+  return 'var(--neutral)';
 }
 function driftslagPrikkHtml(v){
   const g = v ? vehicleDriftslagGruppe(v) : '';
@@ -15521,6 +15542,67 @@ function ux1Kjoretoy(){
   return (vehicles || []).filter(v => orden[flatehelseGruppe(v)] !== undefined)
     .sort((a, b) => (orden[flatehelseGruppe(a)] - orden[flatehelseGruppe(b)]) || String(a.bilnummer || '').localeCompare(String(b.bilnummer || ''), 'nb'));
 }
+function ux1KjoretoyFaneAv(v){
+  const kat = (v && v.kategori) || '';
+  const lag = String(vehicleDriftslagGruppe(v) || '').toLowerCase();
+  if(kat === 'reserve' || lag === 'reserve') return 'reserve';
+  if(kat === 'montering' || lag === 'montering') return 'montering';
+  if(kat === 'lastebil' || lag === 'lastebil') return 'lastebil';
+  return 'driftslag';
+}
+function ux1LagRekkefolge(navn){
+  const n = String(navn || '').toLowerCase();
+  const fast = ['lag 1', 'lag 2', 'lag 3', 'lag 4', 'curbside', 'pudo'];
+  const i = fast.indexOf(n);
+  return i < 0 ? 20 : i;
+}
+function ux1LagSumTekst(biler){
+  const n = biler.length;
+  const aktive = biler.filter(v => vehicleAktivSjafor(v.id)).length;
+  const ledige = biler.filter(v => { const g = flatehelseGruppe(v); return g === 'tilgjengelig' || g === 'reserve'; }).length;
+  return `${n} ${n === 1 ? 'bil' : 'biler'} · ${aktive} ${aktive === 1 ? 'aktiv sjåfør' : 'aktive sjåfører'} · ${ledige} ${ledige === 1 ? 'ledig' : 'ledige'}`;
+}
+function ux1KjoretoyGrupper(fane){
+  const liste = ux1Kjoretoy().filter(v => ux1KjoretoyFaneAv(v) === fane);
+  if(fane !== 'driftslag'){
+    const navn = fane === 'montering' ? 'Montering' : (fane === 'lastebil' ? 'Lastebil' : 'Reserve');
+    return [{navn, biler: liste}];
+  }
+  const grupper = {};
+  liste.forEach(v => {
+    const nokkel = vehicleDriftslagGruppe(v);
+    if(!grupper[nokkel]) grupper[nokkel] = [];
+    grupper[nokkel].push(v);
+  });
+  const faste = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4'];
+  const ekstra = Object.keys(grupper).filter(n => faste.indexOf(n) < 0 && grupper[n].length)
+    .sort((a, b) => (ux1LagRekkefolge(a) - ux1LagRekkefolge(b)) || a.localeCompare(b, 'nb'));
+  return (liste.length ? faste.concat(ekstra) : []).map(navn => ({navn, biler: grupper[navn] || []}));
+}
+function ux1LagKolHtml(g){
+  const farge = p48DriftslagFarge(g.navn);
+  const kort = g.biler.length ? g.biler.map(ux1KjoretoyKortHtml).join('') : '<p class="ux1-lag-tom">Ingen biler</p>';
+  return `<div class="ux1-lag-kol"><h3 class="ux1-lag-hode" style="color:${farge}"><span class="bp-status-dot" style="background:${farge}"></span><span>${esc(g.navn)}</span><span class="ux1-lag-sum">${esc(ux1LagSumTekst(g.biler))}</span></h3>${kort}</div>`;
+}
+function ux1KjoretoyStatusHtml(){
+  const faner = [
+    {id:'driftslag', label:'Driftslag'},
+    {id:'montering', label:'Montering'},
+    {id:'lastebil', label:'Lastebil'},
+    {id:'reserve', label:'Reserve'}
+  ];
+  const valgt = faner.some(f => f.id === ux1BilFane) ? ux1BilFane : 'driftslag';
+  const antall = {};
+  faner.forEach(f => { antall[f.id] = ux1Kjoretoy().filter(v => ux1KjoretoyFaneAv(v) === f.id).length; });
+  const farge = {driftslag:'var(--ink)', montering:'var(--id-montering)', lastebil:'var(--id-lastebil)', reserve:'var(--neutral)'};
+  const grupper = ux1KjoretoyGrupper(valgt);
+  const kolonner = valgt === 'driftslag'
+    ? `<div class="ux1-lag-grid">${grupper.map(ux1LagKolHtml).join('')}</div>`
+    : `<div class="ux1-kat">${grupper.map(ux1LagKolHtml).join('')}</div>`;
+  const prikk = f => f.id === 'driftslag' ? '' : `<span class="bp-status-dot" style="background:${farge[f.id]}"></span>`;
+  return `<div class="ux1-bil-faner" role="tablist">${faner.map(f => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small ux1-bil-fane${valgt === f.id ? ' is-valgt' : ''}" style="${valgt === f.id ? 'color:' + farge[f.id] + ';' : ''}" data-ux1-bil-fane="${f.id}" role="tab" aria-selected="${valgt === f.id ? 'true' : 'false'}">${prikk(f)}${f.label} (${antall[f.id]})</button>`).join('')}</div>
+    ${antall[valgt] ? kolonner : bpTomTilstandHtml('Ingen biler her', 'Ingen kjøretøy i denne gruppen.', true)}`;
+}
 function ux1KjoretoyStatus(v){
   const g = flatehelseGruppe(v);
   if(g === 'reserve') return {domene:'driftsstatus', key:'reserve', tekst:'Tilgjengelig'};
@@ -15605,7 +15687,8 @@ function ux1KjoretoyKortHtml(v){
   const neste = nesteVerkstedtime(v.id);
   const sjafor = vehicleAktivSjafor(v.id);
   const lag = vehicleDriftslagGruppe(v);
-  const kant = lag && lag !== 'Ikke satt' ? ` bp-lag-kant" style="border-left-color:${p48DriftslagFarge(lag)}` : '';
+  const fargeNavn = (lag && lag !== 'Ikke satt') ? lag : (v.kategori === 'montering' ? 'Montering' : (v.kategori === 'lastebil' ? 'Lastebil' : (v.kategori === 'reserve' ? 'Reserve' : '')));
+  const kant = fargeNavn ? ` bp-lag-kant" style="border-left-color:${p48DriftslagFarge(fargeNavn)}` : '';
   const sjaforMerke = sjafor ? bpBadgeHtml('info', 'user-round', esc(sjafor)) : bpBadgeHtml('neutral', 'user-round', 'Ingen aktiv sjåfør');
   return `<button type="button" class="bp-card bp-vcard bp-card-click${kant}" data-goto-bilkort="${esc(v.id)}">
     <span class="bp-vcard-head"><span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
@@ -15646,15 +15729,14 @@ function ux1VerkstedSekHtml(){
 function ux1KontrollsentralHtml(){
   const varsler = ux1KritiskeVarsler(3);
   const saker = ux1Saker(5);
-  const biler = ux1Kjoretoy();
   const varselKropp = varsler.length
     ? `<div class="ux1-alerts">${varsler.map(ux1VarselKortHtml).join('')}</div>`
     : bpTomTilstandHtml('Ingenting krever handling', 'Ingen kritiske eller høye varsler nå.', true);
   const sakKropp = saker.length
     ? `<div class="ux1-col">${saker.map(ux1SakKortHtml).join('')}</div>`
     : bpTomTilstandHtml('Ingen aktive saker', 'Ingen kritiske, høye eller middels saker.', true);
-  const bilKropp = biler.length
-    ? `<div class="ux1-vgrid">${biler.map(ux1KjoretoyKortHtml).join('')}</div>`
+  const bilKropp = ux1Kjoretoy().length
+    ? ux1KjoretoyStatusHtml()
     : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true);
   return `<div class="ux1-stack">
     ${dashWidgetFlatehelseHtml()}
@@ -15707,6 +15789,10 @@ function attachDashboardListeners(){
   // innholdet (byttHurtigoversiktFane()), ikke hele Dashboardet. Sak-rader, «se alle»-lenker
   // og Varsler-radenes handlingsknapper festes av attachHovInnholdListeners() (samme
   // handlere som før, flyttet dit slik at de kan festes på nytt på utskiftet innhold).
+  document.querySelectorAll('[data-ux1-bil-fane]').forEach(el => el.addEventListener('click', () => {
+    ux1BilFane = el.dataset.ux1BilFane || 'driftslag';
+    render();
+  }));
   document.querySelectorAll('[data-dash-hov-fane]').forEach(el => el.addEventListener('click', () => byttHurtigoversiktFane(el.dataset.dashHovFane)));
   attachHovInnholdListeners(document);
   // Operativ Status sine "Oppfølging i dag"/"Kritisk sak"/"Aktive

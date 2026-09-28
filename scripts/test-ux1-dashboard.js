@@ -118,6 +118,31 @@ const biler = vm.runInContext('ux1Kjoretoy().map(v => v.id)', sandbox);
 assert(JSON.stringify(biler) === JSON.stringify(['drift', 'res', 'verk']), 'forsiden viser drift, reserve og verksted, ikke utfasing');
 assert(vm.runInContext("ux1KjoretoyStatus({gruppe:'tilgjengelig'}).tekst", sandbox) === 'I drift', 'biler i drift leses som I drift');
 assert(vm.runInContext("ux1KjoretoyStatus({gruppe:'reserve'}).tekst", sandbox) === 'Tilgjengelig', 'reserve leses som tilgjengelig kapasitet');
+sandbox.vehicleDriftslagGruppe = function(v){ return (v.driftslag && String(v.driftslag).trim()) ? String(v.driftslag).trim() : 'Ikke satt'; };
+['ux1KjoretoyFaneAv', 'ux1LagRekkefolge', 'ux1KjoretoyGrupper'].forEach(n => vm.runInContext(extractFn(n), sandbox));
+sandbox.vehicles = [
+  {id:'b1', bilnummer:'Bil 1', kategori:'bil', driftslag:'Lag 1', gruppe:'tilgjengelig'},
+  {id:'b2', bilnummer:'Bil 2', kategori:'bil', driftslag:'Lag 1', gruppe:'pa-verksted'},
+  {id:'b3', bilnummer:'Bil 3', kategori:'bil', driftslag:'Lag 2', gruppe:'reserve'},
+  {id:'b5', bilnummer:'Bil 5', kategori:'bil', driftslag:'Lag 3', gruppe:'tilgjengelig'},
+  {id:'b7', bilnummer:'Bil 7', kategori:'bil', driftslag:'Lag 4', gruppe:'tilgjengelig'},
+  {id:'pudo', bilnummer:'PUDO 1', kategori:'bil', driftslag:'PUDO', gruppe:'tilgjengelig'},
+  {id:'m1', bilnummer:'Montering 1', kategori:'montering', gruppe:'tilgjengelig'},
+  {id:'m2', bilnummer:'Montering 2', kategori:'montering', driftslag:'Montering', gruppe:'tilgjengelig'},
+  {id:'l1', bilnummer:'Lastebil 1', kategori:'lastebil', gruppe:'tilgjengelig'},
+  {id:'l2', bilnummer:'Lastebil 2', kategori:'lastebil', driftslag:'Lastebil', gruppe:'tilgjengelig'},
+  {id:'r1', bilnummer:'Reserve 1', kategori:'reserve', gruppe:'tilgjengelig'},
+  {id:'r2', bilnummer:'Reserve 2', kategori:'reserve', driftslag:'Reserve', gruppe:'reserve'}
+];
+const lag = vm.runInContext("ux1KjoretoyGrupper('driftslag').map(g => g.navn + ':' + g.biler.map(v => v.id).join('+'))", sandbox);
+assert(JSON.stringify(lag) === JSON.stringify(['Lag 1:b1+b2', 'Lag 2:b3', 'Lag 3:b5', 'Lag 4:b7', 'PUDO:pudo']), 'driftslag står som Lag 1–4 og PUDO, med reserve-status i laget');
+assert(JSON.stringify(vm.runInContext("ux1KjoretoyGrupper('montering')[0].biler.map(v => v.id)", sandbox)) === JSON.stringify(['m1', 'm2']), 'montering er egen fane');
+assert(JSON.stringify(vm.runInContext("ux1KjoretoyGrupper('lastebil')[0].biler.map(v => v.id)", sandbox)) === JSON.stringify(['l1', 'l2']), 'lastebil er egen fane');
+assert(JSON.stringify(vm.runInContext("ux1KjoretoyGrupper('reserve')[0].biler.map(v => v.id)", sandbox)) === JSON.stringify(['r1', 'r2']), 'reserve-fanen er kategori, ikke driftsstatus');
+assert(html.includes('ux1-lag-grid') && html.includes('data-ux1-bil-fane') && html.includes('ux1LagSumTekst'), 'kjøretøystatus har faner, lagkolonner og sammendrag');
+sandbox.p48 = null;
+vm.runInContext(extractFn('p48DriftslagFarge'), sandbox);
+assert(vm.runInContext("['Lag 1','Lag 2','Lag 3','Lag 4','PUDO','Lastebil','Montering','Reserve'].map(p48DriftslagFarge).join('|')", sandbox) === 'var(--success)|var(--danger)|var(--info)|var(--warning)|var(--id-pudo)|var(--id-lastebil)|var(--id-montering)|var(--neutral)', 'driftsfargene er grønn, rød, blå, gul, turkis, lilla, oliven og grå');
 
 if (fails.length) {
   console.error(fails.length + ' feilet');

@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-28
 
+### Kjøretøystatus gruppert etter drift
+
+1. Kjøretøystatus har fanene Driftslag, Montering, Lastebil og Reserve, med antall. Lag 1–4 står i to kolonner, med sammendrag for biler, aktive sjåfører og ledige. En bil i reserve-status blir i laget sitt. Fargene er grønn, rød, blå, gul, turkis for PUDO, lilla for lastebil, oliven for montering og grå for reserve.
+2. Ingen motor endret. App-/cacheversjon 158 → **159**. `kontroll.html` = `index.html`.
+
 ### Dashboard · lesbar kjøretøystatus
 
 1. Aktiv sjåfør på kjøretøyskortet er blå badge, som på bilkortet. Ingen sjåfør er nøytral. Lag vises som 3 px venstrekant, ikke en ekstra prikk.
