@@ -2329,24 +2329,43 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux1-bil-faner{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-3);}
   .ux1-bil-fane.is-valgt{border-color:currentColor;font-weight:600;}
   .bp-pop-anchor{position:relative;display:inline-flex;}
-  .bp-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:min(440px,calc(100vw - 32px));padding:var(--space-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 16px 40px rgba(0,0,0,.35);}
+  .bp-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:40;width:min(440px,calc(100vw - 32px));padding:var(--space-4);background:rgba(6,10,9,.94);border:1px solid rgba(255,255,255,.28);border-radius:var(--radius-lg);box-shadow:0 28px 64px rgba(0,0,0,.62), 0 0 0 1px rgba(32,201,151,.22);backdrop-filter:blur(16px);}
+  .desktop-frame-tools{display:flex;align-items:center;gap:8px;}
+  #ux-layout-gear.is-pa{border-color:var(--accent);color:var(--accent);}
   .bp-fanelinje{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
   .bp-fanelinje .profil-tabs,.bp-fanelinje .p38-tabs{flex:1;min-width:0;margin:0;}
   .bp-fane-handling{margin-left:auto;flex:none;}
   .bp-varsel-pop{width:min(420px,calc(100vw - 24px));max-height:min(70vh,520px);overflow:auto;padding:var(--space-3);}
-  .bp-varsel-pop-rad{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .bp-varsel-pop-rad{display:flex;flex-direction:row;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.12);}
   .bp-varsel-pop-rad:first-child{padding-top:0;}
   .bp-varsel-pop-topp{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .bp-varsel-pop-tid{color:var(--ink-muted);font:500 12px/16px var(--font-sans);}
   .bp-varsel-pop-tekst{color:var(--ink-muted);font:400 13px/18px var(--font-sans);}
   .bp-varsel-pop-handlinger{display:flex;gap:6px;flex-wrap:wrap;}
+  .bp-ikon-rail{display:flex;flex-direction:column;gap:6px;flex:none;}
+  .bp-ikon-handling{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(0,0,0,.28);color:var(--ink);cursor:pointer;}
+  .bp-ikon-handling:hover{border-color:var(--accent);color:var(--accent);}
+  .bp-alert.has-side,.bp-case.has-side{flex-direction:row;align-items:flex-start;}
+  .bp-alert-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-3);}
+  .bp-case.has-side .bp-case-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-1);}
+  .ux1-lik{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:stretch;}
+  .ux1-lik > .ux1-sek{display:flex;flex-direction:column;min-width:0;}
+  .ux1-lik-kropp{display:flex;flex-direction:column;gap:var(--space-2);flex:1;}
+  .ux1-lik-kropp .bp-case,.ux1-lik-kropp .bp-alert{min-height:76px;}
+  .ux1-bunnlenke{margin-top:var(--space-3);align-self:flex-start;}
+  .ux-layout-grid.is-edit{background-image:repeating-linear-gradient(to right, rgba(255,255,255,.08) 0, rgba(255,255,255,.08) 1px, transparent 1px, transparent calc(100% / 12));border:1px dashed var(--border-strong);border-radius:12px;padding:8px;}
+  .ux-layout-kort{grid-column:var(--gx) / span var(--gw);grid-row:auto;min-width:0;border:1px dashed rgba(255,255,255,.3);border-radius:12px;background:rgba(0,0,0,.18);}
+  .ux-layout-kort.er-mal{border-color:var(--accent);}
+  .ux-layout-kontroller{display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(0,0,0,.4);border-radius:12px 12px 0 0;}
+  .ux-layout-maal{flex:1;min-width:0;color:var(--ink-muted);font:500 12px/16px var(--font-sans);}
+  .ux-layout-innhold{pointer-events:none;}
   .bp-varsel-pop-alle{display:flex;justify-content:flex-end;padding-top:10px;}
   .ux-layout-bar{display:flex;justify-content:flex-end;margin-bottom:var(--space-3);}
   .ux-layout-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;align-items:start;}
-  .ux-layout-grid > .dash-w{grid-column:var(--gx) / span var(--gw);grid-row:auto;min-height:calc(var(--gh) * 28px);height:auto;}
+  .ux-layout-grid > .dash-w{grid-column:var(--gx) / span var(--gw);grid-row:auto;height:auto;}
   @media (max-width:720px){ .ux-layout-grid > .dash-w{grid-column:1 / -1;} }
   button.bp-wcard,button.bp-vcard,button.bp-case,button.bp-feed-item{cursor:pointer;font:inherit;color:inherit;width:100%;}
-  @media (max-width:720px){ .ux1-pair,.ux1-vgrid,.ux1-lag-grid{grid-template-columns:1fr;} }
+  @media (max-width:720px){ .ux1-pair,.ux1-vgrid,.ux1-lag-grid,.ux1-lik{grid-template-columns:1fr;} }
   /* W6: AlertCard og rader i appens markup */
   .bp-alert .bp-alert-type{margin:0;}
   .bp-alert.is-click{cursor:pointer;transition:border-color .12s, background-color .12s;}
@@ -3310,10 +3329,11 @@ function bpAlertHtml(o){
   const niva = ['critical', 'high', 'medium', 'low'].includes(o.niva) ? o.niva : 'low';
   const handlinger = o.handlingerHtml ? (niva === 'critical' ? o.handlingerHtml : o.handlingerHtml.replace(/bp-btn-primary/g, 'bp-btn-secondary')) : '';
   const anbefalt = o.anbefaling ? `<p class="bp-alert-rec">${luc('arrow-right')}<span><strong>Anbefalt: </strong>${esc(o.anbefaling)}</span></p>` : '';
+  const side = o.sideHtml ? `<div class="bp-alert-side">${o.sideHtml}</div>` : '';
   const foot = (anbefalt || handlinger) ? `<div class="bp-alert-foot">${anbefalt}${handlinger ? `<div class="bp-row-actions">${handlinger}</div>` : ''}</div>` : '';
-  return `<article class="bp-alert bp-alert-${niva}${o.attr ? ' is-click' : ''}${o.lukket ? ' is-lukket' : ''}"${niva === 'critical' ? ' role="alert"' : ''}${o.attr ? ' ' + o.attr : ''}>
-      <div class="bp-alert-head">${bpTileHtml(o.tone, o.ikon, niva === 'critical')}<div class="bp-alert-title">${o.linjeHtml ? `<div class="bp-alert-line">${o.linjeHtml}</div>` : ''}<h3 class="bp-alert-type">${o.tittel}</h3>${o.metaHtml ? `<div class="bp-alert-meta">${o.metaHtml}</div>` : ''}</div></div>
-      ${foot}
+  return `<article class="bp-alert bp-alert-${niva}${o.sideHtml ? ' has-side' : ''}${o.attr ? ' is-click' : ''}${o.lukket ? ' is-lukket' : ''}"${niva === 'critical' ? ' role="alert"' : ''}${o.attr ? ' ' + o.attr : ''}>
+      <div class="bp-alert-main"><div class="bp-alert-head">${bpTileHtml(o.tone, o.ikon, niva === 'critical')}<div class="bp-alert-title">${o.linjeHtml ? `<div class="bp-alert-line">${o.linjeHtml}</div>` : ''}<h3 class="bp-alert-type">${o.tittel}</h3>${o.metaHtml ? `<div class="bp-alert-meta">${o.metaHtml}</div>` : ''}</div></div>
+      ${foot}</div>${side}
     </article>`;
 }
 // Nivå fra ordbokens alvorlighet (kritisk/hoy/middels/lav). Mangler alvorlighet → low, nøytral.
@@ -5577,15 +5597,15 @@ function layoutRegistrerAlle(){
   dash('ux-status', {label:'Operativ status', ikon:'heart-pulse', beskrivelse:'Biler i drift, reserve, verksted og aktive sjåfører.',
     minWidth:6, minHeight:3, renderer:() => dashWidgetFlatehelseHtml(), std:{x:0, y:0, width:12, height:5, visible:false}});
   dash('ux-handling', {label:'Krever handling', ikon:'triangle-alert', beskrivelse:'Inntil tre kritiske eller høye varsler.',
-    minWidth:4, minHeight:3, renderer:() => ux1Sek('ux1-varsler', 'Krever handling', ux1Lenke('varsler', 'Varslingssenter'), (ux1KritiskeVarsler(3).length ? `<div class="ux1-alerts">${ux1KritiskeVarsler(3).map(ux1VarselKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting krever handling', 'Ingen kritiske eller høye varsler nå.', true))), std:{x:0, y:5, width:12, height:6, visible:false}});
+    minWidth:4, minHeight:3, renderer:() => ux1HandlingSekHtml(), std:{x:0, y:1, width:6, height:1, visible:false}});
   dash('ux-verksted', {label:'Kommende verksted', ikon:'factory', beskrivelse:'Timer i dag, denne uka og forfalt.',
-    minWidth:4, minHeight:3, renderer:() => ux1VerkstedSekHtml(), std:{x:0, y:11, width:6, height:8, visible:false}});
-  dash('ux-saker', {label:'Aktive saker', ikon:'folder-open', beskrivelse:'Inntil fem åpne saker, sortert etter alvorlighet.',
-    minWidth:4, minHeight:3, renderer:() => ux1Sek('ux1-saker', 'Aktive saker', ux1Lenke('aktivesaker', 'Alle saker'), (ux1Saker(5).length ? `<div class="ux1-col">${ux1Saker(5).map(ux1SakKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingen aktive saker', 'Ingen kritiske, høye eller middels saker.', true))), std:{x:6, y:11, width:6, height:8, visible:false}});
+    minWidth:4, minHeight:3, renderer:() => ux1VerkstedSekHtml(), std:{x:0, y:2, width:6, height:1, visible:false}});
+  dash('ux-saker', {label:'Aktive saker', ikon:'folder-open', beskrivelse:'Inntil tre åpne saker, sortert etter alvorlighet.',
+    minWidth:4, minHeight:3, renderer:() => ux1SakerSekHtml(), std:{x:6, y:1, width:6, height:1, visible:false}});
   dash('ux-biler', {label:'Kjøretøystatus', ikon:'truck', beskrivelse:'Driftslag, montering, lastebil og reserve.',
-    minWidth:6, minHeight:4, renderer:() => ux1Sek('ux1-biler', 'Kjøretøystatus', ux1Lenke('register', 'Alle biler'), (ux1Kjoretoy().length ? ux1KjoretoyStatusHtml() : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true))), std:{x:0, y:19, width:12, height:10, visible:false}});
+    minWidth:6, minHeight:4, renderer:() => ux1Sek('ux1-biler', 'Kjøretøystatus', ux1Lenke('register', 'Alle biler'), (ux1Kjoretoy().length ? ux1KjoretoyStatusHtml() : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true))), std:{x:0, y:3, width:12, height:1, visible:false}});
   dash('ux-aktivitet', {label:'Siste aktivitet', ikon:'activity', beskrivelse:'Kontroll, skade, sak og verksted.',
-    minWidth:4, minHeight:3, renderer:() => ux1AktivitetHtml(), std:{x:0, y:29, width:12, height:6, visible:false}});
+    minWidth:4, minHeight:3, renderer:() => ux1AktivitetHtml(), std:{x:6, y:2, width:6, height:1, visible:false}});
 
   // ---------- Mobil Dashboard (liste) ----------
   layoutReg('mobile.flatehelse', {area:'mobile-dashboard', label:'Flåtehelse', ikon:'heart-pulse', devices:['mobile'], canHide:false, critical:true, lockReason:'Flåtehelse kan ikke skjules.', renderer:() => dashWidgetFlatehelseHtml(), std:{}});
@@ -13324,9 +13344,12 @@ function render(){
             </div>
           </div>
           <div class="desktop-frame-title">${esc(desktopFrameTittel())}</div>
-          <div class="bp-pop-anchor" id="varsel-pop-anchor">
-            <button type="button" class="p38-iconbtn bp-icon-btn" id="frame-varsler-btn" title="Varsler" aria-expanded="${varselPopApen ? 'true' : 'false'}" aria-controls="varsel-pop">${luc('bell')}${aktiveVarslerFrameAntall > 0 ? `<span class="bp-count bp-count-danger bp-count-dot">${aktiveVarslerFrameAntall}</span>` : ''}</button>
-            ${varselPopApen ? varselPopHtml() : ''}
+          <div class="desktop-frame-tools">
+            ${uxLayoutGearHtml()}
+            <div class="bp-pop-anchor" id="varsel-pop-anchor">
+              <button type="button" class="p38-iconbtn bp-icon-btn" id="frame-varsler-btn" title="Varsler" aria-expanded="${varselPopApen ? 'true' : 'false'}" aria-controls="varsel-pop">${luc('bell')}${aktiveVarslerFrameAntall > 0 ? `<span class="bp-count bp-count-danger bp-count-dot">${aktiveVarslerFrameAntall}</span>` : ''}</button>
+              ${varselPopApen ? varselPopHtml() : ''}
+            </div>
           </div>
         </div>
         <div class="desktop-frame-body">
@@ -13351,6 +13374,13 @@ function render(){
   // finnes kun i DOM-en når uiExp === 'desktop'.
   const frameVarslerBtn = document.getElementById('frame-varsler-btn');
   if(frameVarslerBtn) frameVarslerBtn.addEventListener('click', (e) => { e.stopPropagation(); varselPopApen = !varselPopApen; render(); });
+  const layoutGear = document.getElementById('ux-layout-gear');
+  if(layoutGear) layoutGear.addEventListener('click', () => {
+    if(screen !== 'dashboard'){ uxLayoutModus = true; uxLayoutDraft = null; goTo('dashboard'); return; }
+    if(uxLayoutModus){ uxLayoutModus = false; uxLayoutDraft = null; }
+    else { uxLayoutDraft = uxLayoutKladd(); uxLayoutModus = true; }
+    render();
+  });
   attachVarselPopInnhold();
   if(!window._bpPopDoc){
     window._bpPopDoc = true;
@@ -15319,8 +15349,9 @@ function attachHovInnholdListeners(root){
   // Prioritet 57: Varsler-radene er hele klikkmålet (se dashHovVarselRadHtml()) — ingen egne
   // handlingsknapper lenger. Handlingene (Merk som løst, Godta/Avslå km, Marker som sett) ligger
   // uendret i Varslingssenteret, som km-/varsellampe-radene åpner på riktig kategori.
-  root.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoVarselBilkort)));
-  root.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
+  root.querySelectorAll('[data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', (e) => { if(el.closest('#varsel-pop')) return; e.stopPropagation(); goTo('bilkort', el.dataset.gotoVarselBilkort); }));
+  root.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', (e) => { if(el.closest('#varsel-pop')) return; e.stopPropagation(); goToVarselSak(el.dataset.gotoVarselSak); }));
+  root.querySelectorAll('[data-marker-varsel-sett]').forEach(el => el.addEventListener('click', (e) => { if(el.closest('#varsel-pop')) return; e.stopPropagation(); markerVarselSett(el.dataset.markerVarselSett); }));
   root.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
   root.querySelectorAll('[data-goto-varsel-senter]').forEach(el => el.addEventListener('click', () => {
     varslingssenterAktivKategori = el.dataset.gotoVarselSenter;
@@ -15670,6 +15701,12 @@ function ux1AktivitetListe(maks){
 function ux1Lenke(side, tekst){
   return `<button type="button" class="bp-link-btn" data-quick-page="${side}">${tekst}</button>`;
 }
+function ux1Bunnlenke(side, tekst){
+  return `<button type="button" class="bp-btn bp-btn-primary btn small ux1-bunnlenke" data-quick-page="${side}">${tekst}</button>`;
+}
+function ux1LikSek(id, tittel, innhold, lenkeHtml){
+  return `<section class="ux1-sek" aria-labelledby="${id}"><div class="ux1-head"><h2 id="${id}" class="bp-overline">${tittel}</h2></div><div class="ux1-lik-kropp">${innhold}</div>${lenkeHtml || ''}</section>`;
+}
 function ux1Sek(id, tittel, lenkeHtml, innhold){
   return `<section class="ux1-sek" aria-labelledby="${id}"><div class="ux1-head"><h2 id="${id}" class="bp-overline">${tittel}</h2>${lenkeHtml || ''}</div>${innhold}</section>`;
 }
@@ -15692,14 +15729,14 @@ function ux1VarselKortHtml(x){
   if(detalj.indexOf(bil) === 0) detalj = detalj.slice(bil.length).replace(/^[\s—·:-]+/, '');
   if(detalj.length > 90) detalj = detalj.slice(0, 89).trimEnd() + '…';
   const a = bpAlertNivaFraAlvorlighet(x.alvorlighet);
-  return bpAlertHtml({
-    niva: a.niva, tone: a.tone, ikon: VARSLINGSSENTER_KATEGORI_IKON[x.kategori] || a.ikon,
-    linjeHtml: a.pille,
-    tittel: esc(bil),
-    metaHtml: detalj ? `<span class="bp-meta">${esc(detalj)}</span>` : '',
-    anbefaling: ux1VarselAnbefaling(x),
-    handlingerHtml: varslingssenterGaTilKnapp(x)
-  });
+  return `<article class="bp-card bp-case bp-case-${a.niva} is-compact has-side">
+    <span class="bp-case-main">
+      <span class="bp-case-top">${a.pille}</span>
+      <span class="bp-case-title">${esc(bil)}</span>
+      ${detalj ? `<span class="bp-alert-meta">${esc(detalj)}</span>` : ''}
+    </span>
+    ${varselIkonRail(x, true)}
+  </article>`;
 }
 function ux1VerkstedKortHtml(t){
   const st = vtStatus(t);
@@ -15775,43 +15812,51 @@ function ux1VerkstedSekHtml(){
   return ux1Sek('ux1-verksted', 'Kommende verksted', ux1Lenke('verksted', 'Åpne verksted'),
     kropp || bpTomTilstandHtml('Ingenting å planlegge nå', 'Ingen timer i dag, denne uka eller forfalt.', true));
 }
-function ux1KontrollsentralHtml(){
+function ux1HandlingSekHtml(){
   const varsler = ux1KritiskeVarsler(3);
-  const saker = ux1Saker(5);
-  const varselKropp = varsler.length
+  const kropp = varsler.length
     ? `<div class="ux1-alerts">${varsler.map(ux1VarselKortHtml).join('')}</div>`
     : bpTomTilstandHtml('Ingenting krever handling', 'Ingen kritiske eller høye varsler nå.', true);
-  const sakKropp = saker.length
+  return ux1LikSek('ux1-varsler', 'Krever handling', kropp, ux1Bunnlenke('varsler', 'Varslingssenter →'));
+}
+function ux1SakerSekHtml(){
+  const saker = ux1Saker(3);
+  const kropp = saker.length
     ? `<div class="ux1-col">${saker.map(ux1SakKortHtml).join('')}</div>`
     : bpTomTilstandHtml('Ingen aktive saker', 'Ingen kritiske, høye eller middels saker.', true);
+  return ux1LikSek('ux1-saker', 'Aktive saker', kropp, ux1Bunnlenke('aktivesaker', 'Alle saker →'));
+}
+function ux1KontrollsentralHtml(){
   const bilKropp = ux1Kjoretoy().length
     ? ux1KjoretoyStatusHtml()
     : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true);
   return `<div class="ux1-stack">
     ${dashWidgetFlatehelseHtml()}
-    ${ux1Sek('ux1-varsler', 'Krever handling', ux1Lenke('varsler', 'Varslingssenter'), varselKropp)}
+    <div class="ux1-lik">
+      ${ux1HandlingSekHtml()}
+      ${ux1SakerSekHtml()}
+    </div>
     <div class="ux1-pair">
       ${ux1VerkstedSekHtml()}
-      ${ux1Sek('ux1-saker', 'Aktive saker', ux1Lenke('aktivesaker', 'Alle saker'), sakKropp)}
+      ${ux1AktivitetHtml()}
     </div>
     ${ux1Sek('ux1-biler', 'Kjøretøystatus', ux1Lenke('register', 'Alle biler'), bilKropp)}
-    ${ux1AktivitetHtml()}
   </div>`;
 }
 const UX_LAYOUT_KEY = 'bilpark-bruker-layout-v1';
 const UX_LAYOUT_SIDE = 'dashboard';
 function uxLayoutKatalog(){
   return [
-    {widgetId:'dashboard.ux-status', x:0, y:0, width:12, height:5, visible:true},
-    {widgetId:'dashboard.ux-handling', x:0, y:5, width:12, height:6, visible:true},
-    {widgetId:'dashboard.ux-verksted', x:0, y:11, width:6, height:8, visible:true},
-    {widgetId:'dashboard.ux-saker', x:6, y:11, width:6, height:8, visible:true},
-    {widgetId:'dashboard.ux-biler', x:0, y:19, width:12, height:10, visible:true},
-    {widgetId:'dashboard.ux-aktivitet', x:0, y:29, width:12, height:6, visible:true},
-    {widgetId:'dashboard.kalender', x:0, y:35, width:6, height:4, visible:false},
-    {widgetId:'dashboard.varsler', x:6, y:35, width:6, height:4, visible:false},
-    {widgetId:'dashboard.neste-verkstedtime', x:0, y:39, width:6, height:3, visible:false},
-    {widgetId:'dashboard.loftebord', x:6, y:39, width:6, height:3, visible:false}
+    {widgetId:'dashboard.ux-status', x:0, y:0, width:12, height:1, visible:true},
+    {widgetId:'dashboard.ux-handling', x:0, y:1, width:6, height:1, visible:true},
+    {widgetId:'dashboard.ux-saker', x:6, y:1, width:6, height:1, visible:true},
+    {widgetId:'dashboard.ux-verksted', x:0, y:2, width:6, height:1, visible:true},
+    {widgetId:'dashboard.ux-aktivitet', x:6, y:2, width:6, height:1, visible:true},
+    {widgetId:'dashboard.ux-biler', x:0, y:3, width:12, height:1, visible:true},
+    {widgetId:'dashboard.kalender', x:0, y:4, width:6, height:1, visible:false},
+    {widgetId:'dashboard.varsler', x:6, y:4, width:6, height:1, visible:false},
+    {widgetId:'dashboard.neste-verkstedtime', x:0, y:5, width:6, height:1, visible:false},
+    {widgetId:'dashboard.loftebord', x:6, y:5, width:6, height:1, visible:false}
   ];
 }
 function uxLayoutBruker(){ return String(loggedInRole || 'lokal'); }
@@ -15831,7 +15876,16 @@ function uxLayoutNormaliser(liste){
 function uxLayoutLes(side){
   const bruker = uxLayoutAlle()[uxLayoutBruker()];
   const liste = bruker && bruker.sider && bruker.sider[side];
-  return Array.isArray(liste) ? uxLayoutNormaliser(liste) : null;
+  if(!Array.isArray(liste)) return null;
+  const norm = uxLayoutNormaliser(liste);
+  const handling = norm.find(w => w.widgetId === 'dashboard.ux-handling');
+  if(!handling || handling.width < 12) return norm;
+  const kat = uxLayoutKatalog();
+  return norm.map(w => {
+    const k = kat.find(x => x.widgetId === w.widgetId);
+    if(!k || !k.visible) return w;
+    return {widgetId:w.widgetId, visible:w.visible, x:k.x, y:k.y, width:k.width, height:1, order:0};
+  });
 }
 function uxLayoutSkriv(side, liste){
   const alle = uxLayoutAlle();
@@ -15850,11 +15904,16 @@ function uxLayoutSlett(side){
 function uxLayoutKladd(){
   return uxLayoutNormaliser(uxLayoutLes(UX_LAYOUT_SIDE) || uxLayoutKatalog());
 }
+const UX_LAYOUT_SKJERMER = ['dashboard', 'verksted', 'kalender', 'register', 'aktivesaker', 'analyse', 'rapporter'];
+function uxLayoutGearHtml(){
+  if(currentUiExperience() !== 'desktop' || !layoutKanRedigere() || UX_LAYOUT_SKJERMER.indexOf(screen) < 0) return '';
+  const paa = uxLayoutModus ? ' is-pa' : '';
+  return `<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${uxLayoutModus ? 'true' : 'false'}">${luc('settings')}</button>`;
+}
 function uxLayoutToppHtml(redigerer){
-  if(!layoutKanRedigere()) return '';
-  if(!redigerer) return `<div class="ux-layout-bar"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-layout-start">${luc('settings')} Rediger layout</button></div>`;
+  if(!layoutKanRedigere() || !redigerer) return '';
   return `<div class="dash-edit-bar">
-    <div class="dash-edit-tittel">${luc('settings')} Rediger layout <span class="dash-edit-status">Lagres for ${esc(uxLayoutBruker())}</span></div>
+    <div class="dash-edit-tittel">${luc('settings')} Layout <span class="dash-edit-status">Lagres for ${esc(uxLayoutBruker())}</span></div>
     <div class="dash-edit-knapper">
       <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-layout-avbryt">Avbryt</button>
       <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-layout-standard">Standardoppsett</button>
@@ -15872,21 +15931,21 @@ function uxLayoutEditorHtml(liste){
   layoutSikreRegister();
   const synlige = uxLayoutNormaliser(liste).filter(w => w.visible && LAYOUT_COMPONENTS[w.widgetId]);
   const skjulte = uxLayoutNormaliser(liste).filter(w => !w.visible && LAYOUT_COMPONENTS[w.widgetId]);
-  return `<div class="dash-edit-hjelp">Flytt, endre størrelse, skjul eller legg til kort. Lagringen gjelder denne brukeren. Verksted, kalender og de andre sidene kan bruke samme lagring senere. Kjøretøyskortet er uendret.</div>
+  return `<div class="dash-edit-hjelp">Kortene vises i faktisk høyde. Bredden er kolonner. Høyden følger innholdet, så tomme rader ikke reserveres. Dra i håndtaket for å bytte plass.</div>
     <div class="dash-edit-bibliotek"><span class="dash-edit-bib-tittel">Legg til kort</span>${skjulte.length ? skjulte.map(w => `<button type="button" class="dash-edit-chip" data-ux-vis="${w.widgetId}">${luc('plus')} ${esc(LAYOUT_COMPONENTS[w.widgetId].label)}</button>`).join('') : '<span class="dash-edit-tom">Alle kort ligger på dashboardet.</span>'}</div>
-    <div class="dash-grid-wrap"><div class="dash-grid dash-grid-edit" id="dash-grid">${synlige.map(w => {
+    <div class="ux-layout-grid is-edit" id="dash-grid">${synlige.map(w => {
       const def = LAYOUT_COMPONENTS[w.widgetId];
-      return `<div class="dash-w dash-w-edit" data-ux-kort="${w.widgetId}" style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height};">
-        <div class="dash-edit-hode" data-ux-drag="${w.widgetId}">${luc('grip-vertical')}<span>${luc(def.ikon)} ${esc(def.label)}</span></div>
-        <div class="dash-edit-info"><span data-dash-mal>${w.width} × ${w.height}</span> · ${esc(def.beskrivelse)}</div>
-        <div class="dash-edit-kontroller">
-          <span>Bredde <button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:-1:0">−</button><button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:1:0">+</button></span>
-          <span>Høyde <button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:0:-1">−</button><button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:0:1">+</button></span>
-          <button type="button" class="dash-edit-mini" data-ux-skjul="${w.widgetId}">${luc('eye-off')} Skjul</button>
+      return `<div class="ux-layout-kort" data-ux-kort="${w.widgetId}" style="--gx:${w.x + 1};--gw:${w.width};">
+        <div class="ux-layout-kontroller">
+          <button type="button" class="bp-ikon-handling" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button>
+          <span class="ux-layout-maal">${esc(def.label)} · ${w.width} kolonner · høyde følger innhold</span>
+          <button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:-1:0" title="Smalere">−</button>
+          <button type="button" class="dash-edit-mini" data-ux-str="${w.widgetId}:1:0" title="Bredere">+</button>
+          <button type="button" class="dash-edit-mini" data-ux-skjul="${w.widgetId}" title="Skjul">${luc('eye-off')}</button>
         </div>
-        <div class="dash-edit-resize" data-ux-resize="${w.widgetId}"></div>
+        <div class="ux-layout-innhold">${layoutGridWidgetHtml(w.widgetId)}</div>
       </div>`;
-    }).join('')}</div></div>`;
+    }).join('')}</div>`;
 }
 function uxLayoutSett(liste){
   layoutSikreRegister();
@@ -15902,48 +15961,34 @@ function uxLayoutEndre(id, modus, dx, dy){
   if(modus === 'flytt'){ a.x += dx; a.y += dy; } else { a.width += dx; a.height += dy; }
   uxLayoutSett(layoutGridPlaser(arbeid, id, start.y));
 }
-function uxLayoutStartDrag(e, id, modus){
+function uxLayoutStartDrag(e, id){
   if(e.button !== undefined && e.button !== 0) return;
-  const grid = document.getElementById('dash-grid');
-  const utgangspunkt = uxLayoutDraft ? uxLayoutDraft.map(w => Object.assign({}, w)) : null;
-  const s = utgangspunkt && utgangspunkt.find(w => w.widgetId === id);
-  if(!grid || !s) return;
+  if(!uxLayoutDraft) return;
   e.preventDefault();
-  const kort = grid.querySelector('[data-ux-kort="' + id + '"]');
-  const rect = grid.getBoundingClientRect();
-  const stegX = (rect.width - LAYOUT_GAP_PX * (LAYOUT_KOL - 1)) / LAYOUT_KOL + LAYOUT_GAP_PX;
-  const stegY = LAYOUT_RAD_PX + LAYOUT_GAP_PX;
   const handle = e.currentTarget;
-  const x0 = e.clientX, y0 = e.clientY, pid = e.pointerId;
-  let sisteNokkel = '', kandidat = null;
+  const pid = e.pointerId;
+  let maal = null;
   try{ handle.setPointerCapture(pid); }catch(_){}
-  if(kort) kort.classList.add('drar');
+  const rydd = () => document.querySelectorAll('[data-ux-kort].er-mal').forEach(n => n.classList.remove('er-mal'));
   const flytt = (ev) => {
-    const dc = Math.round((ev.clientX - x0) / stegX), dr = Math.round((ev.clientY - y0) / stegY);
-    const nok = dc + ',' + dr;
-    if(nok === sisteNokkel) return;
-    sisteNokkel = nok;
-    const arbeid = utgangspunkt.map(w => Object.assign({}, w));
-    const a = arbeid.find(w => w.widgetId === id);
-    if(modus === 'flytt'){ a.x = s.x + dc; a.y = s.y + dr; } else { a.width = s.width + dc; a.height = s.height + dr; }
-    kandidat = layoutGridPlaser(arbeid, id, s.y);
-    kandidat.forEach(w => {
-      if(!w.visible) return;
-      const el = grid.querySelector('[data-ux-kort="' + w.widgetId + '"]');
-      if(!el) return;
-      el.style.setProperty('--gx', w.x + 1); el.style.setProperty('--gy', w.y + 1);
-      el.style.setProperty('--gw', w.width); el.style.setProperty('--gh', w.height);
-      const mal = el.querySelector('[data-dash-mal]');
-      if(mal) mal.textContent = w.width + ' × ' + w.height;
-    });
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const kort = el && el.closest ? el.closest('[data-ux-kort]') : null;
+    rydd();
+    if(kort && kort.dataset.uxKort !== id){ kort.classList.add('er-mal'); maal = kort.dataset.uxKort; }
+    else maal = null;
   };
   const slutt = (avbrutt) => {
     handle.removeEventListener('pointermove', flytt);
     handle.removeEventListener('pointerup', opp);
     handle.removeEventListener('pointercancel', avbryt);
     try{ handle.releasePointerCapture(pid); }catch(_){}
-    if(!avbrutt && kandidat) uxLayoutSett(kandidat);
-    else render();
+    rydd();
+    if(avbrutt || !maal){ render(); return; }
+    const liste = uxLayoutDraft.map(w => Object.assign({}, w));
+    const a = liste.find(w => w.widgetId === id);
+    const b = liste.find(w => w.widgetId === maal);
+    if(a && b){ const y = a.y, x = a.x; a.y = b.y; a.x = b.x; b.y = y; b.x = x; }
+    uxLayoutSett(liste);
   };
   const opp = () => slutt(false);
   const avbryt = () => slutt(true);
@@ -15981,8 +16026,7 @@ function attachUxLayoutListeners(){
     const [id, dx, dy] = el.dataset.uxStr.split(':');
     uxLayoutEndre(id, 'storrelse', Number(dx), Number(dy));
   }));
-  document.querySelectorAll('[data-ux-drag]').forEach(el => el.addEventListener('pointerdown', (e) => uxLayoutStartDrag(e, el.dataset.uxDrag, 'flytt')));
-  document.querySelectorAll('[data-ux-resize]').forEach(el => el.addEventListener('pointerdown', (e) => uxLayoutStartDrag(e, el.dataset.uxResize, 'storrelse')));
+  document.querySelectorAll('[data-ux-drag]').forEach(el => el.addEventListener('pointerdown', (e) => uxLayoutStartDrag(e, el.dataset.uxDrag)));
 }
 function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
@@ -17106,6 +17150,19 @@ function goToVarselSak(sakId){
   if(s) sakOversiktOpenVehicles = new Set([s.vehicleId]);
   goTo('aktivesaker');
 }
+function varselIkonApne(x){
+  if(x.sakId) return {attr:`data-goto-varsel-sak="${esc(x.sakId)}"`, title:'Åpne sak'};
+  if((x.mal === 'bilkort' || x.mal === 'varsellys') && x.vehicleId) return {attr:`data-goto-varsel-bilkort="${esc(x.vehicleId)}"`, title:'Åpne bilkort'};
+  if(x.mal === 'apne-vt' && x.vtId) return {attr:`data-apne-vt="${esc(x.vtId)}"`, title:'Åpne verkstedtime'};
+  if(x.mal === 'kommentaroversikt') return {attr:'data-goto-varsel-kommentarer="1"', title:'Åpne kommentarer'};
+  return null;
+}
+function varselIkonRail(x, medSett){
+  const apne = varselIkonApne(x);
+  const sett = medSett ? `<button type="button" class="bp-ikon-handling" data-marker-varsel-sett="${esc(x.id)}" title="Marker som sett" aria-label="Marker som sett">${luc('eye')}</button>` : '';
+  const opp = apne ? `<button type="button" class="bp-ikon-handling" ${apne.attr} title="${esc(apne.title)}" aria-label="${esc(apne.title)}">${luc('arrow-up-right')}</button>` : '';
+  return (sett || opp) ? `<div class="bp-ikon-rail">${sett}${opp}</div>` : '';
+}
 function varslingssenterGaTilKnapp(x){
   if((x.mal === 'bilkort' || x.mal === 'varsellys') && x.vehicleId) return `<button type="button" class="bp-btn bp-btn-primary btn small" data-goto-varsel-bilkort="${x.vehicleId}">Åpne bilkort</button>`;
   if(x.mal === 'apne-vt' && x.vtId) return `<button type="button" class="bp-btn bp-btn-primary btn small" data-apne-vt="${x.vtId}">Åpne verkstedtime</button>`;
@@ -17129,25 +17186,21 @@ function varslingssenterRadHtml(x){
     linjeHtml: (x.alvorlighet ? a.pille : bpBadgeHtml('neutral', 'database', 'Datakvalitet')) + (x.varselStatus ? statusPilleHtml('varsel', x.varselStatus) : ''),
     tittel: esc(x.tittel),
     metaHtml: `<span class="bp-meta">${esc(x.tekst)}</span>` + (x.dato ? bpMetaHtml('clock', fmt(x.dato)) : ''),
-    handlingerHtml: `${varslingssenterGaTilKnapp(x)}${kvitterKnapp}${kmKnapper}
-        <button type="button" class="bp-btn bp-btn-secondary btn small secondary" data-marker-varsel-sett="${x.id}">👁️ Marker som sett</button>`
+    sideHtml: varselIkonRail(x, true),
+    handlingerHtml: `${kvitterKnapp}${kmKnapper}`
   });
 }
 function varselPopHtml(){
   const liste = (typeof AlertEngine !== 'undefined' ? AlertEngine.senter() : []).slice(0, 5);
   const rader = liste.map(x => {
     const a = bpAlertNivaFraAlvorlighet(x.alvorlighet);
-    const apne = x.sakId
-      ? `<button type="button" class="bp-btn bp-btn-secondary btn small secondary" data-varsel-pop-sak="${esc(x.sakId)}">Åpne sak</button>`
-      : varslingssenterGaTilKnapp(x).replace('bp-btn-primary', 'bp-btn-secondary secondary');
     return `<li class="bp-varsel-pop-rad">
-      <span class="bp-varsel-pop-topp">${a.pille || ''}<time class="bp-varsel-pop-tid">${x.dato ? esc(fmt(x.dato)) : ''}</time></span>
-      <strong>${esc(x.tittel || 'Varsel')}</strong>
-      <span class="bp-varsel-pop-tekst">${esc(x.tekst || '')}</span>
-      <span class="bp-varsel-pop-handlinger">
-        <button type="button" class="bp-btn bp-btn-secondary btn small secondary" data-marker-varsel-sett="${esc(x.id)}">${luc('eye')} Marker som sett</button>
-        ${apne}
-      </span>
+      <div>
+        <span class="bp-varsel-pop-topp">${a.pille || ''}<time class="bp-varsel-pop-tid">${x.dato ? esc(fmt(x.dato)) : ''}</time></span>
+        <strong>${esc(x.tittel || 'Varsel')}</strong>
+        <span class="bp-varsel-pop-tekst">${esc(x.tekst || '')}</span>
+      </div>
+      ${varselIkonRail(x, true)}
     </li>`;
   }).join('');
   return `<div class="bp-pop bp-varsel-pop" id="varsel-pop" role="dialog" aria-label="Siste varsler">
@@ -17156,9 +17209,9 @@ function varselPopHtml(){
   </div>`;
 }
 function attachVarselPopInnhold(){
-  document.querySelectorAll('#varsel-pop [data-marker-varsel-sett]').forEach(el => el.addEventListener('click', () => markerVarselSett(el.dataset.markerVarselSett)));
-  document.querySelectorAll('[data-varsel-pop-sak]').forEach(el => el.addEventListener('click', () => { varselPopApen = false; goToVarselSak(el.dataset.varselPopSak); }));
-  document.querySelectorAll('#varsel-pop [data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', () => { varselPopApen = false; goTo('bilkort', el.dataset.gotoVarselBilkort); }));
+  document.querySelectorAll('#varsel-pop [data-marker-varsel-sett]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerVarselSett(el.dataset.markerVarselSett); }));
+  document.querySelectorAll('#varsel-pop [data-goto-varsel-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); varselPopApen = false; goToVarselSak(el.dataset.gotoVarselSak); }));
+  document.querySelectorAll('#varsel-pop [data-goto-varsel-bilkort]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); varselPopApen = false; goTo('bilkort', el.dataset.gotoVarselBilkort); }));
   document.querySelectorAll('#varsel-pop [data-apne-vt]').forEach(el => el.addEventListener('click', () => { varselPopApen = false; goTo('verksted'); }));
   document.querySelectorAll('#varsel-pop [data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => { varselPopApen = false; goTo('kommentaroversikt'); }));
   const alle = document.getElementById('varsel-pop-alle');
