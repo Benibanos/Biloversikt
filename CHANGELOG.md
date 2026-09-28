@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-28
 
+### UX-polish
+
+1. Filter- og varselpanel har mørkere flate, sterkere kant, skygge og blur. Varselkort og popup bruker ikon for «Marker som sett» og «Åpne», med forklaring i tooltip.
+2. Tannhjul ved bjellen åpner layoutmodus. Krever handling og Aktive saker viser tre kort hver, med grønn lenke nederst. Dashboardet pakkes etter innholdshøyde. Kjøretøystatus er uendret. App-/cacheversjon 160 → **161**. `kontroll.html` = `index.html`.
+
 ### UI-opprydding
 
 1. Verksted, Kalender, Aktive saker og Varslingssenter har ikke lenger dobbel sidetittel. Filter på verksted åpnes som et panel over innholdet. Bjellen viser fem siste varsler. Ny sak og «Marker alle» ligger på fanelinjen.

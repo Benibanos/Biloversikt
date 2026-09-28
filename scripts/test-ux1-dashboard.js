@@ -37,7 +37,7 @@ const hero = extractFn('dashWidgetFlatehelseHtml');
 assert(!hero.includes('Kan ikke brukes') && !hero.includes(' / ${flateN}'), 'utfasing og brøk av hele flåten er ute av heroen');
 const sentral = extractFn('ux1KontrollsentralHtml');
 assert(!sentral.includes('dashBestillSekHtml') && !sentral.includes('fmtKr') && !sentral.includes('Hurtigoversikt'), 'forsiden har ikke bestilling, kostnad eller hurtigoversikt');
-assert(sentral.includes('ux1KritiskeVarsler(3)') && sentral.includes('ux1Saker(5)'), 'maks 3 varsler og 5 saker');
+assert(html.includes('ux1KritiskeVarsler(3)') && html.includes('ux1Saker(3)') && sentral.includes('ux1HandlingSekHtml') && sentral.includes('ux1SakerSekHtml'), 'maks 3 varsler og 3 saker, side om side');
 assert(storage.includes('v2.26.1'), 'storage.airtable.js er fortsatt v2.26.1');
 assert(!/function flatehelse\(\)\{[\s\S]{0,40}ux1/.test(html), 'flatehelse() er ikke byttet ut');
 assert(html.includes('dashboard(){ return this.aktive().filter(x => this.tellerIDashboard(x)); }'), 'AlertEngine.dashboard er uendret');
