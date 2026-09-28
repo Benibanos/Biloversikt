@@ -13,6 +13,13 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-09-28
+
+### Dashboard · lesbar kjøretøystatus
+
+1. Aktiv sjåfør på kjøretøyskortet er blå badge, som på bilkortet. Ingen sjåfør er nøytral. Lag vises som 3 px venstrekant, ikke en ekstra prikk.
+2. Operativ status viser også antall biler med aktiv sjåfør. Tallet leser `vehicleAktivSjafor()`. Hero-tallet for biler i drift er statusgrønn `#22C55E`. App-/cacheversjon 157 → **158**. `kontroll.html` = `index.html`.
+
 ## 2026-09-27
 
 ### UX-finpuss 2 · drift hos Bring

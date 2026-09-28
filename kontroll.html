@@ -68,7 +68,7 @@
     --ink-muted:#94A39C;
     /* ---- V4: statustoner (solid + soft) ---- */
     --success:#22C55E;
-    --success-soft:rgba(34,197,94,0.14);
+    --success-soft:rgba(34,197,94,0.22);
     --warning:#F59E0B;
     --warning-soft:rgba(245,158,11,0.14);
     --danger:#EF4444;
@@ -2040,7 +2040,8 @@
 .bp-fh-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-2); }
 .bp-fh-big { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:0; border:0; background:none; color:var(--ink); text-align:left; cursor:pointer; border-radius:var(--radius-sm); }
 .bp-fh-big:disabled { cursor:default; }
-.bp-fh-num { font:600 56px/60px var(--font-sans); letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+.bp-fh-num { font:600 56px/60px var(--font-sans); letter-spacing:-.03em; font-variant-numeric:tabular-nums; color:var(--success); }
+.bp-vcard.bp-lag-kant { border-left-width:3px; border-left-style:solid; }
 .bp-fh-of { font-size:28px; color:var(--ink-muted); letter-spacing:-.01em; }
 .bp-fh-lbl { display:inline-flex; align-items:center; gap:var(--space-2); font:500 13px/18px var(--font-sans); color:var(--ink-muted); }
 .bp-fh-bar { display:flex; gap:2px; height:12px; border-radius:var(--radius-pill); overflow:hidden; background:var(--neutral-soft); }
@@ -15429,6 +15430,7 @@ function dashWidgetFlatehelseHtml(){
   // UX-1 Bring: tre eksisterende flatehelse-tall. Utfasing (kan ikke brukes) vises ikke her.
   const FH_FLIS_STATUS = {'tilgjengelige':['operativ','operativ'], 'pa-verksted':['operativ','pa-verksted'], 'reserve':['driftsstatus','reserve']};
   const flisTone = pop => { const st = FH_FLIS_STATUS[pop]; const s = st ? statusDef(st[0], st[1]) : null; return s ? s.tone : 'neutral'; };
+  const aktiveN = (vehicles || []).filter(v => vehicleAktivSjafor(v.id)).length;
   const kapasitet = h.tilgjengelige + h.paVerksted + h.reserve;
   const seg = (antall, tone) => antall ? `<span class="bp-fh-seg bp-bg-${tone}" style="width:${kapasitet ? (antall / kapasitet * 100) : 0}%"></span>` : '';
   const flis = (pop, tall, ord, sub) => `<li><button type="button" class="bp-fh-tile bp-sum-click" data-fh-pop="${pop}">${FH_FLIS_STATUS[pop] ? bpStatusTileHtml(FH_FLIS_STATUS[pop][0], FH_FLIS_STATUS[pop][1]) : ''}<span class="bp-fh-tx"><span class="bp-fh-tv">${tall}</span><span class="bp-fh-tl">${ord}</span>${sub ? `<span class="bp-fh-ts">${sub}</span>` : ''}</span></button></li>`;
@@ -15443,16 +15445,18 @@ function dashWidgetFlatehelseHtml(){
           <span class="bp-fh-num">${h.tilgjengelige}</span>
           <span class="bp-fh-lbl"><span class="bp-status-dot bp-bg-${flisTone('tilgjengelige')}" aria-hidden="true"></span>biler i drift</span>
         </button>
-        <div class="bp-fh-bar" role="img" aria-label="${h.tilgjengelige} biler i drift, ${h.reserve} reservebiler tilgjengelig, ${h.paVerksted} biler på verksted">
+        <div class="bp-fh-bar" role="img" aria-label="${h.tilgjengelige} biler i drift, ${aktiveN} aktive biler, ${h.reserve} reservebiler tilgjengelig, ${h.paVerksted} biler på verksted">
           ${seg(h.tilgjengelige, flisTone('tilgjengelige'))}${seg(h.reserve, flisTone('reserve'))}${seg(h.paVerksted, flisTone('pa-verksted'))}
         </div>
         <ul class="bp-fh-legend">
           <li><span class="bp-dot bp-bg-${flisTone('tilgjengelige')}"></span>I drift ${h.tilgjengelige}</li>
+          <li><span class="bp-dot bp-bg-info"></span>Aktive ${aktiveN}</li>
           <li><span class="bp-dot bp-bg-${flisTone('reserve')}"></span>Reserve ${h.reserve}</li>
           <li><span class="bp-dot bp-bg-${flisTone('pa-verksted')}"></span>Verksted ${h.paVerksted}</li>
         </ul>
       </div>
       <ul class="bp-fh-tiles">
+        <li><button type="button" class="bp-fh-tile bp-sum-click" data-goto-biloversikt-filter="har-aktiv-sjafor">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tv">${aktiveN}</span><span class="bp-fh-tl">aktive biler</span><span class="bp-fh-ts">har sjåfør nå</span></span></button></li>
         ${flis('reserve', h.reserve, 'reservebiler', 'tilgjengelig')}
         ${flis('pa-verksted', h.paVerksted, 'på verksted', '')}
       </ul>
@@ -15600,10 +15604,13 @@ function ux1KjoretoyKortHtml(v){
   const tone = s ? s.tone : 'neutral';
   const neste = nesteVerkstedtime(v.id);
   const sjafor = vehicleAktivSjafor(v.id);
-  return `<button type="button" class="bp-card bp-vcard bp-card-click" data-goto-bilkort="${esc(v.id)}">
-    <span class="bp-vcard-head">${driftslagPrikkHtml(v)}<span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
+  const lag = vehicleDriftslagGruppe(v);
+  const kant = lag && lag !== 'Ikke satt' ? ` bp-lag-kant" style="border-left-color:${p48DriftslagFarge(lag)}` : '';
+  const sjaforMerke = sjafor ? bpBadgeHtml('info', 'user-round', esc(sjafor)) : bpBadgeHtml('neutral', 'user-round', 'Ingen aktiv sjåfør');
+  return `<button type="button" class="bp-card bp-vcard bp-card-click${kant}" data-goto-bilkort="${esc(v.id)}">
+    <span class="bp-vcard-head"><span class="bp-status-dot bp-bg-${tone}" aria-hidden="true"></span><span class="bp-vcard-title"><span class="bp-vcard-name">${esc(v.bilnummer || 'Bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</span>
     <span class="bp-vcard-rows">
-      <span class="bp-vrow"><span class="bp-vrow-icon">${luc('user-round')}</span><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${esc(sjafor || 'Ingen aktiv sjåfør')}</span></span>
+      <span class="bp-vrow"><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${sjaforMerke}</span></span>
       <span class="bp-vrow"><span class="bp-vrow-icon">${luc('wrench')}</span><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>
     </span>
   </button>`;
