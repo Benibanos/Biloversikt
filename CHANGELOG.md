@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Kjøretøyprofil kan klikkes igjen
+
+1. Dekk, service, EU-kontroll og løftebord åpner bilens eksisterende historikk. Blyanten for å redigere profilen ligger fast i toppfeltet for administratorer.
+2. I layoutmodus navigerer ikke widgetflaten. Utenfor layoutmodus er den klikkbar igjen. App-/cacheversjon 165 → **166**. `kontroll.html` = `index.html`.
+
 ### Kjøretøyprofil som kontrollpanel
 
 1. Desktop-profilen viser kjøretøyhelse, kontrollprosent, verkstedstatus, aktive saker og operativt kontrollgrunnlag. Oppsettet gjelder sidetypen, ikke den enkelte bilen.

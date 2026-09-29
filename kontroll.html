@@ -2356,6 +2356,9 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux-canvas{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:minmax(72px, auto);gap:12px;align-items:stretch;}
   .ux-canvas.is-edit{grid-template-rows:repeat(var(--rader), minmax(72px, auto));background-image:linear-gradient(to right, rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.07) 1px, transparent 1px);background-size:calc((100% - 132px) / 12 + 12px) 84px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;padding:0;position:relative;}
   .ux-widget{grid-column:var(--gx) / span var(--gw);grid-row:var(--gy) / span var(--gh);min-width:0;min-height:min-content;position:relative;overflow:visible;}
+  .ux-widget.is-klikk{cursor:pointer;}
+  .ux-widget.is-klikk:hover .ux-wramme{border-color:var(--border-strong);}
+  .ux-widget.is-klikk:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .ux-canvas.is-edit .ux-widget{outline:1px dashed rgba(255,255,255,.4);outline-offset:-1px;border-radius:12px;}
   .ux-canvas.is-edit .ux-widget.er-ok{outline-color:var(--accent);}
   .ux-canvas.is-edit .ux-widget.er-opptatt{outline-color:var(--danger);}
@@ -5210,7 +5213,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','kalender','bestill','kommentaroversikt','kontrollhistorikk'];
+const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','eu','loftebord','kalender','bestill','kommentaroversikt','kontrollhistorikk'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -11651,6 +11654,12 @@ function goToRegisterVT(vehicleId){
 }
 // Prioritet 67: statusradens Dekk-felt åpner bilens dekkinformasjon (renderDekkSkjerm),
 // ikke dekkskift-bestillingen (data-goto-dekk / bestillDekkskift).
+function apneEuHistorikk(vehicleId){
+  goTo('eu', vehicleId || currentVehicleId);
+}
+function apneLoftebord(vehicleId){
+  goTo('loftebord', vehicleId || currentVehicleId);
+}
 function goToBilDekk(vehicleId){
   dekkValgtVehicleId = vehicleId || '';
   goTo('dekk', vehicleId);
@@ -13190,7 +13199,7 @@ async function deleteAdminUser(id){
 // ("Dashboard", jf. wireframe i ticket).
 const DESKTOP_FRAME_TITTEL = {
   dashboard:'Dashboard', register:'Biler', bilkort:'Kjøretøyprofil',
-  verksted:'Verksted', service:'Verksted', dekk:'Verksted',
+  verksted:'Verksted', service:'Service', dekk:'Dekk', eu:'EU-kontroll', loftebord:'Løftebord',
   verkstedhistorikk:'Verkstedhistorikk', historikk:'Verkstedhistorikk',
   kalender:'Kalender', aktivesaker:'Aktive saker', skader:'Aktive saker',
   varsler:'Varslingssenter', kostnadsoversikt:'Kostnader',
@@ -13284,6 +13293,8 @@ function render(){
   else if(screen === 'analyse') body = renderAnalyse();
   else if(screen === 'service') body = renderServiceSkjerm();
   else if(screen === 'dekk') body = renderDekkSkjerm();
+  else if(screen === 'eu') body = renderEuSkjerm();
+  else if(screen === 'loftebord') body = renderLoftebordSkjerm();
   else if(screen === 'kalender') body = renderKalender();
   else if(screen === 'bestill') body = renderBestillTjenester();
   else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
@@ -13426,6 +13437,12 @@ function render(){
     if(currentUiExperience() === 'desktop'){
       const tilbake = document.getElementById('back-to-register');
       if(tilbake) tilbake.addEventListener('click', () => goBack('register'));
+      const penn = document.getElementById('profil-rediger-fast');
+      if(penn) penn.addEventListener('click', () => { showBilinfoRediger = !showBilinfoRediger; vehicleSaveConfirmedId = null; render(); });
+      const avbryt = document.getElementById('cancel-vehicle-edit');
+      if(avbryt) avbryt.addEventListener('click', () => { showBilinfoRediger = false; vehicleSaveConfirmedId = null; render(); });
+      const lagre = document.getElementById('save-vehicle');
+      if(lagre) lagre.addEventListener('click', beskyttKlikk('saveVehicleForm:'+currentVehicleId, lagre, () => saveVehicleForm(currentVehicleId)));
       attachNesteVerkstedtimeListeners();
     } else attachBilkortListeners();
   }
@@ -13433,6 +13450,8 @@ function render(){
   else if(screen === 'verksted') attachVerkstedListeners();
   else if(screen === 'service') attachServiceSkjermListeners();
   else if(screen === 'dekk') attachDekkSkjermListeners();
+  else if(screen === 'eu') attachEuSkjermListeners();
+  else if(screen === 'loftebord') attachLoftebordSkjermListeners();
   else if(screen === 'verkstedhistorikk' || screen === 'historikk') attachVerkstedhistorikkListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
   else if(screen === 'kontroll') attachKontrollListeners();
@@ -15941,8 +15960,25 @@ function uxWidgetKatalog(){
     {id:'ux-bil-kontroll', label:'Kontrollprosent', ikon:'clipboard-check', w:12, h:4},
     {id:'ux-bil-verksted', label:'Verkstedstatus', ikon:'wrench', w:6, h:6},
     {id:'ux-bil-grunnlag', label:'Operativ kontrollgrunnlag', ikon:'target', w:12, h:4},
-    {id:'ux-bil-historikk', label:'Historikk', ikon:'history', w:12, h:8}
+    {id:'ux-bil-historikk', label:'Historikk', ikon:'history', w:12, h:8},
+    {id:'ux-bil-dekk', label:'Dekk', ikon:'circle-dot', w:3, h:3, action:{type:'openVehicleView', target:'tire-history', preserveVehicleId:true}},
+    {id:'ux-bil-service', label:'Service', ikon:'wrench', w:3, h:3, action:{type:'openVehicleView', target:'service-history', preserveVehicleId:true}},
+    {id:'ux-bil-eu', label:'EU-kontroll', ikon:'shield-check', w:3, h:3, action:{type:'openVehicleView', target:'eu-history', preserveVehicleId:true}},
+    {id:'ux-bil-loftebord', label:'Løftebord', ikon:'arrow-up-down', w:3, h:3, action:{type:'openVehicleView', target:'liftgate-history', preserveVehicleId:true}}
   ];
+}
+function uxWidgetHandling(id){
+  const k = uxWidgetKatalog().find(x => x.id === id);
+  return k && k.action ? k.action : null;
+}
+function uxWidgetUtfor(id){
+  const handling = uxWidgetHandling(id);
+  const vehicleId = currentVehicleId;
+  if(!handling || handling.type !== 'openVehicleView' || !vehicleId) return;
+  if(handling.target === 'tire-history') goToBilDekk(vehicleId);
+  else if(handling.target === 'service-history') apneServicehistorikk(vehicleId);
+  else if(handling.target === 'eu-history') apneEuHistorikk(vehicleId);
+  else if(handling.target === 'liftgate-history') apneLoftebord(vehicleId);
 }
 function uxWidgetHtml(id){
   if(id === 'ux-status') return dashWidgetFlatehelseHtml();
@@ -15989,7 +16025,23 @@ function uxWidgetHtml(id){
   if(id === 'ux-bil-verksted') return uxBilVerkstedHtml(bil);
   if(id === 'ux-bil-grunnlag') return uxBilGrunnlagHtml(bil);
   if(id === 'ux-bil-historikk') return `<section class="ux1-sek"><h2 class="bp-overline">Historikk</h2>${bilkortHistorikkSekHtml(bil)}</section>`;
+  if(id === 'ux-bil-dekk' || id === 'ux-bil-service' || id === 'ux-bil-eu' || id === 'ux-bil-loftebord') return uxBilInngangHtml(bil, id);
   return '';
+}
+function uxBilInngangHtml(v, id){
+  const ss = vehicleServiceStatus(v);
+  const siste = vehicleSisteService(v.id);
+  const eu = vehicleEuKontrollStatus(v);
+  const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
+  const lb = loftebordKontrollStatus(v.id);
+  const lbTekst = !lb.siste ? 'Ikke registrert' : (lb.status === 'gronn' ? 'Gyldig' : (lb.status === 'gul' ? 'Utløper snart' : 'Forfalt'));
+  const felt = {
+    'ux-bil-dekk': ['Dekk', dekk],
+    'ux-bil-service': ['Service', (siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')],
+    'ux-bil-eu': ['EU-kontroll', (v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')],
+    'ux-bil-loftebord': ['Løftebord', lbTekst]
+  }[id];
+  return `<section class="ux1-sek"><h2 class="bp-overline">${esc(felt[0])}</h2><p class="bp-vcard-name">${esc(felt[1])}</p><p class="ux1-lag-tom">Åpne historikk</p></section>`;
 }
 function uxBilKontrollHtml(v){
   const k = operativKontrollBil30(v.id);
@@ -16062,7 +16114,7 @@ function uxLayoutStandard(side){
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
     analyse:['ux-kpi','ux-analyse'],
     rapporter:['ux-kpi','ux-analyse'],
-    bilkort:['ux-bil-helse','ux-bil-kontroll','ux-bil-verksted','ux-bil-saker','ux-bil-grunnlag']
+    bilkort:['ux-bil-helse','ux-bil-kontroll','ux-bil-verksted','ux-bil-saker','ux-bil-grunnlag','ux-bil-dekk','ux-bil-service','ux-bil-eu','ux-bil-loftebord','ux-bil-info']
   }[side] || [];
   const kat = uxWidgetKatalog();
   const liste = kat.map(k => ({widgetId:k.id, visible:false, x:0, y:0, width:k.w, height:k.h}));
@@ -16166,8 +16218,10 @@ function uxLayoutToppHtml(side){
 }
 function uxLayoutKortHtml(w, rediger){
   const html = `<div class="ux-wramme">${uxWidgetHtml(w.widgetId)}</div>`;
+  const handling = uxWidgetHandling(w.widgetId);
+  const klikk = !rediger && handling;
   const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button><button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button><span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
-  return `<div class="ux-widget" data-ux-kort="${w.widgetId}" style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
+  return `<div class="ux-widget${klikk ? ' is-klikk' : ''}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
 }
 function uxLayoutVisHtml(liste){
   const synlige = liste.filter(w => w.visible);
@@ -16368,6 +16422,23 @@ function attachUxLayoutListeners(){
   document.querySelectorAll('.ux-canvas [data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   document.querySelectorAll('.ux-canvas [data-registrer-vt]').forEach(el => el.addEventListener('click', () => goToRegisterVT(el.dataset.registrerVt)));
   document.querySelectorAll('.ux-canvas [data-goto-analyse]').forEach(el => el.addEventListener('click', () => { if(typeof goToAnalyse === 'function') goToAnalyse(el.dataset.gotoAnalyse); }));
+  if(!uxLayoutModus){
+    document.querySelectorAll('.ux-widget.is-klikk').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if(e.target.closest('a,button,summary,input,select,textarea,label')) return;
+        uxWidgetUtfor(el.dataset.uxKort);
+      });
+      el.addEventListener('keydown', (e) => {
+        if(e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        uxWidgetUtfor(el.dataset.uxKort);
+      });
+    });
+    document.querySelectorAll('[data-apne-service]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); apneServicehistorikk(el.dataset.apneService); }));
+    document.querySelectorAll('[data-apne-dekk]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToBilDekk(el.dataset.apneDekk); }));
+    document.querySelectorAll('[data-apne-eu]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); apneEuHistorikk(el.dataset.apneEu); }));
+    document.querySelectorAll('[data-apne-loftebord]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); apneLoftebord(el.dataset.apneLoftebord); }));
+  }
   uxLayoutLofterTilInnhold();
 }
 function renderDashboard(){
@@ -18089,9 +18160,9 @@ function ux3BilinfoHtml(v){
     <div class="bp-vcard-rows">
       ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
       ${rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')), `data-apne-service="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')))}
+      ${rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')), `data-apne-eu="${esc(v.id)}" style="cursor:pointer;"`)}
       ${rad('Dekk', esc(dekk), `data-apne-dekk="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${rad('Løftebord', esc(lb.tekst || 'Ikke satt'))}
+      ${rad('Løftebord', esc(lb.tekst || 'Ikke satt'), `data-apne-loftebord="${esc(v.id)}" style="cursor:pointer;"`)}
     </div>
   </section>`;
 }
@@ -18115,11 +18186,6 @@ function ux3KontrollkortHtml(v){
 function renderBilkort(){
   const v = vehicles.find(x => x.id === currentVehicleId);
   if(!v) return bpTomTilstandHtml('Fant ikke kjøretøyet', '');
-  if(currentUiExperience() === 'desktop'){
-    const eget = uxLayoutOvertar('bilkort');
-    const kropp = eget || uxLayoutVisHtml(uxLayoutStandard('bilkort'));
-    return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>${kropp}`;
-  }
   const vDamages = vehicleDamages(v.id);
   const vDamagesAktive = vDamages.filter(d => d.status !== 'utbedret');
   const vLastKontroll = lastKontrollForVehicle(v.id);
@@ -18295,6 +18361,14 @@ function renderBilkort(){
     </div>
     ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--success);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
   `;
+
+  if(currentUiExperience() === 'desktop'){
+    const eget = uxLayoutOvertar('bilkort');
+    const kropp = eget || uxLayoutVisHtml(uxLayoutStandard('bilkort'));
+    const penn = (!driverMode && loggedInRole && isAdmin) ? `<button type="button" class="bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>` : '';
+    const skjema = showBilinfoRediger ? `<div class="bp-card panel" style="margin-bottom:16px;">${infoBody}</div>` : '';
+    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span style="display:flex;align-items:center;gap:8px;"><strong>${esc(v.bilnummer || '')}</strong><span>${esc(v.regnr || '')}</span>${penn}</span></div>${skjema}${kropp}`;
+  }
 
   // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
   // ÉN seksjon «Historikk» med fem horisontale faner (bilkortHistorikkSekHtml(), samme fane- og radstil
@@ -18553,6 +18627,85 @@ function serviceHistoryCard(s){
     </div>
   `;
 }
+function renderEuSkjerm(){
+  const v = vehicles.find(x => x.id === currentVehicleId) || null;
+  if(!v) return bpTomTilstandHtml('Ingen bil valgt', '');
+  const eu = vehicleEuKontrollStatus(v);
+  const historikk = (verkstedtimer || []).filter(t => t.vehicleId === v.id && vtHarType(t, 'eu-kontroll')).sort((a, b) => (b.dato || '').localeCompare(a.dato || ''));
+  const siste = historikk[0];
+  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="eu-back">← Tilbake til kjøretøyprofil</button></div>
+    <h2 class="bp-h1" style="margin-bottom:8px;">${esc(v.bilnummer || '')} · ${esc(v.regnr || '')}</h2>
+    <section class="bp-card" style="margin-bottom:16px;">
+      <h3 class="bp-card-title">EU-kontroll</h3>
+      <p class="bp-kpi-sub">Siste kontroll: ${siste ? esc(fmt(siste.dato)) : 'Ingen registrert'}</p>
+      <p class="bp-kpi-sub">Gyldig til: ${v.euGodkjentTil ? esc(fmt(v.euGodkjentTil)) : 'Ikke satt'}</p>
+      <p class="bp-kpi-sub">Status: ${esc(eu.tekst || 'Ikke satt')}</p>
+      ${isAdmin ? `<div class="ux1-diskret"><button type="button" class="bp-link-btn" id="eu-bestill">Bestill EU-kontroll</button></div>` : ''}
+    </section>
+    <section class="bp-card"><h3 class="bp-card-title">Tidligere EU-kontroller</h3>
+      ${historikk.length ? `<ul class="dmg-simple-list">${historikk.map(t => `<li><span class="dmg-simple-main">${esc(fmt(t.dato))}${t.tidspunkt ? ' · ' + esc(t.tidspunkt) : ''} · ${esc(t.verksted || 'Verksted ikke satt')} · ${esc(statusLabel('verksted', vtStatus(t)) || vtStatus(t))}</span></li>`).join('')}</ul>` : '<p class="ux1-lag-tom">Ingen EU-kontroller er registrert på denne bilen.</p>'}
+    </section>`;
+}
+function attachEuSkjermListeners(){
+  const tilbake = document.getElementById('eu-back');
+  if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', currentVehicleId));
+  const bestill = document.getElementById('eu-bestill');
+  if(bestill) bestill.addEventListener('click', () => bestillEuKontroll(currentVehicleId));
+}
+function renderLoftebordSkjerm(){
+  const v = vehicles.find(x => x.id === currentVehicleId) || null;
+  if(!v) return bpTomTilstandHtml('Ingen bil valgt', '');
+  const st = loftebordKontrollStatus(v.id);
+  const statusTekst = !st.siste ? 'Ikke registrert' : (st.status === 'gronn' ? 'Gyldig' : (st.status === 'gul' ? 'Utløper snart' : 'Forfalt'));
+  const hist = vehicleLoftebordHistorikk(v.id);
+  const apen = typeof lbDetaljId !== 'undefined' ? lbDetaljId : '';
+  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="lb-back">← Tilbake til kjøretøyprofil</button></div>
+    <h2 class="bp-h1" style="margin-bottom:8px;">${esc(v.bilnummer || '')} · ${esc(v.regnr || '')}</h2>
+    <section class="bp-card" style="margin-bottom:16px;">
+      <h3 class="bp-card-title">Løftebord</h3>
+      <p class="bp-kpi-sub">Kontrollstatus: ${esc(statusTekst)}</p>
+      <p class="bp-kpi-sub">Siste kontroll: ${st.siste ? esc(fmt(st.siste.dato)) : 'Ingen registrert'}</p>
+      <p class="bp-kpi-sub">Neste frist: ${st.gyldigTil ? esc(fmt(st.gyldigTil)) : 'Ikke satt'}</p>
+    </section>
+    ${isAdmin ? `<form class="bp-card panel" id="lb-kontroll-form" style="margin-bottom:16px;">
+      <h3 class="bp-card-title">Registrer årlig kontroll</h3>
+      <div class="field"><label>Kjøretøy</label><input type="text" value="${esc(vehicleLabel(v))}" disabled></div>
+      <div class="row2">
+        <div class="field"><label>Kontrolldato</label><input id="lb-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}" required></div>
+        <div class="field"><label>Utført av</label><input id="lb-av" type="text" value="${esc(loggedInRole || '')}" required></div>
+      </div>
+      <p class="ux1-lag-tom">Neste frist settes til 365 dager etter kontrolldatoen, samme regel som resten av appen.</p>
+      <div class="field"><label>Resultat</label><select id="lb-resultat"><option value="Godkjent">Godkjent</option><option value="Godkjent med merknad">Godkjent med merknad</option><option value="Ikke godkjent">Ikke godkjent</option></select></div>
+      <div class="field"><label>Kommentar</label><textarea id="lb-kommentar" placeholder="Valgfritt"></textarea></div>
+      <div class="form-msg" id="lb-msg"></div>
+      <div class="panel-actions"><button class="bp-btn bp-btn-primary btn" type="submit">Lagre kontroll</button></div>
+    </form>` : ''}
+    <section class="bp-card"><h3 class="bp-card-title">Historikk</h3>
+      ${hist.length ? `<ul class="dmg-simple-list">${hist.map(l => `<li><button type="button" class="bp-link-btn" data-lb-detalj="${esc(l.id)}">${esc(fmt(l.dato))} · ${l.type === 'kontroll' ? 'Kontroll' : 'Vedlikehold'} · ${esc(l.utfortAv || 'Ukjent')}</button>${apen === l.id ? `<p class="ux1-lag-tom">${esc(l.kommentar || 'Ingen kommentar')}${l.type === 'kontroll' ? ' · Frist ' + esc(fmt(isoDateOffset(l.dato, 365))) : ''}</p>` : ''}</li>`).join('')}</ul>` : '<p class="ux1-lag-tom">Ingen løftebordhistorikk på denne bilen.</p>'}
+    </section>`;
+}
+let lbDetaljId = '';
+async function lagreLoftebordKontrollSkjema(ev){
+  ev.preventDefault();
+  if(!isAdmin) return;
+  const v = vehicles.find(x => x.id === currentVehicleId);
+  const msg = document.getElementById('lb-msg');
+  const dato = readDateInput('lb-dato');
+  const utfortAv = (document.getElementById('lb-av').value || '').trim();
+  const resultat = document.getElementById('lb-resultat').value;
+  const kommentar = (document.getElementById('lb-kommentar').value || '').trim();
+  if(!v || !dato || !utfortAv){ if(msg) msg.textContent = 'Fyll ut kontrolldato og hvem som utførte kontrollen.'; return; }
+  loftebordHistorikk.push({id: uid(), vehicleId: v.id, dato, tidspunkt: nowTimeOslo(), type: 'kontroll', utfortAv, kommentar: [resultat, kommentar].filter(Boolean).join(' · '), registreringskanal: 'admin'});
+  await saveLoftebordHistorikk();
+  render();
+}
+function attachLoftebordSkjermListeners(){
+  const tilbake = document.getElementById('lb-back');
+  if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', currentVehicleId));
+  const form = document.getElementById('lb-kontroll-form');
+  if(form) form.addEventListener('submit', lagreLoftebordKontrollSkjema);
+  document.querySelectorAll('[data-lb-detalj]').forEach(el => el.addEventListener('click', () => { lbDetaljId = lbDetaljId === el.dataset.lbDetalj ? '' : el.dataset.lbDetalj; render(); }));
+}
 function renderServiceSkjerm(){
   const v = vehicles.find(x => x.id === serviceValgtVehicleId) || null;
   let vehicleCardHtml = '', contentHtml = '';
@@ -18683,7 +18836,7 @@ function renderServiceSkjerm(){
       </div>`;
   }
   return `
-    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="service-back">← Tilbake</button></div>
+    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="service-back">← Tilbake til kjøretøyprofil</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🔧 Service</h2>
     <div class="required-hint" style="margin-bottom:16px;">Km-basert serviceintervall — status, registrering og historikk.</div>
     <div class="bp-card panel" style="margin-bottom:16px;">
@@ -18701,7 +18854,7 @@ function renderServiceSkjerm(){
   `;
 }
 function attachServiceSkjermListeners(){
-  document.getElementById('service-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('service-back').addEventListener('click', () => goTo('bilkort', serviceValgtVehicleId || currentVehicleId));
   document.getElementById('service-vehicle').addEventListener('change', e => { serviceValgtVehicleId = e.target.value; showPlanleggService = false; serviceSaveConfirmedId = null; editingServiceId = null; render(); });
   const saveServiceIntervallBtn = document.getElementById('save-service-intervall-btn');
   if(saveServiceIntervallBtn) saveServiceIntervallBtn.addEventListener('click', () => saveServiceIntervall(serviceValgtVehicleId));
@@ -18896,7 +19049,7 @@ function renderDekkSkjerm(){
       </div>`;
   }
   return `
-    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="dekk-back">← Tilbake</button></div>
+    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="dekk-back">← Tilbake til kjøretøyprofil</button></div>
     <h2 style="font-size:19px;margin-bottom:6px;">🛞 Dekk</h2>
     <div class="required-hint" style="margin-bottom:16px;">Dekkoversikt (DOT/alder) og dekkskiftehistorikk.</div>
     <div class="bp-card panel" style="margin-bottom:16px;">
@@ -18913,7 +19066,7 @@ function renderDekkSkjerm(){
   `;
 }
 function attachDekkSkjermListeners(){
-  document.getElementById('dekk-back').addEventListener('click', () => goBack('dashboard'));
+  document.getElementById('dekk-back').addEventListener('click', () => goTo('bilkort', dekkValgtVehicleId || currentVehicleId));
   document.getElementById('dekk-vehicle').addEventListener('change', e => {
     dekkValgtVehicleId = e.target.value; showAddDekkskifte = false; dekkSaveConfirmedId = null;
     // samme opprydding som service-vehicle sitt change-mønster (showPlanleggService)
