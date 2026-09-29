@@ -2401,6 +2401,7 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux-wramme .bp-card-head .bp-card-title,
   .ux-wramme .bp-fh-head .bp-overline,
   .ux-wramme .ux1-head .bp-overline{margin:0;padding:0;border:0;}
+  .ux-wramme .bp-vcard-rows{border-top:0;padding-top:0;}
   .ux-canvas.is-edit .ux-widget.er-valgt,.ux-canvas.is-edit .ux-widget.er-nest{outline:2px solid var(--accent);outline-offset:-1px;}
   .ux-insp{margin:0 0 10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
   .ux-insp h3{margin:0 0 6px;font:600 13px/18px var(--font-sans);}
@@ -2410,16 +2411,24 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   div.ux-mini{cursor:default;}
   .ux-mini-h{font:600 13px/18px var(--font-sans);}
   .ux-mini-l,.ux-mini-d{font:400 12px/16px var(--font-sans);color:var(--ink);}
-  .ux-mini-gyldig{color:var(--success);background:var(--success-soft);border-color:var(--success);}
+  .ux-mini-gyldig,.ux-mini-snart,.ux-mini-forfalt,.ux-mini-ingen{background:transparent;border-width:1px;border-style:solid;}
+  .ux-mini-gyldig{color:var(--success);border-color:var(--success);}
   .ux-mini-snart{color:var(--warning);border-color:var(--warning);}
   .ux-mini-forfalt{color:var(--danger);border-color:var(--danger);}
   .ux-mini-ingen{color:var(--ink-muted);border-color:var(--border);}
+  .ux-status{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0;padding:3px 8px;min-height:0;border-radius:8px;background:transparent;text-align:left;font:500 13px/18px var(--font-sans);}
+  .ux-status .lucide-ic{width:14px;height:14px;flex:none;color:currentColor;}
+  .ux-status > span{min-width:0;}
+  .ux-minier > .ux-status{flex:1 1 180px;width:auto;margin:0;}
   .ux-mini-tall{display:flex;align-items:baseline;gap:8px;}
   .ux-mini-tall b{font:600 22px/28px var(--font-sans);color:var(--ink);font-variant-numeric:tabular-nums;}
   .ux-min-hint{position:absolute;left:8px;bottom:8px;z-index:3;padding:2px 8px;border-radius:999px;background:rgba(6,10,9,.9);color:var(--ink);font:500 11px/16px var(--font-sans);pointer-events:none;}
-  .ux-grip,.ux-skjul,.ux-resize{position:absolute;z-index:2;}
+  .ux-grip,.ux-skjul,.ux-resize,.ux-kjerne{position:absolute;z-index:2;}
   .ux-grip{top:6px;left:6px;}
   .ux-skjul{top:6px;right:6px;}
+  .ux-kjerne{top:6px;left:36px;}
+  .ux-kjerne-merke{position:absolute;top:8px;right:8px;z-index:2;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--workshop-soft);color:var(--ink);}
+  .ux-canvas.is-edit .ux-widget:not(.er-kjerne) .ux-kjerne-merke{right:40px;}
   .ux-resize-e{top:18px;right:0;width:10px;height:calc(100% - 36px);cursor:ew-resize;}
   .ux-resize-s{left:18px;bottom:0;height:10px;width:calc(100% - 36px);cursor:ns-resize;}
   .ux-resize-se{right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg, transparent 50%, var(--accent) 50%);}
@@ -2889,6 +2898,13 @@ let vtPrefillVehicleId = '';
 let vtPrefillSakId = '';
 let vtPrefillType = 'reparasjon';
 let vtPrefillKommentar = '';
+let vtBestillingMal = '';
+let vtBestillingType = 'service';
+let vtBestillingService = true;
+let vtBestillingLoftebord = false;
+let vtVisReserve = false;
+let vtBeOmBil = false;
+let uxApneInlineRedigering = false;
 // Prioritet 49: "Flere detaljer" (Kommentar/Kontaktperson/Telefonnummer) i Ny
 // verkstedtime-skjemaet er lukket som standard — ren visningstilstand, aldri lagret,
 // og nullstilles til false hver gang skjemaet åpnes på nytt (samme mønster som
@@ -5541,21 +5557,11 @@ function kategoriOptionsHtml(valgt, tomTekst){
     + bilkategorier.map(k => `<option value="${esc(k.id)}" ${valgt === k.id ? 'selected' : ''}>${k.ikon || ''} ${esc(k.navn)}</option>`).join('');
 }
 
-// ================= Prioritet 60 — Layout Engine 2.0 (felles layoutmotor for hele Bilpark) =================
-// ÉN motor styrer plassering, rekkefølge, synlighet, kortstørrelse/seksjonsbredde, starttilstand og standardfane
-// for: Desktop Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll, Mobil Dashboard og utvalgte standardsider.
-// Layouten inneholder KUN presentasjonsdata (widgetId, synlighet, rekkefølge, størrelse, starttilstand) — aldri
-// funksjonsdata, beregnede statuser, historikk eller kontrollresultater. Alle flater bruker fortsatt sine
-// eksisterende renderfunksjoner og datakilder; motoren avgjør bare HVILKE deler som tegnes, i hvilken rekkefølge og
-// med hvilken bredde. Forretningslogikk, datamodell, kontrollregler, saksmotor, verkstedlogikk, kilometerlogikk,
-// lagringslogikk og HMS-validering er ikke rørt.
-//
-// Delt av alle flater (ikke ett system per editor):
-//   • ETT komponentregister (LAYOUT_COMPONENTS, fylt av layoutRegistrerAlle()) — nye deler registreres ÉN gang der.
-//   • ÉN datamodell (bilpark-layout-config-v2 i Settings) med schemaVersion og migrateLayoutConfig().
-//   • ÉN normalisering/validering (layoutNormaliserGruppe()/layoutValider()) som håndhever låste komponenter.
-//   • ÉN utkastsmotor med Angre/Gjør om (layoutDraftEndre()), Forhåndsvis, Avbryt og Publiser.
-//   • ÉN lagringsmekanisme (layoutPubliser(): valider → konfliktsjekk → lagre → bekreft → bytt aktiv layout).
+// ================= Publisert seksjonsrekkefølge (meny, faner, lister) =================
+// Widgetsidene Dashboard, Verksted, Kalender, Aktive saker, Analyse, Rapporter og Kjøretøyprofil
+// redigeres bare med tannhjulet på siden som vises, og lagres i bilpark-bruker-layout-v2.
+// Denne konfigurasjonen (bilpark-layout-config-v2) styrer fortsatt meny, faner og seksjonsrekkefølge.
+// Den har ingen editor i Innstillinger. Innholdet er kun presentasjon — aldri forretningsdata.
 const LAYOUT_KEY = 'bilpark-layout-config-v2';
 const LAYOUT_SCHEMA_VERSJON = 2;
 const LAYOUT_KOL = 12;            // kolonner i Desktop Dashboard-rutenettet
@@ -5563,7 +5569,6 @@ const LAYOUT_RAD_PX = 40;         // radhøyde i rutenettet (CSS-enhet, aldri la
 const LAYOUT_GAP_PX = 12;         // mellomrom mellom kort (samme)
 const LAYOUT_MAKS_HOYDE = 24;     // maks rader per kort
 const LAYOUT_MAKS_Y = 60;         // øvre grense for y (sikkerhet mot ugyldig lagret data)
-const LAYOUT_ANGRE_MAKS = 50;
 const LAYOUT_SIDER_OMRADE = 'admin-standard-pages';
 
 // Områdene layoutmotoren styrer. `modus` avgjør hvilken editor og hvilke felt som brukes.
@@ -5778,7 +5783,7 @@ function layoutRegistrerAlle(){
   RAPPORT_ORDER.forEach(t => sd('rapporter', t, {label:RAPPORT_LABEL[t] || t, ikon:'file-bar-chart'}));
   ANALYSE_ORDER.forEach(t => sd('analyse', t, {label:ANALYSE_LABEL[t] || t, ikon:'line-chart'}));
   sd('innstillinger', 'register', {label:'Register', ikon:'package', collapsible:'settings', std:{collapsed:true}});
-  sd('innstillinger', 'layout', {label:'Layout Editor', ikon:'layout-dashboard', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Layout Editor kan ikke skjules — her gjenoppretter du standardlayout.'});
+  sd('innstillinger', 'tema', {label:'Tema', ikon:'sun', collapsible:'settings', std:{collapsed:true}});
   sd('innstillinger', 'sjaforside', {label:'Sjåførside', ikon:'user-round', collapsible:'settings', std:{collapsed:true}});
   sd('innstillinger', 'optimaliseringer', {label:'Optimaliseringer', ikon:'refresh-cw', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Optimaliseringer (appoppdatering, Airtable-synk og systemstatus) kan ikke skjules.'});
   sd('innstillinger', 'system', {label:'Systeminnstillinger', ikon:'settings', canHide:false, critical:true, collapsible:'settings', std:{collapsed:true}, lockReason:'Systeminnstillinger (brukere, kontrollgrunnlag, nullstill) kan ikke skjules.'});
@@ -6053,56 +6058,6 @@ async function layoutLesLegacy(){
     lesefeil: !a.ok || !b.ok};
 }
 
-// ---- Validering (før publisering) ----
-// Kontrollerer utkastet slik det ligger — obligatoriske/låste komponenter, duplikater, ugyldige størrelser, ukjente referanser,
-// overlapp i rutenettet, og at hver fane-gruppe har minst én synlig fane. Returnerer en liste feilmeldinger (tom = gyldig).
-function layoutValider(state){
-  layoutSikreRegister();
-  const feil = [];
-  if(!state || typeof state !== 'object' || !state.layouts || typeof state.layouts !== 'object') return ['Utkastet er ugyldig.'];
-  layoutGruppeNokler().forEach(g => {
-    const navn = layoutGruppeLabel(g);
-    const liste = layoutHent(state.layouts, g);
-    if(!Array.isArray(liste)){ feil.push(navn + ': ugyldig oppsett.'); return; }
-    const defs = layoutKomponenterIGruppe(g);
-    const sett = new Set();
-    liste.forEach(e => {
-      if(!e || typeof e.widgetId !== 'string' || !defs.some(d => d.id === e.widgetId)){ feil.push(navn + ': ukjent komponent «' + (e && e.widgetId) + '».'); return; }
-      if(sett.has(e.widgetId)) feil.push(navn + ': «' + LAYOUT_COMPONENTS[e.widgetId].label + '» finnes flere ganger.');
-      sett.add(e.widgetId);
-    });
-    defs.forEach(d => {
-      const e = liste.find(x => x.widgetId === d.id);
-      if(!e){ if(!d.canHide) feil.push(navn + ': obligatorisk komponent «' + d.label + '» mangler.'); return; }
-      if(!d.canHide && !e.visible) feil.push(navn + ': «' + d.label + '» er låst og kan ikke skjules.');
-      if(layoutModusFor(g) === 'grid'){
-        if(![e.x, e.y, e.width, e.height].every(layoutHelTall)) feil.push(navn + ': «' + d.label + '» har ugyldig plassering.');
-        else if(e.width < d.minWidth || e.width > Math.min(LAYOUT_KOL, d.maxWidth) || e.height < d.minHeight || e.height > Math.min(LAYOUT_MAKS_HOYDE, d.maxHeight)
-          || e.x < 0 || e.y < 0 || e.x + e.width > LAYOUT_KOL) feil.push(navn + ': «' + d.label + '» har ugyldig størrelse eller ligger utenfor rutenettet.');
-      } else if(d.widths && !d.widths.includes(e.width)) feil.push(navn + ': «' + d.label + '» har ugyldig bredde.');
-    });
-    if(layoutModusFor(g) === 'grid'){
-      const syn = liste.filter(e => e.visible && [e.x, e.y, e.width, e.height].every(layoutHelTall));
-      for(let i = 0; i < syn.length; i++) for(let j = i + 1; j < syn.length; j++) if(layoutKolliderer(syn[i], syn[j])) feil.push(navn + ': kortene «' + LAYOUT_COMPONENTS[syn[i].widgetId].label + '» og «' + LAYOUT_COMPONENTS[syn[j].widgetId].label + '» overlapper.');
-      if(defs.length && !syn.length) feil.push(navn + ': minst ett kort må være synlig.');
-    }
-    // ingen flate kan bli tom: minst én komponent på toppnivå må være synlig
-    if(defs.length && !defs.some(d => { if(d.parent) return false; const e = liste.find(x => x.widgetId === d.id); return e && e.visible; })) feil.push(navn + ': minst én komponent må være synlig.');
-    // hver forelder med barn/faner: minst ett synlig barn
-    defs.filter(d => defs.some(b => b.parent === d.id)).forEach(f => {
-      const barn = defs.filter(b => b.parent === f.id);
-      const fe = liste.find(x => x.widgetId === f.id);
-      if(fe && fe.visible && barn.every(b => { const be = liste.find(x => x.widgetId === b.id); return be && !be.visible; })) feil.push(navn + ': «' + f.label + '» må ha minst én synlig del.');
-    });
-    // maxIndex (løftebord tidlig i kontrollflyten)
-    defs.filter(d => d.maxIndex !== null && d.maxIndex !== undefined).forEach(d => {
-      const idx = liste.filter(x => { const dd = LAYOUT_COMPONENTS[x.widgetId]; return dd && !dd.parent; }).sort((a, b) => a.order - b.order).findIndex(x => x.widgetId === d.id);
-      if(idx > d.maxIndex) feil.push(navn + ': «' + d.label + '» ligger for sent i rekkefølgen.');
-    });
-  });
-  return feil;
-}
-
 // ---- Publisert layout: tilstand, lasting og synkronisering ----
 // layoutPub er ALLTID en gyldig, normalisert konfigurasjon (eller null → trygg standardlayout brukes). Ingen flate kan bli tom eller
 // ubrukelig på grunn av en layoutfeil: mangler/korrupt/ukjent versjon/lesefeil gir standardlayout, aldri en krasj.
@@ -6192,315 +6147,12 @@ async function layoutPersisterMigrering(){
   try{
     await window.storage.set(LAYOUT_KEY, JSON.stringify(layoutTilLagring(cfg)), true);
     // et åpent utkast startet fra nøyaktig dette innholdet — bytter kun sammenligningsgrunnlaget, ikke utkastet
-    if(layoutDraft && layoutBaseUpdatedAt === layoutPub.updatedAt) layoutBaseUpdatedAt = cfg.updatedAt;
     layoutPub = layoutNormaliserKonfig(cfg);
     layoutStatus = 'ok';
   }catch(e){
     console.error('[layoutPersisterMigrering] Feilet', e);
     layoutMigreringForsokt = false;   // prøves igjen ved neste innlasting
   }finally{ layoutLagrer = false; }
-}
-
-// ---- Utkast (lokalt) med Angre/Gjør om ----
-// Endringer skjer KUN i et lokalt utkast — ingenting skrives til Airtable før «Publiser». Aktive flater leser aldri utkastet.
-let layoutDraft = null;             // {layouts, options}
-let layoutUndo = [];
-let layoutRedo = [];
-let layoutForhaand = false;
-let layoutBaseUpdatedAt = '';       // publisert updatedAt da utkastet ble startet
-let layoutEksternEndring = false;   // en annen enhet har publisert siden utkastet ble startet
-let layoutMelding = null;           // {type:'ok'|'feil', tekst, liste?}
-let layoutEditorGruppe = 'admin-dashboard';
-let layoutEditorSide = 'verksted';
-function layoutNoekkel(state){
-  return JSON.stringify({l:state && state.layouts, o:state && state.options});
-}
-function layoutErEndret(){ return !!layoutDraft && layoutNoekkel(layoutDraft) !== layoutNoekkel(layoutAktivKonfig()); }
-function layoutStartRedigering(gruppe, side){
-  if(!layoutKanRedigere()) return;
-  if(layoutStatus === 'lesefeil'){ alert('Kunne ikke lese den lagrede layouten. Last siden på nytt før du redigerer.'); return; }
-  if(!layoutDraft){
-    const pub = layoutAktivKonfig();
-    layoutDraft = {layouts:layoutKlon(pub.layouts), options:layoutKlon(pub.options)};
-    layoutUndo = []; layoutRedo = []; layoutForhaand = false; layoutEksternEndring = false; layoutMelding = null;
-    layoutBaseUpdatedAt = layoutPub ? layoutPub.updatedAt : '';
-  }
-  if(gruppe) layoutEditorGruppe = gruppe;
-  if(side) layoutEditorSide = side;
-  goTo('layouteditor');
-}
-function layoutAvsluttRedigering(){
-  layoutDraft = null; layoutUndo = []; layoutRedo = []; layoutForhaand = false;
-  layoutBaseUpdatedAt = ''; layoutEksternEndring = false; layoutMelding = null;
-}
-// Felles inngang for ALLE utkastendringer (alle flater): kopi → endring → Angre-punkt. Returnerer false uten endring.
-function layoutDraftEndre(mutator){
-  if(!layoutDraft) return false;
-  const kopi = layoutKlon(layoutDraft);
-  const res = mutator(kopi);
-  if(res === false || layoutNoekkel(kopi) === layoutNoekkel(layoutDraft)){
-    if(layoutMelding) render();
-    return false;
-  }
-  layoutUndo.push(layoutDraft);
-  if(layoutUndo.length > LAYOUT_ANGRE_MAKS) layoutUndo.shift();
-  layoutRedo = [];
-  layoutDraft = kopi;
-  layoutMelding = null;
-  render();
-  return true;
-}
-function layoutAngre(){
-  if(!layoutUndo.length) return;
-  layoutRedo.push(layoutDraft);
-  layoutDraft = layoutUndo.pop();
-  layoutMelding = null;
-  render();
-}
-function layoutGjorOm(){
-  if(!layoutRedo.length) return;
-  layoutUndo.push(layoutDraft);
-  layoutDraft = layoutRedo.pop();
-  layoutMelding = null;
-  render();
-}
-function layoutOpMelding(tekst){ layoutMelding = {type:'feil', tekst}; }
-// Endrer ÉN gruppe: kopi av listen → mutator → normalisering (håndhever låste komponenter) → utkastet.
-function layoutDraftEndreGruppe(g, mutator){
-  return layoutDraftEndre(d => {
-    const liste = layoutKlon(layoutHent(d.layouts, g));
-    if(mutator(liste, d) === false) return false;
-    layoutSett(d.layouts, g, layoutNormaliserGruppe(g, liste));
-    if(d.options && d.options[g]) d.options[g].defaultTab = layoutGyldigStandardfane(g, d.options[g].defaultTab, layoutHent(d.layouts, g));
-  });
-}
-function layoutOpSynlig(g, id, synlig){
-  const def = LAYOUT_COMPONENTS[id];
-  if(!def) return false;
-  layoutMelding = null;
-  if(!synlig && !def.canHide){ layoutOpMelding(def.hideReason || def.lockReason || ('«' + def.label + '» kan ikke skjules.')); render(); return false; }
-  return layoutDraftEndreGruppe(g, liste => {
-    const e = liste.find(x => x.widgetId === id);
-    if(!e) return false;
-    if(!synlig && !def.parent && !liste.some(x => { const dd = LAYOUT_COMPONENTS[x.widgetId]; return dd && !dd.parent && x.visible && x.widgetId !== id; })){
-      layoutOpMelding('Minst én komponent må være synlig på «' + layoutGruppeLabel(g) + '».'); return false;
-    }
-    if(!synlig && def.tab){
-      const andre = liste.filter(x => { const dd = LAYOUT_COMPONENTS[x.widgetId]; return dd && dd.tab && (dd.parent || null) === (def.parent || null) && x.visible && x.widgetId !== id; });
-      if(!andre.length){ layoutOpMelding('Minst én fane må være synlig.'); return false; }
-    }
-    e.visible = !!synlig;
-  });
-}
-// Søsken = komponenter med samme forelder (og, i sidemenyen, samme seksjon — primær/sekundær).
-function layoutSosken(liste, def, g){
-  const sidebar = g && layoutModusFor(g) === 'sidebar';
-  const meg = sidebar ? liste.find(e => e.widgetId === def.id) : null;
-  return liste.filter(e => {
-    const d = LAYOUT_COMPONENTS[e.widgetId];
-    return d && (d.parent || null) === (def.parent || null) && (!sidebar || !meg || e.section === meg.section);
-  }).sort((a, b) => a.order - b.order);
-}
-function layoutOpFlytt(g, id, retning){
-  const def = LAYOUT_COMPONENTS[id];
-  if(!def) return false;
-  layoutMelding = null;
-  if(!def.canMove){ layoutOpMelding(def.lockReason || ('«' + def.label + '» er låst på sin plass.')); render(); return false; }
-  const ok = layoutDraftEndreGruppe(g, liste => {
-    const sosken = layoutSosken(liste, def, g);
-    const i = sosken.findIndex(e => e.widgetId === id), j = i + (retning === 'opp' ? -1 : 1);
-    if(i < 0 || j < 0 || j >= sosken.length) return false;
-    const t = sosken[i].order; sosken[i].order = sosken[j].order; sosken[j].order = t;
-  });
-  if(!ok && !layoutMelding){
-    const liste = layoutHent(layoutDraft.layouts, g);
-    const sosken = layoutSosken(liste, def, g), i = sosken.findIndex(e => e.widgetId === id);
-    if(i >= 0 && ((retning === 'opp' && i > 0) || (retning === 'ned' && i < sosken.length - 1))){ layoutOpMelding('«' + def.label + '» kan ikke flyttes dit. ' + (def.lockReason || 'Rekkefølgen er delvis låst.')); render(); }
-  }
-  return ok;
-}
-// Dra-og-slipp: flytt `id` foran/etter `malId` (samme forelder). I sidemenyen kan et punkt også slippes i den andre seksjonen.
-function layoutOpFlyttTil(g, id, malId, etter){
-  const def = LAYOUT_COMPONENTS[id], mal = LAYOUT_COMPONENTS[malId];
-  if(!def || !mal || id === malId || (def.parent || null) !== (mal.parent || null)) return false;
-  layoutMelding = null;
-  if(!def.canMove){ layoutOpMelding(def.lockReason || ('«' + def.label + '» er låst på sin plass.')); render(); return false; }
-  const ok = layoutDraftEndreGruppe(g, liste => {
-    const meg = liste.find(e => e.widgetId === id), maalE = liste.find(e => e.widgetId === malId);
-    if(!meg || !maalE) return false;
-    if(layoutModusFor(g) === 'sidebar') meg.section = maalE.section;
-    // Søsknene i målseksjonen (inkl. det flyttede punktet, som nå tilhører den): rekkefølgens `order`-verdier gjenbrukes.
-    const sosken = layoutSosken(liste, def, g);
-    const ordre = sosken.map(e => e.order);
-    const seq = sosken.map(e => e.widgetId).filter(x => x !== id);
-    const mi = seq.indexOf(malId);
-    seq.splice(etter ? mi + 1 : mi, 0, id);
-    seq.forEach((wid, k) => { liste.find(e => e.widgetId === wid).order = ordre[k]; });
-  });
-  if(!ok && !layoutMelding){ layoutOpMelding('«' + def.label + '» kan ikke flyttes dit. ' + (def.lockReason || 'Rekkefølgen er delvis låst.')); render(); }
-  return ok;
-}
-function layoutOpBredde(g, id, w){
-  const def = LAYOUT_COMPONENTS[id];
-  if(!def || !def.widths || !def.widths.includes(w)) return false;
-  return layoutDraftEndreGruppe(g, liste => { const e = liste.find(x => x.widgetId === id); if(!e) return false; e.width = w; });
-}
-function layoutOpStart(g, id, lukket){
-  const def = LAYOUT_COMPONENTS[id];
-  if(!def || !def.collapsible) return false;
-  return layoutDraftEndreGruppe(g, liste => { const e = liste.find(x => x.widgetId === id); if(!e) return false; e.collapsed = !!lukket; });
-}
-function layoutOpSeksjon(g, id, seksjon){
-  if(!['primary', 'secondary'].includes(seksjon)) return false;
-  return layoutDraftEndreGruppe(g, liste => { const e = liste.find(x => x.widgetId === id); if(!e) return false; e.section = seksjon; });
-}
-function layoutOpStandardfane(g, id){
-  const liste = layoutHent(layoutDraft.layouts, g);
-  if(!layoutGyldigStandardfane(g, id, liste)) return false;
-  return layoutDraftEndre(d => { if(!d.options[g]) d.options[g] = {}; d.options[g].defaultTab = id; });
-}
-function layoutTilbakestillSide(){
-  const g = layoutAktivGruppeNokkel();
-  if(!confirm('Tilbakestille «' + layoutGruppeLabel(g) + '» til standardlayout?\n\nDet gjelder kun utkastet — ingenting lagres før du trykker «Publiser», og du kan angre.')) return;
-  layoutDraftEndre(d => {
-    layoutSett(d.layouts, g, layoutNormaliserGruppe(g, []));
-    if(d.options && d.options[g]) d.options[g].defaultTab = '';
-  });
-}
-function layoutTilbakestillAlt(){
-  if(!confirm('Tilbakestille HELE appen til standardlayout?\n\nDette gjelder Dashboard, Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll, Mobil Dashboard og alle standardsider. Det gjelder kun utkastet — ingenting lagres før du trykker «Publiser», og du kan angre.')) return;
-  layoutDraftEndre(d => { const s = layoutStandardKonfig(); d.layouts = s.layouts; d.options = s.options; });
-}
-function layoutAktivGruppeNokkel(){
-  return layoutEditorGruppe === LAYOUT_SIDER_OMRADE ? LAYOUT_SIDER_OMRADE + ':' + layoutEditorSide : layoutEditorGruppe;
-}
-
-// ---- Publisering ----
-// Valider → kontroller obligatoriske/låste komponenter, duplikater og størrelser → kontroller mot lagret sannhet (ingen blind
-// siste-skriving-vinner) → lagre gjennom storage-laget → VENT på bekreftet lagring → først da byttes aktiv layout. Forrige
-// publiserte layout beholdes som sikkerhetskopi (`backup`) i samme konfigurasjon. Ved feil står forrige layout urørt, og utkastet
-// vises ikke som lagret.
-const LAYOUT_FEILTEKST_LAGRING = 'Layouten kunne ikke lagres. Forrige layout er fortsatt aktiv.';
-const LAYOUT_FEILTEKST_KONFLIKT = 'Layouten ble endret fra en annen enhet. Last inn nyeste versjon før du publiserer.';
-async function layoutPubliser(){
-  if(layoutLagrer || !layoutDraft || !layoutKanRedigere()) return;
-  if(layoutStatus === 'lesefeil'){ layoutMelding = {type:'feil', tekst:'Kan ikke publisere før den eksisterende layouten er lest. Last siden på nytt og prøv igjen.'}; render(); return; }
-  if(layoutStatus === 'ny-versjon'){ layoutMelding = {type:'feil', tekst:'Den lagrede layouten er fra en nyere versjon av appen. Oppdater appen før du publiserer, ellers kan du overskrive den.'}; render(); return; }
-  if(layoutEksternEndring){ layoutMelding = {type:'feil', tekst:LAYOUT_FEILTEKST_KONFLIKT}; render(); return; }
-  const feil = layoutValider(layoutDraft);
-  if(feil.length){ layoutMelding = {type:'feil', tekst:'Layouten kan ikke publiseres:', liste:feil}; render(); return; }
-  layoutLagrer = true;
-  layoutMelding = null;
-  render();
-  try{
-    // Konfliktsjekk mot det som faktisk ligger lagret nå (bakgrunnssynken kan være opptil 45 s gammel).
-    let fersk;
-    try{ fersk = await window.storage.get(LAYOUT_KEY, true); }
-    catch(e){ throw new Error('kunne-ikke-kontrollere'); }
-    let ferskAt = '';
-    if(fersk && fersk.value){ try{ const p = JSON.parse(fersk.value); ferskAt = (p && typeof p.updatedAt === 'string') ? p.updatedAt : ''; }catch(_){ ferskAt = ''; } }
-    if(ferskAt !== layoutBaseUpdatedAt){
-      layoutEksternEndring = true;
-      layoutMelding = {type:'feil', tekst:LAYOUT_FEILTEKST_KONFLIKT};
-      return;
-    }
-    const forrige = layoutPub;
-    const nytt = layoutNormaliserKonfig({layouts:layoutDraft.layouts, options:layoutDraft.options, updatedAt:new Date().toISOString(), updatedBy:loggedInRole || 'administrator'}, false);
-    nytt.backup = forrige ? {schemaVersion:LAYOUT_SCHEMA_VERSJON, layouts:layoutKlon(forrige.layouts), options:layoutKlon(forrige.options), updatedAt:forrige.updatedAt, updatedBy:forrige.updatedBy} : null;
-    await window.storage.set(LAYOUT_KEY, JSON.stringify(layoutTilLagring(nytt)), true);
-    layoutPub = layoutNormaliserKonfig(nytt);
-    layoutStatus = 'ok';
-    layoutAvsluttRedigering();
-    visSjToast('Layout publisert');
-    if(screen === 'layouteditor') screen = 'innstillinger';   // utkastet er borte — tilbake til Innstillinger
-  }catch(e){
-    console.error('[layoutPubliser] Feilet', e);
-    layoutMelding = {type:'feil', tekst: (e && e.message === 'kunne-ikke-kontrollere')
-      ? 'Kunne ikke kontrollere om layouten er endret fra en annen enhet. ' + LAYOUT_FEILTEKST_LAGRING : LAYOUT_FEILTEKST_LAGRING};
-  }finally{
-    layoutLagrer = false;
-    render();
-  }
-}
-// Kalles når bakgrunnssynken fant en endret publisert layout. Et åpent utkast overskrives ALDRI stille.
-function layoutEtterEksternLasting(){
-  if(!layoutDraft) return;
-  if((layoutPub ? layoutPub.updatedAt : '') === layoutBaseUpdatedAt) return;
-  layoutEksternEndring = true;
-  const el = document.getElementById('layout-ekstern');
-  if(el) el.hidden = false;
-}
-async function layoutLastNyeste(){
-  if(layoutDraft && layoutErEndret() && !confirm('Utkastet ditt forkastes og den nyeste publiserte layouten lastes inn. Fortsette?')) return;
-  await lastLayoutConfig().catch(() => false);
-  const pub = layoutAktivKonfig();
-  layoutDraft = {layouts:layoutKlon(pub.layouts), options:layoutKlon(pub.options)};
-  layoutUndo = []; layoutRedo = []; layoutForhaand = false; layoutEksternEndring = false; layoutMelding = null;
-  layoutBaseUpdatedAt = layoutPub ? layoutPub.updatedAt : '';
-  render();
-}
-function layoutAvbryt(){
-  if(layoutErEndret() && !confirm('Forkaste endringene i utkastet? De er ikke publisert.')) return;
-  layoutAvsluttRedigering();
-  goTo('innstillinger');
-}
-// Gjenoppretter forrige publiserte layout (sikkerhetskopien) inn i utkastet — publiseres først når du trykker «Publiser».
-function layoutGjenopprettForrige(){
-  const b = layoutPub && layoutPub.backup;
-  if(!b){ alert('Det finnes ingen tidligere publisert layout å gjenopprette.'); return; }
-  if(!confirm('Laste forrige publiserte layout inn i utkastet?\n\nDet lagres ikke før du trykker «Publiser», og du kan angre.')) return;
-  layoutDraftEndre(d => { d.layouts = layoutKlon(b.layouts); d.options = layoutKlon(b.options || {}); });
-}
-
-// ---- Rutenett-operasjoner (Desktop Dashboard) — via samme utkastsmotor ----
-const LAYOUT_GRID = 'admin-dashboard';
-function layoutGridFokus(id){
-  const el = document.querySelector('[data-dash-kort="' + id + '"]');
-  if(el) el.focus();
-}
-// Flytting/størrelsesendring med tastatur og +/−-knapper: endrer ETT kort, lar layoutGridPlaser() løse overlapp.
-function layoutGridEndre(id, modus, dx, dy){
-  if(!layoutDraft) return;
-  const start = layoutHent(layoutDraft.layouts, LAYOUT_GRID).find(w => w.widgetId === id);
-  if(!start) return;
-  const noekkelFoer = layoutNoekkel(layoutDraft);
-  // En vertikal flytting ville ellers gjort «ingenting» så lenge kortet fortsatt «faller tilbake» på samme plass under de andre. Pil
-  // opp/ned gjentar derfor steget til layouten faktisk endres (kortet har kommet forbi det neste), maks til rutenettets grense.
-  const forsok = (modus === 'flytt' && dy !== 0) ? LAYOUT_MAKS_Y : 1;
-  let ny = null;
-  for(let k = 1; k <= forsok; k++){
-    const arbeid = layoutKlon(layoutHent(layoutDraft.layouts, LAYOUT_GRID));
-    const a = arbeid.find(w => w.widgetId === id);
-    if(modus === 'flytt'){ a.x += dx; a.y += dy * k; } else { a.width += dx; a.height += dy; }
-    ny = layoutGridPlaser(arbeid, id, start.y);
-    const prov = layoutKlon(layoutDraft); layoutSett(prov.layouts, LAYOUT_GRID, ny);
-    if(layoutNoekkel(prov) !== noekkelFoer) break;
-  }
-  if(!ny) return;
-  if(layoutDraftEndre(d => { layoutSett(d.layouts, LAYOUT_GRID, ny); })) layoutGridFokus(id);
-}
-function layoutGridSkjul(id){
-  const def = LAYOUT_COMPONENTS[id];
-  if(def && !def.canHide){ layoutOpMelding(def.lockReason || ('«' + def.label + '» kan ikke skjules.')); render(); return; }
-  layoutDraftEndre(d => {
-    const liste = layoutKlon(layoutHent(d.layouts, LAYOUT_GRID));
-    const w = liste.find(x => x.widgetId === id);
-    if(!w || !w.visible) return false;
-    if(liste.filter(x => x.visible).length <= 1){ layoutOpMelding('Minst ett kort må være synlig på Dashboard.'); return false; }
-    w.visible = false;
-    layoutSett(d.layouts, LAYOUT_GRID, layoutGridPlaser(liste));
-  });
-}
-// Legger et bibliotekskort til på Dashboard: nederst i kolonne 1, deretter pakkes det oppover til første ledige plass.
-function layoutGridVis(id){
-  layoutDraftEndre(d => {
-    const liste = layoutKlon(layoutHent(d.layouts, LAYOUT_GRID));
-    const w = liste.find(x => x.widgetId === id);
-    if(!w || w.visible) return false;
-    const bunn = liste.filter(x => x.visible).reduce((m, x) => Math.max(m, x.y + x.height), 0);
-    w.visible = true; w.x = 0; w.y = bunn;
-    layoutSett(d.layouts, LAYOUT_GRID, layoutGridPlaser(liste));
-  });
 }
 
 // ================= Flatene leser publisert layout =================
@@ -6669,349 +6321,6 @@ function attachAlleSiderListeners(){
   if(b) b.addEventListener('click', () => goBack('dashboard'));
   document.querySelectorAll('[data-alle-side]').forEach(el => el.addEventListener('click', () => layoutNavigerTil(el.dataset.alleSide)));
 }
-
-// ================= Desktop Dashboard: rutenettet =================
-function layoutGridSynlige(liste){
-  return liste.filter(w => w.visible && LAYOUT_COMPONENTS[w.widgetId]).sort((a, b) => (a.y - b.y) || (a.x - b.x));
-}
-function layoutGridWidgetHtml(id, d){
-  const def = LAYOUT_COMPONENTS[id];
-  // Ett kort som feiler skal aldri ta med seg resten av Dashboard.
-  try{ return def.renderer({d}, def); }
-  catch(e){ console.error('[layoutGridWidgetHtml] Feilet for', id, e); return `<div class="bp-card panel"><div class="empty-note">${esc(def.label)} kunne ikke vises.</div></div>`; }
-}
-// Rutenettet i normalmodus og forhåndsvisning: ekte kort på plassene layouten gir. DOM-rekkefølgen er (y, x), så på smal skjerm —
-// der kortene stables i full bredde — blir leserekkefølgen riktig.
-function layoutGridHtml(liste, d, forhaand){
-  let synlige = layoutGridSynlige(liste);
-  if(!synlige.length && !forhaand) synlige = layoutGridSynlige(layoutDefaultEntries('admin-dashboard'));   // aldri et tomt Dashboard
-  if(!synlige.length) return `<div class="empty-note">Ingen kort er synlige på Dashboard.</div>`;
-  return `
-    <div class="dash-grid-wrap">
-      <div class="dash-grid${forhaand ? ' dash-grid-forhaand' : ''}"${forhaand ? ' inert' : ''}>
-        ${synlige.map(w => `<div class="dash-w${w.y > 0 ? ' dash-w-nedre' : ''}" data-dash-widget="${w.widgetId}" style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height};">${layoutGridWidgetHtml(w.widgetId, d)}</div>`).join('')}
-      </div>
-    </div>`;
-}
-// Rutenettet i redigering: skjematiske kort (ikke ekte innhold) på fast radhøyde, slik at pekerposisjon kan regnes om til
-// kolonne/rad uten at innholdshøyder forstyrrer.
-function layoutGridEditorHtml(liste){
-  const synlige = layoutGridSynlige(liste);
-  return `
-    <div class="dash-grid-wrap">
-      <div class="dash-grid dash-grid-edit" id="dash-grid">
-        ${synlige.map(w => {
-          const def = LAYOUT_COMPONENTS[w.widgetId], id = w.widgetId;
-          return `
-          <div class="dash-w dash-w-edit" data-dash-kort="${id}" tabindex="0" style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height};" aria-label="${esc(def.label)}. Piltaster flytter kortet, Skift og piltaster endrer størrelse.">
-            <div class="dash-edit-hode" data-dash-drag="${id}" title="Dra for å flytte">${luc('grip-vertical')}<span>${luc(def.ikon)} ${esc(def.label)}</span></div>
-            <div class="dash-edit-info"><span data-dash-mal>${w.width} × ${w.height}</span> · ${esc(def.beskrivelse)}</div>
-            <div class="dash-edit-kontroller">
-              <span>Bredde <button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:-1:0" aria-label="Smalere">−</button><button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:1:0" aria-label="Bredere">+</button></span>
-              <span>Høyde <button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:0:-1" aria-label="Lavere">−</button><button type="button" class="dash-edit-mini" data-dash-storrelse="${id}:0:1" aria-label="Høyere">+</button></span>
-              ${def.canHide ? `<button type="button" class="dash-edit-mini" data-dash-skjul="${id}" title="Skjul kortet (dataene røres ikke)">${luc('eye-off')} Skjul</button>` : `<span class="lay-laas" title="${esc(def.lockReason || 'Låst')}">${luc('lock')} Låst</span>`}
-            </div>
-            <div class="dash-edit-resize" data-dash-resize="${id}" title="Dra for å endre størrelse"></div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-}
-function layoutGridBibliotekHtml(liste){
-  const skjulte = liste.filter(w => !w.visible && LAYOUT_COMPONENTS[w.widgetId]);
-  return `
-    <div class="dash-edit-bibliotek">
-      <span class="dash-edit-bib-tittel">Legg til kort</span>
-      ${skjulte.length
-        ? skjulte.map(w => `<button type="button" class="dash-edit-chip" data-dash-vis="${w.widgetId}" title="${esc(LAYOUT_COMPONENTS[w.widgetId].beskrivelse)}">${luc('plus')} ${esc(LAYOUT_COMPONENTS[w.widgetId].label)}</button>`).join('')
-        : '<span class="dash-edit-tom">Alle kort ligger på Dashboard.</span>'}
-    </div>`;
-}
-// Flytt/størrelse med musepeker/berøring. Kortene «snapper» til rutenettet mens du drar: hver forskyvning i hele kolonner/rader gir en
-// KANDIDAT-layout (via layoutGridPlaser) som tegnes direkte i DOM-en uten render() — så du ser nøyaktig hva som skjer med de andre
-// kortene. Først når du slipper, går kandidaten inn i utkastet (med Angre-punkt). Avbrutt drag (pointercancel) forkastes.
-function layoutGridStartDrag(e, id, modus){
-  if(e.button !== undefined && e.button !== 0) return;
-  const grid = document.getElementById('dash-grid');
-  const utgangspunkt = layoutDraft ? layoutKlon(layoutHent(layoutDraft.layouts, LAYOUT_GRID)) : null;
-  const s = utgangspunkt && utgangspunkt.find(w => w.widgetId === id);
-  if(!grid || !s) return;
-  e.preventDefault();
-  const kort = grid.querySelector('[data-dash-kort="' + id + '"]');
-  const rect = grid.getBoundingClientRect();
-  const stegX = (rect.width - LAYOUT_GAP_PX * (LAYOUT_KOL - 1)) / LAYOUT_KOL + LAYOUT_GAP_PX;
-  const stegY = LAYOUT_RAD_PX + LAYOUT_GAP_PX;
-  const handle = e.currentTarget;
-  const x0 = e.clientX, y0 = e.clientY, pid = e.pointerId;
-  let sisteNokkel = '', kandidat = null;
-  try{ handle.setPointerCapture(pid); }catch(_){}
-  if(kort) kort.classList.add('drar');
-  const flytt = (ev) => {
-    const dc = Math.round((ev.clientX - x0) / stegX), dr = Math.round((ev.clientY - y0) / stegY);
-    const nok = dc + ',' + dr;
-    if(nok === sisteNokkel) return;
-    sisteNokkel = nok;
-    const arbeid = layoutKlon(utgangspunkt);
-    const a = arbeid.find(w => w.widgetId === id);
-    if(modus === 'flytt'){ a.x = s.x + dc; a.y = s.y + dr; } else { a.width = s.width + dc; a.height = s.height + dr; }
-    kandidat = layoutGridPlaser(arbeid, id, s.y);
-    kandidat.forEach(w => {
-      if(!w.visible) return;
-      const el = grid.querySelector('[data-dash-kort="' + w.widgetId + '"]');
-      if(!el) return;
-      el.style.setProperty('--gx', w.x + 1); el.style.setProperty('--gy', w.y + 1);
-      el.style.setProperty('--gw', w.width); el.style.setProperty('--gh', w.height);
-      const mal = el.querySelector('[data-dash-mal]');
-      if(mal) mal.textContent = w.width + ' × ' + w.height;
-    });
-  };
-  const slutt = (avbrutt) => {
-    handle.removeEventListener('pointermove', flytt);
-    handle.removeEventListener('pointerup', opp);
-    handle.removeEventListener('pointercancel', avbryt);
-    try{ handle.releasePointerCapture(pid); }catch(_){}
-    if(!avbrutt && kandidat) layoutDraftEndre(d => { layoutSett(d.layouts, LAYOUT_GRID, kandidat); });
-    else render();
-  };
-  const opp = () => slutt(false);
-  const avbryt = () => slutt(true);
-  handle.addEventListener('pointermove', flytt);
-  handle.addEventListener('pointerup', opp);
-  handle.addEventListener('pointercancel', avbryt);
-}
-
-// ================= Listeeditor (Sidemeny, Bilinformasjon, Min Bil, Sjåførkontroll, Mobil Dashboard, standardsider) =================
-function layoutRadHtml(g, e, def, barn){
-  const modus = layoutModusFor(g);
-  const opt = (layoutDraft.options && layoutDraft.options[g]) || {};
-  const laast = !def.canHide;
-  return `
-    <div class="lay-rad${e.visible ? '' : ' skjult'}${barn ? ' barn' : ''}${laast ? ' laast' : ''}" data-lay-rad="${def.id}" data-lay-gruppe="${g}">
-      ${def.canMove ? `<span class="lay-handle" data-lay-drag="${def.id}" title="Dra for å flytte" aria-hidden="true">${luc('grip-vertical')}</span>` : `<span class="lay-handle lay-fast" title="Låst plassering">${luc('pin')}</span>`}
-      <label class="lay-navn">
-        <input type="checkbox" data-lay-vis="${def.id}" ${e.visible ? 'checked' : ''} ${laast ? 'disabled' : ''} aria-label="Synlig: ${esc(def.label)}">
-        <span>${def.ikon ? luc(def.ikon) : ''} ${esc(def.label)}</span>
-      </label>
-      ${laast ? `<span class="lay-laas" title="${esc(def.lockReason || 'Låst — kan ikke skjules')}">${luc('lock')}<span class="lay-laas-tekst">Låst</span></span>` : ''}
-      ${def.tab ? `<label class="lay-std" title="Fanen som åpnes først"><input type="radio" name="lay-std-${g}" data-lay-std="${def.id}" ${opt.defaultTab === def.id ? 'checked' : ''} ${e.visible ? '' : 'disabled'}> Standardfane</label>` : ''}
-      ${def.widths ? `<select class="lay-valg" data-lay-bredde="${def.id}" aria-label="Bredde">${def.widths.map(w => `<option value="${w}" ${e.width === w ? 'selected' : ''}>${w === 12 ? 'Full bredde' : (w === 6 ? 'Halv bredde' : w + '/12')}</option>`).join('')}</select>` : ''}
-      ${def.collapsible ? `<select class="lay-valg" data-lay-start="${def.id}" aria-label="Starttilstand"><option value="apen" ${!e.collapsed ? 'selected' : ''}>Starter åpen</option><option value="lukket" ${e.collapsed ? 'selected' : ''}>Starter lukket</option></select>` : ''}
-      ${modus === 'sidebar' ? `<select class="lay-valg" data-lay-seksjon="${def.id}" aria-label="Meny"><option value="primary" ${e.section !== 'secondary' ? 'selected' : ''}>Primær meny</option><option value="secondary" ${e.section === 'secondary' ? 'selected' : ''}>Sekundær meny</option></select>` : ''}
-      ${def.canMove ? `<span class="lay-flytt"><button type="button" class="dash-edit-mini" data-lay-opp="${def.id}" aria-label="Flytt opp">${luc('chevron-up')}</button><button type="button" class="dash-edit-mini" data-lay-ned="${def.id}" aria-label="Flytt ned">${luc('chevron-down')}</button></span>` : ''}
-    </div>`;
-}
-function layoutListeEditorHtml(g){
-  const liste = layoutHent(layoutDraft.layouts, g);
-  const modus = layoutModusFor(g);
-  const rader = (filter) => liste.filter(e => { const d = LAYOUT_COMPONENTS[e.widgetId]; return d && !d.parent && filter(e); })
-    .map(e => {
-      const d = LAYOUT_COMPONENTS[e.widgetId];
-      const barn = liste.filter(b => { const bd = LAYOUT_COMPONENTS[b.widgetId]; return bd && bd.parent === d.id; });
-      return layoutRadHtml(g, e, d, false) + barn.map(b => layoutRadHtml(g, b, LAYOUT_COMPONENTS[b.widgetId], true)).join('');
-    }).join('');
-  if(modus === 'sidebar'){
-    return `
-      <div class="lay-sidebar-editor">
-        <div><div class="lay-liste-tittel">Primær meny</div><div class="lay-liste" data-lay-liste="${g}">${rader(e => e.section !== 'secondary')}</div></div>
-        <div><div class="lay-liste-tittel">Sekundær meny</div><div class="lay-liste" data-lay-liste="${g}">${rader(e => e.section === 'secondary')}</div></div>
-      </div>
-      <div class="required-hint" style="margin-top:12px;">Skjulte sider er fortsatt tilgjengelige under «Alle sider». Hjem, Innstillinger og Alle sider kan ikke skjules. Punkter kan dras mellom primær og sekundær meny. Mobilmenyen (☰) bruker samme oppsett for sider som finnes der.</div>`;
-  }
-  return `<div class="lay-liste" data-lay-liste="${g}">${rader(() => true)}</div>`;
-}
-// Forhåndsvisning for listeflater: SKJEMATISK — rekkefølge, bredde, starttilstand og skjulte deler. (Ekte innhold vises for Desktop
-// Dashboard; øvrige flater krever ekte data/bil/sjåførøkt og forhåndsvises derfor kun som struktur.)
-function layoutSkjematiskHtml(g){
-  const liste = layoutHent(layoutDraft.layouts, g);
-  const modus = layoutModusFor(g);
-  const bit = e => {
-    const d = LAYOUT_COMPONENTS[e.widgetId];
-    const barn = liste.filter(b => { const bd = LAYOUT_COMPONENTS[b.widgetId]; return bd && bd.parent === d.id && b.visible; });
-    return `<div class="lay-forh-blokk" style="--lw:${(modus === 'seksjoner' || g.startsWith(LAYOUT_SIDER_OMRADE)) ? e.width : 12};">
-      <b>${d.ikon ? luc(d.ikon) : ''} ${esc(d.label)}</b>${d.collapsible ? `<span class="lay-forh-tag">${e.collapsed ? 'lukket' : 'åpen'}</span>` : ''}
-      ${barn.length ? `<div class="lay-forh-barn">${barn.map(b => `<span>${esc(LAYOUT_COMPONENTS[b.widgetId].label)}</span>`).join('')}</div>` : ''}
-    </div>`;
-  };
-  const toppSynlig = f => liste.filter(e => { const d = LAYOUT_COMPONENTS[e.widgetId]; return d && !d.parent && e.visible && f(e); });
-  const skjulte = liste.filter(e => !e.visible).map(e => LAYOUT_COMPONENTS[e.widgetId].label);
-  const skjultHtml = skjulte.length ? `<div class="required-hint" style="margin-top:10px;">Skjult: ${skjulte.map(esc).join(', ')}</div>` : '';
-  if(modus === 'sidebar'){
-    return `<div class="lay-forh lay-forh-side"><div><div class="lay-liste-tittel">Primær meny</div>${toppSynlig(e => e.section !== 'secondary').map(bit).join('')}</div>
-      <div><div class="lay-liste-tittel">Sekundær meny</div>${toppSynlig(e => e.section === 'secondary').map(bit).join('')}</div></div>${skjultHtml}`;
-  }
-  return `<div class="lay-forh"><div class="lay-forh-flyt">${toppSynlig(() => true).map(bit).join('')}</div></div>${skjultHtml}`;
-}
-function layoutStartListeDrag(e, id, g){
-  e.preventDefault();
-  const handle = e.currentTarget;
-  const rad = handle.closest('[data-lay-rad]');
-  const pid = e.pointerId;
-  let maal = null, etter = false;
-  try{ handle.setPointerCapture(pid); }catch(_){}
-  if(rad) rad.classList.add('drar');
-  const rydd = () => document.querySelectorAll('.lay-rad.mal').forEach(x => x.classList.remove('mal', 'mal-etter'));
-  const flytt = (ev) => {
-    const el = document.elementFromPoint(ev.clientX, ev.clientY);
-    const r = el && el.closest ? el.closest('[data-lay-rad]') : null;
-    rydd();
-    if(r && r !== rad){
-      const b = r.getBoundingClientRect();
-      etter = ev.clientY > b.top + b.height / 2;
-      maal = r; r.classList.add('mal'); if(etter) r.classList.add('mal-etter');
-    } else maal = null;
-  };
-  const slutt = (avbrutt) => {
-    handle.removeEventListener('pointermove', flytt);
-    handle.removeEventListener('pointerup', opp);
-    handle.removeEventListener('pointercancel', avbryt);
-    try{ handle.releasePointerCapture(pid); }catch(_){}
-    rydd();
-    if(rad) rad.classList.remove('drar');
-    if(!avbrutt && maal) layoutOpFlyttTil(g, id, maal.dataset.layRad, etter);
-  };
-  const opp = () => slutt(false);
-  const avbryt = () => slutt(true);
-  handle.addEventListener('pointermove', flytt);
-  handle.addEventListener('pointerup', opp);
-  handle.addEventListener('pointercancel', avbryt);
-}
-
-// ================= Layout Editor-skjermen =================
-function layoutMeldingHtml(){
-  if(!layoutMelding) return '<div class="og-melding" id="layout-melding" hidden></div>';
-  return `<div class="og-melding ${layoutMelding.type}" id="layout-melding">${esc(layoutMelding.tekst)}${layoutMelding.liste ? `<ul style="margin:6px 0 0 18px;">${layoutMelding.liste.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}</div>`;
-}
-function renderLayoutEditor(){
-  if(!layoutKanRedigere()) return `<div class="empty-note">Kun administrator kan redigere layout.</div>`;
-  if(!layoutDraft){
-    return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="lay-tilbake">← Innstillinger</button></div>
-      <div class="empty-note">Ingen layoutredigering pågår. Start fra Innstillinger → Layout Editor.</div>`;
-  }
-  const g = layoutAktivGruppeNokkel();
-  const endret = layoutErEndret();
-  const modus = layoutModusFor(g);
-  const mobil = currentUiExperience() === 'mobil';
-  const forhaand = layoutForhaand;
-  let kropp;
-  if(modus === 'grid'){
-    if(mobil) kropp = `<div class="empty-note">Rutenett-editoren for Desktop Dashboard krever desktopvisning (minst 768 px bredde). Åpne appen på en bredere skjerm — de øvrige undersidene kan redigeres her.</div>`;
-    else if(forhaand) kropp = `<div class="dash-edit-hjelp">${luc('eye')} Forhåndsvisning av rutenettet. Forsiden bruker egen layout per bruker, via «Rediger layout» på dashboardet. Dette utkastet publiseres ikke dit.</div>${layoutGridHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID), dashboardBeregning(), true)}`;
-    else kropp = `<div class="dash-edit-hjelp">Forsiden styres av «Rediger layout» på dashboardet og lagres per bruker. Dette rutenettet er det delte utkastet og publiseres ikke til forsiden. Dra i kortets tittel for å flytte, i hjørnet for å endre størrelse — eller bruk piltastene (Skift + piltaster endrer størrelse).</div>
-      ${layoutGridBibliotekHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID))}${layoutGridEditorHtml(layoutHent(layoutDraft.layouts, LAYOUT_GRID))}`;
-  } else if(forhaand){
-    kropp = `<div class="dash-edit-hjelp">${luc('eye')} Skjematisk forhåndsvisning av «${esc(layoutGruppeLabel(g))}» med utkastet ditt — kun rekkefølge, bredde og starttilstand. Ingenting er publisert ennå.</div>${layoutSkjematiskHtml(g)}`;
-  } else {
-    const hint = {
-      'admin-sidebar':'Endre rekkefølge, skjul/vis sider og flytt dem mellom primær og sekundær meny.',
-      'vehicle-profile':'Endre rekkefølge, skjul/vis seksjoner, velg halv eller full bredde og om seksjonen starter åpen eller lukket. Historikk har egne faner (rekkefølge, synlighet og standardfane).',
-      'driver-min-bil':'Rekkefølge, synlighet og starttilstand — aldri fri bredde eller høyde. Bilkort, løftebord, Registrer skade, Registrer varsellampe og Sjekk ut bil er låst. «Starter åpen» gjelder ett panel om gangen (det første i lista).',
-      'driver-control':'Begrenset redigering: rekkefølgen er låst (kilometerstand, varsellamper, kontrollavvik, kommentar til avvik, kommentar fra sjåfør, nye skader, send). Kommentarfeltene kan skjules. Løftebord håndteres på Min Bil. Validering og lagringsrekkefølge endres aldri.',
-      'mobile-dashboard':'Mobilforsiden er den samme kontrollsentralen som desktop. Denne listen publiseres ikke dit.'
-    }[layoutEditorGruppe] || 'Seksjonsrekkefølge, synlighet, starttilstand og standardfane. Skjemaer, tabeller, kalenderceller og modaler kan ikke flyttes fritt.';
-    kropp = `<div class="dash-edit-hjelp">${hint}</div>${layoutListeEditorHtml(g)}`;
-  }
-  const omradeFaner = Object.keys(LAYOUT_OMRADER).map(a => `<button type="button" class="profil-tab bp-seg-btn ${layoutEditorGruppe === a ? 'active' : ''}" data-lay-omrade="${a}">${luc(LAYOUT_OMRADER[a].ikon)} ${esc(LAYOUT_OMRADER[a].label)}</button>`).join('');
-  const sideFaner = layoutEditorGruppe === LAYOUT_SIDER_OMRADE
-    ? `<div class="profil-tabs bp-seg lay-side-faner">${Object.keys(LAYOUT_STANDARDSIDER).map(p => `<button type="button" class="profil-tab bp-seg-btn ${layoutEditorSide === p ? 'active' : ''}" data-lay-side="${p}">${esc(LAYOUT_STANDARDSIDER[p])}</button>`).join('')}</div>` : '';
-  return `
-    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="lay-tilbake">← Innstillinger</button></div>
-    <div class="dash-edit-bar">
-      <div class="dash-edit-tittel">${luc('layout-dashboard')} Layout Editor <span class="dash-edit-status">${endret ? '● Upubliserte endringer' : 'Ingen endringer'}</span></div>
-      <div class="dash-edit-knapper">
-        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-angre${layoutUndo.length ? '' : ' disabled'}>${luc('undo-2')} Angre</button>
-        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-gjorom${layoutRedo.length ? '' : ' disabled'}>${luc('redo-2')} Gjør om</button>
-        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-forhaand>${forhaand ? luc('pencil') + ' Fortsett redigering' : luc('eye') + ' Forhåndsvis'}</button>
-        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-avbryt>Avbryt</button>
-        <button type="button" class="bp-btn bp-btn-primary btn small" id="layout-publiser" data-lay-publiser${endret && !layoutLagrer ? '' : ' disabled'}>${layoutLagrer ? 'Publiserer …' : 'Publiser'}</button>
-      </div>
-    </div>
-    <div class="profil-tabs bp-seg lay-omrade-faner">${omradeFaner}</div>
-    ${sideFaner}
-    <div class="og-melding feil" id="layout-ekstern"${layoutEksternEndring ? '' : ' hidden'}>${esc(LAYOUT_FEILTEKST_KONFLIKT)} <button type="button" class="bp-btn bp-btn-primary btn small" data-lay-last-nyeste>Last inn nyeste versjon</button></div>
-    ${layoutMeldingHtml()}
-    <div class="lay-kropp">${kropp}</div>
-    <div class="lay-bunn">
-      <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-tb-side>${luc('rotate-ccw')} Tilbakestill denne siden</button>
-      <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-tb-alt>${luc('rotate-ccw')} Tilbakestill hele appen</button>
-      ${layoutPub && layoutPub.backup ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-gjenopprett title="Laster forrige publiserte layout inn i utkastet">${luc('history')} Gjenopprett forrige publiserte layout</button>` : ''}
-    </div>`;
-}
-function attachLayoutEditorListeners(){
-  const q = (s, f) => document.querySelectorAll(s).forEach(f);
-  q('#lay-tilbake', el => el.addEventListener('click', () => goTo('innstillinger')));
-  if(!layoutDraft) return;
-  q('[data-lay-omrade]', el => el.addEventListener('click', () => { layoutEditorGruppe = el.dataset.layOmrade; layoutForhaand = false; layoutMelding = null; render(); }));
-  q('[data-lay-side]', el => el.addEventListener('click', () => { layoutEditorSide = el.dataset.laySide; layoutForhaand = false; layoutMelding = null; render(); }));
-  q('[data-lay-angre]', el => el.addEventListener('click', layoutAngre));
-  q('[data-lay-gjorom]', el => el.addEventListener('click', layoutGjorOm));
-  q('[data-lay-forhaand]', el => el.addEventListener('click', () => { layoutForhaand = !layoutForhaand; render(); }));
-  q('[data-lay-avbryt]', el => el.addEventListener('click', layoutAvbryt));
-  q('[data-lay-publiser]', el => el.addEventListener('click', layoutPubliser));
-  q('[data-lay-tb-side]', el => el.addEventListener('click', layoutTilbakestillSide));
-  q('[data-lay-tb-alt]', el => el.addEventListener('click', layoutTilbakestillAlt));
-  q('[data-lay-gjenopprett]', el => el.addEventListener('click', layoutGjenopprettForrige));
-  q('[data-lay-last-nyeste]', el => el.addEventListener('click', layoutLastNyeste));
-  const g = layoutAktivGruppeNokkel();
-  // Rutenett
-  q('[data-dash-vis]', el => el.addEventListener('click', () => layoutGridVis(el.dataset.dashVis)));
-  q('[data-dash-skjul]', el => el.addEventListener('click', () => layoutGridSkjul(el.dataset.dashSkjul)));
-  q('[data-dash-storrelse]', el => el.addEventListener('click', () => {
-    const [id, dx, dy] = el.dataset.dashStorrelse.split(':');
-    layoutGridEndre(id, 'storrelse', Number(dx), Number(dy));
-  }));
-  q('[data-dash-drag]', el => el.addEventListener('pointerdown', (e) => layoutGridStartDrag(e, el.dataset.dashDrag, 'flytt')));
-  q('[data-dash-resize]', el => el.addEventListener('pointerdown', (e) => layoutGridStartDrag(e, el.dataset.dashResize, 'storrelse')));
-  // Tastatur (kun når selve kortet har fokus, ikke knappene inni): piler flytter, Skift+piler endrer størrelse.
-  const piler = {ArrowLeft:[-1, 0], ArrowRight:[1, 0], ArrowUp:[0, -1], ArrowDown:[0, 1]};
-  q('[data-dash-kort]', kort => kort.addEventListener('keydown', (e) => {
-    if(e.target !== kort || !piler[e.key]) return;
-    e.preventDefault();
-    layoutGridEndre(kort.dataset.dashKort, e.shiftKey ? 'storrelse' : 'flytt', piler[e.key][0], piler[e.key][1]);
-  }));
-  // Liste
-  q('[data-lay-vis]', el => el.addEventListener('change', () => layoutOpSynlig(g, el.dataset.layVis, el.checked)));
-  q('[data-lay-opp]', el => el.addEventListener('click', () => layoutOpFlytt(g, el.dataset.layOpp, 'opp')));
-  q('[data-lay-ned]', el => el.addEventListener('click', () => layoutOpFlytt(g, el.dataset.layNed, 'ned')));
-  q('[data-lay-bredde]', el => el.addEventListener('change', () => layoutOpBredde(g, el.dataset.layBredde, Number(el.value))));
-  q('[data-lay-start]', el => el.addEventListener('change', () => layoutOpStart(g, el.dataset.layStart, el.value === 'lukket')));
-  q('[data-lay-seksjon]', el => el.addEventListener('change', () => layoutOpSeksjon(g, el.dataset.laySeksjon, el.value)));
-  q('[data-lay-std]', el => el.addEventListener('change', () => layoutOpStandardfane(g, el.dataset.layStd)));
-  q('[data-lay-drag]', el => el.addEventListener('pointerdown', (e) => layoutStartListeDrag(e, el.dataset.layDrag, g)));
-}
-// Innstillinger → Layout Editor: status og inngang til hver underside.
-function layoutStatusTekst(){
-  const pub = layoutPub;
-  const nar = pub && pub.updatedAt ? ' ' + fmt(pub.updatedAt.slice(0, 10)) : '';
-  return {
-    'ok': `Egendefinert layout${pub && pub.updatedBy ? ' — sist publisert av ' + esc(pub.updatedBy) : ''}${nar}.`,
-    'migrert': 'Layouten er migrert fra det tidligere dashboard-oppsettet og lagres som ny konfigurasjon.',
-    'mangler': 'Standardlayout (ingen egen layout publisert).',
-    'korrupt': '⚠️ Den lagrede layouten er ugyldig — standardlayout vises til du publiserer en ny.',
-    'ny-versjon': '⚠️ Den lagrede layouten er fra en nyere versjon av appen — standardlayout vises. Oppdater appen før du redigerer.',
-    'lesefeil': '⚠️ Kunne ikke lese den lagrede layouten — standardlayout vises. Last siden på nytt før du redigerer.',
-    'ikke-lastet': 'Layouten er ikke lastet ennå.'
-  }[layoutStatus] || '';
-}
-function layoutInnstillingerHtml(){
-  const kan = layoutKanRedigere() && !['lesefeil', 'ny-versjon'].includes(layoutStatus);
-  const knapp = (g, side) => {
-    const a = g;
-    return `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-lay-innstart="${a}${side ? ':' + side : ''}" ${kan ? '' : 'disabled'}>${luc(LAYOUT_OMRADER[a].ikon)} ${esc(LAYOUT_OMRADER[a].label)}</button>`;
-  };
-  return `
-    <div class="required-hint" style="margin-bottom:12px;">
-      Layout Editor styrer plassering, rekkefølge, synlighet, kortstørrelse, seksjonsbredde, starttilstand og standardfane — aldri forretningslogikk,
-      datamodell, kontrollregler, saksmotor, verkstedlogikk, kilometerlogikk, lagringslogikk eller HMS-validering. Endringer gjøres i et lokalt utkast
-      og lagres først når du trykker «Publiser». Innstillingen er felles for hele bilparken, ikke personlig.
-      En tidligere publisert Dashboard-layout beholder plassering til du tilbakestiller Desktop Dashboard og Mobil Dashboard og publiserer.
-      Flåtehelse, Operativ etterlevelse og Verkstedoppfølging kan ikke skjules.
-    </div>
-    <div class="required-hint" style="margin-bottom:12px;font-weight:600;">${layoutStatusTekst()}</div>
-    <div class="lay-innst-knapper">
-      ${Object.keys(LAYOUT_OMRADER).map(a => knapp(a)).join('')}
-    </div>`;
-}
-
 
 // gjelder KUN bilvalget i Kontroll-skjermen,
 // ikke Biloversikt/Historikk/Rapporter/Planlegging (disse grupperer fortsatt uendret etter
@@ -8738,12 +8047,13 @@ function vtHarType(t, kode){
 const VT_TYPE_LABEL = {
   'eu-kontroll':'EU-kontroll',
   service:'Service',
+  loftebord:'Løftebordkontroll',
   dekkskift:'Dekkskift',
   ruteskift:'Ruteskift',
   reparasjon:'Reparasjon'
 };
-const VT_TYPE_REKKEFOLGE = ['eu-kontroll','service','reparasjon','dekkskift','ruteskift'];
-const VT_ORDRE_TYPER = ['eu-kontroll','service','reparasjon'];
+const VT_TYPE_REKKEFOLGE = ['eu-kontroll','service','loftebord','reparasjon','dekkskift','ruteskift'];
+const VT_ORDRE_TYPER = ['eu-kontroll','service','loftebord','reparasjon'];
 const VT_EKSKLUSIVE_TYPER = ['dekkskift','ruteskift'];
 function vtTyperListe(tEllerStreng){
   const raw = (tEllerStreng && typeof tEllerStreng === 'object') ? tEllerStreng.type : tEllerStreng;
@@ -8791,6 +8101,7 @@ function vtTypeIkon(t){
   if(rs) return '💥';
   if(vtHarType(t, 'service')) return '🔧';
   if(vtHarType(t, 'dekkskift')) return '🛞';
+  if(vtHarType(t, 'loftebord')) return '🛗';
   return '🏭';
 }
 // Prioritet 58: PARALLELL Lucide-variant av vtTypeIkon() over. vtTypeIkon() er
@@ -9760,12 +9071,8 @@ function goTo(scr, vehicleId, _isBack){
   if(ADMIN_SCREENS.includes(scr) && !driverMode && !loggedInRole){
     scr = 'login';
   }
-  // Prioritet 58: ulagrede endringer i dashboardutkastet følger ikke med ut av Dashboard uten at
-  // administrator har bekreftet det. Blir man stående (Avbryt), skjer ingen navigasjon.
-  // Prioritet 60: samme vern for hele Layout Editor — et åpent utkast forlates ikke uten bekreftelse.
-  if(layoutDraft && scr !== 'layouteditor'){
-    if(layoutErEndret() && !confirm('Du har upubliserte endringer i layouten. Forkaste dem og forlate editoren?')) return;
-    layoutAvsluttRedigering();
+  if(scr !== screen){
+    uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = '';
   }
   // Åpen/lukket for generelle seksjonsrammer er ren visningstilstand: nullstilles ved sidebytte og når en annen bil åpnes.
   if(scr !== screen || (scr === 'bilkort' && vehicleId !== undefined && vehicleId !== currentVehicleId)) layoutKollaps = {};
@@ -9786,7 +9093,7 @@ function goTo(scr, vehicleId, _isBack){
   editingDamageId = null;
   pendingPhotoData = null;
   headerMenuOpen = false;
-  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; editingVTId = null; showVtFilterMeny = false; vtOversiktFane = 'kommende'; vtOversiktFaneOnsket = ''; }
+  if(scr !== 'verksted'){ showAddVT = false; vtPrefillVehicleId = ''; vtPrefillSakId = ''; vtPrefillKommentar = ''; vtFlereDetaljerApen = false; vtBestillingMal = ''; vtBeOmBil = false; editingVTId = null; showVtFilterMeny = false; vtOversiktFane = 'kommende'; vtOversiktFaneOnsket = ''; }
   else if(forrigeScreen !== 'verksted' && !editingVTId){
     if(vtOversiktFaneOnsket){ vtOversiktFane = vtOversiktFaneOnsket; vtOversiktFaneOnsket = ''; }
     else vtOversiktFane = WorkshopFollowupEngine.kreverOppfolging().length ? 'krever-oppfolging' : 'kommende';
@@ -9813,6 +9120,7 @@ function goTo(scr, vehicleId, _isBack){
   // Kjøretøyprofilens faner og redigeringspanel nullstilles ved bytte av bil,
   // på nøyaktig samme måte som de tidligere akkordion-seksjonene gjorde (se bilkort-linjen over).
   if(scr === 'bilkort' && vehicleId !== undefined){ bilkortAktivFane = layoutFaneNokkel(layoutStartFane('vehicle-profile', 'vehicle.historikk')) || bilkortHistFaner()[0]; showBilinfoRediger = false; }
+  if(uxApneInlineRedigering && scr === 'bilkort'){ showBilinfoRediger = true; uxApneInlineRedigering = false; }
   render();
   // Prioritet 65.2: en kjøretøyprofil skal alltid åpnes på toppen. Uten dette arver den
   // scrollposisjonen fra Biloversikt, slik at Bil 12 (langt nede i listen) åpnet midt på
@@ -11164,6 +10472,21 @@ function visVerkstedordreValg(o, onNy, onLeggTil){
   leggBtn.focus();
 }
 function vtLesValgteTyperFraSkjema(){
+  if(document.getElementById('vt-bestill-mal')){
+    const type = (document.querySelector('input[name="vt-bestill-type"]:checked') || {}).value || 'service';
+    if(type === 'service'){
+      const ut = [];
+      const s = document.getElementById('vt-oppg-service');
+      const l = document.getElementById('vt-oppg-loftebord');
+      if(!s || s.checked) ut.push('service');
+      if(l && l.checked) ut.push('loftebord');
+      return ut.length ? vtTyperListe(ut.join(',')) : ['service'];
+    }
+    if(type === 'dekkskift') return ['dekkskift'];
+    if(type === 'eu-kontroll') return ['eu-kontroll'];
+    if(type === 'loftebord') return ['loftebord'];
+    return ['reparasjon'];
+  }
   const valgte = Array.from(document.querySelectorAll('input[name="vt-type"]:checked')).map(el => el.value).filter(k => VT_TYPE_REKKEFOLGE.includes(k));
   if(valgte.length) return vtTyperListe(valgte.join(','));
   if(VT_TYPE_REKKEFOLGE.includes(vtPrefillType)) return [vtPrefillType];
@@ -11332,6 +10655,8 @@ function vtNullstillAddSkjema(){
   vtPrefillSakId = '';
   vtPrefillKommentar = '';
   vtFlereDetaljerApen = false;
+  vtBestillingMal = '';
+  vtBeOmBil = false;
 }
 async function leggTilPaEksisterendeVerkstedordre(eksisterende, payload){
   const t = verkstedtimer.find(x => x.id === eksisterende.id);
@@ -11521,6 +10846,7 @@ async function submitAddVT(ev){
   // kombineres på én ordre (kommaseparert Type). Dekkskift/Ruteskift er eksklusive.
   const typer = vtLesValgteTyperFraSkjema();
   const type = typer.join(',');
+  const bestillType = document.getElementById('vt-bestill-mal') ? ((document.querySelector('input[name="vt-bestill-type"]:checked') || {}).value || '') : '';
   const mobilitetsgarantiEl = document.getElementById('vt-mobilitetsgaranti');
   const mobilitetsgarantiAktivert = !!(typer.includes('service') && mobilitetsgarantiEl && mobilitetsgarantiEl.checked);
   const msgEl = document.getElementById('vt-msg');
@@ -13269,7 +12595,7 @@ const DESKTOP_FRAME_TITTEL = {
   bestill:'Bestill tjenester', kommentaroversikt:'Kommentarer',
   dekkoversikt:'Dekk', kontrolloversikt:'Kontroller',
   kontrollhistorikk:'Full kontrollhistorikk',
-  allesider:'Alle sider', layouteditor:'Layout Editor'
+  allesider:'Alle sider'
 };
 function desktopFrameTittel(){ return DESKTOP_FRAME_TITTEL[screen] || 'Bilpark'; }
 // «📱 Bytt til Mobil-visning»/«🖥️ Bytt til Desktop-visning» er FLYTTET inn i
@@ -13361,7 +12687,6 @@ function render(){
   else if(screen === 'bestill') body = renderBestillTjenester();
   else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
   else if(screen === 'allesider') body = renderAlleSider();
-  else if(screen === 'layouteditor') body = renderLayoutEditor();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
   // Bilparkhelse Status og "Biler i drift nå"
@@ -13462,7 +12787,8 @@ function render(){
   if(frameVarslerBtn) frameVarslerBtn.addEventListener('click', (e) => { e.stopPropagation(); varselPopApen = !varselPopApen; render(); });
   const layoutGear = document.getElementById('ux-layout-gear');
   if(layoutGear) layoutGear.addEventListener('click', () => {
-    if(uxLayoutModus && uxLayoutSide === screen){ uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; }
+    if(UX_LAYOUT_SIDER.indexOf(screen) < 0) return;
+    if(uxLayoutModus && uxLayoutSide === screen){ uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; }
     else {
       uxLayoutSide = screen;
       uxLayoutDraftSide = screen;
@@ -13530,7 +12856,6 @@ function render(){
   else if(screen === 'bestill') attachBestillTjenesterListeners();
   else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
   else if(screen === 'allesider') attachAlleSiderListeners();
-  else if(screen === 'layouteditor') attachLayoutEditorListeners();
   } catch(e){ console.error('[render] sidelistere feilet', e); }
   try{
     attachUxLayoutListeners();
@@ -16116,29 +15441,39 @@ function uxDatoStatusMini(kind, dato, dager, attr){
   if(kind === 'snart') return uxMiniStatusHtml('snart', 'Utløper snart', (dager == null ? '' : dager + ' dager igjen'), '', attr);
   return uxMiniStatusHtml('forfalt', 'Forfalt', fmt(dato), '', attr);
 }
+function uxStatusChipHtml(tone, tekst, attr){
+  const ikon = tone === 'gyldig' ? 'check' : (tone === 'snart' ? 'triangle-alert' : (tone === 'forfalt' ? 'x' : 'minus'));
+  const tag = attr ? 'button' : 'div';
+  return `<${tag}${attr ? ' type="button"' : ''} class="ux-status ux-mini ux-mini-${tone}"${attr ? ' ' + attr : ''}>${luc(ikon)}<span>${esc(tekst)}</span></${tag}>`;
+}
 function uxLoftebordMini(v){
   const lb = loftebordKontrollStatus(v.id);
   const attr = `data-apne-loftebord="${esc(v.id)}"`;
-  if(!lb.siste || !lb.gyldigTil) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
-  if(lb.status === 'gronn') return uxMiniStatusHtml('gyldig', 'Gyldig', 'Neste kontroll', fmt(lb.gyldigTil), attr);
-  if(lb.status === 'gul') return uxMiniStatusHtml('snart', 'Utløper snart', (daysUntil(lb.gyldigTil) == null ? '' : daysUntil(lb.gyldigTil) + ' dager igjen'), '', attr);
-  return uxMiniStatusHtml('forfalt', 'Utløpt', fmt(lb.gyldigTil), '', attr);
+  if(!lb.siste || !lb.gyldigTil) return uxStatusChipHtml('ingen', 'Løftebord ikke registrert', attr);
+  if(lb.status === 'gronn') return uxStatusChipHtml('gyldig', 'Løftebord gyldig til ' + fmt(lb.gyldigTil), attr);
+  if(lb.status === 'gul'){
+    const d = daysUntil(lb.gyldigTil);
+    return uxStatusChipHtml('snart', d == null ? ('Løftebord utløper ' + fmt(lb.gyldigTil)) : ('Løftebord utløper om ' + d + ' dag' + (d === 1 ? '' : 'er')), attr);
+  }
+  return uxStatusChipHtml('forfalt', 'Løftebord utløpt ' + fmt(lb.gyldigTil), attr);
 }
 function uxEuMini(v){
   const eu = vehicleEuKontrollStatus(v);
   const attr = `data-apne-eu="${esc(v.id)}"`;
-  if(!v.euGodkjentTil || eu.status === 'ukjent') return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
-  if(eu.status === 'ok') return uxDatoStatusMini('gyldig', v.euGodkjentTil, null, attr);
-  if(eu.status === 'forfalt') return uxDatoStatusMini('forfalt', v.euGodkjentTil, null, attr);
-  return uxDatoStatusMini('snart', v.euGodkjentTil, eu.gjenstaende, attr);
+  if(!v.euGodkjentTil || eu.status === 'ukjent') return uxStatusChipHtml('ingen', 'EU-kontroll ikke registrert', attr);
+  if(eu.status === 'ok') return uxStatusChipHtml('gyldig', 'EU-kontroll gyldig til ' + fmt(v.euGodkjentTil), attr);
+  if(eu.status === 'forfalt') return uxStatusChipHtml('forfalt', 'EU-kontroll utløpt ' + fmt(v.euGodkjentTil), attr);
+  const d = eu.gjenstaende;
+  return uxStatusChipHtml('snart', d == null ? ('EU-kontroll utløper ' + fmt(v.euGodkjentTil)) : ('EU-kontroll utløper om ' + d + ' dag' + (d === 1 ? '' : 'er')), attr);
 }
 function uxServiceMini(v){
   const ss = vehicleServiceStatus(v);
   const attr = `data-apne-service="${esc(v.id)}"`;
-  if(ss.status === 'ukjent') return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
-  if(ss.status === 'ok') return uxMiniStatusHtml('gyldig', 'Gyldig', ss.tekst || '', '', attr);
-  if(ss.status === 'forfalt') return uxMiniStatusHtml('forfalt', 'Forfalt', ss.tekst || '', '', attr);
-  return uxMiniStatusHtml('snart', 'Utløper snart', ss.tekst || '', '', attr);
+  if(ss.status === 'ukjent' || ss.gjenstaende == null) return uxStatusChipHtml('ingen', 'Service ikke registrert', attr);
+  const km = Math.abs(ss.gjenstaende).toLocaleString('nb-NO');
+  if(ss.status === 'ok') return uxStatusChipHtml('gyldig', 'Service om ' + km + ' km', attr);
+  if(ss.status === 'forfalt') return uxStatusChipHtml('forfalt', 'Service forfalt — ' + km + ' km over', attr);
+  return uxStatusChipHtml('snart', 'Service utløper om ' + km + ' km', attr);
 }
 function uxDekkMini(v){
   const attr = `data-apne-dekk="${esc(v.id)}"`;
@@ -18582,28 +17917,27 @@ function uxProfilFeltHtml(v, valg){
 function ux3BilinfoHtml(v){
   const ss = vehicleServiceStatus(v);
   const siste = vehicleSisteService(v.id);
-  const eu = vehicleEuKontrollStatus(v);
   const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
-  const lb = loftebordVedlikeholdStatus(v.id);
   const barn = uxWidgetBarn('ux-bil-info');
   const har = (id) => barn.indexOf(id) >= 0;
   const rad = (label, verdi, attr) => `<div class="bp-vrow"${attr ? ' ' + attr : ''}><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
+  const hode = `<div class="bp-card-head"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2></div>`;
   if(uxProfilRediger()){
     const telefonHer = !(currentUiExperience() === 'desktop' && uxBilWidgetSynlig('ux-bil-sjafor'));
-    return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
+    return `<section class="bp-card" aria-labelledby="ux3-bil">${hode}
       <div class="bp-vcard-rows">
         ${rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')))}
         ${uxProfilFeltHtml(v, {ident:false, telefon:telefonHer})}
       </div>
     </section>`;
   }
-  return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
+  return `<section class="bp-card" aria-labelledby="ux3-bil">${hode}
     <div class="bp-vcard-rows">
       ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
-      ${har('ux-bil-service') ? '' : rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')), `data-apne-service="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${har('ux-bil-eu') ? '' : rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')), `data-apne-eu="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-service') ? '' : uxServiceMini(v)}
+      ${har('ux-bil-eu') ? '' : uxEuMini(v)}
       ${har('ux-bil-dekk') ? '' : rad('Dekk', esc(dekk), `data-apne-dekk="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${har('ux-bil-loftebord') ? '' : rad('Løftebord', esc(lb.tekst || 'Ikke satt'), `data-apne-loftebord="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-loftebord') ? '' : uxLoftebordMini(v)}
     </div>
     ${uxMiniRadHtml(barn, v)}
   </section>`;

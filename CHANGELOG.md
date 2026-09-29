@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Statusindikatorer
+
+1. Løftebord, EU-kontroll og service leses som kompakte indikatorer: tynn farget kant, ikon og tekst, uten fylt grønn, gul eller rød bakgrunn. Teksten navngir fristen, for eksempel «Løftebord gyldig til …», «EU-kontroll utløper om … dager» og «Service om … km».
+2. Samme indikator brukes i Bilinformasjon og når widgeten er nestet. Overskrift, strek og innhold har lik luft i Bilinformasjon og Aktiv sjåfør.
+3. App-/cacheversjon 170 → **171**. `kontroll.html` = `index.html`.
+
 ### Inline redigering på kjøretøyprofil
 
 1. Blyanten gjør feltene redigerbare der de vises. Lagre og Avbryt ligger ved kjøretøynavnet. Det store redigeringsskjemet åpnes ikke lenger.
