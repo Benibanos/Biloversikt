@@ -1916,6 +1916,12 @@
 .bp-vrow-icon { color:var(--ink-muted); display:inline-flex; }
 .bp-vrow-label { color:var(--ink-muted); }
 .bp-vrow-value { margin-left:auto; color:var(--ink); font-weight:500; font-variant-numeric:tabular-nums; text-align:right; }
+.bp-inline{width:min(240px,100%);box-sizing:border-box;margin:0;padding:4px 8px;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(0,0,0,.18);color:var(--ink);font:inherit;font-weight:600;text-align:right;}
+.bp-inline:hover{border-color:var(--border-strong);background:rgba(255,255,255,.05);}
+.bp-inline:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
+.profil-topp-felt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.profil-topp-felt .bp-inline{width:min(140px,42vw);text-align:left;}
+.bp-inline-check{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-weight:500;}
 
 /* Table */
 .bp-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
@@ -13499,6 +13505,7 @@ function render(){
       if(avbryt) avbryt.addEventListener('click', () => { showBilinfoRediger = false; vehicleSaveConfirmedId = null; render(); });
       const lagre = document.getElementById('save-vehicle');
       if(lagre) lagre.addEventListener('click', beskyttKlikk('saveVehicleForm:'+currentVehicleId, lagre, () => saveVehicleForm(currentVehicleId)));
+      document.querySelectorAll('[data-lb-kontroll]').forEach(el => el.addEventListener('click', beskyttKlikk('registrerLoftebordKontroll:'+el.dataset.lbKontroll, el, () => registrerLoftebordKontroll(el.dataset.lbKontroll))));
       attachNesteVerkstedtimeListeners();
     } else attachBilkortListeners();
   }
@@ -18512,7 +18519,9 @@ function ux3SjaforHtml(v){
   const kontrollert = isKontrollertIdag(v.id);
   const status = vehicleErReserveUnntatt(v.id) ? 'Ikke i bruk i dag' : (kontrollert ? 'Kontrollert i dag' : 'Mangler kontroll');
   const tel = (v.telefon || '').trim();
-  const telHtml = tel ? `<a href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(tel)}</a>` : 'Ikke satt';
+  const telHtml = uxProfilRediger() && currentUiExperience() === 'desktop'
+    ? uxInlineInput('f-telefon', v.telefon || '', 'tel')
+    : (tel ? `<a href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(tel)}</a>` : 'Ikke satt');
   const rad = (label, verdi) => `<div class="bp-vrow"><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
   return `<section class="bp-card" aria-labelledby="ux3-sjafor"><div class="bp-card-head"><h2 id="ux3-sjafor" class="bp-card-title">Aktiv sjåfør</h2></div>
     <div class="bp-vcard-rows">
@@ -18523,6 +18532,53 @@ function ux3SjaforHtml(v){
     </div>
   </section>`;
 }
+function uxProfilRediger(){
+  return !!(showBilinfoRediger && !driverMode && loggedInRole && isAdmin);
+}
+function uxBilWidgetSynlig(id){
+  if(currentUiExperience() !== 'desktop' || screen !== 'bilkort') return false;
+  const liste = uxLayoutVisningsliste('bilkort');
+  return !!(liste && liste.some(w => w.visible && w.widgetId === id));
+}
+function uxInlineInput(id, value, kind){
+  const type = kind === 'number' ? 'number' : (kind === 'tel' ? 'tel' : 'text');
+  const extra = kind === 'number' ? ' inputmode="numeric" min="0" step="1"' : (kind === 'date' ? ' inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10"' : (kind === 'tel' ? ' inputmode="tel"' : ''));
+  return `<input id="${id}" class="bp-inline" type="${type}" value="${esc(value == null ? '' : String(value))}"${extra}>`;
+}
+function uxInlineRad(label, kontroll){
+  return `<div class="bp-vrow is-inline"><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${kontroll}</span></div>`;
+}
+function uxProfilFeltHtml(v, valg){
+  valg = valg || {};
+  const dekkValg = [['','Ikke satt'],['sommer','Sommerdekk'],['vinter','Vinterdekk'],['helars','Helårsdekk']];
+  const lag = DRIFTSLAG_ORDER.slice();
+  if(v.driftslag && lag.indexOf(v.driftslag) < 0) lag.push(v.driftslag);
+  const lb = loftebordKontrollStatus(v.id);
+  const lbTekst = !lb.siste ? 'Ingen registrering' : (lb.gyldigTil ? fmt(lb.gyldigTil) : (lb.tekst || ''));
+  const rader = [];
+  if(valg.ident){
+    rader.push(uxInlineRad('Bilnummer', uxInlineInput('f-bilnummer', v.bilnummer || '')));
+    rader.push(uxInlineRad('Registreringsnummer', uxInlineInput('f-regnr', v.regnr || '')));
+  }
+  rader.push(uxInlineRad('Merke', uxInlineInput('f-merke', v.merke || '')));
+  rader.push(uxInlineRad('Modell', uxInlineInput('f-modell', v.modell || '')));
+  rader.push(uxInlineRad('Årsmodell', uxInlineInput('f-arsmodell', v.arsmodell || '')));
+  rader.push(uxInlineRad('Kategori', `<select id="f-kategori" class="bp-inline">${kategoriOptionsHtml(v.kategori, 'Ikke satt')}</select>`));
+  rader.push(uxInlineRad('Løyvenummer', uxInlineInput('f-loyvenummer', v.loyvenummer || '')));
+  rader.push(uxInlineRad('Servicenummer', uxInlineInput('f-servicenummer', v.servicenummer || '')));
+  rader.push(uxInlineRad('Drivstoff', `<select id="f-drivstoff" class="bp-inline">${drivstoffOptions(v.drivstoff || '')}</select>`));
+  rader.push(uxInlineRad('Serviceintervall', uxInlineInput('f-service-intervall', v.serviceIntervallKm || '', 'number')));
+  rader.push(uxInlineRad('Kilometerstand', uxInlineInput('f-km', v.km || '', 'number')));
+  rader.push(uxInlineRad('Dekk', `<select id="f-dekk" class="bp-inline">${dekkValg.map(([k,t]) => `<option value="${k}" ${v.dekk===k?'selected':''}>${t}</option>`).join('')}</select>`));
+  rader.push(uxInlineRad('EU-kontroll', uxInlineInput('f-eu-godkjent-til', v.euGodkjentTil ? fmt(v.euGodkjentTil) : '', 'date')));
+  rader.push(uxInlineRad('Driftslag', `<select id="f-driftslag" class="bp-inline"><option value="">Ikke satt</option>${lag.map(g => `<option value="${esc(g)}" ${v.driftslag===g?'selected':''}>${esc(g)}</option>`).join('')}</select>`));
+  if(valg.telefon !== false) rader.push(uxInlineRad('Telefon', uxInlineInput('f-telefon', v.telefon || '', 'tel')));
+  rader.push(uxInlineRad('Mobilitetsgaranti', uxInlineInput('f-mobilitetsgaranti', v.mobilitetsgaranti || '')));
+  rader.push(uxInlineRad('Løftebord', `${esc(lbTekst)} <button type="button" class="bp-link-btn" data-lb-kontroll="${esc(v.id)}">Registrer kontroll</button>`));
+  rader.push(uxInlineRad('Aktiv sjåfør', `<label class="bp-inline-check"><input id="f-aktivsjafor-autoreset" type="checkbox" ${v.aktivSjaforAutoReset ? 'checked' : ''}> Nullstill automatisk</label>`));
+  rader.push(uxInlineRad('Nullstilling', uxInlineInput('f-aktivsjafor-autoreset-tid', v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)));
+  return rader.join('');
+}
 function ux3BilinfoHtml(v){
   const ss = vehicleServiceStatus(v);
   const siste = vehicleSisteService(v.id);
@@ -18532,6 +18588,15 @@ function ux3BilinfoHtml(v){
   const barn = uxWidgetBarn('ux-bil-info');
   const har = (id) => barn.indexOf(id) >= 0;
   const rad = (label, verdi, attr) => `<div class="bp-vrow"${attr ? ' ' + attr : ''}><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
+  if(uxProfilRediger()){
+    const telefonHer = !(currentUiExperience() === 'desktop' && uxBilWidgetSynlig('ux-bil-sjafor'));
+    return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
+      <div class="bp-vcard-rows">
+        ${rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')))}
+        ${uxProfilFeltHtml(v, {ident:false, telefon:telefonHer})}
+      </div>
+    </section>`;
+  }
   return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
     <div class="bp-vcard-rows">
       ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
@@ -18665,86 +18730,18 @@ function renderBilkort(){
     </div>
   `;
 
-  // Redigeringsmodus er samme Kjøretøydetaljer-seksjon som visningsmodus, ikke en egen
-  // side eller et separat databasepanel. Feltrekkefølgen danner et kompakt 3-kolonners
-  // rutenett på desktop. Servicenummer er referansen til verksted/fakturering, mens
-  // serviceIntervallKm fortsatt er beregningsgrunnlaget for neste service og varsler.
-  const infoBody = `
-    <div class="bilinfo-edit-grid">
-      <div class="field"><label>Bilnummer</label><input id="f-bilnummer" type="text" value="${esc(v.bilnummer)}"></div>
-      <div class="field"><label>Registreringsnummer</label><input id="f-regnr" type="text" value="${esc(v.regnr)}"></div>
-      <div class="field"><label>Kategori</label><select id="f-kategori">${kategoriOptionsHtml(v.kategori, null)}</select></div>
-
-      <div class="field"><label>Merke</label><input id="f-merke" type="text" value="${esc(v.merke||'')}"></div>
-      <div class="field"><label>Modell</label><input id="f-modell" type="text" value="${esc(v.modell||'')}"></div>
-      <div class="field"><label>Årsmodell</label><input id="f-arsmodell" type="text" inputmode="numeric" value="${esc(v.arsmodell||'')}"></div>
-
-      <div class="field"><label>Løyvenummer</label><input id="f-loyvenummer" type="text" placeholder="F.eks. NO-12345" value="${esc(v.loyvenummer||'')}"></div>
-      <div class="field"><label>Servicenummer</label><input id="f-servicenummer" type="text" placeholder="Verksted- eller fakturareferanse" value="${esc(v.servicenummer||'')}"></div>
-      <div class="field"><label>Drivstoff</label><select id="f-drivstoff">${drivstoffOptions(v.drivstoff||'')}</select></div>
-
-      <div class="field"><label>Serviceintervall (km)</label><input id="f-service-intervall" type="number" inputmode="numeric" min="0" step="500" placeholder="F.eks. 30000" value="${esc(String(v.serviceIntervallKm || ''))}"></div>
-      <div class="field"><label>Kilometerstand</label><input id="f-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(v.km||''))}"></div>
-      <div class="field"><label>Dekk</label>
-        <select id="f-dekk">
-          <option value="" ${!v.dekk?'selected':''}>Ikke satt</option>
-          <option value="sommer" ${v.dekk==='sommer'?'selected':''}>Sommerdekk</option>
-          <option value="vinter" ${v.dekk==='vinter'?'selected':''}>Vinterdekk</option>
-          <option value="helars" ${v.dekk==='helars'?'selected':''}>Helårsdekk</option>
-        </select>
-      </div>
-
-      <div class="field"><label>EU-godkjent til</label><input id="f-eu-godkjent-til" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${v.euGodkjentTil ? fmt(v.euGodkjentTil) : ''}"></div>
-      <div class="field"><label>Driftslag</label><input id="f-driftslag" type="text" placeholder="F.eks. Lag 1" value="${esc(v.driftslag||'')}" list="driftslag-forslag"><datalist id="driftslag-forslag">${DRIFTSLAG_ORDER.map(g => `<option value="${esc(g)}">`).join('')}</datalist></div>
-      <div class="field"><label>Telefon</label><input id="f-telefon" type="tel" inputmode="tel" value="${esc(v.telefon||'')}"></div>
-
-      <!-- Fase 1B: det manuelle feltet «Status» (Vehicles.Status: ok/oppfolging/verksted) er avviklet — bilens status kommer kun fra statusordboken (vehicleHovedstatus()). Lagret verdi røres ikke. -->
-      <div class="field span2"><label>Mobilitetsgaranti</label><input id="f-mobilitetsgaranti" type="text" placeholder="F.eks. gyldig til 14/08/2027" value="${esc(v.mobilitetsgaranti||'')}"></div>
-    </div>
-
-    <details class="bilinfo-edit-sub">
-      <summary>Avanserte driftsinnstillinger</summary>
-      <div class="field" style="margin-top:12px;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input id="f-aktivsjafor-autoreset" type="checkbox" ${v.aktivSjaforAutoReset ? 'checked' : ''}>
-          <span>Nullstill aktiv sjåfør automatisk</span>
-        </label>
-        <div class="required-hint" style="margin-top:4px;">Aktiv sjåfør fjernes på denne bilen ved valgt klokkeslett.</div>
-        <input id="f-aktivsjafor-autoreset-tid" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(v.aktivSjaforAutoResetTid || AKTIV_SJAFOR_AUTORESET_STD_TID)}" style="margin-top:8px;max-width:120px;">
-      </div>
-      <div class="field" style="margin-top:14px;">
-        <label>Aktiv sjåfør</label>
-        <div class="required-hint" style="margin-bottom:8px;">${(() => { const na = vehicleAktivSjafor(v.id); return na ? `${esc(na)} — siden kl. ${tidFraIso(v.aktivSjaforSiden) || '–'}` : 'Ingen aktiv sjåfør.'; })()}</div>
-        ${vehicleAktivSjafor(v.id) ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-nullstill-aktiv-sjafor="${v.id}">Nullstill aktiv sjåfør</button>` : ''}
-      </div>
-    </details>
-
-    <details class="bilinfo-edit-sub">
-      <summary>Løftebordkontroll og historikk</summary>
-      <div class="acc-row loftebord-card ${vLbKontrollAccKlasse}" style="margin:12px 0 14px;">
-        <div class="ov-grid" style="margin-bottom:0;">
-          <div class="ov-item"><span class="ov-label">Sist utført</span><span class="ov-value">${vLbKontrollStatus.siste ? fmt(vLbKontrollStatus.siste.dato) : 'Ingen registrert'}</span></div>
-          <div class="ov-item"><span class="ov-label">Gyldig til</span><span class="ov-value">${vLbKontrollStatus.gyldigTil ? fmt(vLbKontrollStatus.gyldigTil) : '–'}</span></div>
-        </div>
-        <div style="margin-top:10px;font-weight:600;">${vLbKontrollStatus.ikon} ${vLbKontrollStatus.tekst}</div>
-        <div class="panel-actions" style="margin-top:10px;"><button type="button" class="bp-btn bp-btn-primary btn small" data-lb-kontroll="${v.id}">Utført løftebordkontroll</button></div>
-      </div>
-      ${vLbHistorikk.length > 0 ? `<ul class="dmg-simple-list">${vLbHistorikk.map(l => loftebordHistorikkRadHtml(l)).join('')}</ul>` : ''}
-    </details>
-
-    <div class="bilinfo-edit-actions">
-      <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button>
-      <button type="button" class="bp-btn bp-btn-primary btn" id="save-vehicle">Lagre endringer</button>
-    </div>
-    ${vehicleSaveConfirmedId === v.id ? `<div class="required-hint" style="margin-top:10px;color:var(--success);font-weight:600;">✅ Lagret — oppdatert overalt i appen.</div>` : ''}
-  `;
-
   if(currentUiExperience() === 'desktop'){
     const eget = uxLayoutOvertar('bilkort');
     const kropp = eget || uxLayoutVisHtml(uxLayoutStandard('bilkort'));
-    const penn = (!driverMode && loggedInRole && isAdmin) ? `<button type="button" class="bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>` : '';
-    const skjema = showBilinfoRediger ? `<div class="bp-card panel" style="margin-bottom:16px;">${infoBody}</div>` : '';
-    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span style="display:flex;align-items:center;gap:8px;"><strong>${esc(v.bilnummer || '')}</strong><span>${esc(v.regnr || '')}</span>${penn}</span></div>${skjema}${kropp}`;
+    const penn = (!driverMode && loggedInRole && isAdmin && !showBilinfoRediger) ? `<button type="button" class="bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>` : '';
+    const lagre = uxProfilRediger() ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button>` : '';
+    const ident = uxProfilRediger()
+      ? `${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}${lagre}`
+      : `<strong>${esc(v.bilnummer || '')}</strong><span>${esc(v.regnr || '')}</span>${penn}`;
+    const manglerInfo = uxProfilRediger() && !uxBilWidgetSynlig('ux-bil-info')
+      ? `<section class="bp-card" style="margin-bottom:12px;"><h2 class="bp-card-title">Bilinformasjon</h2><div class="bp-vcard-rows">${uxProfilFeltHtml(v, {ident:false, telefon:!uxBilWidgetSynlig('ux-bil-sjafor')})}</div></section>`
+      : '';
+    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span class="profil-topp-felt">${ident}</span></div>${manglerInfo}${kropp}`;
   }
 
   // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
@@ -18801,7 +18798,7 @@ function renderBilkort(){
 
   // UX-3: kontrollkort øverst. Historikk, tekniske data og registrering ligger under. Layoutrekkefølgen publiseres ikke hit.
   return `
-    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>
+    <div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button>${uxProfilRediger() ? `<span class="profil-topp-felt">${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button></span>` : ''}</div>
 
     ${ux3KontrollkortHtml(v)}
 
@@ -18837,7 +18834,6 @@ function renderBilkort(){
       ${bestillTjenesterKortHtml(v.id)}
     </div>
         ${bilkortAccordionRow('detaljer', 'Kjøretøydetaljer', null, `
-          ${showBilinfoRediger ? infoBody : `
             <div class="detalj-grid">
               <div class="detalj-rad"><span class="dl">Reg.nr</span><span class="dv">${esc(v.regnr)}</span></div>
               <div class="detalj-rad"><span class="dl">Løyvenummer</span><span class="dv"${v.loyvenummer ? '' : ' style="color:var(--warning);"'}>${v.loyvenummer ? esc(v.loyvenummer) : '⚠️ Mangler'}</span></div>
@@ -18848,8 +18844,7 @@ function renderBilkort(){
               <div class="detalj-rad"><span class="dl">Årsmodell</span><span class="dv">${esc(v.arsmodell || '–')}</span></div>
               <div class="detalj-rad"><span class="dl">Telefon</span><span class="dv">${v.telefon ? `<a href="tel:${esc(v.telefon.replace(/[^+0-9]/g,''))}" style="color:inherit;">${esc(v.telefon)}</a>` : '–'}</span></div>
             </div>
-            <div class="panel-actions"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} Rediger informasjon</button></div>
-          `}
+            ${(!driverMode && loggedInRole && isAdmin) ? `<div class="panel-actions"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-rediger-btn-2">${luc("pencil")} ${showBilinfoRediger ? 'Avslutt redigering' : 'Rediger informasjon'}</button></div>` : ''}
         `)}
         ${bilkortAccordionRow('avansert', 'Avanserte handlinger', null, `
           <p class="required-hint" style="margin-bottom:12px;">${v.uteAvDrift ? '«Kan ikke brukes» er en driftskritisk markering.' : 'Sett til «Kan ikke brukes» eller slett kjøretøyet permanent. Begge krever ekstra bekreftelse.'}</p>

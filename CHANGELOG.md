@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Inline redigering på kjøretøyprofil
+
+1. Blyanten gjør feltene redigerbare der de vises. Lagre og Avbryt ligger ved kjøretøynavnet. Det store redigeringsskjemet åpnes ikke lenger.
+2. Tekstfelt og nedtrekk for dekk, driftslag, kategori og drivstoff bruker samme lagring som før. App-/cacheversjon 169 → **170**. `kontroll.html` = `index.html`.
+
 ### Widget nesting 1.0
 
 1. Mindre statuswidgets kan ligge inni Operativ status og Bilinformasjon, som egne kort eller som mini widgets uten egen ramme. Layouteditoren har inspektør for underwidgets, og en widget kan dras inn i en vert som tar imot den.
