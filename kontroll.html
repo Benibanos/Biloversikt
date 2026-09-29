@@ -13415,7 +13415,13 @@ function render(){
   try{
   if(screen === 'dashboard'){ attachDashboardListeners(); if(currentUiExperience() === 'mobil') attachMobilHjemListeners(); }
   else if(screen === 'register') attachRegisterListeners();
-  else if(screen === 'bilkort') attachBilkortListeners();
+  else if(screen === 'bilkort'){
+    if(uxLayoutModus && uxLayoutSide === 'bilkort' || ((uxLayoutLes('bilkort') || []).some(w => w.visible))){
+      const tilbake = document.getElementById('back-to-register');
+      if(tilbake) tilbake.addEventListener('click', () => goBack('register'));
+      attachNesteVerkstedtimeListeners();
+    } else attachBilkortListeners();
+  }
   else if(screen === 'skader') attachAktiveSakerListeners();
   else if(screen === 'verksted') attachVerkstedListeners();
   else if(screen === 'service') attachServiceSkjermListeners();
@@ -15860,7 +15866,7 @@ function ux1KontrollsentralHtml(){
   </div>`;
 }
 const UX_LAYOUT_KEY = 'bilpark-bruker-layout-v2';
-const UX_LAYOUT_SIDER = ['dashboard', 'verksted', 'kalender', 'aktivesaker', 'analyse', 'rapporter'];
+const UX_LAYOUT_SIDER = ['dashboard', 'verksted', 'kalender', 'aktivesaker', 'analyse', 'rapporter', 'bilkort'];
 const UX_LAYOUT_MIN_W = 3;
 const UX_LAYOUT_MIN_H = 2;
 const UX_LAYOUT_MAX_H = 20;
@@ -15878,7 +15884,13 @@ function uxWidgetKatalog(){
     {id:'ux-vtstatus', label:'Verkstedstatus', ikon:'wrench', w:12, h:3},
     {id:'ux-kalender', label:'Kalender', ikon:'calendar-days', w:8, h:7},
     {id:'ux-kpi', label:'KPI-er', ikon:'gauge', w:12, h:4},
-    {id:'ux-analyse', label:'Analyser', ikon:'line-chart', w:8, h:6}
+    {id:'ux-analyse', label:'Analyser', ikon:'line-chart', w:8, h:6},
+    {id:'ux-bil-status', label:'Operativ status', ikon:'car', w:12, h:5},
+    {id:'ux-bil-info', label:'Bilinformasjon', ikon:'gauge', w:12, h:4},
+    {id:'ux-bil-handling', label:'Krever handling', ikon:'triangle-alert', w:6, h:6},
+    {id:'ux-bil-saker', label:'Aktive saker', ikon:'folder-open', w:6, h:6},
+    {id:'ux-bil-neste', label:'Neste aktiviteter', ikon:'calendar-days', w:6, h:4},
+    {id:'ux-bil-sjafor', label:'Aktiv sjåfør', ikon:'user-round', w:6, h:4}
   ];
 }
 function uxWidgetHtml(id){
@@ -15908,6 +15920,22 @@ function uxWidgetHtml(id){
     const valg = [['gjentakende','Gjentakende'],['bilanalyse','Bilanalyse'],['verkstedtrender','Verkstedtrender'],['sakstyper','Sakstyper'],['behandlingstid','Behandlingstid'],['utvikling','Utvikling']];
     return `<section class="ux1-sek"><h2 class="bp-overline">Analyser</h2><div class="ux1-col">${valg.map(([k,l]) => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-goto-analyse="${k}">${l}</button>`).join('')}</div></section>`;
   }
+  const bil = (vehicles || []).find(x => x.id === currentVehicleId);
+  if(id === 'ux-bil-status' || id === 'ux-bil-info' || id === 'ux-bil-handling' || id === 'ux-bil-saker' || id === 'ux-bil-neste' || id === 'ux-bil-sjafor'){
+    if(!bil) return bpTomTilstandHtml('Ingen bil valgt', 'Åpne en bil for å se innholdet.', true);
+    if(id === 'ux-bil-status') return ux3HeroHtml(bil);
+    if(id === 'ux-bil-info') return ux3BilinfoHtml(bil);
+    if(id === 'ux-bil-neste') return ux3NesteHtml(bil);
+    if(id === 'ux-bil-sjafor') return ux3SjaforHtml(bil);
+    if(id === 'ux-bil-handling'){
+      const handling = ux3KreverHandling(bil).slice(0, 3);
+      const kropp = handling.length ? `<div class="ux1-alerts">${handling.map(ux1VarselKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingenting krever handling', 'Ingen åpen oppfølging på denne bilen.', true);
+      return ux1LikSek('ux-bil-handling-w', 'Krever handling', kropp, ux1Bunnlenke('varsler', 'Varslingssenter'));
+    }
+    const saker = ux3SakerForBil(bil).slice(0, 3);
+    const kropp = saker.length ? `<div class="ux1-col">${saker.map(ux1SakKortHtml).join('')}</div>` : bpTomTilstandHtml('Ingen aktive saker', 'Ingen åpne saker på denne bilen.', true);
+    return ux1LikSek('ux-bil-saker-w', 'Aktive saker', kropp, ux1Bunnlenke('aktivesaker', 'Alle saker'));
+  }
   return '';
 }
 function uxLayoutStandard(side){
@@ -15917,7 +15945,8 @@ function uxLayoutStandard(side){
     kalender:['ux-kalender','ux-verksted','ux-handling'],
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
     analyse:['ux-kpi','ux-analyse'],
-    rapporter:['ux-kpi','ux-analyse']
+    rapporter:['ux-kpi','ux-analyse'],
+    bilkort:['ux-bil-status','ux-bil-info','ux-bil-handling','ux-bil-saker','ux-bil-neste','ux-bil-sjafor']
   }[side] || [];
   const kat = uxWidgetKatalog();
   const liste = kat.map(k => ({widgetId:k.id, visible:false, x:0, y:0, width:k.w, height:k.h}));
@@ -15953,7 +15982,7 @@ function uxLayoutNormaliser(liste, side){
   });
 }
 function uxLayoutPageId(side){
-  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter'}[side] || side;
+  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil'}[side] || side;
 }
 function uxLayoutLes(side){
   const pageId = uxLayoutPageId(side);
@@ -16009,7 +16038,7 @@ function uxLayoutGearHtml(){
   return `<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${paa ? 'true' : 'false'}">${luc('settings')}</button>`;
 }
 function uxLayoutToppHtml(side){
-  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter'}[side] || side;
+  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil'}[side] || side;
   return `<div class="dash-edit-bar">
     <div class="dash-edit-tittel">${luc('settings')} ${esc(navn)} <span class="dash-edit-status">Lagres bare for denne siden</span></div>
     <div class="dash-edit-knapper">
@@ -17968,6 +17997,8 @@ function ux3KontrollkortHtml(v){
 function renderBilkort(){
   const v = vehicles.find(x => x.id === currentVehicleId);
   if(!v) return bpTomTilstandHtml('Fant ikke kjøretøyet', '');
+  const eget = uxLayoutOvertar('bilkort');
+  if(eget) return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button></div>${eget}`;
   const vDamages = vehicleDamages(v.id);
   const vDamagesAktive = vDamages.filter(d => d.status !== 'utbedret');
   const vLastKontroll = lastKontrollForVehicle(v.id);
