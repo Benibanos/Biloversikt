@@ -15,6 +15,11 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Kjøretøyprofil som kontrollpanel
+
+1. Desktop-profilen viser kjøretøyhelse, kontrollprosent, verkstedstatus, aktive saker og operativt kontrollgrunnlag. Oppsettet gjelder sidetypen, ikke den enkelte bilen.
+2. Kontrollprosenten leser kontrollgrunnlaget for bilen de siste 30 dagene. Helsen er en forklarbar poengsum. App-/cacheversjon 164 → **165**. `kontroll.html` = `index.html`.
+
 ### Layout på kjøretøyprofil
 
 1. Kjøretøyprofil bruker samme layoutmotor som de andre sidene. Oppsettet lagres for sidetypen, ikke per bil. Standardwidgets er operativ status, bilinformasjon, krever handling, aktive saker, neste aktiviteter og aktiv sjåfør.
