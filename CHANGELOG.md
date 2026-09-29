@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Widget nesting 1.0
+
+1. Mindre statuswidgets kan ligge inni Operativ status og Bilinformasjon, som egne kort eller som mini widgets uten egen ramme. Layouteditoren har inspektør for underwidgets, og en widget kan dras inn i en vert som tar imot den.
+2. Løftebord, EU, service, dekk og dokumentstatus bruker samme statuskort: gyldig, utløper snart, forfalt og ikke registrert. Widgetheadere har lik luft og skillelinje.
+3. App-/cacheversjon 168 → **169**. `kontroll.html` = `index.html`.
+
 ### Kalender 2.0
 
 1. Kalendersiden er widgetbasert. Standardoppsettet er verkstedkapasitet, denne uken, ukekalender, månedskalender, krever planlegging og historikk. Layouteditoren viser hele siden.

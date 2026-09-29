@@ -2377,7 +2377,39 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux-canvas.is-edit .ux-widget.er-opptatt{outline-color:var(--danger);}
   .ux-wramme{height:auto;min-height:100%;overflow:visible;box-sizing:border-box;padding:12px;border-radius:12px;background:linear-gradient(135deg, var(--surface-gradient-start), var(--surface-gradient-end));border:1px solid var(--border);box-shadow:0 0 0 1px rgba(32,201,151,.12), var(--shadow-card);}
   .ux-wramme:hover{border-color:var(--border-strong);}
-  .ux-wramme > .bp-card,.ux-wramme > .ux1-sek,.ux-wramme > section{background:transparent;box-shadow:none;border:0;height:auto;min-height:100%;overflow:visible;}
+  .ux-wramme > .bp-card,.ux-wramme > .ux1-sek,.ux-wramme > section,.ux-wramme > button{background:transparent;box-shadow:none;border:0;height:auto;min-height:100%;overflow:visible;}
+  .ux-wramme > section > .bp-overline:first-child,
+  .ux-wramme > section > .bp-card-title:first-child,
+  .ux-wramme > section > .bp-card-head:first-child,
+  .ux-wramme > section > .bp-fh-head,
+  .ux-wramme > section > .ux1-head:first-child,
+  .ux-wramme > .ux1-sek > .bp-overline:first-child,
+  .ux-wramme > .ux1-sek > .ux1-head:first-child,
+  .ux-wramme > button > .bp-overline:first-child{
+    margin:0 0 14px;padding:0 0 11px;border-bottom:1px solid var(--border);
+  }
+  .ux-wramme .bp-fh-head,
+  .ux-wramme .bp-fh-main > .bp-overline{
+    margin:0 0 14px;padding:0 0 11px;border-bottom:1px solid var(--border);
+  }
+  .ux-wramme .bp-card-head .bp-card-title,
+  .ux-wramme .bp-fh-head .bp-overline,
+  .ux-wramme .ux1-head .bp-overline{margin:0;padding:0;border:0;}
+  .ux-canvas.is-edit .ux-widget.er-valgt,.ux-canvas.is-edit .ux-widget.er-nest{outline:2px solid var(--accent);outline-offset:-1px;}
+  .ux-insp{margin:0 0 10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+  .ux-insp h3{margin:0 0 6px;font:600 13px/18px var(--font-sans);}
+  .ux-minier{display:flex;flex-wrap:wrap;gap:8px;}
+  .ux-mini{flex:1 1 148px;min-width:0;text-align:left;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--ink-muted);font:inherit;}
+  button.ux-mini{cursor:pointer;}
+  div.ux-mini{cursor:default;}
+  .ux-mini-h{font:600 13px/18px var(--font-sans);}
+  .ux-mini-l,.ux-mini-d{font:400 12px/16px var(--font-sans);color:var(--ink);}
+  .ux-mini-gyldig{color:var(--success);background:var(--success-soft);border-color:var(--success);}
+  .ux-mini-snart{color:var(--warning);border-color:var(--warning);}
+  .ux-mini-forfalt{color:var(--danger);border-color:var(--danger);}
+  .ux-mini-ingen{color:var(--ink-muted);border-color:var(--border);}
+  .ux-mini-tall{display:flex;align-items:baseline;gap:8px;}
+  .ux-mini-tall b{font:600 22px/28px var(--font-sans);color:var(--ink);font-variant-numeric:tabular-nums;}
   .ux-min-hint{position:absolute;left:8px;bottom:8px;z-index:3;padding:2px 8px;border-radius:999px;background:rgba(6,10,9,.9);color:var(--ink);font:500 11px/16px var(--font-sans);pointer-events:none;}
   .ux-grip,.ux-skjul,.ux-resize{position:absolute;z-index:2;}
   .ux-grip{top:6px;left:6px;}
@@ -2780,6 +2812,7 @@ let uxLayoutDraftSide = '';
 let uxWidgetMeny = false;
 let uxWidgetSok = '';
 let uxWidgetKat = '';
+let uxLayoutValgt = '';
 let vtGrupperApen = false;
 let vtOversiktFane = 'kommende';
 let vtOversiktFaneOnsket = ''; // 'krever-oppfolging' | 'pa-verksted' | 'kommende' | 'klar-til-avslutning' | 'historikk' | 'biler'
@@ -15628,7 +15661,10 @@ function dashWidgetAktiveSakerHtml(){
       ${saker.length ? saker.slice(0, 4).map(s => dashHovSakRadHtml(s, 'aktiv')).join('') : '<div class="empty-note">Ingen saker her nå.</div>'}
     </div>`;
 }
-function dashWidgetFlatehelseHtml(){
+function dashWidgetFlatehelseHtml(ekstra){
+  ekstra = ekstra || {};
+  const barn = ekstra.barn || [];
+  const har = (id) => barn.indexOf(id) >= 0;
   const h = flatehelse();
   if(h.feilet){
     return `<div class="bp-card bp-card-hero panel fh-kort" role="alert"><div class="p38-panel-head bp-card-head"><div class="tittel bp-card-title fh-overline">${luc('heart-pulse')} Flåtehelse</div></div><p>Kunne ikke beregne flåtehelse. Kjøretøyregisteret ble ikke lest. Prøv å synkronisere.</p></div>`;
@@ -15660,17 +15696,18 @@ function dashWidgetFlatehelseHtml(){
           ${seg(h.tilgjengelige, flisTone('tilgjengelige'))}${seg(h.reserve, flisTone('reserve'))}${seg(h.paVerksted, flisTone('pa-verksted'))}
         </div>
         <ul class="bp-fh-legend">
-          <li><span class="bp-dot bp-bg-${flisTone('tilgjengelige')}"></span>I drift ${h.tilgjengelige}</li>
-          <li><span class="bp-dot bp-bg-info"></span>Aktive ${aktiveN}</li>
-          <li><span class="bp-dot bp-bg-${flisTone('reserve')}"></span>Reserve ${h.reserve}</li>
-          <li><span class="bp-dot bp-bg-${flisTone('pa-verksted')}"></span>Verksted ${h.paVerksted}</li>
+          ${har('ux-nest-drift') ? '' : `<li><span class="bp-dot bp-bg-${flisTone('tilgjengelige')}"></span>I drift ${h.tilgjengelige}</li>`}
+          ${har('ux-nest-aktive') ? '' : `<li><span class="bp-dot bp-bg-info"></span>Aktive ${aktiveN}</li>`}
+          ${har('ux-nest-reserve') ? '' : `<li><span class="bp-dot bp-bg-${flisTone('reserve')}"></span>Reserve ${h.reserve}</li>`}
+          ${har('ux-nest-vt') ? '' : `<li><span class="bp-dot bp-bg-${flisTone('pa-verksted')}"></span>Verksted ${h.paVerksted}</li>`}
         </ul>
       </div>
       <ul class="bp-fh-tiles">
-        <li><button type="button" class="bp-fh-tile bp-sum-click" data-goto-biloversikt-filter="har-aktiv-sjafor">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tv">${aktiveN}</span><span class="bp-fh-tl">aktive biler</span><span class="bp-fh-ts">har sjåfør nå</span></span></button></li>
-        ${flis('reserve', h.reserve, 'reservebiler', 'tilgjengelig')}
-        ${flis('pa-verksted', h.paVerksted, 'på verksted', '')}
+        ${har('ux-nest-aktive') ? '' : `<li><button type="button" class="bp-fh-tile bp-sum-click" data-goto-biloversikt-filter="har-aktiv-sjafor">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tv">${aktiveN}</span><span class="bp-fh-tl">aktive biler</span><span class="bp-fh-ts">har sjåfør nå</span></span></button></li>`}
+        ${har('ux-nest-reserve') ? '' : flis('reserve', h.reserve, 'reservebiler', 'tilgjengelig')}
+        ${har('ux-nest-vt') ? '' : flis('pa-verksted', h.paVerksted, 'på verksted', '')}
       </ul>
+      ${uxMiniRadHtml(barn)}
     </section>`;
 }
 // Flåtestatus for hele flåten (biler som ikke er ute av drift) — teller kun hvor mange biler som står i
@@ -15963,6 +16000,13 @@ const UX_LAYOUT_GAP = 12;
 function uxWidgetKatalog(){
   return [
     {id:'ux-status', label:'Operativ status', ikon:'heart-pulse', w:12, h:5},
+    {id:'ux-nest-kontroll', label:'Kontrollprosent', ikon:'clipboard-check', w:4, h:3},
+    {id:'ux-nest-aktive', label:'Aktive biler', ikon:'user-round', w:4, h:3},
+    {id:'ux-nest-drift', label:'Driftstilgjengelighet', ikon:'gauge', w:4, h:3},
+    {id:'ux-nest-reserve', label:'Reservebiler', ikon:'archive', w:4, h:3},
+    {id:'ux-nest-vt', label:'Verkstedstatus', ikon:'wrench', w:4, h:3},
+    {id:'ux-nest-neste', label:'Neste verksted', ikon:'factory', w:4, h:3},
+    {id:'ux-nest-dok', label:'Dokumentstatus', ikon:'file-check', w:4, h:3},
     {id:'ux-biler', label:'Kjøretøystatus', ikon:'truck', w:12, h:8},
     {id:'ux-varsler', label:'Varsler', ikon:'bell', w:6, h:6},
     {id:'ux-handling', label:'Krever handling', ikon:'triangle-alert', w:6, h:6},
@@ -16012,8 +16056,173 @@ function uxWidgetUtfor(id){
   else if(handling.target === 'eu-history') apneEuHistorikk(vehicleId);
   else if(handling.target === 'liftgate-history') apneLoftebord(vehicleId);
 }
+const UX_NEST_VERT = {
+  'ux-status':['ux-nest-kontroll','ux-nest-aktive','ux-nest-drift','ux-nest-reserve','ux-nest-vt'],
+  'ux-bil-status':['ux-bil-kontroll','ux-bil-sjafor','ux-bil-verksted','ux-nest-neste','ux-bil-eu','ux-bil-loftebord'],
+  'ux-bil-info':['ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok']
+};
+function uxLayoutSideNaa(){
+  return UX_LAYOUT_SIDER.indexOf(screen) >= 0 ? screen : 'dashboard';
+}
+function uxLayoutVisningsliste(side){
+  const s = side || uxLayoutSideNaa();
+  if(uxLayoutModus && uxLayoutDraft && uxLayoutDraftSide === s) return uxLayoutDraft;
+  return uxLayoutLes(s) || uxLayoutStandard(s);
+}
+function uxWidgetBarn(id){
+  const liste = uxLayoutVisningsliste();
+  const w = liste && liste.find(x => x.widgetId === id);
+  const lov = UX_NEST_VERT[id] || [];
+  return w && Array.isArray(w.barn) ? w.barn.filter(b => lov.indexOf(b) >= 0) : [];
+}
+function uxNestKopi(liste){
+  return (liste || []).map(w => Object.assign({}, w, {barn:(w.barn || []).slice()}));
+}
+function uxNestLos(liste, id){
+  liste.forEach(w => { if(w.barn) w.barn = w.barn.filter(b => b !== id); });
+}
+function uxNestLegg(liste, vertId, barnId){
+  const lov = UX_NEST_VERT[vertId] || [];
+  if(lov.indexOf(barnId) < 0) return false;
+  uxNestLos(liste, barnId);
+  const vert = liste.find(w => w.widgetId === vertId);
+  const barn = liste.find(w => w.widgetId === barnId);
+  if(!vert || !barn) return false;
+  vert.barn = (vert.barn || []).concat([barnId]);
+  barn.visible = false;
+  return true;
+}
+function uxNestMottakerVedCelle(liste, barnId, x, y){
+  return (liste || []).find(w => w.visible && w.widgetId !== barnId && (UX_NEST_VERT[w.widgetId] || []).indexOf(barnId) >= 0 && x >= w.x && x < w.x + w.width && y >= w.y && y < w.y + w.height) || null;
+}
+function uxMiniStatusHtml(tone, tittel, linje, detalj, attr){
+  const ikon = tone === 'gyldig' ? '✅' : (tone === 'snart' ? '⚠' : (tone === 'forfalt' ? '❌' : ''));
+  const tag = attr ? 'button' : 'div';
+  return `<${tag}${attr ? ' type="button"' : ''} class="ux-mini ux-mini-${tone}"${attr ? ' ' + attr : ''}><div class="ux-mini-h">${ikon ? ikon + ' ' : ''}${esc(tittel)}</div>${linje ? `<div class="ux-mini-l">${esc(linje)}</div>` : ''}${detalj ? `<div class="ux-mini-d">${esc(detalj)}</div>` : ''}</${tag}>`;
+}
+function uxMiniTallHtml(verdi, label){
+  return `<div class="ux-mini ux-mini-ingen"><div class="ux-mini-tall"><b>${esc(String(verdi))}</b><span>${esc(label)}</span></div></div>`;
+}
+function uxDatoStatusMini(kind, dato, dager, attr){
+  if(!dato) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
+  if(kind === 'gyldig') return uxMiniStatusHtml('gyldig', 'Gyldig', 'Neste kontroll', fmt(dato), attr);
+  if(kind === 'snart') return uxMiniStatusHtml('snart', 'Utløper snart', (dager == null ? '' : dager + ' dager igjen'), '', attr);
+  return uxMiniStatusHtml('forfalt', 'Forfalt', fmt(dato), '', attr);
+}
+function uxLoftebordMini(v){
+  const lb = loftebordKontrollStatus(v.id);
+  const attr = `data-apne-loftebord="${esc(v.id)}"`;
+  if(!lb.siste || !lb.gyldigTil) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
+  if(lb.status === 'gronn') return uxMiniStatusHtml('gyldig', 'Gyldig', 'Neste kontroll', fmt(lb.gyldigTil), attr);
+  if(lb.status === 'gul') return uxMiniStatusHtml('snart', 'Utløper snart', (daysUntil(lb.gyldigTil) == null ? '' : daysUntil(lb.gyldigTil) + ' dager igjen'), '', attr);
+  return uxMiniStatusHtml('forfalt', 'Utløpt', fmt(lb.gyldigTil), '', attr);
+}
+function uxEuMini(v){
+  const eu = vehicleEuKontrollStatus(v);
+  const attr = `data-apne-eu="${esc(v.id)}"`;
+  if(!v.euGodkjentTil || eu.status === 'ukjent') return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
+  if(eu.status === 'ok') return uxDatoStatusMini('gyldig', v.euGodkjentTil, null, attr);
+  if(eu.status === 'forfalt') return uxDatoStatusMini('forfalt', v.euGodkjentTil, null, attr);
+  return uxDatoStatusMini('snart', v.euGodkjentTil, eu.gjenstaende, attr);
+}
+function uxServiceMini(v){
+  const ss = vehicleServiceStatus(v);
+  const attr = `data-apne-service="${esc(v.id)}"`;
+  if(ss.status === 'ukjent') return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
+  if(ss.status === 'ok') return uxMiniStatusHtml('gyldig', 'Gyldig', ss.tekst || '', '', attr);
+  if(ss.status === 'forfalt') return uxMiniStatusHtml('forfalt', 'Forfalt', ss.tekst || '', '', attr);
+  return uxMiniStatusHtml('snart', 'Utløper snart', ss.tekst || '', '', attr);
+}
+function uxDekkMini(v){
+  const attr = `data-apne-dekk="${esc(v.id)}"`;
+  const sesong = v.dekk === 'vinter' ? 'vinter' : (v.dekk === 'sommer' ? 'sommer' : '');
+  const dot = sesong === 'vinter' ? v.vinterdekkDot : (sesong === 'sommer' ? v.sommerdekkDot : '');
+  const alder = dot ? dekkAlderStatus(dot) : null;
+  const navn = v.dekk === 'vinter' ? 'Vinterdekk' : (v.dekk === 'sommer' ? 'Sommerdekk' : (v.dekk === 'helars' ? 'Helårsdekk' : ''));
+  if(!navn && !alder) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', attr);
+  if(!alder) return uxMiniStatusHtml('ingen', navn || 'Dekk', '', '', attr);
+  if(alder.status === 'ok') return uxMiniStatusHtml('gyldig', 'Gyldig', navn, alder.tekst, attr);
+  if(alder.status === 'aldring') return uxMiniStatusHtml('snart', 'Utløper snart', navn, alder.tekst, attr);
+  return uxMiniStatusHtml('forfalt', 'Forfalt', navn, alder.tekst, attr);
+}
+function uxDokMini(v){
+  const mg = vehicleMobilitetsgaranti(v);
+  if(mg.status === 'gyldig') return uxMiniStatusHtml('gyldig', 'Gyldig', 'Gyldig til', fmt(mg.tilDato));
+  if(mg.status === 'utlopt') return uxMiniStatusHtml('forfalt', 'Forfalt', fmt(mg.tilDato), '');
+  if((v.loyvenummer || '').trim()) return uxMiniStatusHtml('gyldig', 'Gyldig', 'Løyve', v.loyvenummer);
+  return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '');
+}
+function uxNesteMini(v){
+  const neste = nesteVerkstedtime(v.id);
+  if(!neste) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '', `data-quick-page="verksted"`);
+  const st = vtStatus(neste);
+  const attr = `data-apne-vt="${esc(neste.id)}"`;
+  if(st === 'forfalt') return uxMiniStatusHtml('forfalt', 'Forfalt', fmt(neste.dato), '', attr);
+  const dager = daysUntil(neste.dato);
+  if(dager != null && dager <= 7) return uxMiniStatusHtml('snart', 'Utløper snart', fmt(neste.dato), dager + ' dager igjen', attr);
+  return uxMiniStatusHtml('gyldig', 'Gyldig', 'Neste kontroll', fmt(neste.dato), attr);
+}
+function uxSjaforMini(v){
+  const navn = vehicleAktivSjafor(v.id) || 'Ingen aktiv sjåfør';
+  const kontrollert = isKontrollertIdag(v.id);
+  if(vehicleErReserveUnntatt(v.id)) return uxMiniStatusHtml('ingen', navn, 'Ikke i bruk i dag', '');
+  if(kontrollert) return uxMiniStatusHtml('gyldig', 'Gyldig', navn, 'Kontrollert i dag');
+  return uxMiniStatusHtml('snart', 'Utløper snart', navn, 'Mangler kontroll');
+}
+function uxFlateMini(id){
+  const h = flatehelse();
+  if(!h || h.feilet || h.tom) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '');
+  const aktiveN = (vehicles || []).filter(v => vehicleAktivSjafor(v.id)).length;
+  if(id === 'ux-nest-aktive') return uxMiniTallHtml(aktiveN, 'aktive');
+  if(id === 'ux-nest-reserve') return uxMiniTallHtml(h.reserve, 'reserve');
+  if(id === 'ux-nest-vt') return uxMiniTallHtml(h.paVerksted, 'verksted');
+  if(id === 'ux-nest-drift'){
+    const kap = h.tilgjengelige + h.paVerksted + h.reserve;
+    return uxMiniTallHtml((kap ? operativProsent(h.tilgjengelige, kap) : 0) + ' %', 'driftstilgjengelig');
+  }
+  const k = kontrollrateSisteDriftsdager();
+  return uxMiniTallHtml(k.ok ? (k.prosent + ' %') : '–', 'kontroller');
+}
+function uxMiniWidgetHtml(id, v){
+  if(id === 'ux-nest-kontroll' || id === 'ux-nest-aktive' || id === 'ux-nest-drift' || id === 'ux-nest-reserve' || id === 'ux-nest-vt') return uxFlateMini(id);
+  if(!v) return uxMiniStatusHtml('ingen', 'Ingen registrering', '', '');
+  if(id === 'ux-bil-kontroll'){
+    const k = operativKontrollBil30(v.id);
+    return k.ok ? uxMiniTallHtml(k.prosent + ' %', 'kontroller') : uxMiniStatusHtml('ingen', 'Ingen registrering', '', '');
+  }
+  if(id === 'ux-bil-sjafor') return uxSjaforMini(v);
+  if(id === 'ux-bil-verksted'){
+    const apne = (aktiveSaker || []).filter(s => s.vehicleId === v.id && sakErApen(s) && sakErVerkstedrelatert(s)).length;
+    const forfalt = (verkstedtimer || []).filter(t => t.vehicleId === v.id && vtStatus(t) === 'forfalt').length;
+    if(forfalt) return uxMiniStatusHtml('forfalt', 'Forfalt', forfalt + ' forfalte', apne + ' aktive saker');
+    if(flatehelseGruppe(v) === 'pa-verksted') return uxMiniStatusHtml('snart', 'Utløper snart', 'På verksted', apne + ' aktive saker');
+    return uxMiniStatusHtml('gyldig', 'Gyldig', apne + ' aktive saker', '');
+  }
+  if(id === 'ux-nest-neste') return uxNesteMini(v);
+  if(id === 'ux-bil-eu') return uxEuMini(v);
+  if(id === 'ux-bil-service') return uxServiceMini(v);
+  if(id === 'ux-bil-dekk') return uxDekkMini(v);
+  if(id === 'ux-bil-loftebord') return uxLoftebordMini(v);
+  if(id === 'ux-nest-dok') return uxDokMini(v);
+  return '';
+}
+function uxMiniRadHtml(ids, v){
+  if(!ids || !ids.length) return '';
+  return `<div class="ux-minier">${ids.map(id => uxMiniWidgetHtml(id, v)).join('')}</div>`;
+}
+function uxNestEgenHtml(id){
+  const bil = (vehicles || []).find(x => x.id === currentVehicleId);
+  const navn = (uxWidgetKatalog().find(k => k.id === id) || {}).label || '';
+  const kropp = String(id).indexOf('ux-bil-') === 0 || id === 'ux-nest-neste' || id === 'ux-nest-dok'
+    ? (bil ? uxMiniWidgetHtml(id, bil) : bpTomTilstandHtml('Ingen bil valgt', 'Åpne en bil for å se innholdet.', true))
+    : uxFlateMini(id);
+  return `<section class="ux1-sek"><h2 class="bp-overline">${esc(navn)}</h2>${kropp}</section>`;
+}
 function uxWidgetHtml(id){
-  if(id === 'ux-status') return dashWidgetFlatehelseHtml();
+  if(id === 'ux-status'){
+    const barn = uxWidgetBarn('ux-status');
+    return dashWidgetFlatehelseHtml({barn});
+  }
   if(id === 'ux-biler'){
     const bil = ux1Kjoretoy().length ? ux1KjoretoyStatusHtml() : bpTomTilstandHtml('Ingen operative biler', 'Ingen biler i drift, på verksted eller i reserve.', true);
     return ux1Sek('ux1-biler', 'Kjøretøystatus', ux1Lenke('register', 'Alle biler'), bil);
@@ -16028,6 +16237,7 @@ function uxWidgetHtml(id){
   if(id === 'ux-verksted') return ux1VerkstedSekHtml();
   if(id === 'ux-aktivitet') return ux1AktivitetHtml();
   if(id === 'ux-vtstatus') return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedstatus</h2>${ux2StatusHtml(vtOversiktKpi(getFilteredVerkstedtimer()))}</section>`;
+  if(id === 'ux-nest-kontroll' || id === 'ux-nest-aktive' || id === 'ux-nest-drift' || id === 'ux-nest-reserve' || id === 'ux-nest-vt' || id === 'ux-nest-neste' || id === 'ux-nest-dok') return uxNestEgenHtml(id);
   if(id === 'ux-kalender') return kalenderUkeWidgetHtml();
   if(id === 'ux-kal-uke') return uxKalUkeHtml();
   if(id === 'ux-kal-kapasitet') return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedkapasitet</h2>${ux4KapasitetHtml()}</section>`;
@@ -16066,7 +16276,7 @@ function uxWidgetHtml(id){
   if(id === 'ux-bil-verksted') return uxBilVerkstedHtml(bil);
   if(id === 'ux-bil-grunnlag') return uxBilGrunnlagHtml(bil);
   if(id === 'ux-bil-historikk') return `<section class="ux1-sek"><h2 class="bp-overline">Historikk</h2>${bilkortHistorikkSekHtml(bil)}</section>`;
-  if(id === 'ux-bil-dekk' || id === 'ux-bil-service' || id === 'ux-bil-eu' || id === 'ux-bil-loftebord') return uxBilInngangHtml(bil, id);
+  if(id === 'ux-bil-dekk' || id === 'ux-bil-service' || id === 'ux-bil-eu' || id === 'ux-bil-loftebord') return uxNestEgenHtml(id);
   return '';
 }
 function uxBilInngangHtml(v, id){
@@ -16180,15 +16390,20 @@ function uxLayoutNormaliser(liste, side){
   const grunn = Array.isArray(liste) && liste.length ? liste : uxLayoutStandard(side || 'dashboard');
   const raw = new Map();
   grunn.forEach(w => { if(w && kat.some(k => k.id === w.widgetId)) raw.set(w.widgetId, w); });
-  return kat.map(k => {
+  const ut = kat.map(k => {
     const r = raw.get(k.id) || {visible:false, x:0, y:0, width:k.w, height:k.h};
     let width = Math.min(12, Math.max(UX_LAYOUT_MIN_W, r.width|0 || k.w));
     let height = Math.min(UX_LAYOUT_MAX_H, Math.max(UX_LAYOUT_MIN_H, r.height|0 || k.h));
     let x = Math.max(0, r.x|0);
     let y = Math.max(0, r.y|0);
     if(x + width > 12) x = Math.max(0, 12 - width);
-    return {widgetId:k.id, visible:!!r.visible, x, y, width, height};
+    const barn = Array.isArray(r.barn) ? r.barn.filter((b, i, a) => (UX_NEST_VERT[k.id] || []).indexOf(b) >= 0 && a.indexOf(b) === i) : [];
+    return {widgetId:k.id, visible:!!r.visible, x, y, width, height, barn};
   });
+  const sett = new Set();
+  ut.forEach(w => { w.barn = w.barn.filter(b => { if(sett.has(b)) return false; sett.add(b); return true; }); });
+  ut.forEach(w => { if(sett.has(w.widgetId)) w.visible = false; });
+  return ut;
 }
 function uxLayoutPageId(side){
   return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil'}[side] || side;
@@ -16263,8 +16478,9 @@ function uxLayoutKortHtml(w, rediger){
   const html = `<div class="ux-wramme">${uxWidgetHtml(w.widgetId)}</div>`;
   const handling = uxWidgetHandling(w.widgetId);
   const klikk = !rediger && handling;
+  const valgt = rediger && uxLayoutValgt === w.widgetId ? ' er-valgt' : '';
   const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button><button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button><span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
-  return `<div class="ux-widget${klikk ? ' is-klikk' : ''}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
+  return `<div class="ux-widget${klikk ? ' is-klikk' : ''}${valgt}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
 }
 function uxLayoutVisHtml(liste){
   const synlige = liste.filter(w => w.visible);
@@ -16284,8 +16500,8 @@ const UX_WIDGET_KATEGORIER = [
   {id:'admin', label:'Administrasjon', sider:[]}
 ];
 const UX_WIDGET_I_KATEGORI = {
-  drift:['ux-status','ux-biler','ux-bil-sjafor','ux-kpi','ux-kalender'],
-  kjoretoy:['ux-bil-info','ux-bil-kontroll','ux-bil-helse','ux-bil-dekk','ux-bil-service','ux-bil-eu','ux-bil-loftebord'],
+  drift:['ux-status','ux-nest-kontroll','ux-nest-aktive','ux-nest-drift','ux-nest-reserve','ux-nest-vt','ux-biler','ux-kpi','ux-kalender'],
+  kjoretoy:['ux-bil-info','ux-bil-kontroll','ux-bil-sjafor','ux-bil-verksted','ux-nest-neste','ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok','ux-bil-helse'],
   verksted:['ux-bil-verksted','ux-vtstatus','ux-verksted','ux-kal-kapasitet'],
   kontroller:['ux-bil-grunnlag','ux-bil-kontroll','ux-bil-eu','ux-bil-loftebord'],
   historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist'],
@@ -16298,11 +16514,13 @@ const UX_WIDGET_I_KATEGORI = {
 function uxWidgetBibliotekHtml(skjulte, side){
   const kat = uxWidgetKatalog();
   const sok = uxWidgetSok.trim().toLowerCase();
+  const opptatt = new Set();
+  (uxLayoutDraft || []).forEach(w => (w.barn || []).forEach(b => opptatt.add(b)));
   const forst = UX_WIDGET_KATEGORIER.filter(k => (k.sider || []).indexOf(side) >= 0).map(k => k.id);
   const rekkefolge = forst.concat(UX_WIDGET_KATEGORIER.map(k => k.id).filter(id => forst.indexOf(id) < 0));
   const treff = (id) => {
     const d = kat.find(k => k.id === id);
-    if(!d || !skjulte.some(w => w.widgetId === id)) return null;
+    if(!d || !skjulte.some(w => w.widgetId === id) || opptatt.has(id)) return null;
     if(sok && (d.label + ' ' + d.id).toLowerCase().indexOf(sok) < 0) return null;
     return d;
   };
@@ -16318,12 +16536,32 @@ function uxWidgetBibliotekHtml(skjulte, side){
     <div class="ux-bib-kat">${UX_WIDGET_KATEGORIER.filter(k => grupper.some(g => g.label === k.label)).map(k => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small${valgt===k.id && !sok ? ' is-valgt' : ''}" data-ux-kat="${k.id}">${esc(k.label)}</button>`).join('')}</div>
     ${synlig.length ? synlig.map(g => `<div class="ux-bib-gruppe"><h4>${esc(g.label)}</h4><div class="ux-bib-kat">${g.widgets.map(d => `<button type="button" class="dash-edit-chip" data-ux-vis="${d.id}">${luc(d.ikon)} ${esc(d.label)}</button>`).join('')}</div></div>`).join('') : '<span class="dash-edit-tom">Ingen widgets treffer søket.</span>'}`;
 }
+function uxNestInspektorHtml(liste){
+  const id = uxLayoutValgt;
+  const lov = UX_NEST_VERT[id];
+  if(!lov) return '';
+  const vert = (liste || []).find(w => w.widgetId === id && w.visible);
+  if(!vert) return '';
+  const kat = uxWidgetKatalog();
+  const har = vert.barn || [];
+  const navn = (kat.find(k => k.id === id) || {}).label || '';
+  const ledig = lov.filter(b => har.indexOf(b) < 0).map(b => {
+    const d = kat.find(k => k.id === b);
+    return d ? `<button type="button" class="dash-edit-chip" data-ux-nest="${id}:${b}">${esc(d.label)}</button>` : '';
+  }).join('');
+  const inne = har.map(b => {
+    const d = kat.find(k => k.id === b);
+    return `<button type="button" class="dash-edit-chip" data-ux-nest-fjern="${id}:${b}">${esc(d ? d.label : b)} ✕</button>`;
+  }).join('');
+  return `<div class="ux-insp"><h3>Legg til underwidget</h3><p class="ux1-lag-tom">${esc(navn)}</p><div class="ux-bib-kat">${ledig || '<span class="dash-edit-tom">Alle tilgjengelige mini widgets er lagt til.</span>'}</div>${inne ? `<div class="ux-bib-kat">${inne}</div>` : ''}</div>`;
+}
 function uxLayoutEditorHtml(liste, side){
   const synlige = liste.filter(w => w.visible);
   const skjulte = liste.filter(w => !w.visible);
   const rader = uxLayoutRader(synlige, 8);
   const panel = uxWidgetMeny ? `<div class="ux-bib-panel" id="ux-bib-panel">${uxWidgetBibliotekHtml(skjulte, side)}</div>` : '';
   return `${uxLayoutToppHtml(side)}
+    ${uxNestInspektorHtml(liste)}
     <div class="ux-bib"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-widget-apne">${luc('plus')} Widget</button>${panel}</div>
     <div class="ux-canvas is-edit" id="ux-canvas" style="--rader:${rader};grid-template-rows:repeat(${rader}, minmax(${UX_LAYOUT_RAD_PX}px, auto))">${synlige.map(w => uxLayoutKortHtml(w, true)).join('')}</div>`;
 }
@@ -16347,6 +16585,7 @@ function uxLayoutStartDrag(e, id){
   const grid = document.getElementById('ux-canvas');
   const start = uxLayoutDraft.find(w => w.widgetId === id);
   if(!grid || !start) return;
+  uxLayoutValgt = id;
   const opphav = uxLayoutCelle(grid, e.clientX, e.clientY);
   const handle = e.currentTarget;
   const pid = e.pointerId;
@@ -16357,10 +16596,20 @@ function uxLayoutStartDrag(e, id){
     const x = Math.max(0, Math.min(12 - start.width, start.x + (celle.x - opphav.x)));
     const y = Math.max(0, start.y + (celle.y - opphav.y));
     const kandidat = {x, y, width:start.width, height:start.height, visible:true};
-    const ledig = !uxLayoutTreff(uxLayoutDraft, kandidat, id);
-    siste = ledig ? kandidat : null;
+    const mottaker = uxNestMottakerVedCelle(uxLayoutDraft, id, celle.x, celle.y);
+    grid.querySelectorAll('.er-nest').forEach(n => n.classList.remove('er-nest'));
     const el = grid.querySelector('[data-ux-kort="' + id + '"]');
     if(!el) return;
+    if(mottaker){
+      siste = {nest:mottaker.widgetId};
+      el.classList.add('er-ok');
+      el.classList.remove('er-opptatt');
+      const maal = grid.querySelector('[data-ux-kort="' + mottaker.widgetId + '"]');
+      if(maal) maal.classList.add('er-nest');
+      return;
+    }
+    const ledig = !uxLayoutTreff(uxLayoutDraft, kandidat, id);
+    siste = ledig ? kandidat : null;
     el.style.setProperty('--gx', (ledig ? x : start.x) + 1);
     el.style.setProperty('--gy', (ledig ? y : start.y) + 1);
     el.classList.toggle('er-ok', ledig);
@@ -16372,9 +16621,16 @@ function uxLayoutStartDrag(e, id){
     handle.removeEventListener('pointercancel', avbryt);
     try{ handle.releasePointerCapture(pid); }catch(_){}
     if(avbrutt || !siste){ render(); return; }
-    const liste = uxLayoutDraft.map(w => Object.assign({}, w));
+    const liste = uxNestKopi(uxLayoutDraft);
+    if(siste.nest){
+      uxNestLegg(liste, siste.nest, id);
+      uxLayoutValgt = siste.nest;
+      uxLayoutSett(liste);
+      return;
+    }
     const a = liste.find(w => w.widgetId === id);
     a.x = siste.x; a.y = siste.y;
+    uxNestLos(liste, id);
     uxLayoutSett(liste);
   };
   const opp = () => slutt(false);
@@ -16467,16 +16723,16 @@ function uxLayoutOvertar(side){
 }
 function attachUxLayoutListeners(){
   const avbryt = document.getElementById('ux-layout-avbryt');
-  if(avbryt) avbryt.addEventListener('click', () => { uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; render(); });
+  if(avbryt) avbryt.addEventListener('click', () => { uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render(); });
   const standard = document.getElementById('ux-layout-standard');
   if(standard) standard.addEventListener('click', () => {
     if(!confirm('Tilbakestille oppsettet på denne siden? Den lagrede layouten slettes.')) return;
-    uxLayoutSlett(uxLayoutSide); uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; render();
+    uxLayoutSlett(uxLayoutSide); uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render();
   });
   const lagre = document.getElementById('ux-layout-lagre');
   if(lagre) lagre.addEventListener('click', () => {
     uxLayoutSkriv(uxLayoutSide, uxLayoutDraft || uxLayoutKladd(uxLayoutSide));
-    uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; render();
+    uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render();
   });
   const apne = document.getElementById('ux-widget-apne');
   if(apne) apne.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetMeny = !uxWidgetMeny; if(uxWidgetMeny && !uxWidgetKat){ const forst = UX_WIDGET_KATEGORIER.find(k => (k.sider || []).indexOf(uxLayoutSide) >= 0); uxWidgetKat = forst ? forst.id : 'drift'; } render(); });
@@ -16489,18 +16745,37 @@ function attachUxLayoutListeners(){
   });
   document.querySelectorAll('[data-ux-kat]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetKat = el.dataset.uxKat; uxWidgetSok = ''; render(); }));
   document.querySelectorAll('[data-ux-vis]').forEach(el => el.addEventListener('click', () => {
-    const liste = (uxLayoutDraft || []).map(w => Object.assign({}, w));
+    const liste = uxNestKopi(uxLayoutDraft || []);
     const w = liste.find(x => x.widgetId === el.dataset.uxVis);
     const def = uxWidgetKatalog().find(k => k.id === el.dataset.uxVis);
-    if(w && def){ const plass = uxLayoutLedig(liste, def.w, def.h); w.visible = true; w.x = plass.x; w.y = plass.y; w.width = def.w; w.height = def.h; }
+    if(w && def){ const plass = uxLayoutLedig(liste, def.w, def.h); uxNestLos(liste, w.widgetId); w.visible = true; w.x = plass.x; w.y = plass.y; w.width = def.w; w.height = def.h; }
     uxWidgetMeny = false;
     uxLayoutSett(liste);
   }));
   document.querySelectorAll('[data-ux-skjul]').forEach(el => el.addEventListener('click', () => {
-    const liste = (uxLayoutDraft || []).map(w => Object.assign({}, w));
+    const liste = uxNestKopi(uxLayoutDraft || []);
     const w = liste.find(x => x.widgetId === el.dataset.uxSkjul);
-    if(w) w.visible = false;
+    if(w){ w.visible = false; w.barn = []; }
     uxLayoutSett(liste);
+  }));
+  document.querySelectorAll('[data-ux-nest]').forEach(el => el.addEventListener('click', () => {
+    const del = (el.dataset.uxNest || '').split(':');
+    const liste = uxNestKopi(uxLayoutDraft || []);
+    uxNestLegg(liste, del[0], del[1]);
+    uxLayoutValgt = del[0];
+    uxLayoutSett(liste);
+  }));
+  document.querySelectorAll('[data-ux-nest-fjern]').forEach(el => el.addEventListener('click', () => {
+    const del = (el.dataset.uxNestFjern || '').split(':');
+    const liste = uxNestKopi(uxLayoutDraft || []);
+    uxNestLos(liste, del[1]);
+    uxLayoutValgt = del[0];
+    uxLayoutSett(liste);
+  }));
+  document.querySelectorAll('.ux-canvas.is-edit .ux-widget').forEach(el => el.addEventListener('click', (e) => {
+    if(e.target.closest('.ux-resize,.ux-skjul,.ux-grip')) return;
+    uxLayoutValgt = el.dataset.uxKort || '';
+    render();
   }));
   document.querySelectorAll('[data-ux-drag]').forEach(el => el.addEventListener('pointerdown', (e) => uxLayoutStartDrag(e, el.dataset.uxDrag)));
   document.querySelectorAll('[data-ux-resize]').forEach(el => el.addEventListener('pointerdown', (e) => {
@@ -18197,22 +18472,25 @@ function ux3HeroHtml(v){
   const vis = ux3StatusVis(v);
   const neste = nesteVerkstedtime(v.id);
   const sjafor = vehicleAktivSjafor(v.id);
+  const barn = uxWidgetBarn('ux-bil-status');
+  const har = (id) => barn.indexOf(id) >= 0;
   const pagar = (verkstedtimer || []).find(t => t.vehicleId === v.id && vtStatus(t) === 'pagar');
   const pa = flatehelseGruppe(v) === 'pa-verksted';
   const ferdig = pagar ? vtForventetFerdigIso(pagar) : '';
   const imorgen = ferdig && ferdig === isoDateOffset(todayISO(), 1);
-  const hoyre = pa ? `
+  const verkstedKort = pa ? `
     <li><div class="bp-fh-tile">${bpStatusTileHtml('operativ', 'pa-verksted')}<span class="bp-fh-tx"><span class="bp-fh-tl">Verksted</span><span class="bp-fh-tv">${esc((pagar && pagar.verksted) || 'Ikke satt')}</span></span></div></li>
     <li><div class="bp-fh-tile">${bpTileHtml('workshop', 'clock')}<span class="bp-fh-tx"><span class="bp-fh-tl">Forventet tilbake</span><span class="bp-fh-tv">${ferdig ? (imorgen ? 'I morgen' : esc(fmt(ferdig))) : 'Ikke satt'}</span></span></div></li>` : `
-    <li>${neste ? `<button type="button" class="bp-fh-tile bp-sum-click" data-apne-vt="${esc(neste.id)}">` : '<div class="bp-fh-tile">'}${bpTileHtml('workshop', 'factory')}<span class="bp-fh-tx"><span class="bp-fh-tl">Neste verksted</span><span class="bp-fh-tv">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>${neste ? '</button>' : '</div>'}</li>
-    <li><div class="bp-fh-tile">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tl">Aktiv sjåfør</span><span class="bp-fh-tv">${esc(sjafor || 'Ingen')}</span></span></div></li>`;
+    ${har('ux-nest-neste') ? '' : `<li>${neste ? `<button type="button" class="bp-fh-tile bp-sum-click" data-apne-vt="${esc(neste.id)}">` : '<div class="bp-fh-tile">'}${bpTileHtml('workshop', 'factory')}<span class="bp-fh-tx"><span class="bp-fh-tl">Neste verksted</span><span class="bp-fh-tv">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></span>${neste ? '</button>' : '</div>'}</li>`}
+    ${har('ux-bil-sjafor') ? '' : `<li><div class="bp-fh-tile">${bpTileHtml('info', 'user-round')}<span class="bp-fh-tx"><span class="bp-fh-tl">Aktiv sjåfør</span><span class="bp-fh-tv">${esc(sjafor || 'Ingen')}</span></span></div></li>`}`;
   return `<section class="bp-card bp-card-hero bp-fh" aria-labelledby="ux3-hero">
     <div class="bp-fh-main">
       <h2 id="ux3-hero" class="bp-overline">Operativ status</h2>
       <div class="bp-fh-num">${esc(v.regnr || v.bilnummer || '–')}</div>
       <div class="bp-fh-lbl">${driftslagPrikkHtml(v)}${statusPilleHtml(vis.domene, vis.key, vis.tekst || undefined)}</div>
     </div>
-    <ul class="bp-fh-tiles">${hoyre}</ul>
+    <ul class="bp-fh-tiles">${verkstedKort}</ul>
+    ${uxMiniRadHtml(barn, v)}
   </section>`;
 }
 function ux3NesteHtml(v){
@@ -18251,15 +18529,18 @@ function ux3BilinfoHtml(v){
   const eu = vehicleEuKontrollStatus(v);
   const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
   const lb = loftebordVedlikeholdStatus(v.id);
+  const barn = uxWidgetBarn('ux-bil-info');
+  const har = (id) => barn.indexOf(id) >= 0;
   const rad = (label, verdi, attr) => `<div class="bp-vrow"${attr ? ' ' + attr : ''}><span class="bp-vrow-label">${label}</span><span class="bp-vrow-value">${verdi}</span></div>`;
   return `<section class="bp-card" aria-labelledby="ux3-bil"><h2 id="ux3-bil" class="bp-card-title">Bilinformasjon</h2>
     <div class="bp-vcard-rows">
       ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
-      ${rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')), `data-apne-service="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')), `data-apne-eu="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${rad('Dekk', esc(dekk), `data-apne-dekk="${esc(v.id)}" style="cursor:pointer;"`)}
-      ${rad('Løftebord', esc(lb.tekst || 'Ikke satt'), `data-apne-loftebord="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-service') ? '' : rad('Service', esc((siste ? fmt(siste.dato) + ' · ' : '') + (ss.tekst || 'Ikke satt')), `data-apne-service="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-eu') ? '' : rad('EU-kontroll', esc((v.euGodkjentTil ? fmt(v.euGodkjentTil) + ' · ' : '') + (eu.tekst || 'Ikke satt')), `data-apne-eu="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-dekk') ? '' : rad('Dekk', esc(dekk), `data-apne-dekk="${esc(v.id)}" style="cursor:pointer;"`)}
+      ${har('ux-bil-loftebord') ? '' : rad('Løftebord', esc(lb.tekst || 'Ikke satt'), `data-apne-loftebord="${esc(v.id)}" style="cursor:pointer;"`)}
     </div>
+    ${uxMiniRadHtml(barn, v)}
   </section>`;
 }
 function ux3KontrollkortHtml(v){
