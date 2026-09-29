@@ -964,17 +964,30 @@
   .kal-ukedag{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;text-align:center;}
   .kal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
   .kal-dag{
-    min-height:66px;border:1px solid var(--border);border-radius:10px;background:var(--surface);
+    min-height:92px;border:1px solid var(--border);border-radius:10px;background:var(--surface);
     padding:6px 7px;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit;color:inherit;text-align:left;
   }
   .kal-dag.tom{background:transparent;border-color:transparent;cursor:default;}
   .kal-dag.idag{border-color:var(--ink);border-width:2px;}
-  .kal-dag.har{background:var(--info-soft);border-color:var(--info);}
-  .kal-dag.valgt{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
+  .kal-dag.har{background:var(--surface);}
+  .kal-dag.valgt{background:var(--surface);border-color:var(--accent);border-width:2px;color:inherit;}
   .kal-dagnr{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;}
   .kal-merker{display:flex;flex-wrap:wrap;gap:3px;font-size:11px;line-height:1;}
   .kal-antall{font-size:10.5px;color:var(--ink-muted);font-weight:600;}
-  .kal-dag.valgt .kal-antall{color:var(--on-accent);}
+  .kal-celle-linje{display:block;font-size:9px;line-height:1.25;padding-left:4px;border-left:2px solid var(--tone, var(--accent));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kal-uke-wrap{overflow-x:auto;}
+  .kal-uke{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;min-width:760px;}
+  .kal-uke-dag{min-width:0;display:flex;flex-direction:column;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;}
+  .kal-uke-dag.idag{border-color:var(--ink);border-width:2px;}
+  .kal-uke-h{font-size:11px;font-weight:650;color:var(--ink-muted);}
+  .kal-chip,.kal-tid,.kal-denne{font-family:inherit;color:inherit;cursor:pointer;}
+  .kal-chip{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--tone, var(--accent));background:var(--bg);border-radius:6px;padding:4px 6px;font-size:11px;line-height:1.3;}
+  .kal-chip b,.kal-tid b{display:block;font-weight:650;}
+  .kal-denne{display:block;width:100%;text-align:left;border:0;background:transparent;padding:0;}
+  .kal-denne-tall{font-size:28px;font-weight:650;line-height:1.1;font-variant-numeric:tabular-nums;}
+  .kal-tid{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--border);background:transparent;padding:8px 0;}
+  .kal-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .kal-filter .is-valgt{border-color:var(--accent);color:var(--ink);font-weight:650;}
 
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
@@ -990,7 +1003,7 @@
     .dash40-grid3{grid-template-columns:1fr;}
     .dash40-grid4-bestill{grid-template-columns:1fr 1fr;}
     .profil-ident{flex-direction:column;align-items:stretch;}
-    .kal-dag{min-height:54px;}
+    .kal-dag{min-height:72px;}
   }
 
   /* ================================================================
@@ -2374,7 +2387,11 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux-resize-se{right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg, transparent 50%, var(--accent) 50%);}
   .ux-canvas.is-edit .ux-wramme{pointer-events:none;}
   .ux-bib{position:relative;display:flex;justify-content:flex-start;margin:0 0 10px;}
-  .ux-bib-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:flex;flex-wrap:wrap;gap:6px;width:min(520px,calc(100vw - 48px));padding:12px;background:rgba(6,10,9,.96);border:1px solid rgba(255,255,255,.28);border-radius:12px;box-shadow:0 24px 50px rgba(0,0,0,.5);}
+  .ux-bib-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:flex;flex-direction:column;gap:10px;width:min(560px,calc(100vw - 48px));max-height:min(70vh,560px);overflow:auto;padding:12px;background:rgba(6,10,9,.96);border:1px solid rgba(255,255,255,.28);border-radius:12px;box-shadow:0 24px 50px rgba(0,0,0,.5);}
+  .ux-bib-sok{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;}
+  .ux-bib-kat{display:flex;flex-wrap:wrap;gap:6px;}
+  .ux-bib-gruppe{display:flex;flex-direction:column;gap:6px;}
+  .ux-bib-gruppe h4{margin:0;font:600 11px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
   .bp-varsel-pop-alle{display:flex;justify-content:flex-end;padding-top:10px;}
   .ux-layout-bar{display:flex;justify-content:flex-end;margin-bottom:var(--space-3);}
   button.bp-wcard,button.bp-vcard,button.bp-case,button.bp-feed-item{cursor:pointer;font:inherit;color:inherit;width:100%;}
@@ -2709,6 +2726,8 @@ function toggleRegisterGruppe(kat){
 // registerAktivFane. Nullstilles til '' av resetRegisterFiltre() (faller da tilbake til
 // første gruppe med innhold), akkurat som de andre Biloversikt-filtrene.
 let registerAktivFane = '';
+let registerDriftFane = 'driftslag';
+let registerSort = 'bilnummer';
 // Felles bilvalg-logikk for kontrollskjemaet — brukes nå av den grupperte
 // bilvelgeren (erstatter tidligere <select id="kt-vehicle">.change-lytter, samme
 // oppførsel uendret, kun ny inngang).
@@ -2759,6 +2778,8 @@ let uxLayoutDraft = null;
 let uxLayoutSide = 'dashboard';
 let uxLayoutDraftSide = '';
 let uxWidgetMeny = false;
+let uxWidgetSok = '';
+let uxWidgetKat = '';
 let vtGrupperApen = false;
 let vtOversiktFane = 'kommende';
 let vtOversiktFaneOnsket = ''; // 'krever-oppfolging' | 'pa-verksted' | 'kommende' | 'klar-til-avslutning' | 'historikk' | 'biler'
@@ -3112,6 +3133,8 @@ let showBilinfoRediger = false;    // "✏️ Rediger informasjon" på Kjøretø
 // ren visningstilstand — kalenderen leser kun eksisterende planleggingsdata.
 let kalenderMnd = '';
 let kalenderValgtDato = '';
+let kalenderUkeOffset = 0;
+let kalenderHistFilter = 'alle';
 let fullforingPlanlagtDekkskiftId = null;
 // Funksjonsbasert navigasjon: Service og Dekk er nå egne, dedikerte arbeidsflater
 // (screen='service'/'dekk'), IKKE lenger nådd via Kjøretøyprofil. Samme mønster som
@@ -15948,6 +15971,15 @@ function uxWidgetKatalog(){
     {id:'ux-aktivitet', label:'Siste aktivitet', ikon:'activity', w:6, h:6},
     {id:'ux-vtstatus', label:'Verkstedstatus', ikon:'wrench', w:12, h:3},
     {id:'ux-kalender', label:'Kalender', ikon:'calendar-days', w:8, h:7},
+    {id:'ux-kal-kapasitet', label:'Verkstedkapasitet', ikon:'gauge', w:12, h:3},
+    {id:'ux-kal-denne', label:'Denne uken', ikon:'calendar-check', w:12, h:4},
+    {id:'ux-kal-uke', label:'Ukekalender', ikon:'calendar-days', w:12, h:8},
+    {id:'ux-kal-mnd', label:'Månedskalender', ikon:'calendar', w:12, h:10},
+    {id:'ux-kal-dag', label:'Dagsoversikt', ikon:'calendar-clock', w:6, h:6},
+    {id:'ux-kal-plan', label:'Krever planlegging', ikon:'triangle-alert', w:12, h:6},
+    {id:'ux-kal-tid', label:'Kalendertidslinje', ikon:'list', w:6, h:6},
+    {id:'ux-kal-hist', label:'Kalenderhistorikk', ikon:'history', w:12, h:6},
+    {id:'ux-kal-neste', label:'Neste aktiviteter', ikon:'list-checks', w:6, h:6},
     {id:'ux-kpi', label:'KPI-er', ikon:'gauge', w:12, h:4},
     {id:'ux-analyse', label:'Analyser', ikon:'line-chart', w:8, h:6},
     {id:'ux-bil-status', label:'Operativ status', ikon:'car', w:12, h:5},
@@ -15997,6 +16029,15 @@ function uxWidgetHtml(id){
   if(id === 'ux-aktivitet') return ux1AktivitetHtml();
   if(id === 'ux-vtstatus') return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedstatus</h2>${ux2StatusHtml(vtOversiktKpi(getFilteredVerkstedtimer()))}</section>`;
   if(id === 'ux-kalender') return kalenderUkeWidgetHtml();
+  if(id === 'ux-kal-uke') return uxKalUkeHtml();
+  if(id === 'ux-kal-kapasitet') return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedkapasitet</h2>${ux4KapasitetHtml()}</section>`;
+  if(id === 'ux-kal-denne') return uxKalDenneUkenHtml();
+  if(id === 'ux-kal-mnd') return uxKalMndHtml();
+  if(id === 'ux-kal-dag') return uxKalDagHtml();
+  if(id === 'ux-kal-plan') return uxKalPlanHtml();
+  if(id === 'ux-kal-tid') return uxKalTidHtml();
+  if(id === 'ux-kal-hist') return uxKalHistHtml();
+  if(id === 'ux-kal-neste') return uxKalNesteHtml();
   if(id === 'ux-kpi'){
     const h = flatehelse();
     const aktiveN = (vehicles || []).filter(v => vehicleAktivSjafor(v.id)).length;
@@ -16110,7 +16151,7 @@ function uxLayoutStandard(side){
   const valg = {
     dashboard:['ux-status','ux-handling','ux-saker','ux-verksted','ux-aktivitet','ux-biler'],
     verksted:['ux-vtstatus','ux-handling','ux-verksted'],
-    kalender:['ux-kalender','ux-verksted','ux-handling'],
+    kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-plan','ux-kal-hist'],
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
     analyse:['ux-kpi','ux-analyse'],
     rapporter:['ux-kpi','ux-analyse'],
@@ -16182,7 +16223,9 @@ function uxLayoutSlett(side){
   localStorage.setItem(UX_LAYOUT_KEY, JSON.stringify(alle));
 }
 function uxLayoutKladd(side){
-  return uxLayoutNormaliser(uxLayoutLes(side) || uxLayoutStandard(side), side);
+  const lest = uxLayoutLes(side);
+  if(side === 'kalender' && lest && !lest.some(w => w.visible && String(w.widgetId).indexOf('ux-kal-') === 0)) return uxLayoutNormaliser(uxLayoutStandard(side), side);
+  return uxLayoutNormaliser(lest || uxLayoutStandard(side), side);
 }
 function uxLayoutTreff(liste, a, unntatt){
   return liste.some(b => b.visible && b.widgetId !== unntatt && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height);
@@ -16228,20 +16271,58 @@ function uxLayoutVisHtml(liste){
   const rader = uxLayoutRader(synlige, 0);
   return `<div class="ux-canvas" style="grid-template-rows:repeat(${rader}, minmax(${UX_LAYOUT_RAD_PX}px, auto))">${synlige.map(w => uxLayoutKortHtml(w, false)).join('')}</div>`;
 }
+const UX_WIDGET_KATEGORIER = [
+  {id:'kalender', label:'Kalender', sider:['kalender']},
+  {id:'planlegging', label:'Planlegging', sider:['kalender']},
+  {id:'drift', label:'Drift', sider:['dashboard']},
+  {id:'kjoretoy', label:'Kjøretøy', sider:['bilkort']},
+  {id:'verksted', label:'Verksted', sider:['verksted','kalender']},
+  {id:'kontroller', label:'Kontroller', sider:['bilkort']},
+  {id:'historikk', label:'Historikk', sider:['bilkort','verksted','kalender']},
+  {id:'saker', label:'Saker', sider:['dashboard']},
+  {id:'analyse', label:'Analyse', sider:['dashboard']},
+  {id:'admin', label:'Administrasjon', sider:[]}
+];
+const UX_WIDGET_I_KATEGORI = {
+  drift:['ux-status','ux-biler','ux-bil-sjafor','ux-kpi','ux-kalender'],
+  kjoretoy:['ux-bil-info','ux-bil-kontroll','ux-bil-helse','ux-bil-dekk','ux-bil-service','ux-bil-eu','ux-bil-loftebord'],
+  verksted:['ux-bil-verksted','ux-vtstatus','ux-verksted','ux-kal-kapasitet'],
+  kontroller:['ux-bil-grunnlag','ux-bil-kontroll','ux-bil-eu','ux-bil-loftebord'],
+  historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist'],
+  saker:['ux-saker','ux-bil-saker','ux-handling','ux-bil-handling','ux-varsler','ux-bil-neste'],
+  analyse:['ux-kpi','ux-analyse'],
+  kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-dag','ux-kal-plan','ux-kal-tid','ux-kal-hist','ux-kal-neste'],
+  planlegging:['ux-kal-plan','ux-kal-denne','ux-kal-tid','ux-handling','ux-kal-neste'],
+  admin:[]
+};
+function uxWidgetBibliotekHtml(skjulte, side){
+  const kat = uxWidgetKatalog();
+  const sok = uxWidgetSok.trim().toLowerCase();
+  const forst = UX_WIDGET_KATEGORIER.filter(k => (k.sider || []).indexOf(side) >= 0).map(k => k.id);
+  const rekkefolge = forst.concat(UX_WIDGET_KATEGORIER.map(k => k.id).filter(id => forst.indexOf(id) < 0));
+  const treff = (id) => {
+    const d = kat.find(k => k.id === id);
+    if(!d || !skjulte.some(w => w.widgetId === id)) return null;
+    if(sok && (d.label + ' ' + d.id).toLowerCase().indexOf(sok) < 0) return null;
+    return d;
+  };
+  const grupper = rekkefolge.map(kid => {
+    const meta = UX_WIDGET_KATEGORIER.find(k => k.id === kid);
+    const widgets = (UX_WIDGET_I_KATEGORI[kid] || []).map(treff).filter(Boolean);
+    return widgets.length ? {label: meta.label, widgets} : null;
+  }).filter(Boolean);
+  const valgtMeta = UX_WIDGET_KATEGORIER.find(k => k.id === uxWidgetKat);
+  const valgt = uxWidgetKat && valgtMeta && grupper.some(g => g.label === valgtMeta.label) ? uxWidgetKat : (forst[0] || '');
+  const synlig = sok ? grupper : grupper.filter(g => { const id = UX_WIDGET_KATEGORIER.find(k => k.label === g.label).id; return !valgt || id === valgt; });
+  return `<input type="search" class="ux-bib-sok" id="ux-widget-sok" placeholder="Søk widget..." value="${esc(uxWidgetSok)}">
+    <div class="ux-bib-kat">${UX_WIDGET_KATEGORIER.filter(k => grupper.some(g => g.label === k.label)).map(k => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small${valgt===k.id && !sok ? ' is-valgt' : ''}" data-ux-kat="${k.id}">${esc(k.label)}</button>`).join('')}</div>
+    ${synlig.length ? synlig.map(g => `<div class="ux-bib-gruppe"><h4>${esc(g.label)}</h4><div class="ux-bib-kat">${g.widgets.map(d => `<button type="button" class="dash-edit-chip" data-ux-vis="${d.id}">${luc(d.ikon)} ${esc(d.label)}</button>`).join('')}</div></div>`).join('') : '<span class="dash-edit-tom">Ingen widgets treffer søket.</span>'}`;
+}
 function uxLayoutEditorHtml(liste, side){
   const synlige = liste.filter(w => w.visible);
   const skjulte = liste.filter(w => !w.visible);
-  const kat = uxWidgetKatalog();
   const rader = uxLayoutRader(synlige, 8);
-  const prio = uxLayoutStandard(side).filter(w => w.visible).map(w => w.widgetId);
-  skjulte.sort((a, b) => {
-    const ia = prio.indexOf(a.widgetId), ib = prio.indexOf(b.widgetId);
-    if(ia < 0 && ib < 0) return a.widgetId.localeCompare(b.widgetId, 'nb');
-    if(ia < 0) return 1;
-    if(ib < 0) return -1;
-    return ia - ib;
-  });
-  const panel = uxWidgetMeny ? `<div class="ux-bib-panel" id="ux-bib-panel">${skjulte.length ? skjulte.map(w => { const d = kat.find(k => k.id === w.widgetId); return `<button type="button" class="dash-edit-chip" data-ux-vis="${w.widgetId}">${luc(d.ikon)} ${esc(d.label)}</button>`; }).join('') : '<span class="dash-edit-tom">Alle widgets ligger på siden.</span>'}</div>` : '';
+  const panel = uxWidgetMeny ? `<div class="ux-bib-panel" id="ux-bib-panel">${uxWidgetBibliotekHtml(skjulte, side)}</div>` : '';
   return `${uxLayoutToppHtml(side)}
     <div class="ux-bib"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="ux-widget-apne">${luc('plus')} Widget</button>${panel}</div>
     <div class="ux-canvas is-edit" id="ux-canvas" style="--rader:${rader};grid-template-rows:repeat(${rader}, minmax(${UX_LAYOUT_RAD_PX}px, auto))">${synlige.map(w => uxLayoutKortHtml(w, true)).join('')}</div>`;
@@ -16398,7 +16479,15 @@ function attachUxLayoutListeners(){
     uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; render();
   });
   const apne = document.getElementById('ux-widget-apne');
-  if(apne) apne.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetMeny = !uxWidgetMeny; render(); });
+  if(apne) apne.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetMeny = !uxWidgetMeny; if(uxWidgetMeny && !uxWidgetKat){ const forst = UX_WIDGET_KATEGORIER.find(k => (k.sider || []).indexOf(uxLayoutSide) >= 0); uxWidgetKat = forst ? forst.id : 'drift'; } render(); });
+  const sok = document.getElementById('ux-widget-sok');
+  if(sok) sok.addEventListener('input', e => {
+    uxWidgetSok = e.target.value;
+    render();
+    const el = document.getElementById('ux-widget-sok');
+    if(el){ el.focus(); el.selectionStart = el.value.length; }
+  });
+  document.querySelectorAll('[data-ux-kat]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetKat = el.dataset.uxKat; uxWidgetSok = ''; render(); }));
   document.querySelectorAll('[data-ux-vis]').forEach(el => el.addEventListener('click', () => {
     const liste = (uxLayoutDraft || []).map(w => Object.assign({}, w));
     const w = liste.find(x => x.widgetId === el.dataset.uxVis);
@@ -16620,6 +16709,38 @@ function registerNyBilSkjemaHtml(){
       <div class="panel-actions"><button class="bp-btn bp-btn-primary btn" type="submit">Legg til og åpne</button></div>
     </form>`;
 }
+function registerSorter(liste){
+  const kopi = liste.slice();
+  if(registerSort === 'regnr') kopi.sort((a, b) => String(a.regnr || '').localeCompare(String(b.regnr || ''), 'nb'));
+  else if(registerSort === 'status') kopi.sort((a, b) => String(vehicleHovedstatus(a.id) || '').localeCompare(String(vehicleHovedstatus(b.id) || ''), 'nb') || String(a.bilnummer || '').localeCompare(String(b.bilnummer || ''), 'nb', {numeric:true}));
+  else kopi.sort((a, b) => String(a.bilnummer || '').localeCompare(String(b.bilnummer || ''), 'nb', {numeric:true}));
+  return kopi;
+}
+function registerDriftGrupper(liste, fane){
+  if(fane === 'alle') return [{navn:'Alle biler', biler:registerSorter(liste)}];
+  const del = liste.filter(v => ux1KjoretoyFaneAv(v) === fane);
+  if(fane !== 'driftslag'){
+    const navn = fane === 'montering' ? 'Montering' : (fane === 'lastebil' ? 'Lastebil' : 'Reserve');
+    return [{navn, biler:registerSorter(del)}];
+  }
+  const grupper = {};
+  del.forEach(v => {
+    const nokkel = vehicleDriftslagGruppe(v);
+    if(!grupper[nokkel]) grupper[nokkel] = [];
+    grupper[nokkel].push(v);
+  });
+  const faste = ['Lag 1', 'Lag 2', 'Lag 3', 'Lag 4'];
+  const ekstra = Object.keys(grupper).filter(n => faste.indexOf(n) < 0 && grupper[n].length)
+    .sort((a, b) => (ux1LagRekkefolge(a) - ux1LagRekkefolge(b)) || a.localeCompare(b, 'nb'));
+  return (del.length ? faste.concat(ekstra) : []).map(navn => ({navn, biler:registerSorter(grupper[navn] || [])}));
+}
+function registerDriftKort(g, minBil){
+  const farge = p48DriftslagFarge(g.navn);
+  const kort = g.biler.length
+    ? `<div class="gallery">${g.biler.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`
+    : '<p class="ux1-lag-tom">Ingen biler</p>';
+  return `<div class="ux1-lag-kol"><h3 class="ux1-lag-hode" style="color:${farge}"><span class="bp-status-dot" style="background:${farge}"></span><span>${esc(g.navn)}</span><span class="ux1-lag-sum">${esc(ux1LagSumTekst(g.biler))}</span></h3>${kort}</div>`;
+}
 function renderRegister(){
   const q = filterSearch.trim().toLowerCase();
   const filtered = vehicles.filter(v => {
@@ -16694,66 +16815,33 @@ function renderRegister(){
 
     ${(() => {
       const minBil = egenAktiveBil();
-      const nyBilFaneBtn = `<button type="button" class="profil-tab bp-seg-btn profil-tab-ny ${erNyBilFane ? 'active' : ''}" data-register-fane="ny-bil">+ Ny bil</button>`;
-      const aktivBilHint = (!erNyBilFane && minBil)
-        ? `<div class="required-hint" style="margin-bottom:14px;background:var(--warning-soft);color:var(--ink);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;" data-open="${minBil.id}">🚚 Aktiv bil: ${esc(vehicleLabel(minBil))} →</div>`
-        : '';
-
-      // «Har aktiv sjåfør»: én samlet liste + Ny bil-fanen.
-      if(filterHovedstatus === 'har-aktiv-sjafor'){
-        const iDrift = sortedVehicles(filtered);
-        return `
-          <div class="profil-tabs bp-seg">
-            <button type="button" class="profil-tab bp-seg-btn ${!erNyBilFane ? 'active' : ''}" data-register-fane="i-drift">${luc('truck')} Biler i drift (${iDrift.length})</button>
-            ${nyBilFaneBtn}
-          </div>
-          ${erNyBilFane ? registerNyBilSkjemaHtml() : `
-            ${aktivBilHint}
-            <div class="bp-card panel" style="margin-bottom:16px;">
-              <div class="required-hint" style="margin-bottom:12px;">Alle biler med aktiv sjåfør — uavhengig av kategori</div>
-              ${iDrift.length === 0
-                ? bpTomTilstandHtml('Ingen biler i drift', 'Ingen kjøretøy har aktiv sjåfør akkurat nå.')
-                : `<div class="gallery">${iDrift.map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`}
-            </div>`}`;
-      }
-
-      const gruppeIder = [...KATEGORI_ORDER, UTE_AV_DRIFT_KATEGORI_ID]
-        .filter(k => filtered.some(v => vehicleVisningsKategori(v) === k));
-      // Aktiv fane: Ny bil vinner når den er valgt. Ellers kategorifilter → lagret fane →
-      // egen aktive bil → første gruppe. Tom liste uten grupper → Ny bil (eneste innhold).
-      let aktivFane;
-      if(erNyBilFane) aktivFane = 'ny-bil';
-      else if(filterKategori && gruppeIder.includes(filterKategori)) aktivFane = filterKategori;
-      else if(registerAktivFane && registerAktivFane !== 'ny-bil' && gruppeIder.includes(registerAktivFane)) aktivFane = registerAktivFane;
-      else if(minBil && gruppeIder.includes(vehicleVisningsKategori(minBil))) aktivFane = vehicleVisningsKategori(minBil);
-      else if(gruppeIder.length) aktivFane = gruppeIder[0];
-      else aktivFane = 'ny-bil';
-      if(aktivFane === 'ny-bil'){ showAddVehicleForm = true; registerAktivFane = 'ny-bil'; }
-
-      const gruppeBilerFor = (k) => {
-        const gruppeBilerSortert = sortedVehicles(filtered.filter(v => vehicleVisningsKategori(v) === k));
-        return minBil && vehicleVisningsKategori(minBil) === k
-          ? [minBil, ...gruppeBilerSortert.filter(v => v.id !== minBil.id)]
-          : gruppeBilerSortert;
-      };
-      const innhold = aktivFane === 'ny-bil'
-        ? registerNyBilSkjemaHtml()
-        : (gruppeIder.length === 0
-          ? bpTomTilstandHtml(vehicles.length === 0 ? 'Ingen kjøretøy registrert ennå' : 'Ingen treff', vehicles.length === 0 ? 'Velg «+ Ny bil» for å registrere den første bilen.' : 'Prøv et annet søk eller fjern filtre.')
-          : `${aktivBilHint}
-            <div class="bp-card panel" style="margin-bottom:16px;">
-              <div class="gallery">
-                ${gruppeBilerFor(aktivFane).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}
-              </div>
-            </div>`);
-
+      const faner = [
+        {id:'driftslag', label:'Driftslag'},
+        {id:'lastebil', label:'Lastebiler'},
+        {id:'montering', label:'Monteringsbiler'},
+        {id:'reserve', label:'Reserve'},
+        {id:'alle', label:'Alle biler'}
+      ];
+      const valgt = faner.some(f => f.id === registerDriftFane) ? registerDriftFane : 'driftslag';
+      const farge = {driftslag:'var(--ink)', lastebil:'var(--id-lastebil)', montering:'var(--id-montering)', reserve:'var(--neutral)', alle:'var(--ink)'};
+      const antall = {};
+      faner.forEach(f => { antall[f.id] = f.id === 'alle' ? filtered.length : filtered.filter(v => ux1KjoretoyFaneAv(v) === f.id).length; });
+      const grupper = registerDriftGrupper(filtered, valgt);
+      const innhold = valgt === 'ny-bil' ? '' : (antall[valgt]
+        ? (valgt === 'driftslag'
+          ? `<div class="ux1-lag-grid">${grupper.map(g => registerDriftKort(g, minBil)).join('')}</div>`
+          : (valgt === 'alle'
+            ? `<div class="gallery">${registerSorter(filtered).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`
+            : `<div class="ux1-kat">${grupper.map(g => registerDriftKort(g, minBil)).join('')}</div>`))
+        : bpTomTilstandHtml('Ingen biler her', 'Ingen kjøretøy i denne gruppen.', true));
+      const sortHtml = valgt === 'alle' ? `<label class="ux1-lag-tom">Sorter <select id="reg-sort"><option value="bilnummer" ${registerSort==='bilnummer'?'selected':''}>Bilnummer</option><option value="regnr" ${registerSort==='regnr'?'selected':''}>Reg.nr</option><option value="status" ${registerSort==='status'?'selected':''}>Status</option></select></label>` : '';
       return `
-        <div class="profil-tabs bp-seg">
-          ${gruppeIder.map(k => `
-            <button type="button" class="profil-tab bp-seg-btn ${k === aktivFane ? 'active' : ''}" data-register-fane="${k}">${kategoriIkonLucide(k)} ${esc(kategoriNavn(k))} (${filtered.filter(v => vehicleVisningsKategori(v) === k).length})</button>`).join('')}
-          ${nyBilFaneBtn}
+        <div class="ux1-bil-faner" role="tablist">
+          ${faner.map(f => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small ux1-bil-fane${valgt===f.id?' is-valgt':''}" style="${valgt===f.id?'color:'+farge[f.id]+';':''}" data-register-drift="${f.id}">${f.label} (${antall[f.id]})</button>`).join('')}
+          <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-register-fane="ny-bil">+ Ny bil</button>
         </div>
-        ${innhold}`;
+        ${sortHtml}
+        ${erNyBilFane ? registerNyBilSkjemaHtml() : innhold}`;
     })()}
   `;
 }
@@ -16786,6 +16874,14 @@ function attachRegisterListeners(){
     showAddVehicleForm = fane === 'ny-bil';
     render();
   }));
+  document.querySelectorAll('[data-register-drift]').forEach(el => el.addEventListener('click', () => {
+    registerDriftFane = el.dataset.registerDrift || 'driftslag';
+    registerAktivFane = '';
+    showAddVehicleForm = false;
+    render();
+  }));
+  const regSort = document.getElementById('reg-sort');
+  if(regSort) regSort.addEventListener('change', e => { registerSort = e.target.value; render(); });
   document.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.open)));
 }
 function galleryCard(v, erMinAktiveBil){
@@ -19822,78 +19918,189 @@ function ux4TidGruppe(id, tittel, rader, visDato){
   if(!rader || !rader.length) return '';
   return `<div class="ux1-gruppe"${id ? ` id="${id}"` : ''}><h3 class="ux1-gruppe-tittel">${tittel}</h3><ul class="dmg-simple-list">${rader.map(a => kalenderRadHtml(a, visDato)).join('')}</ul></div>`;
 }
-function renderKalender(){
-  const eget = uxLayoutOvertar('kalender');
-  if(eget) return eget;
+function kalenderAktMeta(a){
+  const t = String(a && a.tittel || '').toLowerCase();
+  if((a && a.mal === 'dekk') || t.indexOf('dekk') >= 0) return {navn:'Dekk', kat:'dekk', farge:'var(--info)'};
+  if(t.indexOf('eu') >= 0) return {navn:'EU', kat:'eu', farge:'var(--warning)'};
+  if(t.indexOf('løfte') >= 0 || t.indexOf('lofte') >= 0) return {navn:'Løftebord', kat:'loftebord', farge:'var(--id-montering)'};
+  if(t.indexOf('skade') >= 0) return {navn:'Skade', kat:'skade', farge:'var(--danger)'};
+  if((a && a.mal === 'service') || t.indexOf('service') >= 0) return {navn:'Service', kat:'service', farge:'var(--workshop)'};
+  if((a && a.mal === 'sak') || t.indexOf('oppf') >= 0) return {navn:'Oppfølging', kat:'oppfolging', farge:'var(--accent)'};
+  return {navn:'Verksted', kat:'verksted', farge:'var(--id-lastebil)'};
+}
+function kalenderAktAttr(a){
+  if(!a) return '';
+  if(a.mal === 'service' && a.vehicleId) return `data-goto-service="${esc(a.vehicleId)}"`;
+  if(a.mal === 'dekk' && a.vehicleId) return `data-goto-dekk="${esc(a.vehicleId)}"`;
+  if(a.mal === 'verksted' && a.vtId) return `data-goto-vt="${esc(a.vtId)}"`;
+  if(a.mal === 'sak' && a.sakId) return `data-goto-sak="${esc(a.sakId)}"`;
+  return a.vehicleId ? `data-goto-bilkort="${esc(a.vehicleId)}"` : '';
+}
+function kalenderRegnr(vehicleId){
+  const v = (vehicles || []).find(x => x.id === vehicleId);
+  return v ? (v.regnr || v.bilnummer || vehicleLabel(v)) : 'Ukjent';
+}
+function kalenderUkeListe(offset){
+  const kart = kalenderAktiviteterKart();
+  const start = isoDateOffset(isoUkeStart(todayISO()), (offset || 0) * 7);
+  const dager = [];
+  for(let i = 0; i < 7; i++){
+    const iso = isoDateOffset(start, i);
+    dager.push({iso, navn:KAL_UKEDAG_KORT[i], akt:(kart[iso] || []).map(a => Object.assign({dato:iso}, a))});
+  }
+  return {start, slutt:isoDateOffset(start, 6), dager};
+}
+function uxKalUkeHtml(){
+  const uke = kalenderUkeListe(kalenderUkeOffset);
+  const idag = todayISO();
+  const dager = uke.dager.map(d => `
+    <div class="kal-uke-dag${d.iso === idag ? ' idag' : ''}">
+      <div class="kal-uke-h">${d.navn}<br>${esc(fmt(d.iso).slice(0, 5))}</div>
+      ${d.akt.length ? d.akt.map(a => {
+        const m = kalenderAktMeta(a);
+        return `<button type="button" class="kal-chip" style="--tone:${m.farge}" ${kalenderAktAttr(a)}><b>${esc(kalenderRegnr(a.vehicleId))}</b>${esc(m.navn)}</button>`;
+      }).join('') : '<span class="ux1-lag-tom">Ingen</span>'}
+    </div>`).join('');
+  return `<section class="ux1-sek">
+    <div class="kal-topp"><h2 class="bp-overline">Ukekalender</h2>
+      <div style="display:flex;gap:var(--space-2);">
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-uke-forrige">Forrige</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-uke-idag">Denne uken</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-uke-neste">Neste</button>
+      </div>
+    </div>
+    <p class="bp-kpi-sub">${esc(fmt(uke.start))} – ${esc(fmt(uke.slutt))}</p>
+    <div class="kal-uke-wrap"><div class="kal-uke">${dager}</div></div>
+  </section>`;
+}
+function uxKalDenneUkenHtml(){
+  const uke = kalenderUkeListe(0);
+  const alle = uke.dager.reduce((s, d) => s.concat(d.akt), []);
+  const verksted = alle.filter(a => a.mal === 'verksted' || a.mal === 'service' || a.mal === 'dekk').length;
+  const kontroller = alle.filter(a => { const k = kalenderAktMeta(a).kat; return k === 'eu' || k === 'loftebord' || k === 'oppfolging'; }).length;
+  const forfalt = (verkstedtimer || []).filter(t => vtStatus(t) === 'forfalt' && t.dato && t.dato >= uke.start && t.dato <= uke.slutt).length;
+  return `<button type="button" class="ux1-sek kal-denne" data-kal-fokus="ux-kal-uke">
+    <h2 class="bp-overline">Denne uken</h2>
+    <div class="kal-denne-tall">${alle.length} aktiviteter</div>
+    <p class="bp-kpi-sub">${verksted} verksted</p>
+    <p class="bp-kpi-sub">${kontroller} kontroller</p>
+    <p class="bp-kpi-sub">${forfalt} forfalt</p>
+  </button>`;
+}
+function uxKalMndHtml(){
   const kart = kalenderAktiviteterKart();
   const idag = todayISO();
-  const mnd = kalenderMnd || idag.slice(0,7);
-  const ar = Number(mnd.slice(0,4)), m = Number(mnd.slice(5,7));
+  const mnd = kalenderMnd || idag.slice(0, 7);
+  const ar = Number(mnd.slice(0, 4)), m = Number(mnd.slice(5, 7));
   const dagerIMnd = new Date(ar, m, 0).getDate();
-  // Mandag som første ukedag (JS sin getDay() gir søndag = 0, derfor +6 % 7).
   const startOffset = (new Date(ar, m - 1, 1).getDay() + 6) % 7;
-  const isoFor = (dag) => ar + '-' + String(m).padStart(2,'0') + '-' + String(dag).padStart(2,'0');
-  const antallIMnd = Object.keys(kart).filter(d => d.slice(0,7) === mnd).reduce((sum,d) => sum + kart[d].length, 0);
-  const valgt = kalenderValgtDato;
-  const valgteAkt = valgt ? (kart[valgt] || []) : [];
-
+  const isoFor = (dag) => ar + '-' + String(m).padStart(2, '0') + '-' + String(dag).padStart(2, '0');
+  const antallIMnd = Object.keys(kart).filter(d => d.slice(0, 7) === mnd).reduce((sum, d) => sum + kart[d].length, 0);
   const celler = [];
-  for(let i = 0; i < startOffset; i++) celler.push(`<div class="kal-dag tom"></div>`);
+  for(let i = 0; i < startOffset; i++) celler.push('<div class="kal-dag tom"></div>');
   for(let dag = 1; dag <= dagerIMnd; dag++){
     const iso = isoFor(dag);
     const akt = kart[iso] || [];
-    const ikoner = [...new Set(akt.map(a => a.ikon))].join('');
-    celler.push(`
-      <button type="button" class="kal-dag ${akt.length ? 'har' : ''} ${iso === idag ? 'idag' : ''} ${iso === valgt ? 'valgt' : ''}" data-kal-dato="${iso}">
-        <span class="kal-dagnr">${dag}</span>
-        ${akt.length ? `<span class="kal-merker">${ikoner}</span><span class="kal-antall">${akt.length} avtale${akt.length===1?'':'r'}</span>` : ''}
-      </button>`);
+    const linjer = akt.slice(0, 3).map(a => {
+      const meta = kalenderAktMeta(a);
+      return `<span class="kal-celle-linje" style="--tone:${meta.farge}">${esc(meta.navn)}</span>`;
+    }).join('');
+    const mer = akt.length > 3 ? `<span class="kal-antall">+${akt.length - 3}</span>` : '';
+    celler.push(`<button type="button" class="kal-dag ${akt.length ? 'har' : ''} ${iso === idag ? 'idag' : ''} ${iso === kalenderValgtDato ? 'valgt' : ''}" data-kal-dato="${iso}"><span class="kal-dagnr">${dag}</span>${linjer}${mer}</button>`);
   }
-
-  const linje = ux4Tidslinje(kart);
-  const ukeHtml = Object.keys(linje.ukeKart).map(d => ux4TidGruppe('', ux4Ukedag(d) + ' ' + fmt(d).slice(0, 5), linje.ukeKart[d], false)).join('');
-  const plan = ux4KreverPlanlegging(5);
-  const hist = ux4Historikk(kart, 8);
-  return `
-    <div class="ux1-stack">
-      <section aria-labelledby="ux4-kap"><h2 id="ux4-kap" class="bp-overline">Verkstedkapasitet</h2>${ux4KapasitetHtml()}</section>
-      <section id="ux4-venter" aria-labelledby="ux4-plan"><div class="ux1-head"><h2 id="ux4-plan" class="bp-overline">Krever planlegging</h2></div>
-        ${plan.length ? `<div class="ux1-alerts">${plan.map(p => p.kind === 'eu' ? ux1VarselKortHtml(p.x) : ux2AlertHtml(p.r)).join('')}</div>` : bpTomTilstandHtml('Ingenting å planlegge', 'Ingen forfalt time, manglende bekreftelse eller EU-kontroll som krever handling.', true)}
-      </section>
-      <section id="ux4-uke" aria-labelledby="ux4-tid"><div class="ux1-head"><h2 id="ux4-tid" class="bp-overline">Tidslinje</h2></div>
-        <div class="ux1-col">
-          ${ux4TidGruppe('ux4-idag', 'I dag', linje.iDag, false)}
-          ${ux4TidGruppe('ux4-imorgen', 'I morgen', linje.morgen, false)}
-          ${ukeHtml}
-          ${linje.iDag.length + linje.morgen.length + Object.keys(linje.ukeKart).length ? '' : bpTomTilstandHtml('Ingen aktiviteter denne uka', 'Ingenting er lagt på i dag, i morgen eller resten av uka.', true)}
-        </div>
-      </section>
-      <section aria-labelledby="ux4-mnd"><div class="ux1-head"><h2 id="ux4-mnd" class="bp-overline">Månedskalender</h2></div>
-        <div class="bp-card">
-          <div class="kal-topp">
-            <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-forrige">Forrige</button>
-            <div class="kal-mnd">${KAL_MANED_NAVN[m-1]} ${ar}</div>
-            <div style="display:flex;gap:var(--space-2);">
-              <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-idag">I dag</button>
-              <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-neste">Neste</button>
-            </div>
-          </div>
-          <div class="kal-ukedager">${KAL_UKEDAG_KORT.map(u => `<div class="kal-ukedag">${u}</div>`).join('')}</div>
-          <div class="kal-grid">${celler.join('')}</div>
-          <p class="bp-kpi-sub" style="margin-top:var(--space-3);">${antallIMnd} aktivitet${antallIMnd===1?'':'er'} denne måneden. Service, dekkskift, reparasjon, EU-kontroll og oppfølging. Trykk på en dato.</p>
-        </div>
-        <div class="bp-card" style="margin-top:var(--space-3);">
-          <div class="bp-card-head"><h3 class="bp-card-title">${valgt ? fmt(valgt) : 'Velg en dato'}</h3></div>
-          ${!valgt ? bpTomTilstandHtml('Velg en dato', 'Trykk på en dato i måneden for å se aktivitetene.', true)
-            : (valgteAkt.length === 0 ? bpTomTilstandHtml('Ingen aktiviteter', 'Ingenting er planlagt ' + fmt(valgt) + '.', true)
-            : `<ul class="dmg-simple-list">${valgteAkt.map(a => kalenderRadHtml(a, false)).join('')}</ul>`)}
-        </div>
-      </section>
-      <section aria-labelledby="ux4-hist"><div class="ux1-head"><h2 id="ux4-hist" class="bp-overline">Historikk</h2></div>
-        ${hist.length ? `<ul class="dmg-simple-list">${hist.map(a => kalenderRadHtml(a, true)).join('')}</ul>` : bpTomTilstandHtml('Ingen tidligere aktiviteter', 'Ingenting ligger bak dagens dato.', true)}
-      </section>
+  return `<section class="ux1-sek"><div class="ux1-head"><h2 class="bp-overline">Månedskalender</h2></div>
+    <div class="kal-topp">
+      <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-forrige">Forrige</button>
+      <div class="kal-mnd">${KAL_MANED_NAVN[m - 1]} ${ar}</div>
+      <div style="display:flex;gap:var(--space-2);">
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-idag">I dag</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="kal-neste">Neste</button>
+      </div>
     </div>
-  `;
+    <div class="kal-ukedager">${KAL_UKEDAG_KORT.map(u => `<div class="kal-ukedag">${u}</div>`).join('')}</div>
+    <div class="kal-grid">${celler.join('')}</div>
+    <p class="bp-kpi-sub" style="margin-top:var(--space-3);">${antallIMnd} aktivitet${antallIMnd === 1 ? '' : 'er'} denne måneden. Trykk en dato for dagsoversikten.</p>
+  </section>`;
+}
+function uxKalDagHtml(){
+  const kart = kalenderAktiviteterKart();
+  const valgt = kalenderValgtDato;
+  const akt = valgt ? (kart[valgt] || []) : [];
+  const kropp = !valgt ? bpTomTilstandHtml('Velg en dato', 'Trykk på en dato i månedskalenderen.', true)
+    : (akt.length ? `<ul class="dmg-simple-list">${akt.map(a => kalenderRadHtml(a, false)).join('')}</ul>` : bpTomTilstandHtml('Ingen aktiviteter', 'Ingenting er planlagt ' + fmt(valgt) + '.', true));
+  return `<section class="ux1-sek"><h2 class="bp-overline">Dagsoversikt</h2><p class="bp-vcard-name">${valgt ? esc(fmt(valgt)) : 'Ingen dato valgt'}</p>${kropp}</section>`;
+}
+function uxKalPlanRad(tekst, vehicleId, attr){
+  return `<button type="button" class="kal-tid" ${attr}><b>${esc(kalenderRegnr(vehicleId))}</b><span>${esc(tekst)}</span></button>`;
+}
+function uxKalPlanHtml(){
+  const manglerDato = [];
+  (verkstedtimer || []).filter(t => vtErApen(t) && !t.dato).forEach(t => manglerDato.push(uxKalPlanRad(vtTypeTittel(t), t.vehicleId, `data-goto-vt="${esc(t.id)}"`)));
+  (planlagteServicer || []).filter(t => !t.dato).forEach(t => manglerDato.push(uxKalPlanRad('Planlagt service', t.vehicleId, `data-goto-service="${esc(t.vehicleId)}"`)));
+  (planlagteDekkskift || []).filter(t => !t.dato).forEach(t => manglerDato.push(uxKalPlanRad('Planlagt dekkskift', t.vehicleId, `data-goto-dekk="${esc(t.vehicleId)}"`)));
+  (aktiveSaker || []).filter(s => sakErApen(s) && !s.followUpDate).slice(0, 8).forEach(s => manglerDato.push(uxKalPlanRad(sakKortOverskrift(s), s.vehicleId, `data-goto-sak="${esc(s.id)}"`)));
+  const manglerRessurs = [];
+  (verkstedtimer || []).filter(t => vtErApen(t) && t.dato && !(t.verksted || '').trim()).forEach(t => manglerRessurs.push(uxKalPlanRad(vtTypeTittel(t), t.vehicleId, `data-goto-vt="${esc(t.id)}"`)));
+  (planlagteServicer || []).filter(t => t.dato && !(t.verksted || '').trim()).forEach(t => manglerRessurs.push(uxKalPlanRad('Planlagt service', t.vehicleId, `data-goto-service="${esc(t.vehicleId)}"`)));
+  (planlagteDekkskift || []).filter(t => t.dato && !(t.verksted || '').trim()).forEach(t => manglerRessurs.push(uxKalPlanRad('Planlagt dekkskift', t.vehicleId, `data-goto-dekk="${esc(t.vehicleId)}"`)));
+  const plan = ux4KreverPlanlegging(8);
+  const blokk = (tittel, html) => `<div class="ux1-gruppe"><h3 class="ux1-gruppe-tittel">⚠ ${tittel}</h3>${html}</div>`;
+  const ma = plan.length ? plan.map(p => p.kind === 'eu' ? ux1VarselKortHtml(p.x) : ux2AlertHtml(p.r)).join('') : '<p class="ux1-lag-tom">Ingen</p>';
+  const dato = manglerDato.length ? manglerDato.join('') : '<p class="ux1-lag-tom">Ingen</p>';
+  const ressurs = manglerRessurs.length ? manglerRessurs.join('') : '<p class="ux1-lag-tom">Ingen</p>';
+  return `<section class="ux1-sek" id="ux4-venter"><h2 class="bp-overline">Krever planlegging</h2>
+    ${blokk('Må planlegges', `<div class="ux1-alerts">${ma}</div>`)}
+    ${blokk('Mangler dato', dato)}
+    ${blokk('Mangler ressurs', ressurs)}
+  </section>`;
+}
+function uxKalTidKort(a){
+  const m = kalenderAktMeta(a);
+  return `<button type="button" class="kal-tid" style="border-left:3px solid ${m.farge};padding-left:8px" ${kalenderAktAttr(a)}><b>${esc(kalenderRegnr(a.vehicleId))}</b><span>${esc(m.navn)}</span></button>`;
+}
+function uxKalTidHtml(){
+  const linje = ux4Tidslinje(kalenderAktiviteterKart());
+  const gruppe = (id, tittel, rader) => `<div class="ux1-gruppe"${id ? ` id="${id}"` : ''}><h3 class="ux1-gruppe-tittel">${tittel}</h3>${rader && rader.length ? rader.map(uxKalTidKort).join('') : '<p class="ux1-lag-tom">Ingen</p>'}</div>`;
+  const senere = Object.keys(linje.ukeKart).map(d => gruppe('', ux4Ukedag(d), linje.ukeKart[d])).join('');
+  const tom = !linje.iDag.length && !linje.morgen.length && !Object.keys(linje.ukeKart).length;
+  return `<section class="ux1-sek" id="ux4-uke"><h2 class="bp-overline">Kalendertidslinje</h2>
+    ${tom ? bpTomTilstandHtml('Ingen aktiviteter denne uka', 'Ingenting er lagt på i dag, i morgen eller resten av uka.', true) : gruppe('ux4-idag', 'I dag', linje.iDag) + gruppe('ux4-imorgen', 'I morgen', linje.morgen) + senere}
+  </section>`;
+}
+function uxKalHistHtml(){
+  const filter = ['alle','service','verksted','dekk','eu','skade','loftebord'];
+  const label = {alle:'Alle', service:'Service', verksted:'Verksted', dekk:'Dekk', eu:'EU', skade:'Skade', loftebord:'Løftebord'};
+  const utfort = {service:'Service utført', verksted:'Verksted fullført', dekk:'Dekkskift utført', eu:'EU-kontroll utført', skade:'Skade lukket', loftebord:'Løftebordkontroll utført', oppfolging:'Oppfølging'};
+  const liste = ux4Historikk(kalenderAktiviteterKart(), 40).filter(a => kalenderHistFilter === 'alle' || kalenderAktMeta(a).kat === kalenderHistFilter);
+  const knapper = filter.map(k => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small${kalenderHistFilter === k ? ' is-valgt' : ''}" data-kal-hist="${k}">${label[k]}</button>`).join('');
+  const rader = liste.map(a => {
+    const m = kalenderAktMeta(a);
+    const kopi = Object.assign({}, a, {tittel: utfort[m.kat] || m.navn});
+    return kalenderRadHtml(kopi, true);
+  }).join('');
+  return `<section class="ux1-sek"><h2 class="bp-overline">Kalenderhistorikk</h2>
+    <div class="kal-filter">${knapper}</div>
+    ${liste.length ? `<ul class="dmg-simple-list">${rader}</ul>` : bpTomTilstandHtml('Ingen treff', 'Ingen tidligere aktiviteter i dette filteret.', true)}
+  </section>`;
+}
+function uxKalNesteHtml(){
+  const kart = kalenderAktiviteterKart();
+  const idag = todayISO();
+  const liste = [];
+  Object.keys(kart).filter(d => d >= idag).sort().forEach(d => kart[d].forEach(a => liste.push(Object.assign({dato:d}, a))));
+  const vist = liste.slice(0, 8);
+  return `<section class="ux1-sek"><h2 class="bp-overline">Neste aktiviteter</h2>
+    ${vist.length ? `<ul class="dmg-simple-list">${vist.map(a => kalenderRadHtml(a, true)).join('')}</ul>` : bpTomTilstandHtml('Ingen kommende aktiviteter', 'Ingenting ligger fram i tid.', true)}
+  </section>`;
+}
+function renderKalender(){
+  if(currentUiExperience() === 'desktop' && uxLayoutModus && layoutKanRedigere() && uxLayoutSide === 'kalender'){
+    if(!uxLayoutDraft || uxLayoutDraftSide !== 'kalender'){ uxLayoutDraft = uxLayoutKladd('kalender'); uxLayoutDraftSide = 'kalender'; }
+    return uxLayoutEditorHtml(uxLayoutDraft, 'kalender');
+  }
+  const lagret = uxLayoutLes('kalender');
+  const ny = lagret && lagret.some(w => w.visible && String(w.widgetId).indexOf('ux-kal-') === 0);
+  return uxLayoutVisHtml(ny ? lagret : uxLayoutStandard('kalender'));
 }
 // Prioritet 71.9: «📋 Alle kommende aktiviteter» (planleggingSeksjonHtml(), fjernet) viste i
 // praksis samme informasjon som månedsgriden og datovelgeren over — bare gruppert etter TYPE
@@ -19944,13 +20151,27 @@ function attachKalenderListeners(){
   if(idag) idag.addEventListener('click', () => {
     kalenderMnd = todayISO().slice(0,7); kalenderValgtDato = todayISO(); render();
   });
+  const ukeForrige = document.getElementById('kal-uke-forrige');
+  const ukeNeste = document.getElementById('kal-uke-neste');
+  const ukeIdag = document.getElementById('kal-uke-idag');
+  if(ukeForrige) ukeForrige.addEventListener('click', () => { kalenderUkeOffset -= 1; render(); });
+  if(ukeNeste) ukeNeste.addEventListener('click', () => { kalenderUkeOffset += 1; render(); });
+  if(ukeIdag) ukeIdag.addEventListener('click', () => { kalenderUkeOffset = 0; render(); });
   document.querySelectorAll('[data-kal-dato]').forEach(el => el.addEventListener('click', () => {
     kalenderValgtDato = kalenderValgtDato === el.dataset.kalDato ? '' : el.dataset.kalDato;
     render();
   }));
+  document.querySelectorAll('[data-kal-hist]').forEach(el => el.addEventListener('click', () => {
+    kalenderHistFilter = el.dataset.kalHist || 'alle';
+    render();
+  }));
+  document.querySelectorAll('[data-kal-fokus]').forEach(el => el.addEventListener('click', () => {
+    const g = document.querySelector('[data-ux-kort="' + el.dataset.kalFokus + '"]');
+    if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
+  }));
   document.querySelectorAll('[data-kal-kpi]').forEach(el => el.addEventListener('click', () => {
-    const id = {idag:'ux4-idag', uke:'ux4-uke', venter:'ux4-venter', forfalt:'ux4-venter'}[el.dataset.kalKpi];
-    const g = id && document.getElementById(id);
+    const id = {idag:'ux-kal-tid', uke:'ux-kal-uke', venter:'ux-kal-plan', forfalt:'ux-kal-plan'}[el.dataset.kalKpi];
+    const g = id && document.querySelector('[data-ux-kort="' + id + '"]');
     if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
   }));
   // Navigasjon videre til samlet Verksted og detaljer.

@@ -15,6 +15,17 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-09-29
 
+### Kalender 2.0
+
+1. Kalendersiden er widgetbasert. Standardoppsettet er verkstedkapasitet, denne uken, ukekalender, månedskalender, krever planlegging og historikk. Layouteditoren viser hele siden.
+2. Ukekalender viser aktiviteter i ukedagene. Månedskalenderen viser aktivitetstype i datocellene. Kalenderhistorikk kan filtreres. Widgetbiblioteket prioriterer kalender, planlegging, verksted og historikk.
+3. App-/cacheversjon 167 → **168**. `kontroll.html` = `index.html`.
+
+### Biloversikt etter drift
+
+1. Biloversikt grupperes som kjøretøystatus: Driftslag, Lastebiler, Monteringsbiler, Reserve og Alle biler. Kortene er de samme. Widgetbiblioteket er delt i kategorier, med søk og sidens kategorier først.
+2. App-/cacheversjon 166 → **167**. `kontroll.html` = `index.html`.
+
 ### Kjøretøyprofil kan klikkes igjen
 
 1. Dekk, service, EU-kontroll og løftebord åpner bilens eksisterende historikk. Blyanten for å redigere profilen ligger fast i toppfeltet for administratorer.
