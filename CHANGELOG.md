@@ -13,7 +13,13 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
-## 2026-09-30
+## 2026-10-01
+
+### Verkstedbestilling i drawer
+
+1. Bestilling av verkstedtime, service, EU-kontroll, dekkskift, ruteskift og reparasjon åpnes i en drawer. Skjemaet ligger ikke lenger nede på siden. Det lukkes med lukkeknapp, Avbryt, Esc eller klikk utenfor.
+2. Fremtidige handlinger heter Bestill. Registrer brukes til tidligere service. Handlingene ligger samlet i kjerne-widgeten Verkstedhandlinger. Filterpanelet legger feltene i to kolonner og stabler dem på smal skjerm.
+3. App-/cacheversjon 172 → **173**. `kontroll.html` = `index.html`.
 
 ### Verksted 2.1
 
