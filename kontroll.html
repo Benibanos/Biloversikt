@@ -543,7 +543,16 @@
   .p48-action-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;}
   .p48-action-icon.purple{background:var(--neutral-soft);color:var(--ink-muted);} /* W2 · D3: ingen lilla */
   /* V4 · W3: handlingsikoner er strukturelle, ikke status — nøytral flis (samme som D4). */
-  .p48-action-icon.orange,.p48-action-icon.blue{background:var(--neutral-soft);color:var(--ink-muted);}
+  .sj-farge .p48-action-icon.orange{background:var(--warning-soft);color:var(--warning);}
+  .sj-farge .p48-action-icon.blue{background:var(--info-soft);color:var(--info);}
+  .sj-farge .p48-action-icon.danger{background:var(--danger-soft);color:var(--danger);}
+  .sj-farge .p48-action-icon.ok{background:var(--success-soft);color:var(--success);}
+  .rl-hurtig-redgo{border-color:#E30613;background:rgba(227,6,19,.14);}
+  .rl-hurtig-redgo .ringeliste-quick-title{color:#E30613;}
+  .rl-hurtig-hd{border-color:#78BE20;background:rgba(120,190,32,.16);}
+  .rl-hurtig-hd .ringeliste-quick-title{color:#78BE20;}
+  .sj-rediger-bar{display:flex;flex-direction:column;gap:8px;margin:12px 0;}
+  .sj-rediger-rad{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .p48-action-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
   .p48-action-title{font-weight:600;font-size:14.5px;color:var(--ink);}
   .p48-action-sub{font-size:12.5px;color:var(--ink-muted);}
@@ -3022,7 +3031,8 @@ let editingKontaktType = null; // null | 'homeDelivery' | 'veihjelp'
 // måtte lukke to andre grupper først. Nullstilles til nøyaktig denne standarden hver gang
 // skjermen faktisk åpnes fra bunnmenyen (se attachDriverBunnmenyListeners()), ikke bare
 // ved appstart.
-let driverRingelisteLukket = new Set(['ingen-aktive']);
+let driverRingelisteLukket = new Set(['ingen-aktive','ledelse','reserveforere']);
+let driverRingelisteFilterApen = false;
 // Prioritet 71.9: Reserve og Ute av drift skjules som standard i sjåførens Ringeliste også
 // (mindre støy — en sjåfør som ringer rundt trenger sjelden en reservebil eller en bil som
 // står ute av drift). Egne variabler, adskilt fra administrasjonens visReserve/
@@ -12836,6 +12846,7 @@ function render(){
       let endret = false;
       if(showVtFilterMeny){ showVtFilterMeny = false; endret = true; }
       if(varselPopApen){ varselPopApen = false; endret = true; }
+      if(driverRingelisteFilterApen){ driverRingelisteFilterApen = false; endret = true; }
       if(endret) render();
     });
   }
@@ -13164,9 +13175,10 @@ function attachDriverBunnmenyListeners(){
     // sjåfører synlig), ikke huske forrige økts åpne/lukkede grupper. Prioritet 71.9:
     // samme for Vis reserve/Vis ute av drift — alltid skjult ved fersk åpning.
     if(key === 'ringeliste'){
-      driverRingelisteLukket = new Set(['ingen-aktive']);
+      driverRingelisteLukket = new Set(['ingen-aktive','ledelse','reserveforere']);
       driverRingelisteVisReserve = false;
       driverRingelisteVisUteAvDrift = false;
+      driverRingelisteFilterApen = false;
     }
     driverScreen = key;
     render();
@@ -13318,6 +13330,24 @@ function ux5RingKortHtml(v){
   ux5LedelseSortert().forEach(k => rader.push(ringelisteRowHtml('user-round', esc(k.navn), esc(k.rolle || 'Ledelse'), k.telefon)));
   return rader.join('');
 }
+let sjaforLayoutModus = false;
+const SJ_LAYOUT_KEY = 'bilpark-sjafor-layout-v1';
+const SJ_WIDGET_STD = ['sj-bil','sj-kontroll','sj-drift','sj-handling','sj-nysjafor','sj-ring','sj-hurtig'];
+const SJ_WIDGET_LABEL = {'sj-bil':'Bilinformasjon','sj-kontroll':'Dagens kontroll','sj-drift':'Driftsmelding','sj-handling':'Handlinger','sj-nysjafor':'Ny sjåfør','sj-ring':'Ringeliste','sj-hurtig':'Hurtigkontakter'};
+function sjLayoutLes(){
+  const tom = () => SJ_WIDGET_STD.map(id => ({id, visible:true, forelder:''}));
+  try{
+    const r = JSON.parse(localStorage.getItem(SJ_LAYOUT_KEY) || 'null');
+    if(!r || !Array.isArray(r.widgets)) return tom();
+    const kjent = new Set(SJ_WIDGET_STD);
+    const ut = r.widgets.filter(w => w && kjent.has(w.id)).map(w => ({id:w.id, visible:w.visible !== false, forelder:kjent.has(w.forelder) && w.forelder !== w.id ? w.forelder : ''}));
+    SJ_WIDGET_STD.forEach(id => { if(!ut.some(w => w.id === id)) ut.push({id, visible:true, forelder:''}); });
+    return ut;
+  }catch(e){ return tom(); }
+}
+function sjLayoutSkriv(liste){
+  localStorage.setItem(SJ_LAYOUT_KEY, JSON.stringify({widgets:liste}));
+}
 function ux5KontrollKnapp(){
   return `<button type="button" class="bp-btn bp-btn-primary btn small" data-ux5-kontroll="1">Start kontroll</button>`;
 }
@@ -13355,7 +13385,7 @@ function renderDriverMinBil(){
   const komponentHtml = {
     'driver.skade': `
       <button type="button" class="p48-action-card" id="mb-skade-btn">
-        <span class="p48-action-icon purple">${luc('triangle-alert')}</span>
+        <span class="p48-action-icon danger">${luc('triangle-alert')}</span>
         <span class="p48-action-text"><span class="p48-action-title">Registrer skade</span><span class="p48-action-sub">Rapporter skade på kjøretøy</span></span>
         <span class="p48-action-chevron">${sjaforIkonSvg('chevronRight', 18)}</span>
       </button>
@@ -13559,11 +13589,28 @@ function renderDriverMinBil(){
   const ss = vehicleServiceStatus(v);
   const eu = vehicleEuKontrollStatus(v);
   const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
+  const sjDeler = {
+    'sj-bil': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Bilinformasjon</h2>${bilkortRader['driver.kilometerstand']}<div class="bp-vrow"><span class="bp-vrow-label">Service</span><span class="bp-vrow-value">${esc(ss.tekst || 'Ikke satt')}</span></div><div class="bp-vrow"><span class="bp-vrow-label">EU-kontroll</span><span class="bp-vrow-value">${esc(eu.tekst || 'Ikke satt')}</span></div><div class="bp-vrow"><span class="bp-vrow-label">Dekk</span><span class="bp-vrow-value">${esc(dekk)}</span></div>${bilkortRader['driver.loftebord']}</section>`,
+    'sj-kontroll': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Dagens kontroll</h2>${bilkortRader['driver.kontrollstatus']}${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}</section>`,
+    'sj-drift': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Driftsmelding</h2><p class="bp-kpi-sub" style="margin:0;">Ingen driftsmeldinger.</p></section>`,
+    'sj-handling': `<section style="margin-top:var(--space-4);"><h2 class="bp-overline">Handlinger</h2><div style="display:flex;flex-direction:column;gap:var(--space-3);">${delerHtml['driver.varsel']}${delerHtml['driver.skade']}${delerHtml['driver.avvik']}${delerHtml['driver.kommentarer']}</div></section>`,
+    'sj-nysjafor': `<section style="margin-top:var(--space-3);">${delerHtml['driver.nysjafor']}</section>`,
+    'sj-ring': `<section style="margin-top:var(--space-4);"><div class="ux1-head"><h2 class="bp-overline">Ringeliste</h2><button type="button" class="bp-link-btn" data-driverbunn="ringeliste">Alle kontakter</button></div>${ux5RingKortHtml(v)}</section>`,
+    'sj-hurtig': `<section style="margin-top:var(--space-3);"><h2 class="bp-overline">Hurtigkontakter</h2><div class="ringeliste-quick-grid">${ringelisteQuickCardHtml('homeDelivery', 'truck', 'rl-hurtig-hd')}${ringelisteQuickCardHtml('veihjelp', 'life-buoy', 'rl-hurtig-redgo')}</div></section>`
+  };
+  const sjListe = sjLayoutLes();
+  const sjBarn = (forelder) => sjListe.filter(w => w.visible && w.forelder === forelder).map(w => sjDeler[w.id] || '').join('');
+  const sjTopp = sjListe.filter(w => w.visible && !w.forelder);
+  const kanRedigere = !!(loggedInRole && isAdmin);
+  const rediger = kanRedigere && sjaforLayoutModus;
+  const redigerHtml = rediger ? `<div class="sj-rediger-bar bp-card">${sjListe.map((w, i) => `<div class="sj-rediger-rad"><strong>${esc(SJ_WIDGET_LABEL[w.id] || w.id)}</strong><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-flytt="${w.id}:-1" ${i===0?'disabled':''}>Opp</button><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-flytt="${w.id}:1">Ned</button><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-skjul="${w.id}">${w.visible ? 'Skjul' : 'Vis'}</button><label>Rad <select data-sj-forelder="${w.id}"><option value="">Egen rad</option>${SJ_WIDGET_STD.filter(id => id !== w.id).map(id => `<option value="${id}" ${w.forelder===id?'selected':''}>${esc(SJ_WIDGET_LABEL[id])}</option>`).join('')}</select></label></div>`).join('')}<button type="button" class="bp-btn bp-btn-primary btn small" id="sj-layout-lagre">Lagre sjåførkontroll</button></div>` : '';
   return `
+    <div class="sj-farge">
     <section class="bp-card bp-vcard" aria-labelledby="ux5-hero">
       <div class="bp-vcard-head">
         ${driftslagPrikkHtml(v)}<span class="bp-vcard-title"><span class="bp-vcard-name" id="ux5-hero">${esc(v.bilnummer || 'Min bil')}</span><span class="bp-vcard-reg">${esc(v.regnr || '')}</span></span>
         ${statusPilleHtml('operativ', hovedstatus)}
+        ${kanRedigere ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="sj-rediger-btn">${rediger ? 'Avslutt' : 'Rediger sjåførkontroll'}</button>` : ''}
       </div>
       <div class="bp-vcard-rows">
         <div class="bp-vrow"><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></div>
@@ -13571,43 +13618,38 @@ function renderDriverMinBil(){
       </div>
       ${mbOverfort ? '<p class="required-hint">Bilen er overført. Du står ikke lenger som aktiv sjåfør.</p>' : ''}
     </section>
-    <section class="bp-card" aria-labelledby="ux5-bil" style="margin-top:var(--space-3);">
-      <h2 id="ux5-bil" class="bp-card-title">Bilinformasjon</h2>
-      ${bilkortRader['driver.kilometerstand']}
-      <div class="bp-vrow"><span class="bp-vrow-label">Service</span><span class="bp-vrow-value">${esc(ss.tekst || 'Ikke satt')}</span></div>
-      <div class="bp-vrow"><span class="bp-vrow-label">EU-kontroll</span><span class="bp-vrow-value">${esc(eu.tekst || 'Ikke satt')}</span></div>
-      <div class="bp-vrow"><span class="bp-vrow-label">Dekk</span><span class="bp-vrow-value">${esc(dekk)}</span></div>
-      ${bilkortRader['driver.loftebord']}
-    </section>
-    <section class="bp-card" aria-labelledby="ux5-drift" style="margin-top:var(--space-3);">
-      <h2 id="ux5-drift" class="bp-card-title">Driftsmelding</h2>
-      <p class="bp-kpi-sub" style="margin:0;">Ingen driftsmeldinger.</p>
-    </section>
-    <section class="bp-card" aria-labelledby="ux5-k" style="margin-top:var(--space-3);">
-      <h2 id="ux5-k" class="bp-card-title">Dagens kontroll</h2>
-      ${bilkortRader['driver.kontrollstatus']}
-      ${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}
-    </section>
-    <section aria-labelledby="ux5-h" style="margin-top:var(--space-4);">
-      <h2 id="ux5-h" class="bp-overline">Handlinger</h2>
-      <div class="sj-akt" style="display:flex;flex-direction:column;gap:var(--space-3);">
-        ${delerHtml['driver.varsel']}
-        ${delerHtml['driver.skade']}
-        <div class="bp-card">${nesteVerkstedtimeHtml(neste, {rad:true}) || '<div class="empty-note">Ingen planlagt verkstedtime.</div>'}</div>
-        ${delerHtml['driver.kommentarer']}
-        ${delerHtml['driver.avvik']}
-        ${delerHtml['driver.kontakt']}
-        ${delerHtml['driver.nysjafor']}
-      </div>
-    </section>
-    <section aria-labelledby="ux5-ring" style="margin-top:var(--space-4);">
-      <div class="ux1-head"><h2 id="ux5-ring" class="bp-overline">Ringeliste</h2><button type="button" class="bp-link-btn" data-driverbunn="ringeliste">Alle kontakter</button></div>
-      ${ux5RingKortHtml(v)}
-    </section>
+    ${redigerHtml}
+    ${sjTopp.map(w => (sjDeler[w.id] || '') + sjBarn(w.id)).join('')}
     <div style="margin-top:var(--space-4);">${delerHtml['driver.sjekk-ut']}</div>
+    </div>
   `;
 }
 function attachDriverMinBilListeners(){
+  const redigerKnapp = document.getElementById('sj-rediger-btn');
+  if(redigerKnapp) redigerKnapp.addEventListener('click', () => { sjaforLayoutModus = !sjaforLayoutModus; render(); });
+  document.querySelectorAll('[data-sj-flytt]').forEach(el => el.addEventListener('click', () => {
+    const del = el.dataset.sjFlytt.split(':');
+    const liste = sjLayoutLes();
+    const i = liste.findIndex(w => w.id === del[0]);
+    const j = i + Number(del[1]);
+    if(i < 0 || j < 0 || j >= liste.length) return;
+    const tmp = liste[i]; liste[i] = liste[j]; liste[j] = tmp;
+    sjLayoutSkriv(liste); render();
+  }));
+  document.querySelectorAll('[data-sj-skjul]').forEach(el => el.addEventListener('click', () => {
+    const liste = sjLayoutLes();
+    const w = liste.find(x => x.id === el.dataset.sjSkjul);
+    if(w) w.visible = !w.visible;
+    sjLayoutSkriv(liste); render();
+  }));
+  document.querySelectorAll('[data-sj-forelder]').forEach(el => el.addEventListener('change', () => {
+    const liste = sjLayoutLes();
+    const w = liste.find(x => x.id === el.dataset.sjForelder);
+    if(w) w.forelder = el.value || '';
+    sjLayoutSkriv(liste); render();
+  }));
+  const lagreSj = document.getElementById('sj-layout-lagre');
+  if(lagreSj) lagreSj.addEventListener('click', () => { sjaforLayoutModus = false; render(); });
   const skadeBtn = document.getElementById('mb-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'skade' ? '' : 'skade'; render(); });
   const varselBtn = document.getElementById('mb-varsel-btn');
@@ -13750,14 +13792,15 @@ function ringelisteGroupHtml(key, tittel, accentVar, rader){
 // stykker, ingen grunn til å skjule dem). Prioritet 71.7: festet i en fast bunnseksjon
 // (.ringeliste-fixed-quick, se renderDriverRingeliste()) — alltid synlig uavhengig av
 // scrollposisjon i gruppene over. type = 'homeDelivery' | 'veihjelp'.
-function ringelisteQuickCardHtml(type, icon, iconBg){
+function ringelisteQuickCardHtml(type, icon, klasse){
   const k = ringelisteEkstra[type] || {navn:'', beskrivelse:'', telefon:''};
+  const ikon = type === 'veihjelp' ? 'life-buoy' : 'truck';
   return `
-    <div class="ringeliste-quick-card">
+    <div class="ringeliste-quick-card ${klasse || ''}">
       <div class="ringeliste-quick-top">
-        ${bpTileHtml('neutral', icon)}
+        ${bpTileHtml(type === 'veihjelp' ? 'danger' : 'success', ikon)}
         <div>
-          <div class="ringeliste-quick-title">${esc(k.navn || '–')}</div>
+          <div class="ringeliste-quick-title">${esc(k.navn || (type === 'veihjelp' ? 'REDGO' : 'Home Delivery'))}</div>
           ${k.beskrivelse ? `<div class="ringeliste-quick-sub">${esc(k.beskrivelse)}</div>` : ''}
         </div>
       </div>
@@ -13766,21 +13809,13 @@ function ringelisteQuickCardHtml(type, icon, iconBg){
 }
 function renderDriverRingeliste(){
   const egenBil = vehicles.find(x => x.id === driverActiveVehicleId);
-  const andre = sortedVehicles(vehicles).filter(x => !egenBil || x.id !== egenBil.id)
-    .filter(x => driverRingelisteVisReserve || x.kategori !== 'reserve')
+  const pool = sortedVehicles(vehicles).filter(x => !egenBil || x.id !== egenBil.id)
     .filter(x => driverRingelisteVisUteAvDrift || !x.uteAvDrift);
-  const mitt = ux5MittLag(egenBil);
-  const mittIder = new Set(mitt.biler.map(x => x.id));
-  const aktive = andre.filter(x => vehicleAktivSjafor(x.id) && !mittIder.has(x.id));
-  const ingenAktive = andre.filter(x => !vehicleAktivSjafor(x.id));
-  const aktiveRader = aktive.map(x => ringelisteRowHtml('truck',
-    esc(vehicleLabel(x)),
-    `${luc('user-round')} ${esc(vehicleAktivSjafor(x.id))}`, x.telefon));
-  const ingenAktiveRader = ingenAktive.map(x => ringelisteRowHtml('truck',
-    esc(vehicleLabel(x)),
-    '', x.telefon));
-  const ledelseRader = ringelisteEkstra.ledelse.map(k => ringelisteRowHtml('user-round',
-    esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon));
+  const erReserve = (x) => ux1KjoretoyFaneAv(x) === 'reserve' || x.kategori === 'reserve';
+  const aktive = pool.filter(x => vehicleAktivSjafor(x.id) && (driverRingelisteVisReserve || !erReserve(x)));
+  const reserve = pool.filter(erReserve);
+  const aktiveRader = aktive.map(x => ringelisteRowHtml('truck', esc(vehicleLabel(x)), `${luc('user-round')} ${esc(vehicleAktivSjafor(x.id))}`, x.telefon));
+  const reserveRader = reserve.map(x => ringelisteRowHtml('archive', esc(vehicleLabel(x)), esc(vehicleAktivSjafor(x.id) || 'Reservefører'), x.telefon));
   return `
     <div class="ringeliste-header">
       <div class="ringeliste-header-icon">${luc('phone')}</div>
@@ -13788,35 +13823,37 @@ function renderDriverRingeliste(){
         <h2>Ringeliste</h2>
         <div class="required-hint">Ring direkte til bil eller kontakt.</div>
       </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-      <button type="button" class="bp-btn btn small ${driverRingelisteVisReserve ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-reserve-btn">✅ Vis reserve</button>
-      <button type="button" class="bp-btn btn small ${driverRingelisteVisUteAvDrift ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-ute-btn">✅ Vis «Kan ikke brukes»</button>
+      <span class="bp-pop-anchor">
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="rl-filter-btn" aria-expanded="${driverRingelisteFilterApen ? 'true' : 'false'}">${luc('chevron-down')} Filter</button>
+        ${driverRingelisteFilterApen ? `<div class="bp-pop" role="dialog" aria-label="Filter">
+          <button type="button" class="bp-btn btn small ${driverRingelisteVisReserve ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-reserve-btn">Vis reserve</button>
+          <button type="button" class="bp-btn btn small ${driverRingelisteVisUteAvDrift ? 'bp-btn-primary' : 'bp-btn-secondary secondary'}" id="rl-vis-ute-btn" style="margin-top:8px;">Vis «Kan ikke brukes»</button>
+        </div>` : ''}
+      </span>
     </div>
     <div class="ringeliste-scroll">
-      ${mitt.lag ? ringelisteGroupHtml('mitt-lag', 'Mitt lag · ' + mitt.lag, '--success', mitt.biler.map(x => ringelisteRowHtml('truck', driftslagPrikkHtml(x) + esc(vehicleLabel(x)), esc(vehicleAktivSjafor(x.id) || ''), x.telefon))) : '<p class="required-hint">Ingen driftslag på bilen. Medsjåfører kan ikke skilles ut.</p>'}
-      <div class="ringeliste-fixed-quick">
-        <div class="ringeliste-quick-grid">
-          ${ringelisteQuickCardHtml('veihjelp', 'headphones', 'var(--info)')}
-          ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'var(--success)')}
-        </div>
+      ${ringelisteGroupHtml('aktive', 'Aktive sjåfører', '--success', aktiveRader)}
+      ${driverRingelisteVisReserve ? ringelisteGroupHtml('reserveforere', 'Reserveførere', '--neutral', reserveRader) : ''}
+      <div class="ringeliste-quick-grid">
+        ${ringelisteQuickCardHtml('homeDelivery', 'truck', 'rl-hurtig-hd')}
+        ${ringelisteQuickCardHtml('veihjelp', 'life-buoy', 'rl-hurtig-redgo')}
       </div>
       ${ringelisteGroupHtml('ledelse', 'Ledelse', '--neutral', ux5LedelseSortert().map(k => ringelisteRowHtml('user-round', esc(k.navn), k.rolle ? esc(k.rolle) : '', k.telefon)))}
-      ${ringelisteGroupHtml('aktive', 'Andre aktive sjåfører', '--success', aktiveRader)}
-      ${ringelisteGroupHtml('ingen-aktive', 'Andre kontakter', '--warning', ingenAktiveRader)}
     </div>
   `;
 }
 function attachDriverRingelisteListeners(){
-  // tel:-lenker trenger ingen JS. Kun gruppenes åpen/lukket-tilstand + de to
-  // vis-reserve/vis-ute av drift-togglene.
   document.querySelectorAll('[data-ringeliste-toggle]').forEach(el => el.addEventListener('click', () => {
     const key = el.dataset.ringelisteToggle;
     if(driverRingelisteLukket.has(key)) driverRingelisteLukket.delete(key); else driverRingelisteLukket.add(key);
     render();
   }));
-  document.getElementById('rl-vis-reserve-btn').addEventListener('click', () => { driverRingelisteVisReserve = !driverRingelisteVisReserve; render(); });
-  document.getElementById('rl-vis-ute-btn').addEventListener('click', () => { driverRingelisteVisUteAvDrift = !driverRingelisteVisUteAvDrift; render(); });
+  const filter = document.getElementById('rl-filter-btn');
+  if(filter) filter.addEventListener('click', (e) => { e.stopPropagation(); driverRingelisteFilterApen = !driverRingelisteFilterApen; render(); });
+  const reserve = document.getElementById('rl-vis-reserve-btn');
+  if(reserve) reserve.addEventListener('click', (e) => { e.stopPropagation(); driverRingelisteVisReserve = !driverRingelisteVisReserve; render(); });
+  const ute = document.getElementById('rl-vis-ute-btn');
+  if(ute) ute.addEventListener('click', (e) => { e.stopPropagation(); driverRingelisteVisUteAvDrift = !driverRingelisteVisUteAvDrift; render(); });
 }
 
 // 💬 Kommentarer som egen sjåførskjerm. Erstatter det opprinnelige

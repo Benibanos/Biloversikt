@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### DriverControl med widgets
+
+1. Administrator kan åpne Rediger sjåførkontroll og flytte, skjule og legge widgets i hverandre. Oppsettet gjelder sjåførene, ikke den enkelte innloggingen.
+2. Handlinger er varsellampe, skade, avvik og kommentarer. Ny sjåfør og hurtigkontakter er egne widgets. Ringelistens filtre ligger i et filterpanel. Aktive sjåfører starter åpne. Ledelse ligger nederst og starter lukket. REDGO og Home Delivery har egne farger.
+3. App-/cacheversjon 173 → **174**. `kontroll.html` = `index.html`.
+
 ### Verkstedbestilling i drawer
 
 1. Bestilling av verkstedtime, service, EU-kontroll, dekkskift, ruteskift og reparasjon åpnes i en drawer. Skjemaet ligger ikke lenger nede på siden. Det lukkes med lukkeknapp, Avbryt, Esc eller klikk utenfor.
