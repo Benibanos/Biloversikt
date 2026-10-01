@@ -551,7 +551,10 @@
   .rl-hurtig-redgo .ringeliste-quick-title{color:#E30613;}
   .rl-hurtig-hd{border-color:#78BE20;background:rgba(120,190,32,.16);}
   .rl-hurtig-hd .ringeliste-quick-title{color:#78BE20;}
-  .sj-rediger-bar{display:flex;flex-direction:column;gap:8px;margin:12px 0;}
+  .sj-handlinger{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .sj-handlinger .p48-action-card{min-height:48px;padding:10px 12px;}
+  .sj-handlinger .p48-action-sub,.sj-handlinger .p48-action-chevron{display:none;}
+  .sj-handlinger .bp-card{grid-column:1 / -1;}
   .sj-rediger-rad{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .p48-action-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
   .p48-action-title{font-weight:600;font-size:14.5px;color:var(--ink);}
@@ -6375,6 +6378,10 @@ function p48DriftslagFarge(navn){
   if(n === 'lastebil') return 'var(--id-lastebil)';
   if(n === 'montering') return 'var(--id-montering)';
   if(n === 'reserve') return 'var(--neutral)';
+  if(n === 'stokke') return 'var(--success)';
+  if(n === 'larvik') return 'var(--info)';
+  if(n === 'sandefjord') return 'var(--id-lastebil)';
+  if(n === 'tonsberg' || n === 'tønsberg') return '#F97316';
   return 'var(--neutral)';
 }
 function driftslagPrikkHtml(v){
@@ -13337,6 +13344,7 @@ function ux5RingKortHtml(v){
   return rader.join('');
 }
 let sjaforLayoutModus = false;
+let sjInnhold = {};
 const SJ_LAYOUT_KEY = 'bilpark-sjafor-layout-v1';
 const SJ_WIDGET_STD = ['sj-bil','sj-kontroll','sj-drift','sj-handling','sj-nysjafor','sj-ring','sj-hurtig'];
 const SJ_WIDGET_LABEL = {'sj-bil':'Bilinformasjon','sj-kontroll':'Dagens kontroll','sj-drift':'Driftsmelding','sj-handling':'Handlinger','sj-nysjafor':'Ny sjåfør','sj-ring':'Ringeliste','sj-hurtig':'Hurtigkontakter'};
@@ -13596,20 +13604,24 @@ function renderDriverMinBil(){
   const eu = vehicleEuKontrollStatus(v);
   const dekk = v.dekk === 'vinter' ? 'Vinterdekk' : v.dekk === 'sommer' ? 'Sommerdekk' : v.dekk === 'helars' ? 'Helårsdekk' : 'Ikke satt';
   const sjDeler = {
-    'sj-bil': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Bilinformasjon</h2>${bilkortRader['driver.kilometerstand']}<div class="bp-vrow"><span class="bp-vrow-label">Service</span><span class="bp-vrow-value">${esc(ss.tekst || 'Ikke satt')}</span></div><div class="bp-vrow"><span class="bp-vrow-label">EU-kontroll</span><span class="bp-vrow-value">${esc(eu.tekst || 'Ikke satt')}</span></div><div class="bp-vrow"><span class="bp-vrow-label">Dekk</span><span class="bp-vrow-value">${esc(dekk)}</span></div>${bilkortRader['driver.loftebord']}</section>`,
-    'sj-kontroll': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Dagens kontroll</h2>${bilkortRader['driver.kontrollstatus']}${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}</section>`,
+    'sj-bilkort': `<section class="bp-card bp-vcard"><div class="bp-card-head"><h2 class="bp-card-title">Bilkort</h2></div><p class="ux-bilkort-reg">${esc(v.regnr || '–')}</p><p class="ux-bilkort-linje">${esc(v.merke || '')}</p><p class="ux-bilkort-linje">${esc(v.modell || '')}</p><p class="ux-bilkort-linje">${v.arsmodell ? esc(String(v.arsmodell)) + ' modell' : ''}</p></section>`,
     'sj-drift': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Driftsmelding</h2><p class="bp-kpi-sub" style="margin:0;">Ingen driftsmeldinger.</p></section>`,
-    'sj-handling': `<section style="margin-top:var(--space-4);"><h2 class="bp-overline">Handlinger</h2><div style="display:flex;flex-direction:column;gap:var(--space-3);">${delerHtml['driver.varsel']}${delerHtml['driver.skade']}${delerHtml['driver.avvik']}${delerHtml['driver.kommentarer']}</div></section>`,
-    'sj-nysjafor': `<section style="margin-top:var(--space-3);">${delerHtml['driver.nysjafor']}</section>`,
+    'sj-bilinfo': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Bilinformasjon</h2>${bilkortRader['driver.kilometerstand']}<div class="ux-kstatus">${uxKstatusRad('Service', uxServiceStatusChip(v))}${uxKstatusRad('EU-kontroll', uxEuStatusChip(v))}${uxKstatusRad('Dekk', uxDekkFristChip(v))}${uxKstatusRad('Løftebord', uxLoftebordStatusChip(v))}</div></section>`,
+    'sj-handling': `<section class="sj-handlinger" style="margin-top:var(--space-3);"><h2 class="bp-overline" style="grid-column:1 / -1;">Handlinger</h2>${delerHtml['driver.varsel']}${delerHtml['driver.skade']}${delerHtml['driver.avvik']}${delerHtml['driver.kommentarer']}</section>`,
+    'sj-nysjafor': delerHtml['driver.nysjafor'],
+    'sj-kontroll': `<section class="bp-card" style="margin-top:var(--space-3);"><h2 class="bp-card-title">Dagens kontroll</h2>${bilkortRader['driver.kontrollstatus']}${p48Kontrollert ? '' : '<div class="panel-actions">' + ux5KontrollKnapp() + '</div>'}</section>`,
     'sj-ring': `<section style="margin-top:var(--space-4);"><div class="ux1-head"><h2 class="bp-overline">Ringeliste</h2><button type="button" class="bp-link-btn" data-driverbunn="ringeliste">Alle kontakter</button></div>${ux5RingKortHtml(v)}</section>`,
     'sj-hurtig': `<section style="margin-top:var(--space-3);"><h2 class="bp-overline">Hurtigkontakter</h2><div class="ringeliste-quick-grid">${ringelisteQuickCardHtml('homeDelivery', 'truck', 'rl-hurtig-hd')}${ringelisteQuickCardHtml('veihjelp', 'life-buoy', 'rl-hurtig-redgo')}</div></section>`
   };
-  const sjListe = sjLayoutLes();
-  const sjBarn = (forelder) => sjListe.filter(w => w.visible && w.forelder === forelder).map(w => sjDeler[w.id] || '').join('');
-  const sjTopp = sjListe.filter(w => w.visible && !w.forelder);
+  sjInnhold = sjDeler;
   const kanRedigere = !!(loggedInRole && isAdmin);
   const rediger = kanRedigere && sjaforLayoutModus;
-  const redigerHtml = rediger ? `<div class="sj-rediger-bar bp-card">${sjListe.map((w, i) => `<div class="sj-rediger-rad"><strong>${esc(SJ_WIDGET_LABEL[w.id] || w.id)}</strong><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-flytt="${w.id}:-1" ${i===0?'disabled':''}>Opp</button><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-flytt="${w.id}:1">Ned</button><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-sj-skjul="${w.id}">${w.visible ? 'Skjul' : 'Vis'}</button><label>Rad <select data-sj-forelder="${w.id}"><option value="">Egen rad</option>${SJ_WIDGET_STD.filter(id => id !== w.id).map(id => `<option value="${id}" ${w.forelder===id?'selected':''}>${esc(SJ_WIDGET_LABEL[id])}</option>`).join('')}</select></label></div>`).join('')}<button type="button" class="bp-btn bp-btn-primary btn small" id="sj-layout-lagre">Lagre sjåførkontroll</button></div>` : '';
+  if(rediger){
+    uxLayoutSide = 'sjafor';
+    if(!uxLayoutDraft || uxLayoutDraftSide !== 'sjafor'){ uxLayoutDraft = uxLayoutKladd('sjafor'); uxLayoutDraftSide = 'sjafor'; uxLayoutModus = true; }
+  }
+  if(uxWidgetBarn('sj-kontroll').indexOf('sj-nysjafor') >= 0) sjInnhold['sj-kontroll'] += sjDeler['sj-nysjafor'];
+  const flate = rediger ? uxLayoutEditorHtml(uxLayoutDraft, 'sjafor') : uxLayoutVisHtml(uxLayoutLes('sjafor') || uxLayoutStandard('sjafor'));
   return `
     <div class="sj-farge">
     <section class="bp-card bp-vcard" aria-labelledby="ux5-hero">
@@ -13618,44 +13630,21 @@ function renderDriverMinBil(){
         ${statusPilleHtml('operativ', hovedstatus)}
         ${kanRedigere ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="sj-rediger-btn">${rediger ? 'Avslutt' : 'Rediger sjåførkontroll'}</button>` : ''}
       </div>
-      <div class="bp-vcard-rows">
-        <div class="bp-vrow"><span class="bp-vrow-label">Neste verksted</span><span class="bp-vrow-value">${neste ? esc(fmt(neste.dato)) : 'Ingen planlagt'}</span></div>
-        <div class="bp-vrow"><span class="bp-vrow-label">Aktiv sjåfør</span><span class="bp-vrow-value">${esc(mbAktivSjafor || driverNavn || 'Ingen')}</span></div>
-      </div>
       ${mbOverfort ? '<p class="required-hint">Bilen er overført. Du står ikke lenger som aktiv sjåfør.</p>' : ''}
     </section>
-    ${redigerHtml}
-    ${sjTopp.map(w => (sjDeler[w.id] || '') + sjBarn(w.id)).join('')}
+    ${flate}
     <div style="margin-top:var(--space-4);">${delerHtml['driver.sjekk-ut']}</div>
     </div>
   `;
 }
 function attachDriverMinBilListeners(){
   const redigerKnapp = document.getElementById('sj-rediger-btn');
-  if(redigerKnapp) redigerKnapp.addEventListener('click', () => { sjaforLayoutModus = !sjaforLayoutModus; render(); });
-  document.querySelectorAll('[data-sj-flytt]').forEach(el => el.addEventListener('click', () => {
-    const del = el.dataset.sjFlytt.split(':');
-    const liste = sjLayoutLes();
-    const i = liste.findIndex(w => w.id === del[0]);
-    const j = i + Number(del[1]);
-    if(i < 0 || j < 0 || j >= liste.length) return;
-    const tmp = liste[i]; liste[i] = liste[j]; liste[j] = tmp;
-    sjLayoutSkriv(liste); render();
-  }));
-  document.querySelectorAll('[data-sj-skjul]').forEach(el => el.addEventListener('click', () => {
-    const liste = sjLayoutLes();
-    const w = liste.find(x => x.id === el.dataset.sjSkjul);
-    if(w) w.visible = !w.visible;
-    sjLayoutSkriv(liste); render();
-  }));
-  document.querySelectorAll('[data-sj-forelder]').forEach(el => el.addEventListener('change', () => {
-    const liste = sjLayoutLes();
-    const w = liste.find(x => x.id === el.dataset.sjForelder);
-    if(w) w.forelder = el.value || '';
-    sjLayoutSkriv(liste); render();
-  }));
-  const lagreSj = document.getElementById('sj-layout-lagre');
-  if(lagreSj) lagreSj.addEventListener('click', () => { sjaforLayoutModus = false; render(); });
+  if(redigerKnapp) redigerKnapp.addEventListener('click', () => {
+    if(sjaforLayoutModus){ sjaforLayoutModus = false; uxLayoutModus = false; uxLayoutDraft = null; }
+    else { sjaforLayoutModus = true; uxLayoutModus = true; uxLayoutSide = 'sjafor'; uxLayoutDraft = null; uxLayoutDraftSide = ''; }
+    render();
+  });
+  attachUxLayoutListeners();
   const skadeBtn = document.getElementById('mb-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => { minBilAksjon = minBilAksjon === 'skade' ? '' : 'skade'; render(); });
   const varselBtn = document.getElementById('mb-varsel-btn');
@@ -13769,6 +13758,19 @@ function ringelisteRingHtml(telefon){
     ? `<a href="tel:${esc(telefon.replace(/[^+0-9]/g,''))}" class="bp-btn bp-btn-secondary ringeliste-ring-btn">${luc('phone')} Ring</a>`
     : `<span class="ringeliste-ring-muted">Ikke registrert</span>`;
 }
+function ringelisteBilStatus(v){
+  const ss = vehicleServiceStatus(v);
+  const eu = vehicleEuKontrollStatus(v);
+  const dekk = dekkFristStatus(v);
+  const lb = loftebordKontrollStatus(v.id);
+  if(ss.status === 'forfalt') return {farge:'var(--danger)', tekst:'Forfalt service'};
+  if(eu.status === 'forfalt') return {farge:'var(--danger)', tekst:'EU-kontroll forfalt'};
+  if(dekk.tone === 'forfalt') return {farge:'var(--danger)', tekst:'Dekkskift forfalt'};
+  if(lb.status === 'rod') return {farge:'var(--danger)', tekst:'Løftebord forfalt'};
+  if(dekk.tone === 'oransje') return {farge:'#F97316', tekst:'Dekk må planlegges'};
+  if(ss.status === 'snart-rod' || ss.status === 'snart-gul' || eu.status === 'snart-rod' || eu.status === 'snart-gul' || dekk.tone === 'snart' || lb.status === 'gul') return {farge:'var(--warning)', tekst:'Oppfølging'};
+  return {farge:'var(--success)', tekst:'Operativ'};
+}
 function ringelisteRowHtml(icon, main, sub, telefon){
   return `
     <div class="ringeliste-row">
@@ -13779,6 +13781,16 @@ function ringelisteRowHtml(icon, main, sub, telefon){
       </div>
       ${ringelisteRingHtml(telefon)}
     </div>`;
+}
+function ringelisteBilRad(v){
+  const st = ringelisteBilStatus(v);
+  const lag = vehicleDriftslagGruppe(v);
+  const sjafor = vehicleAktivSjafor(v.id);
+  const lagHtml = lag && lag !== 'Ikke satt' ? `<br><span class="bp-status-dot" style="background:${p48DriftslagFarge(lag)}"></span> Driftslag: ${esc(lag)}` : '';
+  return ringelisteRowHtml('truck',
+    esc((v.bilnummer || vehicleLabel(v)) + (v.regnr ? ' · ' + v.regnr : '')),
+    `<span class="bp-status-dot" style="background:${st.farge}"></span> ${esc(st.tekst)}${sjafor ? ' · ' + esc(sjafor) : ''}${lagHtml}`,
+    v.telefon);
 }
 // Kollapsbar gruppe (jf. bestillingens "Kollapsbare seksjoner"). Prioritet 71.7: KUN
 // 🟢 Aktive sjåfører er åpen som standard — se driverRingelisteLukket.
@@ -13820,8 +13832,8 @@ function renderDriverRingeliste(){
   const erReserve = (x) => ux1KjoretoyFaneAv(x) === 'reserve' || x.kategori === 'reserve';
   const aktive = pool.filter(x => vehicleAktivSjafor(x.id) && (driverRingelisteVisReserve || !erReserve(x)));
   const reserve = pool.filter(erReserve);
-  const aktiveRader = aktive.map(x => ringelisteRowHtml('truck', esc(vehicleLabel(x)), `${luc('user-round')} ${esc(vehicleAktivSjafor(x.id))}`, x.telefon));
-  const reserveRader = reserve.map(x => ringelisteRowHtml('archive', esc(vehicleLabel(x)), esc(vehicleAktivSjafor(x.id) || 'Reservefører'), x.telefon));
+  const aktiveRader = aktive.map(ringelisteBilRad);
+  const reserveRader = reserve.map(ringelisteBilRad);
   return `
     <div class="ringeliste-header">
       <div class="ringeliste-header-icon">${luc('phone')}</div>
@@ -15457,7 +15469,15 @@ function uxWidgetKatalog(){
     {id:'ux-bil-dekk', label:'Dekk', ikon:'circle-dot', w:3, h:3, action:{type:'openVehicleView', target:'tire-history', preserveVehicleId:true}},
     {id:'ux-bil-service', label:'Service', ikon:'wrench', w:3, h:3, action:{type:'openVehicleView', target:'service-history', preserveVehicleId:true}},
     {id:'ux-bil-eu', label:'EU-kontroll', ikon:'shield-check', w:3, h:3, action:{type:'openVehicleView', target:'eu-history', preserveVehicleId:true}},
-    {id:'ux-bil-loftebord', label:'Løftebord', ikon:'arrow-up-down', w:3, h:3, action:{type:'openVehicleView', target:'liftgate-history', preserveVehicleId:true}}
+    {id:'ux-bil-loftebord', label:'Løftebord', ikon:'arrow-up-down', w:3, h:3, action:{type:'openVehicleView', target:'liftgate-history', preserveVehicleId:true}},
+    {id:'sj-bilkort', label:'Bilkort', ikon:'car', w:12, h:4},
+    {id:'sj-drift', label:'Driftsmelding', ikon:'megaphone', w:12, h:3},
+    {id:'sj-bilinfo', label:'Bilinformasjon', ikon:'gauge', w:12, h:6},
+    {id:'sj-handling', label:'Handlinger', ikon:'layout-grid', w:12, h:4},
+    {id:'sj-kontroll', label:'Dagens kontroll', ikon:'clipboard-check', w:12, h:4},
+    {id:'sj-ring', label:'Ringeliste', ikon:'phone', w:12, h:5},
+    {id:'sj-hurtig', label:'Hurtigkontakter', ikon:'life-buoy', w:12, h:4},
+    {id:'sj-nysjafor', label:'Ny sjåfør', ikon:'user-round', w:12, h:4},
   ];
 }
 function uxWidgetHandling(id){
@@ -15476,7 +15496,8 @@ function uxWidgetUtfor(id){
 const UX_NEST_VERT = {
   'ux-status':['ux-nest-kontroll','ux-nest-aktive','ux-nest-drift','ux-nest-reserve','ux-nest-vt'],
   'ux-bil-status':['ux-bil-kontroll','ux-bil-sjafor','ux-bil-verksted','ux-nest-neste','ux-bil-eu','ux-bil-loftebord'],
-  'ux-bil-info':['ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok']
+  'ux-bil-info':['ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok'],
+  'sj-kontroll':['sj-nysjafor']
 };
 function uxLayoutSideNaa(){
   return UX_LAYOUT_SIDER.indexOf(screen) >= 0 ? screen : 'dashboard';
@@ -15758,6 +15779,7 @@ function uxAksjonUtfor(id){
   }
 }
 function uxWidgetHtml(id){
+  if(sjInnhold && sjInnhold[id]) return sjInnhold[id];
   if(id === 'ux-status'){
     const barn = uxWidgetBarn('ux-status');
     return dashWidgetFlatehelseHtml({barn});
@@ -15909,7 +15931,8 @@ function uxLayoutStandard(side){
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
     analyse:['ux-kpi','ux-analyse'],
     rapporter:['ux-kpi','ux-analyse'],
-    bilkort:['ux-bil-kort','ux-bil-helse','ux-bil-kontroll','ux-bil-kstatus','ux-bil-saker','ux-bil-info','ux-bil-verksted','ux-bil-grunnlag']
+    bilkort:['ux-bil-kort','ux-bil-helse','ux-bil-kontroll','ux-bil-kstatus','ux-bil-saker','ux-bil-info','ux-bil-verksted','ux-bil-grunnlag'],
+    sjafor:['sj-bilkort','sj-drift','sj-bilinfo','sj-handling','sj-kontroll','sj-ring','sj-hurtig']
   }[side] || [];
   const kat = uxWidgetKatalog();
   const liste = kat.map(k => ({widgetId:k.id, visible:false, x:0, y:0, width:k.w, height:k.h}));
@@ -15923,6 +15946,11 @@ function uxLayoutStandard(side){
     if(side === 'verksted' && id === 'ux-vt-handlinger') item.kjerne = true;
     x += k.w; radH = Math.max(radH, k.h);
   });
+  if(side === 'sjafor'){
+    const kontroll = liste.find(w => w.widgetId === 'sj-kontroll');
+    const ny = liste.find(w => w.widgetId === 'sj-nysjafor');
+    if(kontroll && ny){ kontroll.barn = ['sj-nysjafor']; ny.visible = false; }
+  }
   if(side === 'bilkort'){
     const plass = {
       'ux-bil-kort':[0,0,4,4],
@@ -15943,6 +15971,9 @@ function uxLayoutStandard(side){
   return liste;
 }
 function uxLayoutBruker(){ return String(loggedInRole || 'lokal'); }
+function uxLayoutEier(side){
+  return side === 'sjafor' ? '__sjafor__' : uxLayoutBruker();
+}
 function uxLayoutAlle(){
   try{ const r = JSON.parse(localStorage.getItem(UX_LAYOUT_KEY) || '{}'); return r && typeof r === 'object' ? r : {}; }
   catch(e){ return {}; }
@@ -15969,11 +16000,11 @@ function uxLayoutNormaliser(liste, side){
   return ut;
 }
 function uxLayoutPageId(side){
-  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil'}[side] || side;
+  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil', sjafor:'sjafor'}[side] || side;
 }
 function uxLayoutLes(side){
   const pageId = uxLayoutPageId(side);
-  const bruker = uxLayoutAlle()[uxLayoutBruker()];
+  const bruker = uxLayoutAlle()[uxLayoutEier(side)];
   if(!bruker || typeof bruker !== 'object') return null;
   let post = bruker[pageId];
   if(!post && bruker.sider && Array.isArray(bruker.sider[side])) post = {widgets:bruker.sider[side], layoutVersion:1};
@@ -15984,7 +16015,7 @@ function uxLayoutLes(side){
 }
 function uxLayoutSkriv(side, liste){
   const alle = uxLayoutAlle();
-  const userId = uxLayoutBruker();
+  const userId = uxLayoutEier(side);
   const pageId = uxLayoutPageId(side);
   if(!alle[userId] || typeof alle[userId] !== 'object' || Array.isArray(alle[userId])) alle[userId] = {};
   alle[userId][pageId] = {userId, pageId, layoutVersion:2, widgets:uxLayoutNormaliser(liste, side)};
@@ -15992,7 +16023,7 @@ function uxLayoutSkriv(side, liste){
 }
 function uxLayoutSlett(side){
   const alle = uxLayoutAlle();
-  const userId = uxLayoutBruker();
+  const userId = uxLayoutEier(side);
   const pageId = uxLayoutPageId(side);
   if(alle[userId] && typeof alle[userId] === 'object'){
     delete alle[userId][pageId];
@@ -16005,6 +16036,7 @@ function uxLayoutKladd(side){
   if(side === 'kalender' && lest && !lest.some(w => w.visible && String(w.widgetId).indexOf('ux-kal-') === 0)) return uxLayoutNormaliser(uxLayoutStandard(side), side);
   if(side === 'verksted' && lest && !lest.some(w => w.visible && w.widgetId === 'ux-vt-handlinger')) return uxLayoutNormaliser(uxLayoutStandard(side), side);
   if(side === 'bilkort' && lest && !lest.some(w => w.visible && w.widgetId === 'ux-bil-kort')) return uxLayoutNormaliser(uxLayoutStandard(side), side);
+  if(side === 'sjafor' && lest && !lest.some(w => w.visible && String(w.widgetId).indexOf('sj-') === 0)) return uxLayoutNormaliser(uxLayoutStandard(side), side);
   return uxLayoutNormaliser(lest || uxLayoutStandard(side), side);
 }
 function uxLayoutTreff(liste, a, unntatt){
@@ -16029,7 +16061,7 @@ function uxLayoutGearHtml(){
   return `<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${paa ? 'true' : 'false'}">${luc('settings')}</button>`;
 }
 function uxLayoutToppHtml(side){
-  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil'}[side] || side;
+  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil', sjafor:'Sjåførkontroll'}[side] || side;
   return `<div class="dash-edit-bar">
     <div class="dash-edit-tittel">${luc('settings')} ${esc(navn)} <span class="dash-edit-status">Lagres bare for denne siden</span></div>
     <div class="dash-edit-knapper">
@@ -16065,6 +16097,7 @@ const UX_WIDGET_KATEGORIER = [
   {id:'historikk', label:'Historikk', sider:['bilkort','verksted','kalender']},
   {id:'saker', label:'Saker', sider:['dashboard']},
   {id:'analyse', label:'Analyse', sider:['dashboard']},
+  {id:'sjafor', label:'Sjåførkontroll', sider:['sjafor']},
   {id:'admin', label:'Administrasjon', sider:[]}
 ];
 const UX_WIDGET_I_KATEGORI = {
@@ -16077,7 +16110,8 @@ const UX_WIDGET_I_KATEGORI = {
   analyse:['ux-kpi','ux-analyse'],
   kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-dag','ux-kal-plan','ux-kal-tid','ux-kal-hist','ux-kal-neste'],
   planlegging:['ux-kal-plan','ux-kal-denne','ux-kal-tid','ux-handling','ux-kal-neste'],
-  admin:[]
+  admin:[],
+  sjafor:['sj-bilkort','sj-drift','sj-bilinfo','sj-handling','sj-kontroll','sj-nysjafor','sj-ring','sj-hurtig']
 };
 function uxWidgetBibliotekHtml(skjulte, side){
   const kat = uxWidgetKatalog();
@@ -16292,7 +16326,7 @@ function uxLayoutOvertar(side){
 }
 function attachUxLayoutListeners(){
   const avbryt = document.getElementById('ux-layout-avbryt');
-  if(avbryt) avbryt.addEventListener('click', () => { uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render(); });
+  if(avbryt) avbryt.addEventListener('click', () => { uxLayoutModus = false; sjaforLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render(); });
   const standard = document.getElementById('ux-layout-standard');
   if(standard) standard.addEventListener('click', () => {
     if(!confirm('Tilbakestille oppsettet på denne siden? Den lagrede layouten slettes.')) return;
@@ -16301,7 +16335,7 @@ function attachUxLayoutListeners(){
   const lagre = document.getElementById('ux-layout-lagre');
   if(lagre) lagre.addEventListener('click', () => {
     uxLayoutSkriv(uxLayoutSide, uxLayoutDraft || uxLayoutKladd(uxLayoutSide));
-    uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render();
+    uxLayoutModus = false; sjaforLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; render();
   });
   const apne = document.getElementById('ux-widget-apne');
   if(apne) apne.addEventListener('click', (e) => { e.stopPropagation(); uxWidgetMeny = !uxWidgetMeny; if(uxWidgetMeny && !uxWidgetKat){ const forst = UX_WIDGET_KATEGORIER.find(k => (k.sider || []).indexOf(uxLayoutSide) >= 0); uxWidgetKat = forst ? forst.id : 'drift'; } render(); });

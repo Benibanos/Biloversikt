@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Sjåførkontroll med samme widget-editor
+
+1. Rediger sjåførkontroll bruker samme frie widgetflate som resten av Bilpark: dra, skaler, skjul og legg widgets inni hverandre. Oppsettet lagres felles for sjåførene.
+2. Handlinger er ett kompakt rutenett. Ny sjåfør ligger i Dagens kontroll. Bilinformasjon viser fargestatus for service, EU-kontroll, dekk og løftebord. Ringelisten viser driftsstatus og driftslagfarge, inkludert Stokke, Larvik, Sandefjord og Tønsberg.
+3. App-/cacheversjon 175 → **176**. `kontroll.html` = `index.html`.
+
 ### Kjøretøyprofil i tre deler
 
 1. Bilkortet viser bare registreringsnummer, merke, modell og årsmodell. Kjøretøystatus samler service, EU-kontroll, dekk og løftebord. Bilinformasjon viser kilometerstand, løyve, serviceintervall, servicenummer, driftslag og mobilitetsgaranti.
