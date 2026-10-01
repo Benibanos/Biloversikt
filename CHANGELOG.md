@@ -15,6 +15,13 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Verkstedhandlinger og arkiverte biler
+
+1. Kjerne-merket vises bare i redigeringsmodus. Bestill verkstedtime og filter er borte fra verkstedforsiden. Filteret i verkstedhistorikk er beholdt. Bestilling åpnes i midtstilt modal fra fem like handlingskort.
+2. Tallene i verkstedstatus åpner listen for den valgte gruppen, inkludert Klar til avslutning.
+3. Biloversikt skiller aktive biler, reserve og arkiverte biler. Arkiverte biler kan åpnes og slettes etter bekreftelse. Aktive biler må settes til «Kan ikke brukes» før sletting.
+4. App-/cacheversjon 176 → **177**. `kontroll.html` = `index.html`.
+
 ### Sjåførkontroll med samme widget-editor
 
 1. Rediger sjåførkontroll bruker samme frie widgetflate som resten av Bilpark: dra, skaler, skjul og legg widgets inni hverandre. Oppsettet lagres felles for sjåførene.

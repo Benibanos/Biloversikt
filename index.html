@@ -2359,12 +2359,17 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .vt-filter-grid .field{min-width:0;margin:0;}
   .vt-filter-grid select,.vt-filter-grid input{width:100%;max-width:100%;}
   @media (max-width:720px){ .vt-filter-grid{grid-template-columns:1fr;} }
-  .vt-drawer-bak{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.45);}
-  .vt-drawer{position:fixed;top:0;right:0;z-index:81;width:min(440px,100vw);height:100%;overflow:auto;box-sizing:border-box;padding:16px 16px 28px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-24px 0 48px rgba(0,0,0,.45);}
+  .vt-drawer-bak{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55);}
+  .vt-drawer{position:relative;width:min(560px,100%);max-height:min(90vh,840px);overflow:auto;box-sizing:border-box;padding:16px 16px 28px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 28px 64px rgba(0,0,0,.55);}
   .vt-drawer-topp{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;}
   .vt-drawer-topp h3{margin:0;}
-  .vt-mini-handlinger{display:flex;flex-wrap:wrap;gap:8px;}
-  .vt-mini-handlinger .bp-btn{flex:1 1 140px;}
+  .vt-handlingskort{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+  .vt-handlingskort button{min-height:132px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px 8px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font:600 14px/18px var(--font-sans);cursor:pointer;text-align:center;}
+  .vt-handlingskort button:hover{border-color:var(--border-strong);}
+  .bp-kpi.is-valgt{outline:2px solid var(--accent);outline-offset:2px;}
+  .vt-handlingskort .lucide-ic{width:28px;height:28px;}
+  @media (max-width:980px){ .vt-handlingskort{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  @media (max-width:640px){ .vt-handlingskort{grid-template-columns:repeat(2,minmax(0,1fr));} }
   .desktop-frame-tools{display:flex;align-items:center;gap:8px;}
   #ux-layout-gear.is-pa{border-color:var(--accent);color:var(--accent);}
   .bp-fanelinje{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
@@ -2933,6 +2938,7 @@ let vtBestillingService = true;
 let vtBestillingLoftebord = false;
 let vtVisReserve = false;
 let vtBeOmBil = false;
+let vtKpiFokus = '';
 let uxApneInlineRedigering = false;
 // Prioritet 49: "Flere detaljer" (Kommentar/Kontaktperson/Telefonnummer) i Ny
 // verkstedtime-skjemaet er lukket som standard — ren visningstilstand, aldri lagret,
@@ -9409,9 +9415,11 @@ async function saveVehicleForm(id){
 let vehicleSaveConfirmedId = null;
 async function deleteVehicle(id){
   if(!krevVehiclesSkriving('Å slette kjøretøy')) return;
-  if(!confirm('Slette dette kjøretøyet og all historikk? Dette kan ikke angres.')) return;
-  const vDamages = damages.filter(d => d.vehicleId === id);
   const v = vehicles.find(x => x.id === id);
+  if(!v) return;
+  if(!v.uteAvDrift){ alert('Aktive biler må settes til «Kan ikke brukes» før de kan slettes.'); return; }
+  if(!confirm('Er du sikker på at du ønsker å slette kjøretøyet?')) return;
+  const vDamages = damages.filter(d => d.vehicleId === id);
   vehicles = vehicles.filter(v => v.id !== id);
   damages = damages.filter(d => d.vehicleId !== id);
   verkstedtimer = verkstedtimer.filter(t => t.vehicleId !== id);
@@ -15729,9 +15737,9 @@ function uxNestEgenHtml(id){
   return `<section class="ux1-sek"><h2 class="bp-overline">${esc(navn)}</h2>${kropp}</section>`;
 }
 function uxVtHandlingerHtml(){
-  const knapper = [['ux-aks-service','Service','wrench'],['ux-aks-eu','EU-kontroll','shield-check'],['ux-aks-dekk','Dekkskift','circle-dot'],['ux-aks-rute','Ruteskift','car-front'],['ux-aks-rep','Reparasjon','factory']];
+  const knapper = [['ux-aks-service','Bestill service','wrench'],['ux-aks-eu','Bestill EU-kontroll','shield-check'],['ux-aks-dekk','Bestill dekkskift','circle-dot'],['ux-aks-rute','Bestill ruteskift','car-front'],['ux-aks-rep','Bestill reparasjon','factory']];
   return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedhandlinger</h2>
-    <div class="vt-mini-handlinger">${knapper.map(([id, label, ikon]) => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-ux-aksjon="${id}">${luc(ikon)} ${label}</button>`).join('')}</div>
+    <div class="vt-handlingskort">${knapper.map(([id, label, ikon]) => `<button type="button" data-ux-aksjon="${id}" aria-label="${esc(label)}">${luc(ikon)}<span>${esc(label)}</span></button>`).join('')}</div>
     <div class="ux1-diskret"><button type="button" class="bp-link-btn" id="registrer-tidligere-service-btn">Registrer tidligere service</button></div>
   </section>`;
 }
@@ -16079,7 +16087,7 @@ function uxLayoutKortHtml(w, rediger){
   const kjerne = !!w.kjerne;
   const pin = rediger && uxWidgetKatalog().some(k => k.id === w.widgetId && k.aksjon) ? `<button type="button" class="bp-ikon-handling ux-kjerne" data-ux-kjerne="${w.widgetId}" title="${kjerne ? 'Kjernefunksjon' : 'Merk som kjernefunksjon'}">${luc(kjerne ? 'pin' : 'pin-off')}</button>` : '';
   const skjul = kjerne ? '' : `<button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button>`;
-  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button>${pin}${skjul}<span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : (kjerne ? `<span class="ux-kjerne-merke">Kjerne</span>` : '');
+  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button>${pin}${skjul}${kjerne ? '<span class="ux-kjerne-merke">Kjerne</span>' : ''}<span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
   return `<div class="ux-widget${klikk ? ' is-klikk' : ''}${valgt}${kjerne ? ' er-kjerne' : ''}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
 }
 function uxLayoutVisHtml(liste){
@@ -16632,16 +16640,13 @@ function registerDriftKort(g, minBil){
 }
 function renderRegister(){
   const q = filterSearch.trim().toLowerCase();
-  const filtered = vehicles.filter(v => {
+  const registerTreff = (v, taMedUte) => {
     if(q && !((v.bilnummer||'').toLowerCase().includes(q) || v.regnr.toLowerCase().includes(q) || (v.modell||'').toLowerCase().includes(q) || (v.loyvenummer||'').toLowerCase().includes(q))) return false;
     if(filterKategori && v.kategori !== filterKategori) return false;
     if(filterKontrollStatus === 'kontrollert' && !isKontrollertIdag(v.id)) return false;
     if(filterKontrollStatus === 'ikke' && (isKontrollertIdag(v.id) || vehicleErReserveUnntatt(v.id))) return false;
     if(filterLoyve === 'har' && !v.loyvenummer) return false;
     if(filterLoyve === 'mangler' && v.loyvenummer) return false;
-    // Samme filter Dashboardets Bilparkhelse-chips og mobilens
-    // 🚚 Min bil-ikon bruker — gjenbruker vehicleHovedstatus()/vehicleAktivSjafor()
-    // uendret, ingen ny tellelogikk.
     if(filterHovedstatus === 'har-aktiv-sjafor' && !vehicleAktivSjafor(v.id)) return false;
     if(filterHovedstatus === 'tilgjengelig' && vehicleAktivSjafor(v.id)) return false;
     if(filterHovedstatus === 'fh-tilgjengelig' && flatehelseGruppe(v) !== 'tilgjengelig') return false;
@@ -16649,12 +16654,14 @@ function renderRegister(){
     if(filterHovedstatus === 'fh-kan-ikke-brukes' && flatehelseGruppe(v) !== 'kan-ikke-brukes') return false;
     if(filterHovedstatus === 'fh-reserve' && flatehelseGruppe(v) !== 'reserve') return false;
     if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && filterHovedstatus.slice(0, 3) !== 'fh-' && vehicleHovedstatus(v.id) !== statusNokkel('operativ', filterHovedstatus)) return false;
-    if(filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus.slice(0, 3) !== 'fh-'){
+    if(!taMedUte && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus.slice(0, 3) !== 'fh-'){
       if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
       if(!visUteAvDrift && vehicleDriftsstatus(v) === 'kan-ikke-brukes' && statusNokkel('operativ', filterHovedstatus) !== 'kan-ikke-brukes') return false;
     }
     return true;
-  });
+  };
+  const filtered = vehicles.filter(v => registerTreff(v, false));
+  const arkivKilde = vehicles.filter(v => v.uteAvDrift && registerTreff(v, true));
   // Prioritet 72: «+ Ny bil» er en egen fane (ikke en blokk over listen). showAddVehicleForm
   // speiler fanen, så formInProgress() og submitAddVehicle() fortsatt fungerer.
   const erNyBilFane = showAddVehicleForm || registerAktivFane === 'ny-bil';
@@ -16709,18 +16716,25 @@ function renderRegister(){
         {id:'lastebil', label:'Lastebiler'},
         {id:'montering', label:'Monteringsbiler'},
         {id:'reserve', label:'Reserve'},
-        {id:'alle', label:'Alle biler'}
+        {id:'arkivert', label:'Arkiverte'},
+        {id:'alle', label:'Aktive biler'}
       ];
       const valgt = faner.some(f => f.id === registerDriftFane) ? registerDriftFane : 'driftslag';
-      const farge = {driftslag:'var(--ink)', lastebil:'var(--id-lastebil)', montering:'var(--id-montering)', reserve:'var(--neutral)', alle:'var(--ink)'};
+      const farge = {driftslag:'var(--ink)', lastebil:'var(--id-lastebil)', montering:'var(--id-montering)', reserve:'var(--neutral)', arkivert:'var(--danger)', alle:'var(--ink)'};
       const antall = {};
-      faner.forEach(f => { antall[f.id] = f.id === 'alle' ? filtered.length : filtered.filter(v => ux1KjoretoyFaneAv(v) === f.id).length; });
-      const grupper = registerDriftGrupper(filtered, valgt);
+      const utenArkiv = filtered.filter(v => !v.uteAvDrift);
+      const arkiv = arkivKilde;
+      faner.forEach(f => {
+        if(f.id === 'alle') antall[f.id] = utenArkiv.length;
+        else if(f.id === 'arkivert') antall[f.id] = arkiv.length;
+        else antall[f.id] = utenArkiv.filter(v => ux1KjoretoyFaneAv(v) === f.id).length;
+      });
+      const grupper = valgt === 'arkivert' ? [{navn:'Arkiverte', biler:registerSorter(arkiv)}] : registerDriftGrupper(utenArkiv, valgt);
       const innhold = valgt === 'ny-bil' ? '' : (antall[valgt]
         ? (valgt === 'driftslag'
           ? `<div class="ux1-lag-grid">${grupper.map(g => registerDriftKort(g, minBil)).join('')}</div>`
-          : (valgt === 'alle'
-            ? `<div class="gallery">${registerSorter(filtered).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`
+          : (valgt === 'alle' || valgt === 'arkivert'
+            ? `<div class="gallery">${registerSorter(valgt === 'arkivert' ? arkiv : utenArkiv).map(v => galleryCard(v, minBil && v.id === minBil.id)).join('')}</div>`
             : `<div class="ux1-kat">${grupper.map(g => registerDriftKort(g, minBil)).join('')}</div>`))
         : bpTomTilstandHtml('Ingen biler her', 'Ingen kjøretøy i denne gruppen.', true));
       const sortHtml = valgt === 'alle' ? `<label class="ux1-lag-tom">Sorter <select id="reg-sort"><option value="bilnummer" ${registerSort==='bilnummer'?'selected':''}>Bilnummer</option><option value="regnr" ${registerSort==='regnr'?'selected':''}>Reg.nr</option><option value="status" ${registerSort==='status'?'selected':''}>Status</option></select></label>` : '';
@@ -16745,6 +16759,7 @@ function attachRegisterListeners(){
   // finnes kun i DOM-en når panelet er åpent (derfor betingede oppslag). Selve filtervariablene
   // og -semantikken er uendret.
   document.getElementById('reg-filter-btn').addEventListener('click', () => { showRegisterFilter = !showRegisterFilter; render(); });
+  document.querySelectorAll('[data-slett-arkiv]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteVehicle(el.dataset.slettArkiv); }));
   const regSel = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('change', fn); };
   regSel('f-kategori', e => { filterKategori = e.target.value; render(); });
   regSel('f-hovedstatus', e => { filterHovedstatus = e.target.value; render(); });
@@ -16819,6 +16834,7 @@ function galleryCard(v, erMinAktiveBil){
         ${reserveUnntatt ? statusPilleHtml('driftsstatus', 'reserve', 'Ikke i bruk i dag') : (kontrollertIdag ? bpBadgeHtml('success', 'clipboard-check', 'Kontrollert i dag') : statusPilleHtml('operativ', 'ikke-kontrollert'))}
         ${aktiveVarsler.length > 0 ? statusPilleHtml('varsellampe', 'aktiv', `${aktiveVarsler.length} varsellampe${aktiveVarsler.length===1?'':'r'}`) : ''}
         ${totalCount > 0 ? statusPilleHtml('skade', openCount > 0 ? 'registrert' : 'utbedret', `${totalCount} skade${totalCount === 1 ? '' : 'r'}${openCount > 0 ? ' (' + openCount + ' åpen)' : ''}`) : ''}
+        ${v.uteAvDrift && isAdmin ? `<button type="button" class="bp-btn bp-btn-danger btn danger small" data-slett-arkiv="${esc(v.id)}">Slett</button>` : ''}
       </div>
     </div>
   `;
@@ -18342,6 +18358,7 @@ function renderBilkort(){
     const eget = uxLayoutOvertar('bilkort');
     const kropp = eget || uxLayoutVisHtml(uxLayoutStandard('bilkort'));
     const penn = (!driverMode && loggedInRole && isAdmin && !showBilinfoRediger) ? `<button type="button" class="bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>` : '';
+    const slettArkiv = (!driverMode && loggedInRole && isAdmin && v.uteAvDrift) ? `<button type="button" class="bp-btn bp-btn-danger btn danger small" id="del-vehicle">Slett bil</button>` : '';
     const lagre = uxProfilRediger() ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button>` : '';
     const ident = uxProfilRediger()
       ? `${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}${lagre}`
@@ -18349,7 +18366,7 @@ function renderBilkort(){
     const manglerInfo = uxProfilRediger() && !uxBilWidgetSynlig('ux-bil-info')
       ? `<section class="bp-card" style="margin-bottom:12px;"><h2 class="bp-card-title">Bilinformasjon</h2><div class="bp-vcard-rows">${uxProfilFeltHtml(v, {ident:false, telefon:!uxBilWidgetSynlig('ux-bil-sjafor')})}</div></section>`
       : '';
-    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span class="profil-topp-felt">${ident}</span></div>${manglerInfo}${kropp}`;
+    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span class="profil-topp-felt">${ident}${slettArkiv}</span></div>${manglerInfo}${kropp}`;
   }
 
   // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
@@ -18460,7 +18477,7 @@ function renderBilkort(){
             ${uteAvDriftBody}
           </div>
           <p class="required-hint" style="margin-bottom:12px;">Sletter kjøretøyet og all tilhørende historikk permanent. Dette kan ikke angres.</p>
-          <button class="bp-btn bp-btn-danger btn danger" id="del-vehicle">${luc('trash-2')} Slett bil</button>
+          ${v.uteAvDrift ? `<button class="bp-btn bp-btn-danger btn danger" id="del-vehicle">${luc('trash-2')} Slett bil</button>` : `<p class="required-hint">Aktive biler må settes til «Kan ikke brukes» før de kan slettes.</p>`}
         `)}
     </section>
   `;
@@ -20790,11 +20807,11 @@ function ux2StatusHtml(kpi){
   const forfalt = statusDef('verksted', 'forfalt');
   const forfaltAktiv = kpi.forfalt > 0;
   return `<div class="bp-kpi-row">
-    ${bpKpiHtml({tone:'workshop', ikon:'wrench', verdi:kpi.idag, label:'I dag', attr:'data-vt-kpi="idag"'})}
-    ${bpKpiHtml({tone:'info', ikon:'calendar-days', verdi:kpi.uke, label:'Denne uka', attr:'data-vt-kpi="uke"'})}
-    ${bpKpiHtml({tone:forfaltAktiv ? forfalt.tone : 'success', ikon:forfaltAktiv ? forfalt.ikon : 'circle-check', verdi:kpi.forfalt, label:forfalt.label, attr:'data-vt-kpi="forfalt"'})}
-    ${bpKpiHtml({tone:pa ? pa.tone : 'workshop', ikon:pa ? pa.ikon : 'wrench', verdi:s.paVerksted, label:'På verksted', attr:'data-vt-kpi="pa-verksted"'})}
-    ${bpKpiHtml({tone:klar ? klar.tone : 'warning', ikon:klar ? klar.ikon : 'clipboard-check', verdi:s.klarTilAvslutning, label:'Klar til avslutning', attr:'data-vt-kpi="klar"'})}
+    ${bpKpiHtml({tone:'workshop', ikon:'wrench', verdi:kpi.idag, label:'I dag', attr:'data-vt-kpi="idag"', cls:vtKpiFokus==='idag'?'is-valgt':''})}
+    ${bpKpiHtml({tone:'info', ikon:'calendar-days', verdi:kpi.uke, label:'Denne uka', attr:'data-vt-kpi="uke"', cls:vtKpiFokus==='uke'?'is-valgt':''})}
+    ${bpKpiHtml({tone:forfaltAktiv ? forfalt.tone : 'success', ikon:forfaltAktiv ? forfalt.ikon : 'circle-check', verdi:kpi.forfalt, label:forfalt.label, attr:'data-vt-kpi="forfalt"', cls:vtKpiFokus==='forfalt'?'is-valgt':''})}
+    ${bpKpiHtml({tone:pa ? pa.tone : 'workshop', ikon:pa ? pa.ikon : 'wrench', verdi:s.paVerksted, label:'På verksted', attr:'data-vt-kpi="pa-verksted"', cls:vtKpiFokus==='pa-verksted'?'is-valgt':''})}
+    ${bpKpiHtml({tone:klar ? klar.tone : 'warning', ikon:klar ? klar.ikon : 'clipboard-check', verdi:s.klarTilAvslutning, label:'Klar til avslutning', attr:'data-vt-kpi="klar"', cls:vtKpiFokus==='klar'?'is-valgt':''})}
   </div>`;
 }
 function ux2Gruppe(id, tittel, html){
@@ -20875,6 +20892,21 @@ function vtFilterPanelHtml(){
       </div>
     </div>`;
 }
+function vtKpiListeHtml(){
+  if(!vtKpiFokus) return '';
+  const liste = getFilteredVerkstedtimer().filter(t => vtErApen(t));
+  const idag = todayISO();
+  const slutt = isoDateOffset(isoUkeStart(idag), 6);
+  const titler = {idag:'I dag', uke:'Denne uka', forfalt:'Forfalt', 'pa-verksted':'På verksted', klar:'Klar til avslutning'};
+  let html = '';
+  if(vtKpiFokus === 'idag') html = liste.filter(t => t.dato === idag).map(ux1VerkstedKortHtml).join('');
+  else if(vtKpiFokus === 'uke') html = liste.filter(t => t.dato && t.dato >= idag && t.dato <= slutt).map(ux1VerkstedKortHtml).join('');
+  else if(vtKpiFokus === 'forfalt') html = liste.filter(t => vtStatus(t) === 'forfalt').map(ux1VerkstedKortHtml).join('');
+  else if(vtKpiFokus === 'pa-verksted') html = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === 'pa-verksted').map(ux2AlertHtml).join('');
+  else if(vtKpiFokus === 'klar') html = WorkshopFollowupEngine.alle().filter(r => r.oppfolging === 'klar-til-avslutning').map(ux2AlertHtml).join('');
+  else return '';
+  return `<section class="ux1-sek" id="vt-kpi-liste"><h2 class="bp-overline">${esc(titler[vtKpiFokus] || '')}</h2>${html || bpTomTilstandHtml('Ingen saker', 'Ingen verkstedtimer i denne gruppen.', true)}</section>`;
+}
 function renderVerksted(){
   const rediger = currentUiExperience() === 'desktop' && uxLayoutModus && layoutKanRedigere() && uxLayoutSide === 'verksted';
   let flate;
@@ -20886,26 +20918,15 @@ function renderVerksted(){
     const ny = lagret && lagret.some(w => w.visible && w.widgetId === 'ux-vt-handlinger');
     flate = uxLayoutVisHtml(ny ? lagret : uxLayoutStandard('verksted'));
   }
-  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus, vtVisReserve ? 'reserve' : ''].filter(Boolean).length;
 
-  // UX-2: fast arbeidsflate. Registrering ligger nederst. Layoutrekkefølgen for verksted publiseres ikke hit.
   return `
-    <div class="ux1-head" style="justify-content:flex-end;margin-bottom:var(--space-4);">
-      <span class="bp-row-actions">
-        <span class="bp-pop-anchor">
-          <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="vt-filter-toggle-btn" aria-expanded="${showVtFilterMeny ? 'true' : 'false'}" aria-controls="vt-filter-panel">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
-          ${showVtFilterMeny ? vtFilterPanelHtml() : ''}
-        </span>
-        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="add-vt-btn">Bestill verkstedtime</button>
-      </span>
-    </div>
-
     ${vtBeOmBil ? '<p class="required-hint">Velg en bil i filteret for å redigere kjøretøyet.</p>' : ''}
     ${vtFlerBilResultatHtml()}
 
     ${flate}
+    ${vtKpiListeHtml()}
 
-    ${showAddVT ? `<div class="vt-drawer-bak" id="vt-drawer-bak"></div><aside class="vt-drawer" role="dialog" aria-modal="true" aria-labelledby="vt-drawer-tittel">` : ''}
+    ${showAddVT ? `<div class="vt-drawer-bak" id="vt-drawer-bak"><aside class="vt-drawer" role="dialog" aria-modal="true" aria-labelledby="vt-drawer-tittel">` : ''}
     ${showAddVT ? (() => {
       const linkedSak = vtPrefillSakId ? aktiveSaker.find(s => s.id === vtPrefillSakId) : null;
       const lv = linkedSak ? sakVehicle(linkedSak) : null;
@@ -21023,7 +21044,7 @@ function renderVerksted(){
       <div class="panel-actions"><button type="button" class="bp-btn bp-btn-secondary btn secondary" id="vt-drawer-avbryt">Avbryt</button><button class="bp-btn bp-btn-primary btn" type="submit" id="vt-submit-btn">Bestill</button></div>
     </form>`;
     })() : ''}
-    ${showAddVT ? '</aside>' : ''}
+    ${showAddVT ? '</aside></div>' : ''}
 
   `;
 }
@@ -21093,8 +21114,10 @@ function attachVerkstedListeners(){
     render();
   }));
   document.querySelectorAll('[data-vt-kpi]').forEach(el => el.addEventListener('click', () => {
-    const id = {idag:'ux2-idag', uke:'ux2-uke', forfalt:'ux2-forfalt', 'pa-verksted':'ux2-pa', klar:'ux2-klar'}[el.dataset.vtKpi];
-    const g = (id && document.getElementById(id)) || document.getElementById('ux2-kommende');
+    const nokkel = el.dataset.vtKpi || '';
+    vtKpiFokus = vtKpiFokus === nokkel ? '' : nokkel;
+    render();
+    const g = document.getElementById('vt-kpi-liste');
     if(g && g.scrollIntoView) g.scrollIntoView({block:'start'});
   }));
   document.getElementById('add-vt-btn') && document.getElementById('add-vt-btn').addEventListener('click', () => {
@@ -21108,7 +21131,7 @@ function attachVerkstedListeners(){
   const vtBak = document.getElementById('vt-drawer-bak');
   if(vtLukk) vtLukk.addEventListener('click', lukkVtDrawer);
   if(vtAvbryt) vtAvbryt.addEventListener('click', lukkVtDrawer);
-  if(vtBak) vtBak.addEventListener('click', lukkVtDrawer);
+  if(vtBak) vtBak.addEventListener('click', (e) => { if(e.target === vtBak) lukkVtDrawer(); });
   if(!window._vtDrawerEsc){
     window._vtDrawerEsc = true;
     document.addEventListener('keydown', (e) => {
