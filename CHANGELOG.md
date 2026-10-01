@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Kjøretøyprofil med tydeligere bilkort
+
+1. Løyve viser det registrerte løyvenummeret, eller «Ikke registrert». Serviceintervall er tatt ut av Bilinformasjon.
+2. Kjøretøystatus har egen skillelinje og mer luft. Bilkortet fremhever registreringsnummer, merke og modell, og viser operativ status, driftslag og årsmodell.
+3. App-/cacheversjon 177 → **178**. `kontroll.html` = `index.html`.
+
 ### Verkstedhandlinger og arkiverte biler
 
 1. Kjerne-merket vises bare i redigeringsmodus. Bestill verkstedtime og filter er borte fra verkstedforsiden. Filteret i verkstedhistorikk er beholdt. Bestilling åpnes i midtstilt modal fra fem like handlingskort.

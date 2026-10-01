@@ -2444,11 +2444,21 @@ button.bp-cev:hover { background:var(--hover); border-color:var(--border-strong)
   .ux-mini-snart{color:var(--warning);border-color:var(--warning);}
   .ux-mini-forfalt{color:var(--danger);border-color:var(--danger);}
   .ux-mini-oransje{color:#F97316;border-color:#F97316;background:transparent;}
-  .ux-kstatus{display:flex;flex-direction:column;gap:12px;}
-  .ux-kstatus-rad{display:flex;flex-direction:column;gap:4px;}
+  .ux-kstatus{display:flex;flex-direction:column;gap:16px;padding-top:16px;}
+  .ux-kstatus-kort .bp-card-head{margin-bottom:4px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+  .ux-kstatus-rad{display:flex;flex-direction:column;gap:6px;padding:2px 0;}
   .ux-kstatus-l{font:600 11px/16px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);}
-  .ux-bilkort-reg{margin:0;font:650 32px/36px var(--font-sans);letter-spacing:.02em;}
-  .ux-bilkort-linje{margin:2px 0 0;font:500 16px/22px var(--font-sans);}
+  .ux-info-skille{margin:18px 0 6px;padding-top:16px;border-top:1px solid var(--border);font:600 11px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+  .ux-bilprofil{display:flex;flex-direction:column;gap:12px;}
+  .ux-bilprofil-topp{display:flex;align-items:flex-start;gap:14px;}
+  .ux-bilprofil-ikon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:rgba(32,201,151,.14);color:var(--accent);}
+  .ux-bilprofil-ikon .lucide-ic{width:26px;height:26px;}
+  .ux-bilkort-reg{margin:0;display:inline-block;padding:2px 8px;border-radius:8px;background:rgba(255,255,255,.07);font:700 34px/40px var(--font-sans);letter-spacing:.06em;}
+  .ux-bilkort-bil{margin:6px 0 0;font:500 16px/22px var(--font-sans);color:var(--ink);}
+  .ux-bilkort-rad{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0;}
+  .ux-bilkort-status,.ux-bilkort-lag{display:inline-flex;align-items:center;gap:6px;margin:0;font:600 14px/20px var(--font-sans);}
+  .ux-bilkort-prikk{width:10px;height:10px;border-radius:999px;flex:none;}
+  .ux-bilkort-aar{margin:0;font:400 13px/18px var(--font-sans);color:var(--ink-muted);}
   .ux-mini-ingen{color:var(--ink-muted);border-color:var(--border);}
   .ux-status{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0;padding:3px 8px;min-height:0;border-radius:8px;background:transparent;text-align:left;font:500 13px/18px var(--font-sans);}
   .ux-status .lucide-ic{width:14px;height:14px;flex:none;color:currentColor;}
@@ -15646,15 +15656,30 @@ function uxLoftebordStatusChip(v){
   return uxStatusChipHtml('forfalt', 'Utløpt ' + fmt(lb.gyldigTil), attr);
 }
 function uxBilKortHtml(v){
-  return `<section class="bp-card" aria-labelledby="ux-bilkort"><div class="bp-card-head"><h2 id="ux-bilkort" class="bp-card-title">Bilkort</h2></div>
-    <p class="ux-bilkort-reg">${esc(v.regnr || '–')}</p>
-    <p class="ux-bilkort-linje">${esc(v.merke || 'Merke ikke satt')}</p>
-    <p class="ux-bilkort-linje">${esc(v.modell || 'Modell ikke satt')}</p>
-    <p class="ux-bilkort-linje">${v.arsmodell ? esc(String(v.arsmodell)) + ' modell' : 'Årsmodell ikke satt'}</p>
+  const hs = vehicleHovedstatus(v.id);
+  const def = statusDef('operativ', hs) || {label:'Operativ', tone:'neutral'};
+  const tone = STATUS_TONE[def.tone] || STATUS_TONE.neutral;
+  const lag = vehicleDriftslagGruppe(v);
+  const lagVis = lag && lag !== 'Ikke satt';
+  const bil = [v.merke, v.modell].filter(Boolean).join(' ') || 'Merke ikke satt';
+  const kant = lagVis ? ` style="border-left:4px solid ${p48DriftslagFarge(lag)}"` : '';
+  return `<section class="bp-card ux-bilprofil" aria-labelledby="ux-bilkort"${kant}><div class="bp-card-head"><h2 id="ux-bilkort" class="bp-card-title">Bilkort</h2></div>
+    <div class="ux-bilprofil-topp">
+      <span class="ux-bilprofil-ikon" aria-hidden="true">${luc('truck')}</span>
+      <div>
+        <p class="ux-bilkort-reg">${esc(v.regnr || '–')}</p>
+        <p class="ux-bilkort-bil">${esc(bil)}</p>
+      </div>
+    </div>
+    <p class="ux-bilkort-rad">
+      <span class="ux-bilkort-status" style="color:${tone.fg}"><span class="ux-bilkort-prikk" style="background:${tone.dot}"></span>${esc(def.label)}</span>
+      ${lagVis ? `<span class="ux-bilkort-lag"><span class="ux-bilkort-prikk" style="background:${p48DriftslagFarge(lag)}"></span>${esc(lag)}</span>` : ''}
+    </p>
+    <p class="ux-bilkort-aar">${v.arsmodell ? esc(String(v.arsmodell)) + ' modell' : 'Årsmodell ikke satt'}</p>
   </section>`;
 }
 function uxKjoretoyStatusHtml(v){
-  return `<section class="bp-card" aria-labelledby="ux-kstatus"><div class="bp-card-head"><h2 id="ux-kstatus" class="bp-card-title">Kjøretøystatus</h2></div>
+  return `<section class="bp-card ux-kstatus-kort" aria-labelledby="ux-kstatus"><div class="bp-card-head"><h2 id="ux-kstatus" class="bp-card-title">Kjøretøystatus</h2></div>
     <div class="ux-kstatus">
       ${uxKstatusRad('Service', uxServiceStatusChip(v))}
       ${uxKstatusRad('EU-kontroll', uxEuStatusChip(v))}
@@ -18190,7 +18215,7 @@ function uxProfilFeltHtml(v, valg){
   rader.push(uxInlineRad('Løyvenummer', uxInlineInput('f-loyvenummer', v.loyvenummer || '')));
   rader.push(uxInlineRad('Servicenummer', uxInlineInput('f-servicenummer', v.servicenummer || '')));
   rader.push(uxInlineRad('Drivstoff', `<select id="f-drivstoff" class="bp-inline">${drivstoffOptions(v.drivstoff || '')}</select>`));
-  rader.push(uxInlineRad('Serviceintervall', uxInlineInput('f-service-intervall', v.serviceIntervallKm || '', 'number')));
+  rader.push(`<input type="hidden" id="f-service-intervall" value="${esc(String(v.serviceIntervallKm || ''))}">`);
   rader.push(uxInlineRad('Kilometerstand', uxInlineInput('f-km', v.km || '', 'number')));
   rader.push(uxInlineRad('Dekk', `<select id="f-dekk" class="bp-inline">${dekkValg.map(([k,t]) => `<option value="${k}" ${v.dekk===k?'selected':''}>${t}</option>`).join('')}</select>`));
   rader.push(uxInlineRad('EU-kontroll', uxInlineInput('f-eu-godkjent-til', v.euGodkjentTil ? fmt(v.euGodkjentTil) : '', 'date')));
@@ -18219,16 +18244,26 @@ function ux3BilinfoHtml(v){
       </div>
     </section>`;
   }
+  const statusIder = ['ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord'];
+  const statusBarn = barn.filter(id => statusIder.indexOf(id) >= 0);
+  const ovrigeBarn = barn.filter(id => statusIder.indexOf(id) < 0);
+  const loyve = (v.loyvenummer || '').trim();
+  const statusBlokker = {
+    'ux-bil-service': ['Service', uxServiceStatusChip(v)],
+    'ux-bil-eu': ['EU-kontroll', uxEuStatusChip(v)],
+    'ux-bil-dekk': ['Dekk', uxDekkFristChip(v)],
+    'ux-bil-loftebord': ['Løftebord', uxLoftebordStatusChip(v)]
+  };
   return `<section class="bp-card" aria-labelledby="ux3-bil">${hode}
     <div class="bp-vcard-rows">
       ${rad('Kilometerstand', esc(v.km ? Number(v.km).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
-      ${rad('Løyve', esc((v.loyvenummer || '').trim() ? 'Gyldig' : 'Ikke satt'))}
-      ${rad('Serviceintervall', esc(v.serviceIntervallKm ? Number(v.serviceIntervallKm).toLocaleString('nb-NO') + ' km' : 'Ikke satt'))}
+      ${rad('Løyve', esc(loyve || 'Ikke registrert'))}
       ${rad('Servicenummer', esc(v.servicenummer || 'Ikke satt'))}
       ${rad('Driftslag', esc(v.driftslag || 'Ikke satt'))}
       ${rad('Mobilitetsgaranti', esc((() => { const mg = vehicleMobilitetsgaranti(v); return mg.status === 'gyldig' ? 'Aktiv' : mg.status === 'utlopt' ? 'Utløpt' : mg.status === 'ukjent' ? 'Registrert' : 'Ingen'; })()))}
     </div>
-    ${uxMiniRadHtml(barn, v)}
+    ${ovrigeBarn.length ? uxMiniRadHtml(ovrigeBarn, v) : ''}
+    ${statusBarn.length ? `<div class="ux-info-skille">Kjøretøystatus</div><div class="ux-kstatus">${statusBarn.map(id => uxKstatusRad(statusBlokker[id][0], statusBlokker[id][1])).join('')}</div>` : ''}
   </section>`;
 }
 function ux3KontrollkortHtml(v){
