@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Kjøretøyprofil i tre deler
+
+1. Bilkortet viser bare registreringsnummer, merke, modell og årsmodell. Kjøretøystatus samler service, EU-kontroll, dekk og løftebord. Bilinformasjon viser kilometerstand, løyve, serviceintervall, servicenummer, driftslag og mobilitetsgaranti.
+2. Dekkstatus bruker 31. oktober som frist: grønn mer enn 15 dager før, gul fra 15 dager, oransje fra 5 dager, og rød etter fristen hvis vinterdekk ikke er registrert.
+3. App-/cacheversjon 174 → **175**. `kontroll.html` = `index.html`.
+
 ### DriverControl med widgets
 
 1. Administrator kan åpne Rediger sjåførkontroll og flytte, skjule og legge widgets i hverandre. Oppsettet gjelder sjåførene, ikke den enkelte innloggingen.
