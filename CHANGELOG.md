@@ -15,6 +15,18 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Kompaktere bilinformasjon og hel kant på bilkortet
+
+1. Bilinformasjon har bare én skillelinje før statusradene. Overskriften Kjøretøystatus er borte der. EU-kontroll, service, dekk og løftebord er korte fargede linjer.
+2. Den fargede kanten på bilkortet følger hele kortets høyde. Minimumshøyden på fire rader er beholdt.
+3. App-/cacheversjon 181 → **182**. `kontroll.html` = `index.html`.
+
+### Lettere faner og tydeligere kategorier
+
+1. Fanelinjene beholder topplinjen og slipper bunnlinjen. Tynne vertikale skiller skiller fanene. Antall biler vises som diskré tekst, for eksempel Driftslag (9).
+2. Kategorinavn har mer luft og en tynn linje mot kortene under. Kjøretøystatus har mer luft mellom tittel og faner. Korthøyden er uendret.
+3. App-/cacheversjon 180 → **181**. `kontroll.html` = `index.html`.
+
 ### Tettere navigasjonslinje og roligere verkstedkort
 
 1. Fanelinjene har tynn topp- og bunnlinje. + Ny bil bruker samme uttrykk som fanene og ligger til høyre. Søkefeltet er lavere, avrundet og har søkeikon.
