@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Tettere navigasjonslinje og roligere verkstedkort
+
+1. Fanelinjene har tynn topp- og bunnlinje. + Ny bil bruker samme uttrykk som fanene og ligger til høyre. Søkefeltet er lavere, avrundet og har søkeikon.
+2. Verkstedhandlingene deler lys grå tittel og lys turkis ikon, strek og hover. Kjøretøystatus har mer luft over fanene og litt lavere bilkort.
+3. App-/cacheversjon 179 → **180**. `kontroll.html` = `index.html`.
+
 ### Felles faner, biler og verkstedkort
 
 1. Biler og kjøretøystatus bruker fanene Driftslag, Lastebiler, Monteringsbiler og Alle biler. Alle biler viser kategoriene samlet, med reserve inkludert. Søk og Ny bil ligger på samme linje. Sortering og filter ligger i Ny bil-menyen.
