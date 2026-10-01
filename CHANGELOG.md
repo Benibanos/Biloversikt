@@ -13,7 +13,13 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
-## 2026-09-29
+## 2026-09-30
+
+### Verksted 2.1
+
+1. Verksted viser flåten. Aktive saker sier ikke lenger «denne bilen» med mindre en bil er valgt i filteret. Reserve er skjult til filteret «Vis reserve» er på.
+2. Bestill verksted er en handlingswidget. Service kan kombineres med årlig løftebordkontroll på samme bestilling. Handlingswidgets kan merkes som kjernefunksjon og kan da ikke fjernes.
+3. App-/cacheversjon 171 → **172**. `kontroll.html` = `index.html`.
 
 ### Statusindikatorer
 

@@ -5335,7 +5335,7 @@ async function loginSubmit(ev){
 }
 function logout(){
   vtFlerBilResultat = null;   // Prioritet 59: resultatet av en samlet dekkskift-bestilling følger ikke med ut av innloggingen
-  layoutAvsluttRedigering();   // Prioritet 58/60: et åpent layoututkast følger aldri med ut av innloggingen
+  uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = '';
   loggedInRole = null;
   isAdmin = false;
   headerMenuOpen = false;
@@ -8050,10 +8050,12 @@ const VT_TYPE_LABEL = {
   loftebord:'Løftebordkontroll',
   dekkskift:'Dekkskift',
   ruteskift:'Ruteskift',
-  reparasjon:'Reparasjon'
+  reparasjon:'Reparasjon',
+  skade:'Skade',
+  annet:'Annet'
 };
-const VT_TYPE_REKKEFOLGE = ['eu-kontroll','service','loftebord','reparasjon','dekkskift','ruteskift'];
-const VT_ORDRE_TYPER = ['eu-kontroll','service','loftebord','reparasjon'];
+const VT_TYPE_REKKEFOLGE = ['eu-kontroll','service','loftebord','reparasjon','skade','annet','dekkskift','ruteskift'];
+const VT_ORDRE_TYPER = ['eu-kontroll','service','loftebord','reparasjon','skade','annet'];
 const VT_EKSKLUSIVE_TYPER = ['dekkskift','ruteskift'];
 function vtTyperListe(tEllerStreng){
   const raw = (tEllerStreng && typeof tEllerStreng === 'object') ? tEllerStreng.type : tEllerStreng;
@@ -8068,14 +8070,28 @@ function vtErKombinerbarOrdre(tEllerStreng){
   const typer = vtTyperListe(tEllerStreng);
   return typer.length > 0 && typer.every(k => VT_ORDRE_TYPER.includes(k));
 }
+function vtEkstraBeskrivelse(t){
+  const typer = vtTyperListe(t);
+  const etikett = typer.map(k => VT_TYPE_LABEL[k]).join(', ');
+  const fri = (t && t.beskrivelse) ? String(t.beskrivelse).trim() : '';
+  if(!fri || fri === etikett) return '';
+  if(etikett && (fri.indexOf(etikett) >= 0 || etikett.indexOf(fri) >= 0)) return '';
+  return fri;
+}
 function vtOppgaverTekst(t){
   const typer = vtTyperListe(t);
-  if(typer.length) return typer.map(k => VT_TYPE_LABEL[k]).join(', ');
-  return (t && t.beskrivelse) ? String(t.beskrivelse) : 'Arbeid';
+  const etikett = typer.length ? typer.map(k => VT_TYPE_LABEL[k]).join(', ') : '';
+  const ekstra = vtEkstraBeskrivelse(t);
+  if(etikett && ekstra) return etikett + ' · ' + ekstra;
+  if(etikett) return etikett;
+  return ekstra || 'Arbeid';
 }
 function vtOppgaverListeHtml(t){
   const typer = vtTyperListe(t);
-  const punkter = typer.length ? typer.map(k => VT_TYPE_LABEL[k]) : [(t && t.beskrivelse) ? String(t.beskrivelse) : 'Arbeid'];
+  const punkter = typer.length ? typer.map(k => VT_TYPE_LABEL[k]) : [];
+  const ekstra = vtEkstraBeskrivelse(t);
+  if(ekstra) punkter.push(ekstra);
+  if(!punkter.length) punkter.push('Arbeid');
   return `<ul class="vt-oppgave-liste">${punkter.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`;
 }
 function finnEksisterendeVerkstedordre(vehicleId, dato, verksted, unntattId){
@@ -8115,6 +8131,7 @@ function vtTypeLucide(t){
   if(rs) return luc('car-front');
   if(vtHarType(t, 'service')) return luc('wrench');
   if(vtHarType(t, 'dekkskift')) return luc('circle-dot');
+  if(vtHarType(t, 'loftebord')) return luc('arrow-up-down');
   return luc('factory');
 }
 // Samme typelogikk igjen, men som ren NØKKEL-streng ('service'/'dekk'/'eu'/'ruteskift'/
@@ -8129,6 +8146,7 @@ function vtTypeArt(t){
   if(rs) return 'ruteskift';
   if(vtHarType(t, 'service')) return 'service';
   if(vtHarType(t, 'dekkskift')) return 'dekk';
+  if(vtHarType(t, 'loftebord')) return 'loftebord';
   return 'verksted';
 }
 function vtTypeTittel(t){
@@ -10485,6 +10503,8 @@ function vtLesValgteTyperFraSkjema(){
     if(type === 'dekkskift') return ['dekkskift'];
     if(type === 'eu-kontroll') return ['eu-kontroll'];
     if(type === 'loftebord') return ['loftebord'];
+    if(type === 'skade') return ['skade'];
+    if(type === 'annet') return ['annet'];
     return ['reparasjon'];
   }
   const valgte = Array.from(document.querySelectorAll('input[name="vt-type"]:checked')).map(el => el.value).filter(k => VT_TYPE_REKKEFOLGE.includes(k));
@@ -12687,7 +12707,6 @@ function render(){
   else if(screen === 'bestill') body = renderBestillTjenester();
   else if(screen === 'kommentaroversikt') body = renderKommentaroversikt();
   else if(screen === 'allesider') body = renderAlleSider();
-  else if(screen === 'layouteditor') body = renderLayoutEditor();
 
   const menuActive = screen === 'register' || screen === 'innstillinger';
   // Bilparkhelse Status og "Biler i drift nå"
@@ -12788,7 +12807,8 @@ function render(){
   if(frameVarslerBtn) frameVarslerBtn.addEventListener('click', (e) => { e.stopPropagation(); varselPopApen = !varselPopApen; render(); });
   const layoutGear = document.getElementById('ux-layout-gear');
   if(layoutGear) layoutGear.addEventListener('click', () => {
-    if(uxLayoutModus && uxLayoutSide === screen){ uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; }
+    if(UX_LAYOUT_SIDER.indexOf(screen) < 0) return;
+    if(uxLayoutModus && uxLayoutSide === screen){ uxLayoutModus = false; uxLayoutDraft = null; uxWidgetMeny = false; uxLayoutValgt = ''; }
     else {
       uxLayoutSide = screen;
       uxLayoutDraftSide = screen;
@@ -12856,7 +12876,6 @@ function render(){
   else if(screen === 'bestill') attachBestillTjenesterListeners();
   else if(screen === 'kommentaroversikt') attachKommentaroversiktListeners();
   else if(screen === 'allesider') attachAlleSiderListeners();
-  else if(screen === 'layouteditor') attachLayoutEditorListeners();
   } catch(e){ console.error('[render] sidelistere feilet', e); }
   try{
     attachUxLayoutListeners();
@@ -15347,6 +15366,14 @@ function uxWidgetKatalog(){
     {id:'ux-verksted', label:'Kommende verksted', ikon:'factory', w:6, h:6},
     {id:'ux-aktivitet', label:'Siste aktivitet', ikon:'activity', w:6, h:6},
     {id:'ux-vtstatus', label:'Verkstedstatus', ikon:'wrench', w:12, h:3},
+    {id:'ux-vt-saker', label:'Aktive saker', ikon:'folder-open', w:6, h:6},
+    {id:'ux-aks-bestill', label:'Bestill verksted', ikon:'factory', w:4, h:3, aksjon:true},
+    {id:'ux-aks-service', label:'Registrer service', ikon:'wrench', w:4, h:3, aksjon:true},
+    {id:'ux-aks-dekk', label:'Registrer dekkskift', ikon:'circle-dot', w:4, h:3, aksjon:true},
+    {id:'ux-aks-skade', label:'Registrer skade', ikon:'octagon-alert', w:4, h:3, aksjon:true},
+    {id:'ux-aks-sak', label:'Opprett sak', ikon:'folder-plus', w:4, h:3, aksjon:true},
+    {id:'ux-aks-eu', label:'Bestill EU-kontroll', ikon:'shield-check', w:4, h:3, aksjon:true},
+    {id:'ux-aks-rediger', label:'Rediger kjøretøy', ikon:'pencil', w:4, h:3, aksjon:true},
     {id:'ux-kalender', label:'Kalender', ikon:'calendar-days', w:8, h:7},
     {id:'ux-kal-kapasitet', label:'Verkstedkapasitet', ikon:'gauge', w:12, h:3},
     {id:'ux-kal-denne', label:'Denne uken', ikon:'calendar-check', w:12, h:4},
@@ -15409,7 +15436,7 @@ function uxWidgetBarn(id){
   return w && Array.isArray(w.barn) ? w.barn.filter(b => lov.indexOf(b) >= 0) : [];
 }
 function uxNestKopi(liste){
-  return (liste || []).map(w => Object.assign({}, w, {barn:(w.barn || []).slice()}));
+  return (liste || []).map(w => Object.assign({}, w, {barn:(w.barn || []).slice(), kjerne:!!w.kjerne}));
 }
 function uxNestLos(liste, id){
   liste.forEach(w => { if(w.barn) w.barn = w.barn.filter(b => b !== id); });
@@ -15561,6 +15588,47 @@ function uxNestEgenHtml(id){
     : uxFlateMini(id);
   return `<section class="ux1-sek"><h2 class="bp-overline">${esc(navn)}</h2>${kropp}</section>`;
 }
+function uxAksjonHtml(id){
+  const d = uxWidgetKatalog().find(k => k.id === id) || {label:id, ikon:'circle'};
+  return `<button type="button" class="ux1-sek ux-aksjon" data-ux-aksjon="${esc(id)}"><h2 class="bp-overline">${esc(d.label)}</h2><span class="bp-tile">${luc(d.ikon)}</span></button>`;
+}
+function uxVtSakerHtml(){
+  const bilFilter = vtFilterBil;
+  const saker = (aktiveSaker || []).filter(s => {
+    if(!sakErApen(s) || !sakErVerkstedrelatert(s)) return false;
+    if(bilFilter && s.vehicleId !== bilFilter) return false;
+    if(!vtVisReserve && !bilFilter){
+      const v = (vehicles || []).find(x => x.id === s.vehicleId);
+      if(v && ux1KjoretoyFaneAv(v) === 'reserve') return false;
+    }
+    return true;
+  });
+  const utenTime = saker.filter(s => !s.linkedVtId);
+  const forfalt = (verkstedtimer || []).filter(t => {
+    if(vtStatus(t) !== 'forfalt') return false;
+    if(bilFilter && t.vehicleId !== bilFilter) return false;
+    return true;
+  });
+  const tekst = bilFilter ? 'for den valgte bilen' : 'i bilparken';
+  const kropp = (saker.length || forfalt.length)
+    ? `<p class="bp-kpi-sub">${saker.length} åpne verkstedsaker ${tekst}</p><p class="bp-kpi-sub">${utenTime.length} uten verkstedtime · ${forfalt.length} forfalte</p><div class="ux1-col">${saker.slice(0, 5).map(ux1SakKortHtml).join('')}</div>`
+    : bpTomTilstandHtml('Ingen verkstedsaker', 'Ingen åpne verkstedrelaterte saker ' + tekst + '.', true);
+  return ux1LikSek('ux-vt-saker-w', 'Aktive saker', kropp, ux1Bunnlenke('aktivesaker', 'Alle saker'));
+}
+function uxAksjonUtfor(id){
+  const bil = vtFilterBil || '';
+  if(id === 'ux-aks-bestill'){ vtBestillingMal = 'bestill'; vtPrefillType = 'service'; vtPrefillVehicleId = bil; vtPrefillSakId = ''; showAddVT = true; if(screen !== 'verksted') goTo('verksted'); else render(); return; }
+  if(id === 'ux-aks-service'){ vtBestillingMal = ''; bestillService(bil); return; }
+  if(id === 'ux-aks-dekk'){ vtBestillingMal = ''; bestillDekkskift(bil); return; }
+  if(id === 'ux-aks-eu'){ vtBestillingMal = ''; bestillEuKontroll(bil); return; }
+  if(id === 'ux-aks-skade'){ goToRegisterSkade(bil); return; }
+  if(id === 'ux-aks-sak'){ showAddSak = true; sakPrefillVehicleId = bil; goTo('aktivesaker'); return; }
+  if(id === 'ux-aks-rediger'){
+    if(!bil && !currentVehicleId){ vtBeOmBil = true; if(screen !== 'verksted') goTo('verksted'); else render(); return; }
+    showBilinfoRediger = true;
+    goTo('bilkort', bil || currentVehicleId);
+  }
+}
 function uxWidgetHtml(id){
   if(id === 'ux-status'){
     const barn = uxWidgetBarn('ux-status');
@@ -15576,8 +15644,10 @@ function uxWidgetHtml(id){
     return ux1LikSek('ux-varsler-w', 'Varsler', kropp, ux1Bunnlenke('varsler', 'Varslingssenter'));
   }
   if(id === 'ux-handling') return ux1HandlingSekHtml();
-  if(id === 'ux-saker') return ux1SakerSekHtml();
+  if(id === 'ux-saker') return screen === 'verksted' ? uxVtSakerHtml() : ux1SakerSekHtml();
   if(id === 'ux-verksted') return ux1VerkstedSekHtml();
+  if(id === 'ux-vt-saker') return uxVtSakerHtml();
+  if(String(id).indexOf('ux-aks-') === 0) return uxAksjonHtml(id);
   if(id === 'ux-aktivitet') return ux1AktivitetHtml();
   if(id === 'ux-vtstatus') return `<section class="ux1-sek"><h2 class="bp-overline">Verkstedstatus</h2>${ux2StatusHtml(vtOversiktKpi(getFilteredVerkstedtimer()))}</section>`;
   if(id === 'ux-nest-kontroll' || id === 'ux-nest-aktive' || id === 'ux-nest-drift' || id === 'ux-nest-reserve' || id === 'ux-nest-vt' || id === 'ux-nest-neste' || id === 'ux-nest-dok') return uxNestEgenHtml(id);
@@ -15703,7 +15773,7 @@ function uxBilGrunnlagHtml(v){
 function uxLayoutStandard(side){
   const valg = {
     dashboard:['ux-status','ux-handling','ux-saker','ux-verksted','ux-aktivitet','ux-biler'],
-    verksted:['ux-vtstatus','ux-handling','ux-verksted'],
+    verksted:['ux-aks-bestill','ux-vtstatus','ux-verksted','ux-vt-saker'],
     kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-plan','ux-kal-hist'],
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
     analyse:['ux-kpi','ux-analyse'],
@@ -15719,6 +15789,7 @@ function uxLayoutStandard(side){
     if(!k || !item) return;
     if(x + k.w > 12){ y += radH; x = 0; radH = 0; }
     item.visible = true; item.x = x; item.y = y; item.width = k.w; item.height = k.h;
+    if(side === 'verksted' && id === 'ux-aks-bestill') item.kjerne = true;
     x += k.w; radH = Math.max(radH, k.h);
   });
   return liste;
@@ -15741,7 +15812,8 @@ function uxLayoutNormaliser(liste, side){
     let y = Math.max(0, r.y|0);
     if(x + width > 12) x = Math.max(0, 12 - width);
     const barn = Array.isArray(r.barn) ? r.barn.filter((b, i, a) => (UX_NEST_VERT[k.id] || []).indexOf(b) >= 0 && a.indexOf(b) === i) : [];
-    return {widgetId:k.id, visible:!!r.visible, x, y, width, height, barn};
+    const kjerne = !!r.kjerne;
+    return {widgetId:k.id, visible: kjerne ? true : !!r.visible, x, y, width, height, barn, kjerne};
   });
   const sett = new Set();
   ut.forEach(w => { w.barn = w.barn.filter(b => { if(sett.has(b)) return false; sett.add(b); return true; }); });
@@ -15783,6 +15855,7 @@ function uxLayoutSlett(side){
 function uxLayoutKladd(side){
   const lest = uxLayoutLes(side);
   if(side === 'kalender' && lest && !lest.some(w => w.visible && String(w.widgetId).indexOf('ux-kal-') === 0)) return uxLayoutNormaliser(uxLayoutStandard(side), side);
+  if(side === 'verksted' && lest && !lest.some(w => w.visible && (String(w.widgetId).indexOf('ux-aks-') === 0 || w.widgetId === 'ux-vt-saker'))) return uxLayoutNormaliser(uxLayoutStandard(side), side);
   return uxLayoutNormaliser(lest || uxLayoutStandard(side), side);
 }
 function uxLayoutTreff(liste, a, unntatt){
@@ -15822,8 +15895,11 @@ function uxLayoutKortHtml(w, rediger){
   const handling = uxWidgetHandling(w.widgetId);
   const klikk = !rediger && handling;
   const valgt = rediger && uxLayoutValgt === w.widgetId ? ' er-valgt' : '';
-  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button><button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button><span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : '';
-  return `<div class="ux-widget${klikk ? ' is-klikk' : ''}${valgt}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
+  const kjerne = !!w.kjerne;
+  const pin = rediger && uxWidgetKatalog().some(k => k.id === w.widgetId && k.aksjon) ? `<button type="button" class="bp-ikon-handling ux-kjerne" data-ux-kjerne="${w.widgetId}" title="${kjerne ? 'Kjernefunksjon' : 'Merk som kjernefunksjon'}">${luc(kjerne ? 'pin' : 'pin-off')}</button>` : '';
+  const skjul = kjerne ? '' : `<button type="button" class="bp-ikon-handling ux-skjul" data-ux-skjul="${w.widgetId}" title="Fjern fra siden">${luc('x')}</button>`;
+  const grep = rediger ? `<button type="button" class="bp-ikon-handling ux-grip" data-ux-drag="${w.widgetId}" title="Flytt">${luc('grip-vertical')}</button>${pin}${skjul}<span class="ux-min-hint" hidden></span><div class="ux-resize ux-resize-e" data-ux-resize="${w.widgetId}:e"></div><div class="ux-resize ux-resize-s" data-ux-resize="${w.widgetId}:s"></div><div class="ux-resize ux-resize-se" data-ux-resize="${w.widgetId}:se"></div>` : (kjerne ? `<span class="ux-kjerne-merke">Kjerne</span>` : '');
+  return `<div class="ux-widget${klikk ? ' is-klikk' : ''}${valgt}${kjerne ? ' er-kjerne' : ''}" data-ux-kort="${w.widgetId}"${klikk ? ` tabindex="0" role="button" data-ux-maal="${handling.target}"` : ''} style="--gx:${w.x + 1};--gy:${w.y + 1};--gw:${w.width};--gh:${w.height}">${grep}${html}</div>`;
 }
 function uxLayoutVisHtml(liste){
   const synlige = liste.filter(w => w.visible);
@@ -15845,7 +15921,7 @@ const UX_WIDGET_KATEGORIER = [
 const UX_WIDGET_I_KATEGORI = {
   drift:['ux-status','ux-nest-kontroll','ux-nest-aktive','ux-nest-drift','ux-nest-reserve','ux-nest-vt','ux-biler','ux-kpi','ux-kalender'],
   kjoretoy:['ux-bil-info','ux-bil-kontroll','ux-bil-sjafor','ux-bil-verksted','ux-nest-neste','ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok','ux-bil-helse'],
-  verksted:['ux-bil-verksted','ux-vtstatus','ux-verksted','ux-kal-kapasitet'],
+  verksted:['ux-vtstatus','ux-verksted','ux-vt-saker','ux-aks-bestill','ux-aks-service','ux-aks-dekk','ux-aks-skade','ux-aks-sak','ux-aks-eu','ux-aks-rediger','ux-kal-kapasitet'],
   kontroller:['ux-bil-grunnlag','ux-bil-kontroll','ux-bil-eu','ux-bil-loftebord'],
   historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist'],
   saker:['ux-saker','ux-bil-saker','ux-handling','ux-bil-handling','ux-varsler','ux-bil-neste'],
@@ -16098,7 +16174,7 @@ function attachUxLayoutListeners(){
   document.querySelectorAll('[data-ux-skjul]').forEach(el => el.addEventListener('click', () => {
     const liste = uxNestKopi(uxLayoutDraft || []);
     const w = liste.find(x => x.widgetId === el.dataset.uxSkjul);
-    if(w){ w.visible = false; w.barn = []; }
+    if(w){ if(w.kjerne) return; w.visible = false; w.barn = []; }
     uxLayoutSett(liste);
   }));
   document.querySelectorAll('[data-ux-nest]').forEach(el => el.addEventListener('click', () => {
@@ -16119,6 +16195,17 @@ function attachUxLayoutListeners(){
     if(e.target.closest('.ux-resize,.ux-skjul,.ux-grip')) return;
     uxLayoutValgt = el.dataset.uxKort || '';
     render();
+  }));
+  document.querySelectorAll('[data-ux-kjerne]').forEach(el => el.addEventListener('click', () => {
+    const liste = uxNestKopi(uxLayoutDraft || []);
+    const w = liste.find(x => x.widgetId === el.dataset.uxKjerne);
+    if(w) w.kjerne = !w.kjerne;
+    uxLayoutSett(liste);
+  }));
+  document.querySelectorAll('[data-ux-aksjon]').forEach(el => el.addEventListener('click', (e) => {
+    if(uxLayoutModus) return;
+    e.stopPropagation();
+    uxAksjonUtfor(el.dataset.uxAksjon);
   }));
   document.querySelectorAll('[data-ux-drag]').forEach(el => el.addEventListener('pointerdown', (e) => uxLayoutStartDrag(e, el.dataset.uxDrag)));
   document.querySelectorAll('[data-ux-resize]').forEach(el => el.addEventListener('pointerdown', (e) => {
@@ -20226,6 +20313,10 @@ function getFilteredVerkstedtimer(){
   const filtered = verkstedtimer.filter(t => {
     if(!vtErApen(t)) return false;
     if(vtFilterBil && t.vehicleId !== vtFilterBil) return false;
+    if(!vtVisReserve && !vtFilterBil){
+      const bil = (vehicles || []).find(x => x.id === t.vehicleId);
+      if(bil && ux1KjoretoyFaneAv(bil) === 'reserve') return false;
+    }
     if(vtFilterVerksted && t.verksted !== vtFilterVerksted) return false;
     if(vtFilterSakStatus){
       const linkedSak = t.sakId ? aktiveSaker.find(s => s.id === t.sakId) : null;
@@ -20589,6 +20680,9 @@ function vtFilterPanelHtml(){
         </div>
       </div>
       <div class="row2" style="margin-bottom:0;margin-top:12px;">
+        <div class="field" style="margin-bottom:0;"><label>Flåte</label>
+          <label class="bp-inline-check"><input type="checkbox" id="vt-f-reserve" ${vtVisReserve ? 'checked' : ''}> Vis reserve</label>
+        </div>
         <div class="field" style="margin-bottom:0;"><label>Tilknyttet sak</label>
           <select id="vt-f-sakstatus">
             <option value="" ${vtFilterSakStatus===''?'selected':''}>Alle</option>
@@ -20600,10 +20694,17 @@ function vtFilterPanelHtml(){
     </div>`;
 }
 function renderVerksted(){
-  const eget = uxLayoutOvertar('verksted');
-  if(eget) return eget;
-  const visning = getFilteredVerkstedtimer();
-  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus].filter(Boolean).length;
+  const rediger = currentUiExperience() === 'desktop' && uxLayoutModus && layoutKanRedigere() && uxLayoutSide === 'verksted';
+  let flate;
+  if(rediger){
+    if(!uxLayoutDraft || uxLayoutDraftSide !== 'verksted'){ uxLayoutDraft = uxLayoutKladd('verksted'); uxLayoutDraftSide = 'verksted'; }
+    flate = uxLayoutEditorHtml(uxLayoutDraft, 'verksted');
+  } else {
+    const lagret = uxLayoutLes('verksted');
+    const ny = lagret && lagret.some(w => w.visible && (String(w.widgetId).indexOf('ux-aks-') === 0 || w.widgetId === 'ux-vt-saker'));
+    flate = uxLayoutVisHtml(ny ? lagret : uxLayoutStandard('verksted'));
+  }
+  const antallAktiveFiltre = [vtFilterBil, vtFilterVerksted, vtFilterType, vtFilterPeriode, vtFilterSakStatus, vtVisReserve ? 'reserve' : ''].filter(Boolean).length;
 
   // UX-2: fast arbeidsflate. Registrering ligger nederst. Layoutrekkefølgen for verksted publiseres ikke hit.
   return `
@@ -20617,9 +20718,10 @@ function renderVerksted(){
       </span>
     </div>
 
+    ${vtBeOmBil ? '<p class="required-hint">Velg en bil i filteret for å redigere kjøretøyet.</p>' : ''}
     ${vtFlerBilResultatHtml()}
 
-    ${ux2ArbeidsflateHtml(visning)}
+    ${flate}
 
     <section class="ux1-sek" aria-labelledby="ux2-reg" style="margin-top:var(--space-6);">
       <div class="ux1-head"><h2 id="ux2-reg" class="bp-overline">Registrer</h2></div>
@@ -20648,7 +20750,7 @@ function renderVerksted(){
         : vtPrefillKommentar;
       return `
     <form class="bp-card panel" id="add-vt-form">
-      <h3>${linkedSak ? '🛠 Bestill verkstedtime' : '🔧 Ny verkstedtime'}</h3>
+      <h3>${vtBestillingMal === 'bestill' ? 'Ny verkstedbestilling' : (linkedSak ? 'Bestill verkstedtime' : 'Ny verkstedtime')}</h3>
       ${linkedSak ? `
       <div class="vt-order-header">
         <div class="vt-order-bil">${luc('truck')} ${lv ? esc(vehicleLabel(lv)) : 'Ukjent kjøretøy'}</div>
@@ -20699,13 +20801,22 @@ function renderVerksted(){
       `}
       <div class="field" style="margin-bottom:10px;">
         <label>Arbeid</label>
+        ${vtBestillingMal === 'bestill' ? `
+        <div id="vt-bestill-mal" class="vt-type-row">
+          ${[['service','Service kjøretøy'],['reparasjon','Reparasjon'],['dekkskift','Dekkskift'],['eu-kontroll','EU-kontroll'],['skade','Skade'],['loftebord','Løftebordkontroll'],['annet','Annet']].map(([id, label], i) => `
+            <label class="vt-type-opt ${((vtPrefillType || 'service') === id) ? 'checked' : ''}"><input type="radio" name="vt-bestill-type" value="${id}" ${(vtPrefillType || 'service') === id ? 'checked' : ''}> ${label}</label>`).join('')}
+        </div>
+        <div id="vt-service-ekstra" style="margin-top:8px;${(vtPrefillType || 'service') === 'service' ? '' : 'display:none;'}">
+          <label class="bp-inline-check"><input type="checkbox" id="vt-oppg-service" checked> Service kjøretøy</label>
+          <label class="bp-inline-check"><input type="checkbox" id="vt-oppg-loftebord"> Årlig løftebordkontroll</label>
+        </div>` : `
         <div class="vt-type-row" id="vt-type-row">
           ${VT_TYPE_VELGER.map(o => `
           <label class="vt-type-opt ${initialType===o.id ? 'checked' : ''}">
             <input type="checkbox" name="vt-type" value="${o.id}" ${initialType===o.id ? 'checked' : ''}>
             <span class="vt-type-ikon">${luc(o.ikon)}</span><span>${o.label}</span>
           </label>`).join('')}
-        </div>
+        </div>`}
       </div>
       <div class="field"><label>Verksted</label>
         <select id="vt-verksted" required ${linkedSak ? '' : `data-std-default="${esc(standardVerkstedForVtType(initialType))}"`}>
@@ -20967,6 +21078,16 @@ function attachVerkstedListeners(){
   if(fPeriode) fPeriode.addEventListener('change', e => { vtFilterPeriode = e.target.value; render(); });
   const fSakStatus = document.getElementById('vt-f-sakstatus');
   if(fSakStatus) fSakStatus.addEventListener('change', e => { vtFilterSakStatus = e.target.value; render(); });
+  const fReserve = document.getElementById('vt-f-reserve');
+  if(fReserve) fReserve.addEventListener('change', e => { vtVisReserve = !!e.target.checked; render(); });
+  document.querySelectorAll('input[name="vt-bestill-type"]').forEach(el => el.addEventListener('change', () => {
+    const ekstra = document.getElementById('vt-service-ekstra');
+    if(ekstra) ekstra.style.display = el.value === 'service' && el.checked ? '' : 'none';
+    document.querySelectorAll('#vt-bestill-mal .vt-type-opt').forEach(lab => {
+      const radio = lab.querySelector('input');
+      lab.classList.toggle('checked', !!(radio && radio.checked));
+    });
+  }));
   document.querySelectorAll('[data-toggle-vt]').forEach(el => el.addEventListener('click', () => toggleEditVT(el.dataset.toggleVt)));
   document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   const grupperToggle = document.querySelector('[data-toggle-vt-grupper]');
@@ -23982,7 +24103,7 @@ function renderInnstillinger(){
     </div>
   `;
 
-  // Tema flyttet til 🎨 Layout Editor, «Lenke for sjåfører» flyttet (som
+  // Tema ligger i egen seksjon. «Lenke for sjåfører» er flyttet (som
   // «✅ Sjåførkontroll») til 👤 Sjåførside, og «Om appen» flyttet inn i 📘 Informasjonsveileder
   // under — se sjaforsideBody/veilederBody. Oppdater app / Database status / Systemkontroll
   // ligger i Optimaliseringer (Prioritet 64). systemBody inneholder nå de øvrige
@@ -24027,29 +24148,21 @@ function renderInnstillinger(){
   `;
 
 
-  // 🎨 Layout Editor. Prioritet 60: Layout Engine 2.0 — se layoutInnstillingerHtml()
-  // og renderLayoutEditor() lenger opp i denne filen. Kun plassering/synlighet/størrelse/starttilstand; komponentenes eget innhold er
-  // ikke redigerbart herfra. Tema er FLYTTET hit fra Systeminnstillinger —
-  // samme radio-markup/lytter som før, kun ny plassering.
-  const layoutBody = `
-    <div style="margin-bottom:22px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);margin-bottom:10px;">Tema</h4>
-      <div class="theme-options">
-        <label class="theme-option ${themePreference==='light'?'checked':''}">
-          <input type="radio" name="theme-pref" value="light" ${themePreference==='light'?'checked':''}>
-          ☀️ Lysmodus
-        </label>
-        <label class="theme-option ${themePreference==='dark'?'checked':''}">
-          <input type="radio" name="theme-pref" value="dark" ${themePreference==='dark'?'checked':''}>
-          🌙 Mørkemodus (standard)
-        </label>
-        <label class="theme-option ${themePreference==='system'?'checked':''}">
-          <input type="radio" name="theme-pref" value="system" ${themePreference==='system'?'checked':''}>
-          💻 Følg enhetens innstilling
-        </label>
-      </div>
+  const temaBody = `
+    <div class="theme-options">
+      <label class="theme-option ${themePreference==='light'?'checked':''}">
+        <input type="radio" name="theme-pref" value="light" ${themePreference==='light'?'checked':''}>
+        ☀️ Lysmodus
+      </label>
+      <label class="theme-option ${themePreference==='dark'?'checked':''}">
+        <input type="radio" name="theme-pref" value="dark" ${themePreference==='dark'?'checked':''}>
+        🌙 Mørkemodus (standard)
+      </label>
+      <label class="theme-option ${themePreference==='system'?'checked':''}">
+        <input type="radio" name="theme-pref" value="system" ${themePreference==='system'?'checked':''}>
+        💻 Følg enhetens innstilling
+      </label>
     </div>
-    ${layoutInnstillingerHtml()}
   `;
 
   // 👤 Sjåførside: reell administrasjon av sjåføropplevelsen, samlet på ett
@@ -24126,7 +24239,7 @@ function renderInnstillinger(){
     <div class="acc-list">
       ${layoutListeHtml('admin-standard-pages:innstillinger', {parts:{
         'innstillinger.register': settingsAccordionRow('register', '📦 Register', null, registerBody),
-        'innstillinger.layout': settingsAccordionRow('layout', '🎨 Layout Editor', null, layoutBody),
+        'innstillinger.tema': settingsAccordionRow('tema', 'Tema', null, temaBody),
         'innstillinger.sjaforside': settingsAccordionRow('sjaforside', '👤 Sjåførside', null, sjaforsideBody),
         'innstillinger.optimaliseringer': settingsAccordionRow('optimaliseringer', '🔄 Optimaliseringer', null, settingsOpenSections.has('optimaliseringer') ? optimaliseringerBodyHtml() : ''),
         'innstillinger.system': settingsAccordionRow('system', '⚙️ Systeminnstillinger', null, systemBody)
