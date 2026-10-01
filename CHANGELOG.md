@@ -15,6 +15,12 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-01
 
+### Felles faner, biler og verkstedkort
+
+1. Biler og kjøretøystatus bruker fanene Driftslag, Lastebiler, Monteringsbiler og Alle biler. Alle biler viser kategoriene samlet, med reserve inkludert. Søk og Ny bil ligger på samme linje. Sortering og filter ligger i Ny bil-menyen.
+2. Faner i Bilpark er understreket navigasjon, ikke kapselknapper. Verkstedhandlingene har egen farge, skillelinje og ikon. Registrer tidligere service er tatt ut av verkstedforsiden.
+3. App-/cacheversjon 178 → **179**. `kontroll.html` = `index.html`.
+
 ### Kjøretøyprofil med tydeligere bilkort
 
 1. Løyve viser det registrerte løyvenummeret, eller «Ikke registrert». Serviceintervall er tatt ut av Bilinformasjon.
