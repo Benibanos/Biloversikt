@@ -6404,10 +6404,12 @@ Layout Editor, vises ikke gruppen der — sakene er uendret; (f) ikke committet.
 |---|---|---|
 | Alle | Appversjon, siste Airtable-synk, sjåfører kontrollert i dag | felles knappen under |
 | App | Appversjon, PWA-installasjon | Oppdater app (`hardRefreshApp`) |
-| Airtable | Siste synk, status, full diagnose (`databaseStatusHtml()`) | Synkroniser nå |
+| Airtable | Status, siste synk, manglende felt/tabeller. Avansert skjult som standard. | Synkroniser nå, Opprett manglende Airtable-felt |
 | Sjåfører | Enheter, versjoner, sist systemkontroll, status (`skAdminBodyHtml()`) | Oppdater-listen |
 
-**Felles knapp «Oppdater og synkroniser alt»** (`oppdaterOgSynkroniserAlt()`), synlig under alle faner: (1) skjemasjekk/`autoFixAirtableSchema` via `runDatabaseSync()`, (2) last operative lister på nytt (`lastAirtableDataNaa()` / `AIRTABLE_LIVE_NOKLER`), (3) hent systemkontrollstatus (`skAdminLast()`), (4) `hardRefreshApp({bekreft:false})` — omlasting tvinger fersk appkode og Dashboard. Rekkefølgen er bevisst: synk FØR hard refresh, fordi refresh logger ut (innlogging er kun i minnet).
+**Felles knapp «Oppdater og synkroniser alt»** (`oppdaterOgSynkroniserAlt()`), synlig under alle faner: (1) skjemasjekk via `runDatabaseSync()` (oppretter ikke felt), (2) last operative lister på nytt (`lastAirtableDataNaa()` / `AIRTABLE_LIVE_NOKLER`), (3) hent systemkontrollstatus (`skAdminLast()`), (4) `hardRefreshApp({bekreft:false})` — omlasting tvinger fersk appkode og Dashboard. Rekkefølgen er bevisst: synk FØR hard refresh, fordi refresh logger ut (innlogging er kun i minnet).
+
+**Airtable-feltoppretting (2026-10-02):** `autoFixAirtableSchema(report, {bekreftet:true})` oppretter alle manglende felt i `LIST_TABLES`, ikke bare Fase 1B. Krever bekreftelse. Oppretter ikke tabeller. `kunFase1B:true` er beholdt for Avansert. Tokenet trenger `schema.bases:write`.
 
 **Layout:** `innstillinger.optimaliseringer` er registrert i Layout Engine 2.0 (`canHide:false`, `critical:true`). Akkordiontittelen bruker emoji (`🔄`), ikke Lucide — `settingsAccordionRow()` sender tittelen gjennom `esc()`. Systeminnstillinger inneholder nå Operativ kontrollgrunnlag, Administratorbrukere, Informasjonsveileder, Enhetsvisning og Nullstill.
 

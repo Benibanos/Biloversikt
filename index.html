@@ -18,7 +18,7 @@
      og oppsett, inkludert et viktig sikkerhetsforbehold om at API-tokenet i
      airtable-config.js er synlig for alle som besøker siden. -->
 <script src="airtable-config.js"></script>
-<script src="storage.airtable.js?v=2.27.0"></script>
+<script src="storage.airtable.js?v=2.28.0"></script>
 <!-- SheetJS — brukes til Excel-eksport av Kostnadsoversikt (se exportKostnadExcel()). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Lucide — «Standardiser hele Bilpark på Lucide-ikoner». Samme mønster som SheetJS over
@@ -3293,6 +3293,9 @@ let dekkValgtVehicleId = '';
 let dbStatusReport = null; // resultat fra siste window.checkAirtableSchema()-kall
 let dbStatusSyncing = false;
 let dbStatusSyncLog = null; // resultat fra siste window.autoFixAirtableSchema()-kall
+let dbAvansertApen = false;
+let dbFeltDetaljerApen = false;
+let dbStatusFeltMelding = null;
 let fase1BMigreringBlob = null; // Settings-nøkkel fase1B-migrering
 let fase1BMigreringRapport = null;
 let fase1BMigreringOpptatt = false;
@@ -5148,15 +5151,7 @@ function oppdaterAppBodyHtml(){
 }
 function optimaliseringFaneInnholdHtml(fane){
   if(fane === 'app') return oppdaterAppBodyHtml();
-  if(fane === 'airtable'){
-    const synk = airtableSynkOppsummering();
-    return `
-      <div class="opt-stat-grid" style="margin-bottom:14px;">
-        <div class="opt-stat"><span class="ov-label">Siste synk</span><span class="ov-value">${esc(synk.sisteTekst)}</span></div>
-        <div class="opt-stat"><span class="ov-label">Status</span><span class="ov-value">${esc(synk.statusTekst)}</span></div>
-      </div>
-      ${databaseStatusHtml()}`;
-  }
+  if(fane === 'airtable') return databaseStatusHtml();
   if(fane === 'sjaforer') return skAdminBodyHtml();
   const synk = airtableSynkOppsummering();
   const sk = skAdminOppsummering();
@@ -5210,10 +5205,17 @@ function byttOptimaliseringFane(fane){
 }
 function attachOptimaliseringInnholdListeners(root){
   if(!root) return;
-  const dbCheckBtn = root.querySelector('#db-check-btn');
-  if(dbCheckBtn) dbCheckBtn.addEventListener('click', (e) => { e.stopPropagation(); synkroniserAirtableNaa(); });
+  root.querySelectorAll('#db-check-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); synkroniserAirtableNaa(); }));
+  const dbOpprettFeltBtn = root.querySelector('#db-opprett-felt-btn');
+  if(dbOpprettFeltBtn) dbOpprettFeltBtn.addEventListener('click', (e) => { e.stopPropagation(); opprettManglendeAirtableFelt(); });
   const dbOpprett1BBtn = root.querySelector('#db-opprett-1b-btn');
-  if(dbOpprett1BBtn) dbOpprett1BBtn.addEventListener('click', (e) => { e.stopPropagation(); opprettManglendeFase1BFelt(); });
+  if(dbOpprett1BBtn) dbOpprett1BBtn.addEventListener('click', (e) => { e.stopPropagation(); opprettManglendeAirtableFelt({kunFase1B:true}); });
+  const dbAvansertBtn = root.querySelector('#db-avansert-toggle');
+  if(dbAvansertBtn) dbAvansertBtn.addEventListener('click', (e) => { e.stopPropagation(); dbAvansertApen = !dbAvansertApen; render(); });
+  const dbFeltDetaljerBtn = root.querySelector('#db-felt-detaljer');
+  if(dbFeltDetaljerBtn) dbFeltDetaljerBtn.addEventListener('click', (e) => { e.stopPropagation(); dbFeltDetaljerApen = !dbFeltDetaljerApen; render(); });
+  const dbSynkAltBtn = root.querySelector('#db-synk-alt-btn');
+  if(dbSynkAltBtn) dbSynkAltBtn.addEventListener('click', (e) => { e.stopPropagation(); oppdaterOgSynkroniserAlt(); });
   const migKjorBtn = root.querySelector('#fase1b-kjor-migrering-btn');
   if(migKjorBtn) migKjorBtn.addEventListener('click', (e) => { e.stopPropagation(); fase1BKjorMigrering(); });
   const migTilbakeBtn = root.querySelector('#fase1b-rull-tilbake-btn');
@@ -14879,9 +14881,9 @@ function renderMobilHjem(){
       </div>
     </div>
 
-    ${dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
+    ${dbStatusReport && dbStatusReport.ok && (dbStatusReport.tables.some(t => !t.exists) || airtableManglendeFelt(dbStatusReport).length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--warning-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--warning);">
-      ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer.
+      ${luc('database')} Airtable-databasen mangler ${airtableManglendeFelt(dbStatusReport).length} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer.
     </div>` : ''}
 
     <div class="p41-sok">
@@ -17315,9 +17317,9 @@ function renderDashboard(){
   if(oppdaterVerkstedStatuser()) saveAktiveSaker();
   if(currentUiExperience() === 'mobil') return renderMobilHjem();
 
-  const banner = dbStatusReport && dbStatusReport.ok && dbStatusReport.tables.some(t => !t.exists || t.missingFields.length > 0) ? `
+  const banner = dbStatusReport && dbStatusReport.ok && (dbStatusReport.tables.some(t => !t.exists) || airtableManglendeFelt(dbStatusReport).length > 0) ? `
     <div class="required-hint" id="db-warning-banner" style="margin:0 0 16px;background:var(--warning-soft);padding:12px 14px;border-radius:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--warning);">
-      ${luc('database')} Airtable-databasen mangler ${dbStatusReport.tables.reduce((s,t)=>s+t.missingFields.length,0)} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
+      ${luc('database')} Airtable-databasen mangler ${airtableManglendeFelt(dbStatusReport).length} felt${dbStatusReport.tables.some(t=>!t.exists) ? ' (inkludert hele tabeller)' : ''} — trykk her for å se detaljer og synkronisere.
     </div>` : '';
   const tom = vehicles.length === 0 ? `<div class="empty-note" style="margin-top:8px;">Ingen kjøretøy registrert ennå. Gå til Bilregister for å legge til den første bilen.</div>` : '';
   const eget = uxLayoutOvertar('dashboard');
@@ -23924,6 +23926,18 @@ function fase1BManglende(report){
   if(!report || !report.ok) return [];
   return report.tables.reduce((liste, t) => liste.concat((t.missingFase1B || []).map(f => Object.assign({table: t.name}, f))), []);
 }
+function airtableFeltNavn(f){
+  return typeof f === 'string' ? f : ((f && f.name) || '');
+}
+function airtableManglendeFelt(report){
+  if(!report || !report.ok) return [];
+  const ut = [];
+  (report.tables || []).forEach(t => {
+    (t.missingFields || []).forEach(f => ut.push({table: t.name, name: airtableFeltNavn(f), airtableType: (f && f.airtableType) || '', tabellFinnes: !!t.exists}));
+    (t.missingFase1B || []).forEach(f => ut.push({table: t.name, name: f.name, airtableType: f.airtableType || '', tabellFinnes: !!t.exists}));
+  });
+  return ut;
+}
 const FASE1B_PREVIEW_LISTE_TAK = 25;
 const FASE1B_VERKSTED_ALDER = ['uten-dato','0-29','30-89','90-364','365+'];
 const FASE1B_VERKSTED_ALDER_LABEL = {
@@ -24652,35 +24666,97 @@ function fase1BMigreringPreviewHtml(){
 }
 // Oppretter KUN manglende fase 1B-kolonner (tomme). Ingen raddata skrives eller migreres.
 async function opprettManglendeFase1BFelt(){
+  return opprettManglendeAirtableFelt({kunFase1B:true});
+}
+async function opprettManglendeAirtableFelt(valg){
   if(dbStatusSyncing) return;
+  const kunFase1B = !!(valg && valg.kunFase1B);
   const forRapport = await window.checkAirtableSchema();
-  if(!forRapport.ok){ dbStatusReport = forRapport; render(); return; }
-  const plan = fase1BManglende(forRapport);
-  if(plan.length === 0){ dbStatusReport = forRapport; dbStatusSyncLog = []; render(); return; }
-  const tekst = 'Opprett ' + plan.length + ' manglende Fase 1B-felt i Airtable?\n\n'
-    + plan.map(f => '• ' + f.table + ' → ' + f.name + ' (' + f.airtableType + ')').join('\n')
-    + '\n\nKun tomme kolonner opprettes. Ingen felt slettes, omdøpes eller endres, og ingen raddata skrives eller migreres.';
-  if(!confirm(tekst)) return; // Avbryt = ingen skriving
-  dbStatusSyncing = true; dbStatusSyncLog = null; render();
+  if(!forRapport.ok){ dbStatusReport = forRapport; dbStatusFeltMelding = {type:'feil', tekst: forRapport.error || 'Kunne ikke lese Airtable-skjemaet.'}; render(); return; }
+  dbStatusReport = forRapport;
+  const plan = kunFase1B ? fase1BManglende(forRapport) : airtableManglendeFelt(forRapport);
+  if(plan.length === 0){
+    dbStatusSyncLog = [];
+    dbStatusFeltMelding = {type:'ok', tekst:'Ingen manglende felter funnet'};
+    render();
+    return;
+  }
+  const tekst = 'Opprett ' + plan.length + ' manglende Airtable-felt?\n\n'
+    + plan.map(f => '• ' + f.table + ' → ' + f.name + (f.airtableType ? ' (' + f.airtableType + ')' : '')).join('\n')
+    + '\n\nKun tomme kolonner opprettes. Ingen felt slettes, omdøpes eller endres, og ingen raddata skrives.';
+  if(!confirm(tekst)) return;
+  dbStatusSyncing = true; dbStatusSyncLog = null; dbStatusFeltMelding = null; render();
   try{
-    const forsok = await window.autoFixAirtableSchema(forRapport, {bekreftet: true});
+    const forsok = await window.autoFixAirtableSchema(forRapport, {bekreftet: true, kunFase1B: kunFase1B});
     dbStatusReport = await window.checkAirtableSchema();
-    const fortsattManglende = fase1BManglende(dbStatusReport);
+    const fortsatt = kunFase1B ? fase1BManglende(dbStatusReport) : airtableManglendeFelt(dbStatusReport);
+    const ok = forsok.filter(r => r.ok);
+    const feil = forsok.filter(r => !r.ok);
     dbStatusSyncLog = forsok;
     dbStatusSyncLog.oppsummering = {
-      opprettet: forsok.filter(r => r.ok).map(r => r.table + '.' + r.field),
-      feilet: forsok.filter(r => !r.ok).map(r => r.table + '.' + r.field + ' (' + (r.error || 'ukjent feil') + ')'),
-      fantesFra: window.storageSkjemaInfo.fase1B.length - plan.length,
-      gjenstaar: fortsattManglende.map(f => f.table + '.' + f.name)
+      opprettet: ok.map(r => r.table + '.' + r.field),
+      feilet: feil.map(r => r.table + '.' + r.field + ' (' + (r.error || 'ukjent feil') + ')'),
+      gjenstaar: fortsatt.map(f => f.table + '.' + f.name)
     };
+    if(feil.length && !ok.length) dbStatusFeltMelding = {type:'feil', tekst: 'Ingen felt ble opprettet. ' + feil[0].error};
+    else if(feil.length) dbStatusFeltMelding = {type:'advarsel', tekst: ok.length + ' felt opprettet, ' + feil.length + ' feilet.'};
+    else dbStatusFeltMelding = {type:'ok', tekst: ok.length + ' nye felter opprettet'};
   }catch(e){
-    console.error('[opprettManglendeFase1BFelt] Feilet', e);
-    alert('Opprettelsen ble avbrutt: ' + ((e && e.message) ? e.message : String(e)));
+    console.error('[opprettManglendeAirtableFelt] Feilet', e);
+    dbStatusFeltMelding = {type:'feil', tekst: 'Opprettelsen ble avbrutt: ' + ((e && e.message) ? e.message : String(e))};
   }
   dbStatusSyncing = false;
   render();
 }
 function databaseStatusHtml(){
+  const synk = airtableSynkOppsummering();
+  const opptatt = dbStatusSyncing || optimaliseringOpptatt;
+  const korrupteNokler = Object.keys(_korrupteDatasett).filter(k => _korrupteDatasett[k]);
+  const rapportOk = !!(dbStatusReport && dbStatusReport.ok);
+  const tabeller = rapportOk ? (dbStatusReport.tables || []) : [];
+  const manglendeFelt = rapportOk ? airtableManglendeFelt(dbStatusReport) : [];
+  const manglendeTabeller = tabeller.filter(t => !t.exists);
+  const funnetFelt = tabeller.reduce((s, t) => s + ((t.existingFields || []).length), 0);
+  const statusIkon = synk.status === 'ok' ? 'circle-check' : (synk.status === 'pagar' ? 'loader-circle' : 'triangle-alert');
+  const statusTone = synk.status === 'ok' ? 'var(--success)' : (synk.status === 'pagar' ? 'var(--warning)' : 'var(--danger)');
+  const statusTekst = synk.status === 'ok' ? 'Synkronisert' : (synk.status === 'pagar' ? 'Synkronisering pågår' : 'Manglende synkronisering');
+  const melding = dbStatusFeltMelding;
+  const meldingTone = melding && melding.type === 'feil' ? 'var(--danger)' : (melding && melding.type === 'advarsel' ? 'var(--warning)' : 'var(--success)');
+  const skjemaOk = rapportOk && manglendeFelt.length === 0 && manglendeTabeller.length === 0;
+  return `
+    ${korrupteNokler.length ? `<div class="bp-card panel" style="margin-bottom:14px;border-color:var(--danger);">
+      <h2 class="bp-overline">Korrupt datasett</h2>
+      <p class="required-hint">${esc(korrupteNokler.join(', '))} kunne ikke leses. Lagring til dette datasettet er blokkert. Last siden på nytt.</p>
+    </div>` : ''}
+    <section class="ux1-sek" style="margin-bottom:14px;">
+      <h2 class="bp-overline">Airtable-status</h2>
+      <p class="bp-kpi-sub" style="color:${statusTone};font-weight:600;">${luc(statusIkon)} ${esc(statusTekst)}</p>
+      <div class="ov-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px;">
+        <div class="ov-item"><span class="ov-label">Siste synkronisering</span><span class="ov-value">${esc(synk.sisteTekst)}</span></div>
+        <div class="ov-item"><span class="ov-label">Manglende felter</span><span class="ov-value">${rapportOk ? manglendeFelt.length : '–'}</span></div>
+        <div class="ov-item"><span class="ov-label">Manglende tabeller</span><span class="ov-value">${rapportOk ? manglendeTabeller.length : '–'}</span></div>
+      </div>
+      ${!dbStatusReport ? `<p class="required-hint" style="margin-top:10px;">Skjemaet er ikke sjekket ennå. Trykk Synkroniser nå.</p>` : ''}
+      ${dbStatusReport && !dbStatusReport.ok ? `<p class="required-hint" style="margin-top:10px;color:var(--danger);">${luc('triangle-alert')} ${esc(dbStatusReport.error)}</p>` : ''}
+      ${rapportOk && manglendeFelt.length ? `<p class="required-hint" style="margin-top:10px;color:var(--warning);font-weight:600;">${luc('triangle-alert')} ${manglendeFelt.length} manglende felt funnet</p>` : ''}
+      ${skjemaOk ? `<p class="required-hint" style="margin-top:10px;color:var(--success);font-weight:600;">${luc('circle-check')} Airtable er oppdatert</p>` : ''}
+      ${rapportOk ? `<p class="bp-kpi-sub" style="margin-top:8px;">${luc('circle-check')} ${funnetFelt} felter funnet${manglendeFelt.length ? ' · ' + manglendeFelt.length + ' mangler' : ''}</p>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="db-felt-detaljer">${dbFeltDetaljerApen ? 'Skjul detaljer' : 'Vis detaljer'}</button>` : ''}
+      ${dbFeltDetaljerApen && rapportOk ? (manglendeFelt.length
+        ? `<ul class="dmg-simple-list" style="margin-top:10px;">${manglendeFelt.map(f => `<li><span class="dmg-simple-main">${esc(f.table)}.${esc(f.name)}${f.airtableType ? ' · ' + esc(f.airtableType) : ''}${f.tabellFinnes ? '' : ' · tabell mangler'}</span></li>`).join('')}</ul>`
+        : `<p class="ux1-lag-tom">Ingen manglende felt.</p>`) : ''}
+      ${melding ? `<p class="required-hint" style="margin-top:10px;color:${meldingTone};font-weight:600;">${melding.type === 'feil' ? luc('triangle-alert') : luc('circle-check')} ${esc(melding.tekst)}</p>` : ''}
+      <div class="panel-actions" style="margin-top:14px;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="bp-btn bp-btn-primary btn small" id="db-check-btn" ${opptatt ? 'disabled' : ''}>${opptatt ? 'Arbeider …' : luc('refresh-cw') + ' Synkroniser nå'}</button>
+        <button type="button" class="bp-btn bp-btn-primary btn small" id="db-opprett-felt-btn" ${opptatt ? 'disabled' : ''}>${luc('database')} Opprett manglende Airtable-felt</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="db-synk-alt-btn" ${opptatt ? 'disabled' : ''}>${luc('refresh-cw')} Oppdater og synkroniser alt</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="db-avansert-toggle">${dbAvansertApen ? 'Skjul avansert' : 'Vis avansert'}</button>
+      </div>
+    </section>
+    ${dbAvansertApen ? databaseStatusAvansertHtml() : ''}
+  `;
+}
+function databaseStatusAvansertHtml(){
     // Faktisk synkroniseringsstatus — NY (se instrumenterStorageForSynkStatus() over).
     // Skiller seg bevisst fra skjema-sjekken under: dette er øyeblikksbilde av ekte
     // lagringsforsøk (lyktes/feilet/pågår akkurat nå), ikke Airtable-strukturen.
@@ -24803,8 +24879,9 @@ function databaseStatusHtml(){
         ${kanIkkeBekrefte ? `<div class="required-hint" style="margin-top:10px;font-weight:600;">🟡 Kunne ikke lese forventet storage-versjon fra script-taggen. Sjekk at script-taggen har formen storage.airtable.js?v=X.Y.Z.</div>` : ''}
       </div>
     `;
+    const avansertTopp = `<h2 class="bp-overline" style="margin:8px 0 12px;">Teknisk informasjon</h2>`;
     if(!dbStatusReport){
-      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+      return avansertTopp + versjonHtml + korruptStatusHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;">
           Sjekker at Airtable-basen har alle tabeller og felt appen forventer — nyttig for å unngå
           lagringsfeil etter at nye funksjoner er lagt til appen. Ingenting sjekkes automatisk før du
@@ -24814,7 +24891,7 @@ function databaseStatusHtml(){
       ` + fase1BMigreringPreviewHtml();
     }
     if(!dbStatusReport.ok){
-      return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+      return avansertTopp + versjonHtml + korruptStatusHtml + synkStatusHtml + `
         <div class="required-hint" style="margin-bottom:14px;background:var(--danger-soft);padding:10px 12px;border-radius:10px;color:var(--danger);">
           ⚠️ ${esc(dbStatusReport.error)}
         </div>
@@ -24825,7 +24902,7 @@ function databaseStatusHtml(){
     // manglende fase 1B-felt (forhåndsvisning + bekreftelse), utsatte Del 2-felt og typeavvik.
     const tabeller = dbStatusReport.tables;
     const manglendeTabeller = tabeller.filter(t => !t.exists);
-    const manglendeEksisterende = tabeller.reduce((l, t) => l.concat((t.missingFields || []).map(f => t.name + '.' + f)), []);
+    const manglendeEksisterende = tabeller.reduce((l, t) => l.concat((t.missingFields || []).map(f => t.name + '.' + airtableFeltNavn(f))), []);
     const eksisterendeAntall = tabeller.reduce((s, t) => s + (t.existingFields || []).length, 0);
     const fase1BAlle = (window.storageSkjemaInfo && window.storageSkjemaInfo.fase1B) || [];
     const fase1BMangler = fase1BManglende(dbStatusReport);
@@ -24834,7 +24911,7 @@ function databaseStatusHtml(){
     const utsatte = tabeller.reduce((l, t) => l.concat((t.deferredFields || []).map(d => Object.assign({table: t.name}, d))), [])
       .concat((dbStatusReport.deferredTables || []).map(d => ({table: d.name, name: '(hele tabellen)', exists: d.exists})));
     const oppsummering = dbStatusSyncLog && dbStatusSyncLog.oppsummering;
-    return versjonHtml + korruptStatusHtml + synkStatusHtml + `
+    return avansertTopp + versjonHtml + korruptStatusHtml + synkStatusHtml + `
       <div class="ov-label" style="margin-bottom:8px;">Airtable-skjema</div>
       <div class="required-hint" style="margin-bottom:14px;">
         ${manglendeTabeller.length === 0 ? '✅ Tabeller OK' : `⚠️ Mangler ${manglendeTabeller.length} tabell${manglendeTabeller.length===1?'':'er'}: ${manglendeTabeller.map(t => esc(t.name)).join(', ')}`}

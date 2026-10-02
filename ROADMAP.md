@@ -1,5 +1,13 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Airtable-fane forenklet, appversjon 186, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Airtable-administrasjon
+
+**Levert.** Kompakt Airtable-fane med synk, oppretting av alle manglende felt og avansert teknisk visning skjult som standard.
+
+**Testet.** Kodegjennomgang av `checkAirtableSchema` / `autoFixAirtableSchema`. Feltoppretting mot ekte Airtable er ikke kjørt i denne økten (krever PAT med `schema.bases:write`).
+
 Sist oppdatert: 2026-10-02 (Kostnader/Service/Dekk modernisert, appversjon 185, `storage.airtable.js` v2.27.0).
 
 ## 2026-10-02 — Kostnader, Service, Dekk og Layout Editor

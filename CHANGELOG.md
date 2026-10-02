@@ -15,6 +15,20 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Airtable-fanen som administrasjonsverktøy
+
+Innstillinger → Optimaliseringer → Airtable viser som standard kun status, siste synk, antall manglende felt/tabeller og handlingene Synkroniser nå, Opprett manglende Airtable-felt, Oppdater og synkroniser alt, samt Vis avansert.
+
+**Opprett manglende Airtable-felt** skanner alle tabeller i `LIST_TABLES`, oppretter manglende kolonner (ikke bare Fase 1B) og viser resultat («N nye felter opprettet» eller «Ingen manglende felter funnet»). Tabeller opprettes ikke. Tokenet trenger `schema.bases:write`.
+
+Feltlisten og migrerings-/valideringsrapportene ligger under Avansert, lukket som standard. `storage.airtable.js` v2.28.0.
+
+**Versjon.** App-/cacheversjon 185 → **186**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Kostnader, Service og Dekk modernisert
 
 Kompakte arbeidsflater i samme design som EU-kontroll og resten av Bilpark. Emoji på disse sidene er erstattet med eksisterende Lucide-linjeikoner. Ingen interne scrollcontainere i widgetene. Layout Editor (`UX_LAYOUT`) styrer Kostnader (`kostnadsoversikt` → pageId `kostnader`), Service, Dekk og EU-kontroll: plassering, bredde, høyde, synlighet og rekkefølge. Layout endrer ikke beregninger, historikk eller verkstedstatus.
