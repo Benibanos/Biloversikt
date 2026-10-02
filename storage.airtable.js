@@ -669,9 +669,10 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.27.0',
-    bygget: '02.10.2026 09:00',
+    versjon: 'v2.28.0',
+    bygget: '02.10.2026 10:00',
     toAirtableFields: toAirtableFields,
+    // v2.28.0: autoFixAirtableSchema oppretter alle manglende LIST_TABLES-felt (ikke bare fase 1B).
     // v2.27.0: dekk foran/bak-datoer på Vehicles, DekkPlassering på verkstedtimer, Plassering på TireChanges.
     // v2.26.1: tom single select utelates fra PATCH (ikke ''). Ingen nye Airtable-valg.
     // v2.26.0 (Fase 1B migrering): 19 fase 1B-felt er aktive (leses/skrives). Eldre felt beholdes.
@@ -795,8 +796,8 @@
   // ved oppstart og av «Synkroniser nå» (som nå kun sjekker og viser forhåndsvisning).
   // Rapporten skiller (per tabell):
   //   existingFields   — forventede felt som finnes
-  //   missingFields    — manglende EKSISTERENDE (ikke fase 1B) felt; opprettes ikke automatisk
-  //   missingFase1B    — manglende fase 1B-felt {name, kind, airtableType, valg}; kan opprettes
+  //   missingFields    — manglende felt som ikke er merket fase 1B (navn)
+  //   missingFase1B    — manglende fase 1B-felt {name, kind, airtableType, valg}
   //   typeMismatches   — {field, expected, actual, detail}; kun rapport
   //   deferredFields   — utsatte Del 2-felt {name, exists}; aldri manglende, aldri opprettet
   window.checkAirtableSchema = async function () {
@@ -860,15 +861,13 @@
     return report;
   };
 
-  // Oppretter KUN manglende fase 1B-felt fra rapporten (report.tables[].missingFase1B), og
-  // KUN når kalleren sender { bekreftet: true } etter at administrator har sett forhånds-
-  // visningen og trykket «Opprett manglende Fase 1B-felt». Sikkerhetsregler:
+  // Oppretter manglende felt som er registrert i LIST_TABLES / EXPECTED_SCHEMA.
+  // Krever { bekreftet: true }. { kunFase1B: true } begrenser til fase 1B (eldre knapp).
+  // Sikkerhetsregler:
   //   • bare POST mot metadata-API-ets /tables/{tabellId}/fields — aldri tabell-oppretting,
-  //     aldri sletting, aldri omdøping, aldri typeendring, aldri rad-API (ingen raddata røres)
-  //   • hvert forsøk logges (storageSkjemaLogg + konsoll); ett feilet felt stopper ikke resten
-  //   • ingen automatisk nytt forsøk; en ny kjøring oppretter bare det som fortsatt mangler
-  // Manglende EKSISTERENDE felt (report.tables[].missingFields) opprettes ikke herfra lenger.
-  // Returnerer en liste {table, field, action:'created-field', ok, error, airtableType}.
+  //     aldri sletting, aldri omdøping, aldri typeendring, aldri rad-API
+  //   • hvert forsøk logges; ett feilet felt stopper ikke resten
+  //   • ny kjøring oppretter bare det som fortsatt mangler
   window.autoFixAirtableSchema = async function (report, valg) {
     if (!valg || valg.bekreftet !== true) {
       console.warn('[autoFixAirtableSchema] Avbrutt: mangler eksplisitt bekreftelse. Ingenting er endret.');
@@ -876,31 +875,38 @@
     }
     const results = [];
     if (!report || !report.ok || !Array.isArray(report.tables)) return results;
+    const feltNavn = (f) => (typeof f === 'string' ? f : (f && f.name) || '');
     const logg = (r) => {
       skjemaLogg.unshift(Object.assign({ tidspunkt: new Date().toISOString() }, r));
       if (skjemaLogg.length > 100) skjemaLogg.length = 100;
       console.log('[autoFixAirtableSchema]', r.ok ? 'Opprettet' : 'FEILET', r.table + '.' + r.field, r.airtableType || '', r.error || '');
     };
     for (const t of report.tables) {
-      const plan = Array.isArray(t.missingFase1B) ? t.missingFase1B.slice() : [];
+      const forventet = EXPECTED_SCHEMA[t.name] || [];
+      const mangler = new Set();
+      (t.missingFase1B || []).forEach((f) => { if (feltNavn(f)) mangler.add(feltNavn(f)); });
+      if (valg.kunFase1B !== true) {
+        (t.missingFields || []).forEach((f) => { if (feltNavn(f)) mangler.add(feltNavn(f)); });
+      }
+      const plan = forventet.filter((s) => mangler.has(s.name) && (valg.kunFase1B !== true || s.fase === '1B'));
       if (!plan.length) continue;
       if (!t.exists || !t.airtableTableId) {
-        plan.forEach((f) => {
-          const r = { table: t.name, field: f.name, action: 'created-field', ok: false, airtableType: f.airtableType,
+        plan.forEach((spec) => {
+          const r = { table: t.name, field: spec.name, action: 'created-field', ok: false,
+            airtableType: airtableFieldType(spec).type,
             error: 'Tabellen finnes ikke i Airtable — skjemasynken oppretter ikke tabeller.' };
           results.push(r); logg(r);
         });
         continue;
       }
-      for (const f of plan) {
-        const spec = EXPECTED_SCHEMA[t.name].find((x) => x.name === f.name && x.fase === '1B');
-        if (!spec) continue; // kun felt som faktisk er registrert som fase 1B
+      for (const spec of plan) {
         const body = Object.assign({ name: spec.name }, airtableFieldType(spec));
         let r;
         try {
           await metaFetch('/tables/' + t.airtableTableId + '/fields', { method: 'POST', body: JSON.stringify(body) });
           r = { table: t.name, field: spec.name, action: 'created-field', ok: true, airtableType: body.type };
-          t.missingFase1B = t.missingFase1B.filter((x) => x.name !== spec.name);
+          if (Array.isArray(t.missingFase1B)) t.missingFase1B = t.missingFase1B.filter((x) => feltNavn(x) !== spec.name);
+          if (Array.isArray(t.missingFields)) t.missingFields = t.missingFields.filter((x) => feltNavn(x) !== spec.name);
         } catch (e) {
           r = { table: t.name, field: spec.name, action: 'created-field', ok: false, airtableType: body.type, error: e.message };
         }
