@@ -25,7 +25,7 @@
 
   // Må oppdateres samtidig med version.json. En klient som kjører en annen
   // versjon skal aldri få starte normal drift.
-  const APP_VERSION = 187;
+  const APP_VERSION = 189;
 
   const VERSION_CHECK = {
     // Appens versjon er bundet til koden, ikke hentet fra serveren.

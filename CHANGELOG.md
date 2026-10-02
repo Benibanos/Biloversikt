@@ -15,6 +15,26 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Kalender: tidsgrupper i historikk og planlegging
+
+Kalenderhistorikk grupperes i Denne uken (åpen), Forrige uke og måned for måned (lukket). Krever planlegging grupperes i Denne uken, Neste uke, Neste 14 dager, Senere og Forfalt, sortert etter dato innenfor gruppen. Neste aktiviteter bruker Denne uken / Neste uke / Senere. Gruppene er kollapsbare; åpen/lukket huskes per bruker. Data er uendret.
+
+**Versjon.** App-/cacheversjon 188 → **189**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
+### Dekk: leverandør-dropdown og visuell hierarki
+
+Leverandør i nye dekk, dekkskift og redigering er dropdown fra verkstedregisteret. **BestDrive Borgeskogen** er forhåndsvalgt. **Annen leverandør** viser fritekstfelt. Sommerdekk/Vinterdekk og Foran/Bak er bold; dato er vanlig tekstvekt. Registrer-knappene er dempet sekundærstil. Rediger er diskré; Slett er mindre rød outline uten å dominere historikken.
+
+**Versjon.** App-/cacheversjon 187 → **188**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Dekk og kjøretøyprofil: færre feilregistreringer
 
 Registrer nye dekk har **Alle dekk** som standard, med rekkefølge Alle dekk → Foran → Bak. Historiske dekkposter kan redigeres og slettes (type, dato, plassering, leverandør, kostnad, kommentar); tilhørende kostnadspost oppdateres eller kanselleres. Akseldatoer bygges på nytt fra gjenværende historikk.

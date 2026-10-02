@@ -1,5 +1,21 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Kalender tidsgrupper, appversjon 189, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Kalender tidsgrupper
+
+**Levert.** Historikk og Krever planlegging (samt Neste aktiviteter) er gruppert etter naturlige tidsperioder med kollapsbare seksjoner. Kun Denne uken er åpen som standard. Åpen/lukket huskes lokalt. Ingen endring i underliggende data.
+
+**Testet.** Kodegjennomgang av grupperingsregler mot ISO-uke (mandag–søndag). Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
+Sist oppdatert: 2026-10-02 (Dekk leverandør-dropdown og visuell hierarki, appversjon 188, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Dekk visuell finpuss
+
+**Levert.** Leverandør fra verkstedregister med BestDrive Borgeskogen som standard og Annen leverandør. Dekkstatus (type, plassering, dato) er mer fremtredende enn handlingene.
+
+**Testet.** Kodegjennomgang av leverandørfelt og dekk-typografi. Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
 Sist oppdatert: 2026-10-02 (Dekk/kjøretøyprofil UX, appversjon 187, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-02 — Dekk og kjøretøyprofil
