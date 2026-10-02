@@ -15,6 +15,24 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Kostnader, Service og Dekk modernisert
+
+Kompakte arbeidsflater i samme design som EU-kontroll og resten av Bilpark. Emoji på disse sidene er erstattet med eksisterende Lucide-linjeikoner. Ingen interne scrollcontainere i widgetene. Layout Editor (`UX_LAYOUT`) styrer Kostnader (`kostnadsoversikt` → pageId `kostnader`), Service, Dekk og EU-kontroll: plassering, bredde, høyde, synlighet og rekkefølge. Layout endrer ikke beregninger, historikk eller verkstedstatus.
+
+**Kostnader.** Nøkkeltall i én kompakt rad (totalt / forventet / avsetninger / snitt per bil, alle eks. mva). Kostnader per bil viser biler med beløp, forventet eller avsetning; nullbiler bak «Vis biler uten kostnader». Kategorier med linjeikoner. Avsetninger er egen widget med kompakt tomtilstand. Historikk som rader med dato, bil, kategori, leverandør, beløp og kilde. Filterpanel (periode, bil, kategori, leverandør, kilde, avsetning) og Excel-eksport som respekterer filter. Kostnader fra service, dekk, deler og verksted dedupes via `kildeRef`.
+
+**Service.** Bundet til valgt bil. Kjøretøyvelger, planlagt/bestill service og redigering av serviceintervall er fjernet fra siden. Innhold: status, registrer tidligere service (sentrert modal, valgfri kostnad eks. mva) og historikk. `v.km` skrives ikke.
+
+**Dekk.** Bundet til valgt bil. DOT skjult i nytt skjema (data beholdt). Separate datoer sommer/vinter foran/bak; én aksel oppdateres uavhengig. Registrer nye dekk og utført dekkskift. Planlagt dekkskift/bestilling er fjernet fra Dekk-siden. Verksted → Bestill dekkskift har Foran/Bak/Alle dekk. Arbeid utført bruker utført-dato og oppdaterer bare valgt plassering. Historikk beholdes; manglende plassering vises eksplisitt.
+
+**Migrering.** Fire Vehicle-datofelt + `DekkAkselMigrert`, `WorkshopAppointments.DekkPlassering`, TireChanges plassering/kilde/registrertAv/kostnadRef. `storage.airtable.js` v2.27.0. Kolonner må opprettes i ekte Airtable; testet mot appens lagringslag/mock, ikke kjørt som batch mot produksjonsbase.
+
+**Versjon.** App-/cacheversjon 184 → **185**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Reservedeler og verkstedkostnader
 
 Alle registrerte kostnader fra deler og utført arbeid havner automatisk i Kostnader, lagret som pris eks. mva. Ingen ny Airtable-tabell: kostnadene ligger i Settings-bloben `kostnadslogg`, samme mønster som kommentarer.

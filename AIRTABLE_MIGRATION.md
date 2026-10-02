@@ -1,5 +1,41 @@
 # AIRTABLE_MIGRATION.md — Nåværende Airtable-modell
 
+Sist oppdatert (feltendring): 2026-10-02 — dekk foran/bak-datoer og plassering.
+Nye kolonner MÅ opprettes i Airtable før `storage.airtable.js` v2.27.0 tas i
+bruk mot produksjon. Feltene er registrert i `LIST_TABLES`. DOT-feltene er
+ikke fjernet.
+
+### Vehicles — dekkaksler (2026-10-02)
+
+| App-felt | Airtable-kolonne | Type | Regel |
+|---|---|---|---|
+| sommerdekkForanDato | SommerdekkForanDato | tekst (ISO-dato) | Uavhengig av bak |
+| sommerdekkBakDato | SommerdekkBakDato | tekst (ISO-dato) | Uavhengig av foran |
+| vinterdekkForanDato | VinterdekkForanDato | tekst (ISO-dato) | |
+| vinterdekkBakDato | VinterdekkBakDato | tekst (ISO-dato) | |
+| dekkAkselMigrert | DekkAkselMigrert | tekst | Sporbar merking når én historisk dato ble kopiert til begge aksler |
+
+**Migrering (idempotent, i appen ved visning/lagring — ikke slett DOT):** Hvis alle fire akseldatoer er tomme og det finnes en historikkdato for sesongen, kopieres den til både foran og bak. `dekkAkselMigrert` settes til `felles-historikk:{sommer}/{vinter}`. Rollback: tøm de fire datofeltene og `DekkAkselMigrert`; originale DOT-felt og TireChanges-rader er urørt. Test: bil med én sommerkilde-dato får samme dato foran og bak; bil uten dato viser «Ikke registrert». Kompatibilitet: DOT-kolonnene leses fortsatt, vises ikke i nytt Dekk-UI.
+
+### WorkshopAppointments — DekkPlassering (2026-10-02)
+
+| App-felt | Airtable | Verdier |
+|---|---|---|
+| dekkPlassering | DekkPlassering | `foran` / `bak` / `alle` |
+
+Mangler feltet på eldre rader, tolkes plassering som `alle` ved utført arbeid. Rollback: la kolonnen stå (tom).
+
+### TireChanges — plassering og spor (2026-10-02)
+
+| App-felt | Airtable |
+|---|---|
+| plassering | Plassering |
+| kilde | Kilde |
+| registrertAv | RegistrertAv |
+| kostnadRef | KostnadRef |
+
+Eldre rader uten Plassering vises som «Plassering ikke registrert». Ingen sletting av historikk.
+
 Sist oppdatert (feltendring): 2026-09-21 (Prioritet 67 — nytt felt
 `Servicenummer` på `Vehicles` for verksted-/faktura-referanse; kolonnen MÅ opprettes
 før versjon 115 / storage v2.24.0 tas i bruk. Før det: 2026-09-20 (Prioritet 59 — to nye felt

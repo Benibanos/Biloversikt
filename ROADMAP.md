@@ -1,5 +1,15 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Kostnader/Service/Dekk modernisert, appversjon 185, `storage.airtable.js` v2.27.0).
+
+## 2026-10-02 — Kostnader, Service, Dekk og Layout Editor
+
+**Levert.** Kompakt Kostnader-oversikt (KPI, per bil uten nullister, kategorier, avsetninger, historikk, filter/eksport). Service og Dekk kjøretøyspesifikke uten velger og uten bestillingskanal. Foran/bak-datoer for sommer- og vinterdekk. Verkstedbestilling av dekkskift med plassering. Layout Editor på Kostnader, Service, Dekk og EU-kontroll.
+
+**Testet (kodegjennomgang / lagringslag).** Binding uten `vehicleId`, `kildeRef`-dedup, akseloppdatering i `settDekkAkselDatoer`/`fullforVerkstedbestillinger`, tilbakerulling ved feilet dekklagring, DOT skjult i Dekk-UI. Ikke kjørt full manuell UI-pass i nettleser i denne økten. Ikke kjørt Airtable-kolonnemigrering mot produksjon.
+
+**Gjenstår.** Opprett de nye Airtable-kolonnene (se `AIRTABLE_MIGRATION.md` 2026-10-02) før produksjonssynk. Manuell sjekk: Layout flytt/skjul/tilbakestill/publiser; Excel-eksport; service-/dekkmodal med og uten kostnad; verksted Foran vs Bak vs Alle etter «Arbeid utført».
+
 Sist oppdatert: 2026-09-26 (Dashboard V4 W2, appversjon 137. Dashboard V4 W1, appversjon 136. storage uendret v2.26.1. Workshop Follow-up Engine v1. Flåtehelse v1. Datakvalitetsmotor ikke startet.).
 
 ## Implementeringsfase 1 — status (2026-09-26)

@@ -168,6 +168,9 @@
       km: ['KM', 'num'], loyvenummer: ['Løyvenummer'], hasPhoto: ['HasPhoto', 'bool'],
       sommerdekkDot: ['SommerdekkDot'], sommerdekkKommentar: ['SommerdekkKommentar'],
       vinterdekkDot: ['VinterdekkDot'], vinterdekkKommentar: ['VinterdekkKommentar'],
+      sommerdekkForanDato: ['SommerdekkForanDato'], sommerdekkBakDato: ['SommerdekkBakDato'],
+      vinterdekkForanDato: ['VinterdekkForanDato'], vinterdekkBakDato: ['VinterdekkBakDato'],
+      dekkAkselMigrert: ['DekkAkselMigrert'],
       // Lagt til — disse feltene fantes på kjøretøy-objektet i index.html, men var ALDRI
       // registrert her, og ble derfor stille forkastet ved hver lagring/henting (se
       // toAirtableFields()/fromAirtableFields(), som kun håndterer felt listet i denne
@@ -248,7 +251,7 @@
       // per bil. `bestillingGruppeId` er felles for bestillingene som ble opprettet samlet for flere
       // biler i ÉN handling («Velg flere biler») — ÉN rad per bil, aldri én rad med flere VehicleId —
       // og lar «Alle utført» fullføre dem samlet. Tom for alle vanlige enkeltbestillinger.
-      dekkRetning: ['DekkRetning'], bestillingGruppeId: ['BestillingGruppeId'],
+      dekkRetning: ['DekkRetning'], dekkPlassering: ['DekkPlassering'], bestillingGruppeId: ['BestillingGruppeId'],
       // Fase 1B: verkstedstatus. Utfort skrives parallelt. WorkshopId er Del 2 (G).
       status: fase1B('Status', 'select', FASE1B_VALG.verkstedStatus),
       statusHistorikk: fase1B('StatusHistorikk', 'json'),
@@ -287,7 +290,8 @@
       tilgangsrolle: fase1B('Tilgangsrolle', 'select', FASE1B_VALG.tilgangsrolle)
     }},
     dekkhistorikk: { table: 'TireChanges', fields: {
-      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar']
+      id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], retning: ['Retning'], kommentar: ['Kommentar'],
+      plassering: ['Plassering'], kilde: ['Kilde'], registrertAv: ['RegistrertAv'], kostnadRef: ['KostnadRef']
     }},
     dekkkostnader: { table: 'TireCosts', fields: {
       id: ['AppId'], vehicleId: ['VehicleId'], dato: ['Dato'], kostnad: ['Kostnad', 'num'], kommentar: ['Kommentar']
@@ -665,9 +669,10 @@
   // versjonsøkningen, ikke datoen alene, som tvinger nettlesere/service workers til å
   // hente en fersk kopi i stedet for en cachet, gammel en.
   window.storageAirtableInfo = {
-    versjon: 'v2.26.1',
-    bygget: '26.09.2026 00:40',
+    versjon: 'v2.27.0',
+    bygget: '02.10.2026 09:00',
     toAirtableFields: toAirtableFields,
+    // v2.27.0: dekk foran/bak-datoer på Vehicles, DekkPlassering på verkstedtimer, Plassering på TireChanges.
     // v2.26.1: tom single select utelates fra PATCH (ikke ''). Ingen nye Airtable-valg.
     // v2.26.0 (Fase 1B migrering): 19 fase 1B-felt er aktive (leses/skrives). Eldre felt beholdes.
     // v2.25.0 (Fase 1B skjemasynk): 19 planlagte fase 1B-felt i LIST_TABLES (skrives/leses ikke),

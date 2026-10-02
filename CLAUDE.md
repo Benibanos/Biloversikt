@@ -2068,6 +2068,11 @@ kostnadsmotor er innført.
 
 ## Service
 
+- Service bestilles bare gjennom Verksted (`bestillService()` / Bestill service). Service-siden er ikke en bestillingskanal.
+- Service-siden er kjøretøyspesifikk: den åpnes fra kjøretøyprofil (`apneServicehistorikk`) med `vehicleId`. Mangler gyldig bil, vises feilmelding og «Til biloversikt» — appen velger ikke første/tilfeldig bil.
+- Serviceintervall redigeres kun på Kjøretøyprofilen (inline). Service-siden leser intervallet for status, men lagrer det ikke.
+- Registrer tidligere service åpnes i sentrert modal. Valgfri kostnad eks. mva oppretter én post i `kostnadslogg` med `kildeRef` `service:{id}`. `v.km` overskrives aldri av service- eller dekkregistrering.
+
 - `v.km` er eneste autoritative NÅVÆRENDE kilometerstand. **Tillatte
   skrivepunkter (uttømmende liste, Prioritet 29, Del 6):**
   - `submitKontroll()` — normal, operativ skrivevei ved hver kontroll.
@@ -2141,6 +2146,18 @@ kostnadsmotor er innført.
   "Dataintegritet") og lagres via en serialisert skrivekø. Vurdert, men IKKE
   aktivert, radbasert migrering til egne tabeller — se AIRTABLE_MIGRATION.md,
   seksjon 9 (tabellene finnes ikke i produksjonsbasen i dag).
+
+## Dekk
+
+- Dekk-siden er kjøretøyspesifikk (samme mønster som Service/EU-kontroll). Dekkskift bestilles bare gjennom Verksted (`bestillDekkskift`). Dekk-siden viser status og historikk og kan registrere nye dekk eller allerede utført dekkskift, ikke fremtidige timer.
+- Dekkdato lagres separat for sommer/vinter og foran/bak (`sommerdekkForanDato`, `sommerdekkBakDato`, `vinterdekkForanDato`, `vinterdekkBakDato`). Én aksel oppdateres uten å røre den andre. DOT-felt beholdes i datamodellen, men vises ikke i det nye Dekk-skjemaet.
+- Verkstedbestilling av dekkskift har plassering Foran / Bak / Alle dekk (`dekkPlassering`). «Arbeid utført» bruker faktisk `utfortDato` (dagen arbeidet merkes utført), ikke avtaledato, og oppdaterer bare valgt aksel/sesong.
+- Eldre historikk uten plassering vises som «Plassering ikke registrert». Migrering av én gammel felles dato kopieres til foran og bak og merkes `dekkAkselMigrert` — aldri gjetning i vanlig visning, aldri dagens dato som fallback.
+
+## Kostnader og Layout Editor
+
+- Alle beløp i Kostnader er eks. mva. Service-, dekk-, deler- og verkstedkostnader samles i `getKostnadsposter()`; `kildeRef` hindrer dobbeltpost.
+- Layout Editor (`UX_LAYOUT` / `uxWidgetKatalog`) styrer plassering, synlighet og størrelse på Kostnader, Service, Dekk og EU-kontroll. Den endrer ikke beregninger, historikk eller saks-/verkstedstatus.
 
 ## EU-kontroll
 
