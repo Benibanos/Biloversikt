@@ -15,6 +15,26 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Felles fanekomponent
+
+Én fane-komponent (`bpFanerHtml` / `.bp-faner` / `.bp-fane`) brukes i hele Bilpark. Aktiv fane har mørkere bakgrunn, subtil ramme, lys tekst og turkis bunnakksent. Antall vises dempet ved siden av navnet, ikke i parentes. Fanene scroller horisontalt på smal skjerm i stedet for å brekke.
+
+**Versjon.** App-/cacheversjon 191 → **192**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
+### Kompakt arbeidsflyt: historikk, kostnader og bilsøk
+
+Filtre i Verkstedhistorikk ligger på samme linje som fanene. Internt arbeid er kun intern utført jobb — dekkskift, service, EU og ruter grupperes etter oppdragstype (ikke tom leverandør). Kostnader-sideoverskriften er fjernet. Biloversikt-søket er et Lucide-søkeikon som utvides ved klikk.
+
+**Versjon.** App-/cacheversjon 190 → **191**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Analyse, Rapporter, Innstillinger og Verkstedhistorikk
 
 Layout Editor på Analyse, Rapporter og Verkstedhistorikk med samme layoutmotor som øvrige sider. Analyse- og rapportsidene bygges av widgets. Emoji-ikoner på disse sidene og i Innstillinger er byttet til Lucide. Verkstedhistorikk har faner (Alle som standard), identitetsbrikke med kategorifarge og samme tidsgruppering som Kalender. Datagrunnlaget er uendret.

@@ -1,5 +1,21 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Felles fanekomponent, appversjon 192, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Felles fanekomponent
+
+**Levert.** Én visuell og teknisk fanestandard over hele appen. Aktiv fane er tydelig markert. Antall er sekundær typografi.
+
+**Testet.** Kodegjennomgang av `bpFanerHtml` og CSS-overrides mot gamle `.profil-tab`/`.bp-fane`-regler. Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
+Sist oppdatert: 2026-10-02 (Kompakt historikk/kostnader/bilsøk, appversjon 191, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Kompakt arbeidsflyt
+
+**Levert.** Verkstedhistorikk: filter på fanelinjen. Intern-fane uten feilklassifiserte dekkskift. Kostnader uten dobbel overskrift. Bilsøk som ikon som utvides.
+
+**Testet.** Kodegjennomgang av `vthErIntern` og register-søk. Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
 Sist oppdatert: 2026-10-02 (Analyse/Rapporter/Verkstedhistorikk Layout Editor, appversjon 190, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-02 — Analyse, Rapporter og Verkstedhistorikk

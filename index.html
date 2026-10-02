@@ -773,6 +773,9 @@
     /* Filtre: full bredde og stablet i stedet for trange felt ved siden av hverandre */
     .filters-row{flex-direction:column;align-items:stretch;}
     .filters-row input, .filters-row select{width:100%;min-width:0;}
+    .reg-sokfelt.er-apen{flex:1 1 100%;max-width:none;width:100%;}
+    .vth-filtre{margin-left:0;width:100%;}
+    .vth-filtre select,.vth-filtre input{flex:1 1 120px;max-width:none;width:auto;}
 
     /* Varsellampe-avhukingsbokser: to kolonner på mobil for å redusere scrolling.
        Kun tekst/ikon/avstand er komprimert her — selve avhukingsboksen (.chip input)
@@ -1390,12 +1393,21 @@
   .ux1-bil-faner,.reg-verktoy > .bp-faner{width:fit-content;max-width:100%;border-top:1px solid var(--border);padding-top:2px;}
   .reg-verktoy{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 16px;padding:0;border:0;}
   .reg-verktoy .bp-faner{flex:0 1 auto;min-width:0;margin:0;}
-  .reg-sokfelt{display:flex;align-items:center;gap:8px;flex:1 1 240px;max-width:440px;height:36px;margin:4px 0;padding:0 12px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(0,0,0,.38);color:var(--ink-muted);}
-  .reg-sokfelt .lucide-ic{width:16px;height:16px;flex:none;opacity:.8;}
+  .reg-sokfelt{display:flex;align-items:center;gap:8px;flex:0 0 auto;width:36px;max-width:36px;height:36px;margin:4px 0;padding:0;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(0,0,0,.38);color:var(--ink-muted);justify-content:center;overflow:hidden;}
+  .reg-sokfelt.er-apen{flex:1 1 240px;width:auto;max-width:440px;padding:0 12px;justify-content:flex-start;}
+  .reg-sokfelt .lucide-ic,.reg-sokfelt svg{width:16px;height:16px;flex:none;opacity:.8;}
+  .reg-sok-apne{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;}
   .reg-sokfelt input{flex:1;min-width:0;height:32px;min-height:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--ink);font:400 13px/18px var(--font-sans);}
+  .reg-sokfelt:not(.er-apen) input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
   .reg-sokfelt input::placeholder{color:var(--ink-muted);opacity:.75;}
   .reg-sokfelt input:focus{outline:none;}
-  .reg-sokfelt:focus-within{border-color:var(--accent);}
+  .reg-sokfelt:focus-within,.reg-sokfelt.er-apen{border-color:var(--accent);}
+  .vth-verktoy{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin:0;}
+  .vth-verktoy .bp-faner{flex:1 1 auto;min-width:0;margin:0;}
+  .vth-filtre{display:flex;align-items:center;gap:8px;flex:0 1 auto;flex-wrap:wrap;margin-left:auto;}
+  .vth-filtre select,.vth-filtre input{font-family:var(--font-sans);font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--ink);min-height:36px;min-width:0;}
+  .vth-filtre select{max-width:160px;}
+  .vth-filtre input{width:118px;}
   .reg-ny-anker{position:relative;margin-left:auto;}
   .reg-ny-anker .bp-fane{white-space:nowrap;}
   .reg-ny-meny{width:min(420px,calc(100vw - 32px));}
@@ -2653,6 +2665,45 @@ section[aria-labelledby="ux1-biler"] .bp-vrow{padding:2px 0;}
   .form-msg{color:var(--danger);}
   .photo-input-area{border:1px dashed var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);}
   .active-lamp-list{border-color:var(--danger);background:var(--danger-soft);}
+  /* ---- Bilpark fanekomponent (én standard overalt) ---- */
+  .bp-faner,.ux1-bil-faner,.profil-tabs,.profil-tabs.bp-seg,.bp-seg,.p38-tabs,.navtabs{
+    display:flex;align-items:stretch;flex-wrap:nowrap;gap:2px;margin:8px 0 14px;padding:0;
+    background:transparent;border:0;border-radius:0;width:auto;max-width:100%;
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
+  }
+  .dash-sek .profil-tabs,.bilkort-hist .profil-tabs{margin-bottom:6px;}
+  .reg-verktoy .bp-faner,.vth-verktoy .bp-faner{flex:1 1 auto;min-width:0;margin:0;width:auto;max-width:none;border:0;padding:0;}
+  .bp-fanelinje .profil-tabs,.bp-fanelinje .p38-tabs,.bp-fanelinje .bp-faner{flex:1 1 auto;min-width:0;margin:0;}
+  .ux1-bil-fane,.bp-fane,.profil-tab,.profil-tab.bp-seg-btn,.bp-seg-btn,.navtab{
+    display:inline-flex;align-items:center;gap:6px;flex:none;
+    height:auto;min-height:36px;padding:6px 12px;margin:0;
+    border:1px solid transparent;border-radius:8px;border-bottom-width:1px;
+    background:transparent;color:var(--ink-muted);
+    font:500 13px/18px var(--font-sans);box-shadow:none;cursor:pointer;white-space:nowrap;
+  }
+  .ux1-bil-fane:hover,.bp-fane:hover,.profil-tab:hover,.profil-tab.bp-seg-btn:hover,.bp-seg-btn:hover,.navtab:not(.active):hover{
+    color:var(--ink);background:rgba(255,255,255,.03);border-color:transparent;
+  }
+  .ux1-bil-fane.is-valgt,.bp-fane.is-valgt,.bp-fane.active,.profil-tab.active,.profil-tab.bp-seg-btn.active,
+  .bp-seg-btn.is-on,.bp-seg-btn.active,.navtab.active{
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);color:#fff;font-weight:600;
+    box-shadow:inset 0 -2px 0 var(--accent);
+  }
+  .bp-fane-navn{font:inherit;color:inherit;}
+  .bp-fane-tall{
+    font:500 11px/16px var(--font-sans);color:var(--ink-muted);font-variant-numeric:tabular-nums;opacity:.85;
+  }
+  .is-valgt .bp-fane-tall,.active .bp-fane-tall{color:rgba(255,255,255,.62);}
+  .bp-fane > .lucide-ic,.profil-tab > .lucide-ic,.bp-seg-btn > .lucide-ic,.ux1-bil-fane > .lucide-ic{
+    width:14px;height:14px;flex:none;opacity:.85;
+  }
+  .is-valgt > .lucide-ic,.active > .lucide-ic{opacity:1;color:var(--accent);}
+  .bp-fane + .bp-fane,.ux1-bil-fane + .ux1-bil-fane,.reg-ny-anker .bp-fane{box-shadow:none;}
+  .ux-bib-panel .bp-faner{margin:0 0 6px;}
+  @media (max-width:640px){
+    .bp-faner,.ux1-bil-faner,.profil-tabs,.profil-tabs.bp-seg,.bp-seg,.p38-tabs,.navtabs{flex-wrap:nowrap;overflow-x:auto;}
+    .ux1-bil-fane,.bp-fane,.profil-tab,.bp-seg-btn,.navtab{flex:none;padding:6px 10px;}
+  }
 </style>
 </head>
 <body>
@@ -2842,6 +2893,8 @@ let editingServiceId = null;
 let pendingPhotoData = null; // felles buffer for bildeopplasting (skade/bil)
 
 let filterSearch = '';
+let registerSokApen = false;
+let registerSokFokus = false;
 let filterKategori = '';
 let filterKontrollStatus = ''; // '' | 'kontrollert' | 'ikke'
 let filterLoyve = ''; // '' | 'har' | 'mangler'
@@ -5211,9 +5264,7 @@ function optimaliseringerBodyHtml(){
   return `
     <section class="opt-sek" id="opt-sek">
       <div class="required-hint" style="margin-bottom:12px;">Ett sted for appoppdatering, Airtable-synk og systemstatus.</div>
-      <div class="profil-tabs bp-seg">
-        ${OPT_FANE_ORDER.map(f => `<button type="button" class="profil-tab bp-seg-btn ${fane===f?'active':''}" data-opt-fane="${f}">${luc(OPT_FANE_IKON[f])} ${OPT_FANE_LABEL[f]}</button>`).join('')}
-      </div>
+      ${bpFanerHtml(OPT_FANE_ORDER.map(f => ({label: OPT_FANE_LABEL[f], ikon: OPT_FANE_IKON[f], aktiv: fane===f, data:{'opt-fane': f}})))}
       <div class="opt-innhold">${optimaliseringFaneInnholdHtml(fane)}</div>
       <div class="opt-felles">
         <button type="button" class="bp-btn bp-btn-primary btn" id="opt-synk-alt-btn" ${opptatt ? 'disabled' : ''}>${opptatt ? 'Oppdaterer …' : luc('refresh-cw') + ' Oppdater og synkroniser alt'}</button>
@@ -5226,7 +5277,7 @@ function oppdaterOptimaliseringInnhold(){
   const innhold = sek ? sek.querySelector('.opt-innhold') : null;
   if(!sek || !innhold) return false;
   const fane = OPT_FANE_ORDER.includes(optimaliseringAktivFane) ? optimaliseringAktivFane : 'alle';
-  sek.querySelectorAll('[data-opt-fane]').forEach(b => b.classList.toggle('active', b.dataset.optFane === fane));
+  sek.querySelectorAll('[data-opt-fane]').forEach(b => bpFaneSettAktiv(b, b.dataset.optFane === fane));
   innhold.innerHTML = optimaliseringFaneInnholdHtml(fane);
   const altBtn = document.getElementById('opt-synk-alt-btn');
   if(altBtn){
@@ -8062,6 +8113,24 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;
 // de forblir emoji og er fortsatt den PRIMÆRE statuskommunikasjonen (se STATUSVISNING-
 // regelen); Lucide-ikoner her er alltid sekundære/dekorative/navigasjon.
 function luc(navn, cls){ return `<i data-lucide="${navn}" class="lucide-ic${cls ? ' ' + cls : ''}" aria-hidden="true"></i>`; }
+function bpFaneKnappHtml(f){
+  const aktiv = !!f.aktiv;
+  const data = f.data || {};
+  const dataAttr = Object.keys(data).map(k => ` data-${k}="${esc(String(data[k]))}"`).join('');
+  const ikon = f.ikon ? luc(f.ikon) : '';
+  const navn = f.labelHtml != null ? f.labelHtml : esc(f.label || '');
+  const harTall = f.antall !== null && f.antall !== undefined && f.antall !== '';
+  const tall = harTall ? `<span class="bp-fane-tall">${esc(String(f.antall))}</span>` : '';
+  return `<button type="button" class="bp-fane${f.klasse ? ' ' + f.klasse : ''}${aktiv ? ' is-valgt active' : ''}" role="tab" aria-selected="${aktiv ? 'true' : 'false'}"${dataAttr}>${ikon}<span class="bp-fane-navn">${navn}</span>${tall}</button>`;
+}
+function bpFanerHtml(faner, ekstraKlasse){
+  return `<div class="bp-faner${ekstraKlasse ? ' ' + ekstraKlasse : ''}" role="tablist">${(faner || []).map(bpFaneKnappHtml).join('')}</div>`;
+}
+function bpFaneSettAktiv(el, paa){
+  el.classList.toggle('active', paa);
+  el.classList.toggle('is-valgt', paa);
+  el.setAttribute('aria-selected', paa ? 'true' : 'false');
+}
 // Kalles etter HVER DOM-oppdatering (se render()/renderDriverShell()/renderLoginShell()).
 // Defensiv sjekk: lucide.js er en ekstern CDN-avhengighet (se <head>) og kan i sjeldne
 // tilfeller ikke være lastet ennå (treg/manglende nett ved aller første besøk) — appen
@@ -9715,16 +9784,14 @@ function vtHistorikkListeHtml(){
 function vtOversiktFanerHtml(){
   const n = k => WorkshopFollowupEngine.alle().filter(r => r.oppfolging === k).length;
   const faner = [
-    {id:'krever-oppfolging', label:'Krever oppfølging' + (n('krever-oppfolging') ? ' (' + n('krever-oppfolging') + ')' : ''), ikon:'triangle-alert'},
-    {id:'pa-verksted', label:'På verksted' + (n('pa-verksted') ? ' (' + n('pa-verksted') + ')' : ''), ikon:'wrench'},
+    {id:'krever-oppfolging', label:'Krever oppfølging', antall: n('krever-oppfolging') || null, ikon:'triangle-alert'},
+    {id:'pa-verksted', label:'På verksted', antall: n('pa-verksted') || null, ikon:'wrench'},
     {id:'kommende', label:'Kommende', ikon:'calendar-clock'},
-    {id:'klar-til-avslutning', label:'Klar til avslutning' + (n('klar-til-avslutning') ? ' (' + n('klar-til-avslutning') + ')' : ''), ikon:'clipboard-check'},
+    {id:'klar-til-avslutning', label:'Klar til avslutning', antall: n('klar-til-avslutning') || null, ikon:'clipboard-check'},
     {id:'historikk', label:'Historikk', ikon:'history'},
     {id:'biler', label:'Biler', ikon:'truck'}
   ];
-  return `<div class="profil-tabs bp-seg" role="tablist">
-    ${faner.map(f => `<button type="button" class="profil-tab bp-seg-btn ${vtOversiktFane === f.id ? 'active' : ''}" data-vt-fane="${f.id}" role="tab" aria-selected="${vtOversiktFane === f.id}">${luc(f.ikon)} ${f.label}</button>`).join('')}
-  </div>`;
+  return bpFanerHtml(faner.map(f => ({label:f.label, ikon:f.ikon, antall:f.antall, aktiv: vtOversiktFane === f.id, data:{'vt-fane': f.id}})));
 }
 // «Åpne avtale»: åpner selve avtalen (redigeringsboksen) i Verkstedoversikten. Nullstiller
 // filtrene som ellers kunne skjule den, åpner riktig bil i oversikten og ruller den til syne.
@@ -9891,6 +9958,8 @@ function resetRegisterFiltre(){
   showRegisterFilter = false;
   showAddVehicleForm = false;
   registerAktivFane = '';
+  registerSokApen = false;
+  registerSokFokus = false;
 }
 function goToRegisterFiltered(kontrollStatus){
   resetRegisterFiltre();
@@ -15922,9 +15991,7 @@ function dashHurtigoversiktHtml(d){
   return `
     <section class="dash-sek" id="dash-hov-sek">
       <div class="dash-sek-tittel">${luc('layout-list')} Hurtigoversikt</div>
-      <div class="profil-tabs bp-seg">
-        ${DASH_HOV_FANE_ORDER.map(f => `<button type="button" class="profil-tab bp-seg-btn ${fane===f?'active':''}" data-dash-hov-fane="${f}">${luc(DASH_HOV_FANE_IKON[f])} ${DASH_HOV_FANE_LABEL[f]} (${antallForFane[f]})</button>`).join('')}
-      </div>
+      ${bpFanerHtml(DASH_HOV_FANE_ORDER.map(f => ({label: DASH_HOV_FANE_LABEL[f], ikon: DASH_HOV_FANE_IKON[f], antall: antallForFane[f], aktiv: fane===f, data:{'dash-hov-fane': f}})))}
       <div class="dash-hov-innhold">${dashHurtigoversiktInnholdHtml(fane, d)}</div>
     </section>`;
 }
@@ -15939,7 +16006,7 @@ function byttHurtigoversiktFane(fane){
   const sek = document.getElementById('dash-hov-sek');
   const innhold = sek ? sek.querySelector('.dash-hov-innhold') : null;
   if(!sek || !innhold){ render(); return; }
-  sek.querySelectorAll('[data-dash-hov-fane]').forEach(b => b.classList.toggle('active', b.dataset.dashHovFane === fane));
+  sek.querySelectorAll('[data-dash-hov-fane]').forEach(b => bpFaneSettAktiv(b, b.dataset.dashHovFane === fane));
   // Innholdet får aldri krympe under den høyeste fanen som allerede er vist (min-height
   // «ratchetes» opp fra CSS-minimum 420 px). Uten dette kan en lavere fane forkorte hele
   // siden, og nettleseren klemmer da scrollposisjonen når man står nær bunnen — det ser ut
@@ -16316,7 +16383,7 @@ function ux1KjoretoyStatusHtml(){
       : `<div class="ux1-kat">${grupper.map(ux1LagKolHtml).join('')}</div>`;
     kropp = antall[valgt] ? kolonner : bpTomTilstandHtml('Ingen biler her', 'Ingen kjøretøy i denne gruppen.', true);
   }
-  return `<div class="bp-faner ux1-bil-faner" role="tablist">${faner.map(f => `<button type="button" class="bp-fane ux1-bil-fane${valgt === f.id ? ' is-valgt' : ''}" data-ux1-bil-fane="${f.id}" role="tab" aria-selected="${valgt === f.id ? 'true' : 'false'}">${f.label} <span class="bp-fane-tall">(${antall[f.id]})</span></button>`).join('')}</div>
+  return `${bpFanerHtml(faner.map(f => ({label:f.label, antall:antall[f.id], aktiv: valgt === f.id, data:{'ux1-bil-fane': f.id}, klasse:'ux1-bil-fane'})))}
     ${kropp}`;
 }
 function ux1KjoretoyStatus(v){
@@ -16584,7 +16651,7 @@ function uxWidgetKatalog(){
     {id:'ux-rp-skade', label:'Skader', ikon:'octagon-alert', w:6, h:8},
     {id:'ux-rp-avvik', label:'Saker', ikon:'folder-open', w:6, h:6},
     {id:'ux-rp-bilhelse', label:'Bilhelse', ikon:'heart-pulse', w:6, h:8},
-    {id:'ux-vth-filter', label:'Filter', ikon:'sliders-horizontal', w:12, h:3},
+    {id:'ux-vth-filter', label:'Filter', ikon:'sliders-horizontal', w:12, h:2},
     {id:'ux-vth-liste', label:'Verkstedhistorikk', ikon:'history', w:12, h:12},
   ];
 }
@@ -17317,7 +17384,7 @@ function uxWidgetBibliotekHtml(skjulte, side){
   const valgt = uxWidgetKat && valgtMeta && grupper.some(g => g.label === valgtMeta.label) ? uxWidgetKat : (forst[0] || '');
   const synlig = sok ? grupper : grupper.filter(g => { const id = UX_WIDGET_KATEGORIER.find(k => k.label === g.label).id; return !valgt || id === valgt; });
   return `<input type="search" class="ux-bib-sok" id="ux-widget-sok" placeholder="Søk widget..." value="${esc(uxWidgetSok)}">
-    <div class="ux-bib-kat">${UX_WIDGET_KATEGORIER.filter(k => grupper.some(g => g.label === k.label)).map(k => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small${valgt===k.id && !sok ? ' is-valgt' : ''}" data-ux-kat="${k.id}">${esc(k.label)}</button>`).join('')}</div>
+    <div class="bp-faner">${UX_WIDGET_KATEGORIER.filter(k => grupper.some(g => g.label === k.label)).map(k => bpFaneKnappHtml({label:k.label, aktiv: valgt===k.id && !sok, data:{'ux-kat': k.id}})).join('')}</div>
     ${synlig.length ? synlig.map(g => `<div class="ux-bib-gruppe"><h4>${esc(g.label)}</h4><div class="ux-bib-kat">${g.widgets.map(d => `<button type="button" class="dash-edit-chip" data-ux-vis="${d.id}">${luc(d.ikon)} ${esc(d.label)}</button>`).join('')}</div></div>`).join('') : '<span class="dash-edit-tom">Ingen widgets treffer søket.</span>'}`;
 }
 function uxNestInspektorHtml(liste){
@@ -17924,12 +17991,14 @@ function renderRegister(){
       const aktiveFiltre = [filterKategori, filterKontrollStatus, filterHovedstatus, filterLoyve, registerSort !== 'bilnummer' ? 'sort' : ''].filter(Boolean).length + (visReserve ? 1 : 0) + (visUteAvDrift ? 1 : 0);
       return `
         <div class="reg-verktoy">
-          <div class="bp-faner" role="tablist">
-            ${faner.map(f => `<button type="button" class="bp-fane${valgt===f.id && !erNyBilFane ? ' is-valgt' : ''}" data-register-drift="${f.id}">${f.label} <span class="bp-fane-tall">(${antall[f.id]})</span></button>`).join('')}
-          </div>
-          <label class="reg-sokfelt">${luc('search')}<input class="reg-sok" type="text" id="f-search" placeholder="Søk etter bilnummer, registreringsnummer, modell eller løyve" value="${esc(filterSearch)}"></label>
+          ${bpFanerHtml(faner.map(f => ({label:f.label, antall:antall[f.id], aktiv: valgt===f.id && !erNyBilFane, data:{'register-drift': f.id}})))}
+          ${(registerSokApen || (filterSearch || '').trim()) ? `
+          <label class="reg-sokfelt er-apen">
+            <button type="button" class="reg-sok-apne" id="reg-sok-apne" aria-label="Søk" title="Søk">${luc('search')}</button>
+            <input class="reg-sok" type="text" id="f-search" placeholder="Søk etter bilnummer, reg.nr, modell eller løyve" value="${esc(filterSearch)}" aria-label="Søk etter bilnummer, reg.nr, modell eller løyve">
+          </label>` : `<button type="button" class="reg-sokfelt" id="reg-sok-apne" aria-label="Søk" title="Søk">${luc('search')}</button>`}
           <span class="bp-pop-anchor reg-ny-anker">
-            <button type="button" class="bp-fane" id="reg-ny-meny" aria-expanded="${showRegisterFilter ? 'true' : 'false'}">+ Ny bil${aktiveFiltre ? ` (${aktiveFiltre})` : ''}</button>
+            <button type="button" class="bp-btn bp-btn-secondary btn small" id="reg-ny-meny" aria-expanded="${showRegisterFilter ? 'true' : 'false'}">+ Ny bil${aktiveFiltre ? ` (${aktiveFiltre})` : ''}</button>
             ${showRegisterFilter ? `
             <div class="bp-pop reg-ny-meny" id="reg-filter-panel">
               <button type="button" class="bp-btn bp-btn-primary btn small" data-register-fane="ny-bil">Ny bil</button>
@@ -17970,10 +18039,34 @@ function renderRegister(){
 function attachRegisterListeners(){
   const f = document.getElementById('add-vehicle-form');
   if(f) f.addEventListener('submit', beskyttSubmit('submitAddVehicle', submitAddVehicle));
-  document.getElementById('f-search').addEventListener('input', e => {
-    filterSearch = e.target.value; render();
-    const el = document.getElementById('f-search'); el.focus(); el.selectionStart = el.value.length;
+  const sok = document.getElementById('f-search');
+  const sokApne = document.getElementById('reg-sok-apne');
+  if(sokApne) sokApne.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    registerSokApen = true;
+    registerSokFokus = true;
+    render();
   });
+  if(sok){
+    sok.addEventListener('input', e => {
+      filterSearch = e.target.value;
+      registerSokApen = true;
+      render();
+      const el = document.getElementById('f-search');
+      if(el){ el.focus(); el.selectionStart = el.value.length; }
+    });
+    sok.addEventListener('blur', () => {
+      if(!(sok.value || '').trim()){
+        registerSokApen = false;
+        render();
+      }
+    });
+    if(registerSokFokus){
+      registerSokFokus = false;
+      sok.focus();
+    }
+  }
   // Prioritet 52, Del 4: Filter-knappen åpner/lukker panelet; alle filterelementene under
   // finnes kun i DOM-en når panelet er åpent (derfor betingede oppslag). Selve filtervariablene
   // og -semantikken er uendret.
@@ -18870,9 +18963,7 @@ function renderVarslerOversikt(){
   return `
     ${aktiveVarsler.length === 0 ? `<div class="empty-note">Ingen varsler. Alt er fulgt opp.</div>` : `
     <div class="bp-fanelinje">
-      <div class="profil-tabs bp-seg">
-        ${kategorierMedInnhold.map(k => `<button type="button" class="profil-tab bp-seg-btn ${aktivKategori===k?'active':''}" data-varsel-kategori="${k}">${luc(VARSLINGSSENTER_KATEGORI_IKON[k])} ${VARSLINGSSENTER_KATEGORI_LABEL[k]} (${byKategori.get(k).length})</button>`).join('')}
-      </div>
+      ${bpFanerHtml(kategorierMedInnhold.map(k => ({label: VARSLINGSSENTER_KATEGORI_LABEL[k], ikon: VARSLINGSSENTER_KATEGORI_IKON[k], antall: byKategori.get(k).length, aktiv: aktivKategori===k, data:{'varsel-kategori': k}})))}
       <button type="button" class="bp-btn bp-btn-secondary btn secondary small bp-fane-handling" id="varsler-marker-alle-btn">${luc('check')} Marker alle</button>
     </div>
     <div class="dmg-list" style="margin-bottom:22px;">
@@ -19262,9 +19353,7 @@ function bilkortHistorikkSekHtml(v){
     <section class="dash-sek bilkort-hist" id="bilkort-hist-sek">
       <div class="dash-sek-tittel">${luc('history')} Historikk</div>
       <div class="required-hint" style="margin:0 0 10px;">Totale kostnader: ${fmtKr(vehicleKostnadTotal(v.id))} eks. mva</div>
-      <div class="profil-tabs bp-seg">
-        ${bilkortHistFaner().map(f => `<button type="button" class="profil-tab bp-seg-btn ${fane === f ? 'active' : ''}" data-profil-fane="${f}">${luc(BILKORT_HIST_IKON[f])} ${BILKORT_HIST_LABEL[f]}${rader[f].length ? ` (${rader[f].length})` : ''}</button>`).join('')}
-      </div>
+      ${bpFanerHtml(bilkortHistFaner().map(f => ({label: BILKORT_HIST_LABEL[f], ikon: BILKORT_HIST_IKON[f], antall: rader[f].length || null, aktiv: fane === f, data:{'profil-fane': f}})))}
       <div class="bilkort-hist-innhold">${bilkortHistorikkInnholdHtml(v, fane, rader)}</div>
     </section>`;
 }
@@ -19276,7 +19365,7 @@ function oppdaterBilkortHistorikkInnhold(ratchet){
   const innhold = sek ? sek.querySelector('.bilkort-hist-innhold') : null;
   if(!v || !innhold){ render(); return; }
   const fane = bilkortGyldigFane(bilkortAktivFane);
-  sek.querySelectorAll('[data-profil-fane]').forEach(b => b.classList.toggle('active', b.dataset.profilFane === fane));
+  sek.querySelectorAll('[data-profil-fane]').forEach(b => bpFaneSettAktiv(b, b.dataset.profilFane === fane));
   if(ratchet){
     const naaH = Math.ceil(innhold.getBoundingClientRect().height);
     if(naaH > (parseFloat(getComputedStyle(innhold).minHeight) || 0)) innhold.style.minHeight = naaH + 'px';
@@ -21424,9 +21513,7 @@ function renderAktiveSaker(){
   // Prioritet 72: ingen ← Tilbake på Aktive saker (primær side). «+ Ny sak» beholdes.
   return `
     <div class="bp-fanelinje">
-      <div class="bp-faner p38-tabs" role="tablist">
-        ${sakFaner.map(f => `<button type="button" class="bp-fane${sakAktivFane===f.nokkel? ' is-valgt' : ''}" data-sak-fane="${f.nokkel}">${f.label} (${f.antall})</button>`).join('')}
-      </div>
+      ${bpFanerHtml(sakFaner.map(f => ({label:f.label, antall:f.antall, aktiv: sakAktivFane===f.nokkel, data:{'sak-fane': f.nokkel}})), 'p38-tabs')}
       <button type="button" class="bp-icon-btn bp-fane-handling" id="add-sak-btn" aria-label="${showAddSak ? 'Avbryt ny sak' : 'Ny sak'}" title="${showAddSak ? 'Avbryt' : 'Ny sak'}">${showAddSak ? luc('x') : luc('plus')}</button>
     </div>
 
@@ -21745,14 +21832,22 @@ function samletVerkstedHistorikkAlle(){
   const utforteVtIder = new Set(verkstedtimer.filter(t => vtErUtfort(t)).map(t => t.id));
   dekkhistorikk.filter(d => !(typeof d.id === 'string' && d.id.startsWith('dekk-') && utforteVtIder.has(d.id.slice(5)))).forEach(d => poster.push({
     id:'dekk:'+d.id, vehicleId:d.vehicleId, dato:d.dato,
-    type:'dekkskift', verksted:'', tekst:d.kommentar || '', kilde:'Dekkskift'
+    type:'dekkskift', verksted: dekkHistLeverandorTekst(d) || '', tekst:d.kommentar || '', kilde:'Dekkskift'
   }));
   return poster.sort((a,b) => (b.dato || '').localeCompare(a.dato || ''));
 }
+function vthHarType(p, type){
+  if(Array.isArray(p.typer) && p.typer.length) return p.typer.indexOf(type) >= 0;
+  return p.type === type;
+}
 function vthErIntern(p){
+  if(vthHarType(p, 'dekkskift') || vthHarType(p, 'service') || vthHarType(p, 'eu-kontroll') || vthHarType(p, 'ruteskift')) return false;
   const vsted = String(p.verksted || '').trim().toLowerCase();
-  if(vsted.indexOf('internt') >= 0 || vsted === 'intern' || vsted.indexOf('internt arbeid') >= 0) return true;
-  if((p.kilde === 'Service' || p.kilde === 'Dekkskift') && !vsted) return true;
+  const tekst = String(p.tekst || '').toLowerCase();
+  if(vthHarType(p, 'intern-reparasjon') || p.type === 'intern') return true;
+  if(vsted === 'intern' || vsted.indexOf('internt') >= 0) return true;
+  if(tekst.indexOf('utført internt') >= 0 || tekst.indexOf('utfort internt') >= 0) return true;
+  if(tekst.indexOf('uten verksted') >= 0 || tekst.indexOf('intern reparasjon') >= 0) return true;
   return false;
 }
 function vthTypeTekst(p){
@@ -21773,9 +21868,7 @@ function samletVerkstedHistorikk(){
     if(vtHistFilterType === 'intern'){
       if(!vthErIntern(p)) return false;
     } else if(vtHistFilterType !== 'alle'){
-      if(Array.isArray(p.typer) && p.typer.length){
-        if(!p.typer.includes(vtHistFilterType)) return false;
-      } else if(p.type !== vtHistFilterType) return false;
+      if(!vthHarType(p, vtHistFilterType)) return false;
     }
     if(vtHistFilterBil && p.vehicleId !== vtHistFilterBil) return false;
     if(vtHistFilterFra && p.dato < vtHistFilterFra) return false;
@@ -21785,13 +21878,13 @@ function samletVerkstedHistorikk(){
 }
 function uxVthFilterHtml(){
   return `<section class="ux1-sek">
-    <div class="bp-faner ux1-bil-faner" role="tablist">
-      ${VTH_FANER.map(f => `<button type="button" class="bp-fane ux1-bil-fane${vtHistFilterType===f.id?' is-valgt':''}" data-vth-fane="${f.id}" role="tab" aria-selected="${vtHistFilterType===f.id?'true':'false'}">${esc(f.label)}</button>`).join('')}
-    </div>
-    <div class="filters-row">
-      <select id="vth-bil"><option value="">Alle biler</option>${vehicleOptions(vtHistFilterBil)}</select>
-      <input id="vth-fra" type="text" inputmode="numeric" data-kind="date" placeholder="Fra dato" maxlength="10" value="${vtHistFilterFra ? fmt(vtHistFilterFra) : ''}">
-      <input id="vth-til" type="text" inputmode="numeric" data-kind="date" placeholder="Til dato" maxlength="10" value="${vtHistFilterTil ? fmt(vtHistFilterTil) : ''}">
+    <div class="vth-verktoy">
+      ${bpFanerHtml(VTH_FANER.map(f => ({label:f.label, aktiv: vtHistFilterType===f.id, data:{'vth-fane': f.id}, klasse:'ux1-bil-fane'})))}
+      <div class="vth-filtre">
+        <select id="vth-bil" aria-label="Bil"><option value="">Alle biler</option>${vehicleOptions(vtHistFilterBil)}</select>
+        <input id="vth-fra" type="text" inputmode="numeric" data-kind="date" placeholder="Fra dato" maxlength="10" value="${vtHistFilterFra ? fmt(vtHistFilterFra) : ''}" aria-label="Fra dato">
+        <input id="vth-til" type="text" inputmode="numeric" data-kind="date" placeholder="Til dato" maxlength="10" value="${vtHistFilterTil ? fmt(vtHistFilterTil) : ''}" aria-label="Til dato">
+      </div>
     </div>
   </section>`;
 }
@@ -23575,7 +23668,7 @@ function uxKostFilterHtml(){
   </section>`;
 }
 function renderKostnadsoversikt(){
-  return `<h2 class="bp-h1" style="margin-bottom:12px;">Kostnader</h2>` + detaljLayoutHtml('kostnadsoversikt', 'ux-kost-kpi');
+  return detaljLayoutHtml('kostnadsoversikt', 'ux-kost-kpi');
 }
 function attachKostnadsoversiktListeners(){
   const tog = document.getElementById('kost-filter-toggle-btn');
