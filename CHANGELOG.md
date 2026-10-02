@@ -13,6 +13,74 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-10-02
+
+### Reservedeler og verkstedkostnader
+
+Alle registrerte kostnader fra deler og utført arbeid havner automatisk i Kostnader, lagret som pris eks. mva. Ingen ny Airtable-tabell: kostnadene ligger i Settings-bloben `kostnadslogg`, samme mønster som kommentarer.
+
+#### Bestill deler
+
+Ny handling fra Verkstedhandlinger, kjøretøyprofil, aktive saker og Bestill tjenester. Modalen krever bil, deler, leverandør og pris eks. mva. Bestillingsdato er i dag, status er Bestilt/Mottatt/Kansellert. Ved lagring opprettes en kostnadspost med kategori Deler.
+
+#### Utført arbeid og intern reparasjon
+
+Arbeid utført spør først «Ønsker du å registrere kostnad på arbeidet?». Ja åpner modal for pris eks. mva, leverandør og kommentar, og oppretter kategori Verksted knyttet til bil, sak og verkstedordre når de finnes. Nei avslutter saken som før uten kostnad. Utbedret uten verksted stiller samme spørsmål og lagrer kategori Intern reparasjon.
+
+#### Kjøretøy og sporbarhet
+
+Kostnader vises i Kostnader-modulen (bil, dato, leverandør, deler, pris eks. mva) og i kjøretøyhistorikk med totalkostnad eks. mva. Hver post lagrer hvem som registrerte, dato, bil og kilde (Bestill deler, Utført arbeid eller Utbedret uten verksted). Kategorier: Verksted, Deler, Intern reparasjon, EU-kontroll, Dekkskift, Glass, Service, Annet. MVA registreres ikke.
+
+### Layout Editor, kjøretøygrupper og korrigering av verkstedsaker
+
+Feilrettinger og manglende arbeidsflyt. Sidene er ikke bygd om: samme kort, faner, kolonner og modaler.
+
+#### Feilrettinger
+
+1. **Widgetenes minimumshøyde i Layout Editor** fulgte tidligere den vertikale plasseringen i rutenettet. Når en widget ble flyttet nedover, økte den beregnede minimumshøyden (eksempel: «Minimumshøyde: 11 rader» selv om innholdet bare trengte noen få). Minimumshøyden beregnes nå ut fra widgettype og innholdets reelle høyde, aldri ut fra startRad, `grid-row-start` eller avstand fra toppen. Flytting endrer bare posisjon. Endring av høyde endrer bare høyde. Tom plass under innholdet kan trekkes inn til det reelle minimumet. Urimelig store høyder fra den gamle feilberegningen normaliseres når layouten lastes.
+
+2. **«Åpne avtale»** under Kalender → Krever planlegging reagerte ikke. Knappen var ikke koblet i kalenderen, og verkstedsiden viste ikke avtalen i den midtstilte modalen. Knappen bruker nå avtalens faktiske ID. Ved klikk åpnes den eksisterende verkstedavtalen i den sentrerte modalen. Mangler avtalen, vises «Tilknyttet verkstedavtale ble ikke funnet», og administrator kan gå til den tilknyttede saken. Knappen viser lastetilstand og hindrer dobbeltklikk.
+
+#### Nye funksjoner og endrede arbeidsflyter (Aktive saker / Planlagt verksted)
+
+1. Hvert sakskort kan åpnes. Administrator ser sak, kjøretøy, avvik/skade, tilknyttet verkstedavtale, statusendringer, hvem som gjorde dem og datoer.
+
+2. **Utbedret uten verksted** er tilgjengelig både under oppfølging og for saker med status Verksted bestilt. Krever kort kommentar. Registrerer hvem og når. Avslutter saken, fjerner den fra Planlagt verksted og merker at den ikke ble løst av verksted. Har saken en åpen verkstedavtale, spørres det: «Saken har en tilknyttet verkstedavtale. Vil du også avbestille avtalen?» Avtalen avbestilles ikke uten bekreftelse.
+
+3. **Avbestill verksted** tar saken ut av Planlagt verksted og setter den tilbake til Under oppfølging uten å slette saken. Krever begrunnelse. Administrator velger om den tilknyttede avtalen også skal avlyses. Avtalen slettes aldri automatisk. Etterpå kan saken redigeres, bestilles på nytt, merkes utbedret uten verksted eller slettes.
+
+4. **Slett sak** er for feilregistrerte eller ugyldige saker, ikke vanlig avslutning. Kun administrator. Bekreftelse: «Er du sikker på at du vil slette denne saken? Dette skal bare brukes når saken er feilregistrert eller ugyldig.» Viser sak og kjøretøy, krever begrunnelse, og spør før avlysning av tilknyttet avtale. Saken fjernes fra aktive oversikter (status `lukket`) og beholdes i historikken.
+
+5. **Arbeid utført** er uendret for reelt utført arbeid. Den er ikke lenger eneste vei ut av Planlagt verksted.
+
+6. Hvis en avbestilling mislykkes, beholdes sakens status og administrator får feilmelding. Hvis sak og avtale er ute av synk, vises begge tilstandene. Ingen nye saksstatusnavn: eksisterende `utfort`, `under-oppfolging` og `lukket` brukes.
+
+#### Layoutforbedringer (Biloversikt og Kjøretøystatus)
+
+1. Fanenes topplinje er tynnere og bruker samme dempede kantfarge som kortene. Linjen følger fanegruppen, ikke hele innholdsbredden. Vertikale skillere, aktiv turkis markering, antall i parentes, søk og «+ Ny bil» er beholdt.
+
+2. Antall i fanene (Driftslag, Lastebiler, Monteringsbiler, Alle biler) er fortsatt dynamisk ut fra biler i hver kategori.
+
+3. Tydeligere luft mellom kjøretøygruppene, med skillelinje ved gruppenavnet. Bilkortenes høyde er uendret.
+
+4. Gruppenavn bruker stabil kategorifarge: driftslagets farge, Curbside turkis, Lastebiler oransje (`--id-lastebil`), Monteringsbiler oliven, Reservebiler dempet grå. Fargen tas ikke fra én tilfeldig bils status.
+
+#### Verkstedmodulen
+
+1. Åpning av avtale går til den konkrete avtalen i midtstilt modal, ikke til en generell oversikt uten valgt avtale.
+
+2. Ingen nye widgets. Ingen nye kostnadsfunksjoner.
+
+#### Kjøretøyprofil og DriverControl
+
+1. Ingen funksjonsendring i kjøretøyprofil eller sjåførkontroll utover felles cache-/appversjon.
+
+#### Versjon
+
+App-/cacheversjon 182 → **183**. `kontroll.html` = `index.html`. Ingen endring i `storage.airtable.js` (fortsatt v2.26.1).
+
+---
+
 ## 2026-10-01
 
 ### Kompaktere bilinformasjon og hel kant på bilkortet

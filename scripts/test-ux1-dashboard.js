@@ -142,7 +142,7 @@ assert(JSON.stringify(vm.runInContext("ux1KjoretoyGrupper('reserve')[0].biler.ma
 assert(html.includes('ux1-lag-grid') && html.includes('data-ux1-bil-fane') && html.includes('ux1LagSumTekst'), 'kjøretøystatus har faner, lagkolonner og sammendrag');
 sandbox.p48 = null;
 vm.runInContext(extractFn('p48DriftslagFarge'), sandbox);
-assert(vm.runInContext("['Lag 1','Lag 2','Lag 3','Lag 4','PUDO','Lastebil','Montering','Reserve'].map(p48DriftslagFarge).join('|')", sandbox) === 'var(--success)|var(--danger)|var(--info)|var(--warning)|var(--id-pudo)|var(--id-lastebil)|var(--id-montering)|var(--neutral)', 'driftsfargene er grønn, rød, blå, gul, turkis, lilla, oliven og grå');
+assert(vm.runInContext("['Lag 1','Lag 2','Lag 3','Lag 4','PUDO','Lastebil','Montering','Reserve'].map(p48DriftslagFarge).join('|')", sandbox) === 'var(--success)|var(--danger)|var(--info)|var(--warning)|var(--id-pudo)|var(--id-lastebil)|var(--id-montering)|var(--neutral)', 'driftsfargene er grønn, rød, blå, gul, turkis, oransje, oliven og grå');
 
 if (fails.length) {
   console.error(fails.length + ' feilet');
