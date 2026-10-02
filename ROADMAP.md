@@ -1,5 +1,13 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Dekk/kjøretøyprofil UX, appversjon 187, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Dekk og kjøretøyprofil
+
+**Levert.** Standard plassering Alle dekk ved nyregistrering. Rediger/slett dekkhistorikk med kostnad. Blyant ved tannhjul. Ingen dobbel biloverskrift. Widgets arver aktiv bil på kjøretøyprofilen.
+
+**Testet.** Kodegjennomgang av `widgetKjoretoyId`, `lagreRedigertDekkFraModal` og `rebyggDekkAkselDatoer`. Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
 Sist oppdatert: 2026-10-02 (Airtable-fane forenklet, appversjon 186, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-02 — Airtable-administrasjon

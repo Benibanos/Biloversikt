@@ -15,6 +15,20 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Dekk og kjøretøyprofil: færre feilregistreringer
+
+Registrer nye dekk har **Alle dekk** som standard, med rekkefølge Alle dekk → Foran → Bak. Historiske dekkposter kan redigeres og slettes (type, dato, plassering, leverandør, kostnad, kommentar); tilhørende kostnadspost oppdateres eller kanselleres. Akseldatoer bygges på nytt fra gjenværende historikk.
+
+På kjøretøyprofilen er blyanten flyttet opp til tannhjulet. **Bestill deler** står alene uten bilnummer/reg.nr. ved siden av. Sideoverskriften med bilnavn er fjernet; identitet vises via Bilkort-widgeten. Tilbake-knapper er forkortet til `← Biloversikt` / `← Kjøretøyprofil`.
+
+Widgets på kjøretøyprofilen arver aktiv `vehicleId`. Dekk-, service-, EU- og andre kjøretøywidgets viser ikke «Ingen bil valgt» når en konkret bil er åpen.
+
+**Versjon.** App-/cacheversjon 186 → **187**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Airtable-fanen som administrasjonsverktøy
 
 Innstillinger → Optimaliseringer → Airtable viser som standard kun status, siste synk, antall manglende felt/tabeller og handlingene Synkroniser nå, Opprett manglende Airtable-felt, Oppdater og synkroniser alt, samt Vis avansert.

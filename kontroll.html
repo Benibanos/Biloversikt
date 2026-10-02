@@ -7612,7 +7612,7 @@ function attachKostnadFlytListeners(){
   const arbeidLagre = document.getElementById('kost-arbeid-lagre');
   if(arbeidLagre) arbeidLagre.addEventListener('click', (e) => { e.stopPropagation(); lagreArbeidKostnadFraSkjema(); });
 }
-const DEKK_PLASSERING_VALG = [{id:'foran', label:'Foran'}, {id:'bak', label:'Bak'}, {id:'alle', label:'Alle dekk'}];
+const DEKK_PLASSERING_VALG = [{id:'alle', label:'Alle dekk'}, {id:'foran', label:'Foran'}, {id:'bak', label:'Bak'}];
 const DEKK_PLASSERING_LABEL = {foran:'Foran', bak:'Bak', alle:'Alle dekk'};
 const KOSTNAD_KATEGORI_IKON = {
   verksted:'wrench', deler:'package', 'intern-reparasjon':'hammer', 'eu-kontroll':'shield-check',
@@ -7638,8 +7638,7 @@ function kjoretoyDetaljTomHtml(tittel){
     ${bpTomTilstandHtml('Ingen bil er valgt', 'Åpne ' + tittel + ' fra en kjøretøyprofil.')}`;
 }
 function kjoretoyDetaljHodeHtml(v){
-  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="detalj-back">← Tilbake til kjøretøyprofil</button></div>
-    <h2 class="bp-h1" style="margin-bottom:12px;">${esc(v.bilnummer || '')} · ${esc(v.regnr || '')}</h2>`;
+  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="detalj-back">← Kjøretøyprofil</button></div>`;
 }
 function detaljLayoutHtml(side, standardNokkel){
   const rediger = currentUiExperience() === 'desktop' && uxLayoutModus && layoutKanRedigere() && uxLayoutSide === side;
@@ -7695,6 +7694,37 @@ function dekkRetningTilSesong(retning){
 function visDekkPlassering(p){
   return DEKK_PLASSERING_LABEL[p] || 'Plassering ikke registrert';
 }
+function dekkPlasseringSelectHtml(valgt){
+  const v = valgt && DEKK_PLASSERING_LABEL[valgt] ? valgt : 'alle';
+  return DEKK_PLASSERING_VALG.map(o => `<option value="${o.id}" ${o.id===v?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+function aktivKjoretoyId(){
+  return currentVehicleId || serviceValgtVehicleId || dekkValgtVehicleId || '';
+}
+function widgetKjoretoyId(id){
+  const aktiv = aktivKjoretoyId();
+  if(String(id).indexOf('ux-dk-')===0) return dekkValgtVehicleId || aktiv;
+  if(String(id).indexOf('ux-sv-')===0) return serviceValgtVehicleId || aktiv;
+  return aktiv;
+}
+function rebyggDekkAkselDatoer(v){
+  if(!v) return;
+  v.sommerdekkForanDato = '';
+  v.sommerdekkBakDato = '';
+  v.vinterdekkForanDato = '';
+  v.vinterdekkBakDato = '';
+  (dekkhistorikk || []).filter(d => d.vehicleId === v.id && d.dato).sort((a,b) => (a.dato||'').localeCompare(b.dato||'')).forEach(d => {
+    const sesong = dekkHistorikkSesong(d);
+    if(!sesong) return;
+    const plass = d.plassering;
+    if(plass === 'foran' || plass === 'bak' || plass === 'alle') settDekkAkselDatoer(v, sesong, plass, d.dato);
+  });
+}
+function dekkHistKostnad(d){
+  if(!d) return null;
+  if(d.kostnadRef) return (kostnadslogg || []).find(p => p.id === d.kostnadRef && p.status !== 'kansellert') || finnKostnadMedRef('dekkhist:' + d.id);
+  return finnKostnadMedRef('dekkhist:' + d.id);
+}
 function detaljModalHtml(){
   const m = detaljModal;
   if(!m) return '';
@@ -7726,7 +7756,7 @@ function detaljModalHtml(){
         <select id="nd-type"><option value="sommer">Sommer</option><option value="vinter">Vinter</option></select>
       </div>
       <div class="field"><label>Plassering</label>
-        <select id="nd-plass">${DEKK_PLASSERING_VALG.map(o => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>
+        <select id="nd-plass">${dekkPlasseringSelectHtml('alle')}</select>
       </div>
       <div class="field"><label>Dato</label><input id="nd-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}"></div>
       <div class="field"><label>Kostnad eks. mva (valgfritt)</label><input id="nd-kostnad" type="text" inputmode="decimal"></div>
@@ -7744,13 +7774,35 @@ function detaljModalHtml(){
         <div class="field"><label>Til</label><select id="ds-til"><option value="vinter">Vinter</option><option value="sommer">Sommer</option></select></div>
       </div>
       <div class="field"><label>Plassering</label>
-        <select id="ds-plass">${DEKK_PLASSERING_VALG.map(o => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>
+        <select id="ds-plass">${dekkPlasseringSelectHtml('alle')}</select>
       </div>
       <div class="field"><label>Utført dato</label><input id="ds-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(todayISO())}"></div>
       <div class="field"><label>Verksted</label><select id="ds-verksted"><option value="">Internt utført</option>${verkstedSelectOptions(standardVerkstedFor('dekk'))}</select></div>
       <div class="field"><label>Kostnad eks. mva (valgfritt)</label><input id="ds-kostnad" type="text" inputmode="decimal"></div>
       <div class="form-msg" id="ds-msg"></div>
       <div class="panel-actions"><button type="button" class="bp-btn bp-btn-primary btn" id="ds-lagre">Lagre</button></div>
+    </div></div>`;
+  }
+  if(m.type === 'rediger-dekk'){
+    const d = (dekkhistorikk || []).find(x => x.id === m.id);
+    if(!d) return '';
+    const sesong = dekkHistorikkSesong(d) || 'sommer';
+    const kost = dekkHistKostnad(d);
+    return `<div class="vt-drawer-bak" id="detalj-modal-bak"><div class="vt-drawer" role="dialog" aria-modal="true">
+      <div class="vt-drawer-topp"><h3>Rediger dekkregistrering</h3><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="detalj-modal-lukk">Lukk</button></div>
+      <p class="required-hint">Alle beløp eks. mva.</p>
+      <div class="field"><label>Dekktype</label>
+        <select id="ed-type"><option value="sommer" ${sesong==='sommer'?'selected':''}>Sommer</option><option value="vinter" ${sesong==='vinter'?'selected':''}>Vinter</option></select>
+      </div>
+      <div class="field"><label>Plassering</label>
+        <select id="ed-plass">${dekkPlasseringSelectHtml(d.plassering)}</select>
+      </div>
+      <div class="field"><label>Dato</label><input id="ed-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(d.dato)}"></div>
+      <div class="field"><label>Leverandør</label><input id="ed-leverandor" type="text" value="${esc(kost && kost.leverandor ? kost.leverandor : '')}"></div>
+      <div class="field"><label>Kostnad eks. mva</label><input id="ed-kostnad" type="text" inputmode="decimal" value="${kost && kost.belopEksMva ? esc(String(kost.belopEksMva)) : ''}"></div>
+      <div class="field"><label>Kommentar</label><textarea id="ed-kommentar" rows="2">${esc(d.kommentar || '')}</textarea></div>
+      <div class="form-msg" id="ed-msg"></div>
+      <div class="panel-actions"><button type="button" class="bp-btn bp-btn-primary btn" id="ed-lagre">Lagre</button></div>
     </div></div>`;
   }
   return '';
@@ -7764,6 +7816,8 @@ function attachDetaljModalListeners(){
   if(nd) nd.addEventListener('click', () => lagreNyeDekkFraModal());
   const ds = document.getElementById('ds-lagre');
   if(ds) ds.addEventListener('click', () => lagreDekkskiftFraModal());
+  const ed = document.getElementById('ed-lagre');
+  if(ed) ed.addEventListener('click', () => lagreRedigertDekkFraModal());
 }
 // Dekkskifttime: samme trygge lagringsmønster (parseJsonTrygt +
 // _korrupteDatasett-blokkering) som savePlanlagteServicer() over. Generisk Settings-blob,
@@ -10951,6 +11005,109 @@ async function lagreDekkskiftFraModal(){
     }
   }
   detaljModal = null;
+  render();
+}
+function dekkRetningEtterSesong(d, sesong){
+  if(d && (d.retning === 'sommer-vinter' || d.retning === 'vinter-sommer'))
+    return sesong === 'vinter' ? 'sommer-vinter' : 'vinter-sommer';
+  return sesong === 'vinter' ? 'nye-vinterdekk' : 'nye-sommerdekk';
+}
+async function synkDekkHistKostnad(d, v, belop, harBelop, leverandor, dato, tittel, kategori){
+  const kost = dekkHistKostnad(d);
+  if(harBelop && Number.isFinite(belop) && belop > 0){
+    if(kost){
+      kost.belopEksMva = belop;
+      kost.leverandor = leverandor;
+      kost.dato = dato;
+      kost.tittel = tittel;
+      kost.kategori = kategori;
+      kost.kommentar = d.kommentar || '';
+      await saveKostnadslogg();
+      d.kostnadRef = kost.id;
+      return;
+    }
+    const post = await lagreKostnadUnik({
+      vehicleId: v.id, dato, kategori, belopEksMva: belop, leverandor, tittel,
+      kommentar: d.kommentar || '', kilde: d.kilde || 'manuell-registrering', kildeRef: 'dekkhist:' + d.id
+    });
+    d.kostnadRef = post.id;
+    return;
+  }
+  if(kost){
+    kost.status = 'kansellert';
+    await saveKostnadslogg();
+    d.kostnadRef = '';
+  }
+}
+async function lagreRedigertDekkFraModal(){
+  if(!isAdmin) return;
+  const m = detaljModal;
+  const d = m && m.id ? (dekkhistorikk || []).find(x => x.id === m.id) : null;
+  const msg = document.getElementById('ed-msg');
+  if(!d){ if(msg) msg.textContent = 'Fant ikke registreringen.'; return; }
+  const v = vehicles.find(x => x.id === d.vehicleId);
+  if(!v){ if(msg) msg.textContent = 'Fant ikke bilen.'; return; }
+  const sesong = (document.getElementById('ed-type') || {}).value || 'sommer';
+  const plassering = (document.getElementById('ed-plass') || {}).value || 'alle';
+  const dato = readDateInput('ed-dato');
+  const leverandor = ((document.getElementById('ed-leverandor') || {}).value || '').trim();
+  const kommentar = ((document.getElementById('ed-kommentar') || {}).value || '').trim();
+  const kostRaw = (document.getElementById('ed-kostnad') || {}).value;
+  if(!dato){ if(msg) msg.textContent = 'Fyll ut dato.'; return; }
+  sikrDekkAkselMigrering(v);
+  const snapV = {sommerdekkForanDato:v.sommerdekkForanDato, sommerdekkBakDato:v.sommerdekkBakDato, vinterdekkForanDato:v.vinterdekkForanDato, vinterdekkBakDato:v.vinterdekkBakDato, dekk:v.dekk};
+  const snapD = {dato:d.dato, retning:d.retning, plassering:d.plassering, kommentar:d.kommentar, kostnadRef:d.kostnadRef};
+  const kost = dekkHistKostnad(d);
+  const snapK = kost ? {belopEksMva:kost.belopEksMva, leverandor:kost.leverandor, dato:kost.dato, tittel:kost.tittel, kategori:kost.kategori, kommentar:kost.kommentar, status:kost.status} : null;
+  d.dato = dato;
+  d.plassering = plassering;
+  d.retning = dekkRetningEtterSesong(d, sesong);
+  d.kommentar = kommentar;
+  rebyggDekkAkselDatoer(v);
+  const belop = parseBelopEksMva(kostRaw);
+  const harBelop = !!(kostRaw && String(kostRaw).trim());
+  const tittel = ((d.retning === 'sommer-vinter' || d.retning === 'vinter-sommer') ? 'Dekkskift' : (sesong === 'vinter' ? 'Nye vinterdekk' : 'Nye sommerdekk')) + ' · ' + visDekkPlassering(plassering);
+  const kategori = (d.kilde === 'utfort-dekkskift' || d.retning === 'sommer-vinter' || d.retning === 'vinter-sommer') ? 'dekkskift' : 'dekk';
+  try{
+    await synkDekkHistKostnad(d, v, belop, harBelop, leverandor, dato, tittel, kategori);
+    await saveDekkhistorikk();
+    await saveVehiclesOrThrow();
+  }catch(e){
+    Object.assign(d, snapD);
+    Object.assign(v, snapV);
+    if(kost && snapK) Object.assign(kost, snapK);
+    if(msg) msg.textContent = 'Kunne ikke lagre. Ingen felter er oppdatert. ' + (e.message || '');
+    return;
+  }
+  detaljModal = null;
+  render();
+}
+async function slettDekkRegistrering(id){
+  if(!isAdmin) return;
+  const d = (dekkhistorikk || []).find(x => x.id === id);
+  if(!d) return;
+  if(!confirm('Slette denne dekkregistreringen? Tilhørende kostnadspost følger med.')) return;
+  const v = vehicles.find(x => x.id === d.vehicleId);
+  const kost = dekkHistKostnad(d);
+  const idx = dekkhistorikk.findIndex(x => x.id === id);
+  const histSnap = JSON.parse(JSON.stringify(dekkhistorikk));
+  const snapV = v ? {sommerdekkForanDato:v.sommerdekkForanDato, sommerdekkBakDato:v.sommerdekkBakDato, vinterdekkForanDato:v.vinterdekkForanDato, vinterdekkBakDato:v.vinterdekkBakDato, dekk:v.dekk} : null;
+  const snapK = kost ? kost.status : null;
+  dekkhistorikk.splice(idx, 1);
+  if(v) rebyggDekkAkselDatoer(v);
+  try{
+    await saveDekkhistorikk();
+    if(v) await saveVehiclesOrThrow();
+    if(kost){ kost.status = 'kansellert'; await saveKostnadslogg(); }
+  }catch(e){
+    dekkhistorikk.length = 0; Array.prototype.push.apply(dekkhistorikk, histSnap);
+    if(v && snapV) Object.assign(v, snapV);
+    if(kost && snapK != null) kost.status = snapK;
+    alert('Kunne ikke slette. Ingenting er endret. ' + (e.message || ''));
+    return;
+  }
+  detaljModal = null;
+  dkHistApenId = '';
   render();
 }
 function apneServicehistorikk(vehicleId, modus){
@@ -16558,7 +16715,7 @@ function uxMiniRadHtml(ids, v){
   return `<div class="ux-minier">${ids.map(id => uxMiniWidgetHtml(id, v)).join('')}</div>`;
 }
 function uxNestEgenHtml(id){
-  const bil = (vehicles || []).find(x => x.id === currentVehicleId);
+  const bil = (vehicles || []).find(x => x.id === aktivKjoretoyId());
   const navn = (uxWidgetKatalog().find(k => k.id === id) || {}).label || '';
   const kropp = String(id).indexOf('ux-bil-') === 0 || id === 'ux-nest-neste' || id === 'ux-nest-dok'
     ? (bil ? uxMiniWidgetHtml(id, bil) : bpTomTilstandHtml('Ingen bil valgt', 'Åpne en bil for å se innholdet.', true))
@@ -16666,7 +16823,7 @@ function uxWidgetHtml(id){
     const valg = [['gjentakende','Gjentakende'],['bilanalyse','Bilanalyse'],['verkstedtrender','Verkstedtrender'],['sakstyper','Sakstyper'],['behandlingstid','Behandlingstid'],['utvikling','Utvikling']];
     return `<section class="ux1-sek"><h2 class="bp-overline">Analyser</h2><div class="ux1-col">${valg.map(([k,l]) => `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-goto-analyse="${k}">${l}</button>`).join('')}</div></section>`;
   }
-  const bil = (vehicles || []).find(x => x.id === currentVehicleId);
+  const bil = (vehicles || []).find(x => x.id === aktivKjoretoyId());
   const bilMangler = bpTomTilstandHtml('Ingen bil valgt', 'Åpne en bil for å se innholdet.', true);
   if(String(id).indexOf('ux-bil-') === 0 && !bil) return bilMangler;
   if(id === 'ux-bil-status') return ux3HeroHtml(bil);
@@ -16694,7 +16851,7 @@ function uxWidgetHtml(id){
   if(id === 'ux-kost-hist') return uxKostHistHtml();
   if(id === 'ux-kost-filter') return uxKostFilterHtml();
   if(id === 'ux-sv-status' || id === 'ux-sv-registrer' || id === 'ux-sv-hist' || id === 'ux-dk-sommer' || id === 'ux-dk-vinter' || id === 'ux-dk-handlinger' || id === 'ux-dk-hist' || id === 'ux-eu-status' || id === 'ux-eu-hist'){
-    const vid = id.indexOf('ux-sv-')===0 ? serviceValgtVehicleId : (id.indexOf('ux-dk-')===0 ? dekkValgtVehicleId : currentVehicleId);
+    const vid = widgetKjoretoyId(id);
     const v = (vehicles || []).find(x => x.id === vid);
     if(!v) return bpTomTilstandHtml('Ingen bil valgt', '', true);
     if(id === 'ux-sv-status') return uxSvStatusHtml(v);
@@ -16925,9 +17082,13 @@ function uxLayoutRader(liste, ekstra){
   return brukt + (ekstra || 0);
 }
 function uxLayoutGearHtml(){
-  if(currentUiExperience() !== 'desktop' || !layoutKanRedigere() || UX_LAYOUT_SIDER.indexOf(screen) < 0) return '';
+  if(currentUiExperience() !== 'desktop') return '';
+  const penn = (screen === 'bilkort' && !driverMode && loggedInRole && isAdmin && !showBilinfoRediger)
+    ? `<button type="button" class="p38-iconbtn bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>`
+    : '';
+  if(!layoutKanRedigere() || UX_LAYOUT_SIDER.indexOf(screen) < 0) return penn;
   const paa = uxLayoutModus && uxLayoutSide === screen ? ' is-pa' : '';
-  return `<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${paa ? 'true' : 'false'}">${luc('settings')}</button>`;
+  return `${penn}<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${paa ? 'true' : 'false'}">${luc('settings')}</button>`;
 }
 function uxLayoutToppHtml(side){
   const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil', sjafor:'Sjåførkontroll', kostnadsoversikt:'Kostnader', service:'Service', dekk:'Dekk', eu:'EU-kontroll'}[side] || side;
@@ -16967,10 +17128,10 @@ const UX_WIDGET_KATEGORIER = [
   {id:'saker', label:'Saker', sider:['dashboard']},
   {id:'analyse', label:'Analyse', sider:['dashboard']},
   {id:'sjafor', label:'Sjåførkontroll', sider:['sjafor']},
-  {id:'kostnader', label:'Kostnader', sider:['kostnadsoversikt']},
-  {id:'service', label:'Service', sider:['service']},
-  {id:'dekk', label:'Dekk', sider:['dekk']},
-  {id:'eu', label:'EU-kontroll', sider:['eu']},
+  {id:'kostnader', label:'Kostnader', sider:['kostnadsoversikt','bilkort']},
+  {id:'service', label:'Service', sider:['service','bilkort']},
+  {id:'dekk', label:'Dekk', sider:['dekk','bilkort']},
+  {id:'eu', label:'EU-kontroll', sider:['eu','bilkort']},
   {id:'admin', label:'Administrasjon', sider:[]}
 ];
 const UX_WIDGET_I_KATEGORI = {
@@ -16978,7 +17139,7 @@ const UX_WIDGET_I_KATEGORI = {
   kjoretoy:['ux-bil-kort','ux-bil-kstatus','ux-bil-info','ux-bil-kontroll','ux-bil-sjafor','ux-bil-verksted','ux-nest-neste','ux-bil-eu','ux-bil-service','ux-bil-dekk','ux-bil-loftebord','ux-nest-dok','ux-bil-helse'],
   verksted:['ux-vt-handlinger','ux-vtstatus','ux-verksted','ux-vt-saker','ux-aks-bestill','ux-aks-service','ux-aks-dekk','ux-aks-skade','ux-aks-sak','ux-aks-eu','ux-aks-deler','ux-aks-rediger','ux-kal-kapasitet'],
   kontroller:['ux-bil-grunnlag','ux-bil-kontroll','ux-bil-eu','ux-bil-loftebord'],
-  historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist'],
+  historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist','ux-dk-hist','ux-sv-hist','ux-kost-hist','ux-eu-hist'],
   saker:['ux-saker','ux-bil-saker','ux-handling','ux-bil-handling','ux-varsler','ux-bil-neste'],
   analyse:['ux-kpi','ux-analyse'],
   kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-dag','ux-kal-plan','ux-kal-tid','ux-kal-hist','ux-kal-neste'],
@@ -17295,6 +17456,14 @@ function attachUxLayoutListeners(){
   document.querySelectorAll('.ux-canvas [data-registrer-vt]').forEach(el => el.addEventListener('click', () => goToRegisterVT(el.dataset.registrerVt)));
   document.querySelectorAll('.ux-canvas [data-goto-analyse]').forEach(el => el.addEventListener('click', () => { if(typeof goToAnalyse === 'function') goToAnalyse(el.dataset.gotoAnalyse); }));
   if(!uxLayoutModus){
+    attachDekkWidgetListeners();
+    const historiskBtn = document.getElementById('ny-historisk-service-btn');
+    if(historiskBtn) historiskBtn.addEventListener('click', () => { detaljModal = {type:'historisk-service'}; showAddHistoriskService = true; render(); });
+    document.querySelectorAll('[data-sv-hist]').forEach(el => el.addEventListener('click', () => { svHistApenId = svHistApenId === el.dataset.svHist ? '' : el.dataset.svHist; render(); }));
+    const svFlere = document.getElementById('sv-vis-flere');
+    if(svFlere) svFlere.addEventListener('click', () => { kostHistVisAlle = true; render(); });
+    const euBestill = document.getElementById('eu-bestill');
+    if(euBestill) euBestill.addEventListener('click', () => bestillEuKontroll(aktivKjoretoyId()));
     document.querySelectorAll('.ux-widget.is-klikk').forEach(el => {
       el.addEventListener('click', (e) => {
         if(e.target.closest('a,button,summary,input,select,textarea,label')) return;
@@ -19295,16 +19464,15 @@ function renderBilkort(){
   if(currentUiExperience() === 'desktop'){
     const eget = uxLayoutOvertar('bilkort');
     const kropp = eget || uxLayoutVisHtml(uxLayoutStandard('bilkort'));
-    const penn = (!driverMode && loggedInRole && isAdmin && !showBilinfoRediger) ? `<button type="button" class="bp-icon-btn" id="profil-rediger-fast" title="Rediger profil" aria-label="Rediger profil">${luc('pencil')}</button>` : '';
     const slettArkiv = (!driverMode && loggedInRole && isAdmin && v.uteAvDrift) ? `<button type="button" class="bp-btn bp-btn-danger btn danger small" id="del-vehicle">Slett bil</button>` : '';
     const lagre = uxProfilRediger() ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button>` : '';
     const ident = uxProfilRediger()
       ? `${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}${lagre}`
-      : `<strong>${esc(v.bilnummer || '')}</strong><span>${esc(v.regnr || '')}</span>${penn}`;
+      : '';
     const manglerInfo = uxProfilRediger() && !uxBilWidgetSynlig('ux-bil-info')
       ? `<section class="bp-card" style="margin-bottom:12px;"><h2 class="bp-card-title">Bilinformasjon</h2><div class="bp-vcard-rows">${uxProfilFeltHtml(v, {ident:false, telefon:!uxBilWidgetSynlig('ux-bil-sjafor')})}</div></section>`
       : '';
-    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button><span class="profil-topp-felt"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-bestill-deler">${luc('package')} Bestill deler</button>${ident}${slettArkiv}</span></div>${manglerInfo}${kropp}`;
+    return `<div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Biloversikt</button><span class="profil-topp-felt"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="profil-bestill-deler">${luc('package')} Bestill deler</button>${ident}${slettArkiv}</span></div>${manglerInfo}${kropp}`;
   }
 
   // Prioritet 59: fanene Oversikt/Historikk/Verkstedhistorikk/Dekk/Kostnader er FJERNET og erstattet av
@@ -19361,7 +19529,7 @@ function renderBilkort(){
 
   // UX-3: kontrollkort øverst. Historikk, tekniske data og registrering ligger under. Layoutrekkefølgen publiseres ikke hit.
   return `
-    <div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Tilbake til biloversikt</button>${uxProfilRediger() ? `<span class="profil-topp-felt">${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button></span>` : ''}</div>
+    <div class="backrow" style="justify-content:space-between;"><button class="bp-btn bp-btn-secondary backbtn" id="back-to-register">← Biloversikt</button>${uxProfilRediger() ? `<span class="profil-topp-felt">${uxInlineInput('f-bilnummer', v.bilnummer || '')}${uxInlineInput('f-regnr', v.regnr || '')}<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="cancel-vehicle-edit">Avbryt</button><button type="button" class="bp-btn bp-btn-primary btn small" id="save-vehicle">Lagre</button></span>` : ''}</div>
 
     ${ux3KontrollkortHtml(v)}
 
@@ -19588,8 +19756,6 @@ function attachEuSkjermListeners(){
   const tilbake = document.getElementById('detalj-back') || document.getElementById('eu-back');
   if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', currentVehicleId));
   document.querySelectorAll('[data-goto-register]').forEach(el => el.addEventListener('click', () => goTo('register')));
-  const bestill = document.getElementById('eu-bestill');
-  if(bestill) bestill.addEventListener('click', () => bestillEuKontroll(currentVehicleId));
 }
 function renderLoftebordSkjerm(){
   const v = vehicles.find(x => x.id === currentVehicleId) || null;
@@ -19598,7 +19764,7 @@ function renderLoftebordSkjerm(){
   const statusTekst = !st.siste ? 'Ikke registrert' : (st.status === 'gronn' ? 'Gyldig' : (st.status === 'gul' ? 'Utløper snart' : 'Forfalt'));
   const hist = vehicleLoftebordHistorikk(v.id);
   const apen = typeof lbDetaljId !== 'undefined' ? lbDetaljId : '';
-  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="lb-back">← Tilbake til kjøretøyprofil</button></div>
+  return `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="lb-back">← Kjøretøyprofil</button></div>
     <h2 class="bp-h1" style="margin-bottom:8px;">${esc(v.bilnummer || '')} · ${esc(v.regnr || '')}</h2>
     <section class="bp-card" style="margin-bottom:16px;">
       <h3 class="bp-card-title">Løftebord</h3>
@@ -19688,11 +19854,6 @@ function attachServiceSkjermListeners(){
   const tilbake = document.getElementById('detalj-back') || document.getElementById('service-back');
   if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', serviceValgtVehicleId || currentVehicleId));
   document.querySelectorAll('[data-goto-register]').forEach(el => el.addEventListener('click', () => goTo('register')));
-  const historiskBtn = document.getElementById('ny-historisk-service-btn');
-  if(historiskBtn) historiskBtn.addEventListener('click', () => { detaljModal = {type:'historisk-service'}; showAddHistoriskService = true; render(); });
-  document.querySelectorAll('[data-sv-hist]').forEach(el => el.addEventListener('click', () => { svHistApenId = svHistApenId === el.dataset.svHist ? '' : el.dataset.svHist; render(); }));
-  const flere = document.getElementById('sv-vis-flere');
-  if(flere) flere.addEventListener('click', () => { kostHistVisAlle = true; render(); });
 }
 
 function renderDekkSkjerm(){
@@ -19723,27 +19884,32 @@ function uxDkHistHtml(v){
   return `<section class="ux1-sek"><h2 class="bp-overline">Dekkskiftehistorikk</h2>
     ${liste.length === 0 ? '<p class="ux1-lag-tom">Ingen dekkskifter registrert på dette kjøretøyet ennå.</p>' : vis.map(d => {
       const apen = dkHistApenId === d.id;
-      const kost = d.kostnadRef ? (kostnadslogg || []).find(p => p.id === d.kostnadRef) : finnKostnadMedRef('dekkhist:' + d.id);
+      const kost = dekkHistKostnad(d);
       const sesong = dekkHistorikkSesong(d);
+      const handlinger = isAdmin ? `<div class="panel-actions" style="margin-top:8px;"><button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-dk-rediger="${d.id}">Rediger</button><button type="button" class="bp-btn bp-btn-danger btn danger small" data-dk-slett="${d.id}">Slett</button></div>` : '';
       return `<div class="p38-case" data-dk-hist="${d.id}" style="cursor:pointer;">
         ${bpTileHtml('neutral', 'circle-dot')}
         <span><b>${esc(fmt(d.dato))} · ${esc(sesong === 'vinter' ? 'Vinter' : sesong === 'sommer' ? 'Sommer' : (DEKK_RETNING_LABEL[d.retning] || d.retning))}</b>
         <span>${esc(visDekkPlassering(d.plassering))}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}${kost ? ' · ' + fmtKr(kost.belopEksMva) : ''}</span></span>
-      </div>${apen ? `<p class="ux1-lag-tom">${d.km ? Number(d.km).toLocaleString('nb-NO') + ' km · ' : ''}${esc(d.kilde || '')} · ${esc(d.registrertAv || '')}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}</p>` : ''}`;
+      </div>${apen ? `<p class="ux1-lag-tom">${d.km ? Number(d.km).toLocaleString('nb-NO') + ' km · ' : ''}${esc(d.kilde || '')} · ${esc(d.registrertAv || '')}${d.kommentar ? ' · ' + esc(d.kommentar) : ''}${kost && kost.leverandor ? ' · ' + esc(kost.leverandor) : ''}</p>${handlinger}` : ''}`;
     }).join('')}${liste.length > 12 && !kostHistVisAlle ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="dk-vis-flere">Vis flere</button>` : ''}
   </section>`;
 }
-function attachDekkSkjermListeners(){
-  const tilbake = document.getElementById('detalj-back') || document.getElementById('dekk-back');
-  if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', dekkValgtVehicleId || currentVehicleId));
-  document.querySelectorAll('[data-goto-register]').forEach(el => el.addEventListener('click', () => goTo('register')));
+function attachDekkWidgetListeners(){
   const nye = document.getElementById('nye-dekk-btn');
   if(nye) nye.addEventListener('click', () => { detaljModal = {type:'nye-dekk'}; render(); });
   const skift = document.getElementById('ny-dekkskifte-btn');
   if(skift) skift.addEventListener('click', () => { detaljModal = {type:'dekkskift'}; render(); });
   document.querySelectorAll('[data-dk-hist]').forEach(el => el.addEventListener('click', () => { dkHistApenId = dkHistApenId === el.dataset.dkHist ? '' : el.dataset.dkHist; render(); }));
+  document.querySelectorAll('[data-dk-rediger]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); detaljModal = {type:'rediger-dekk', id: el.dataset.dkRediger}; render(); }));
+  document.querySelectorAll('[data-dk-slett]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); slettDekkRegistrering(el.dataset.dkSlett); }));
   const flere = document.getElementById('dk-vis-flere');
   if(flere) flere.addEventListener('click', () => { kostHistVisAlle = true; render(); });
+}
+function attachDekkSkjermListeners(){
+  const tilbake = document.getElementById('detalj-back') || document.getElementById('dekk-back');
+  if(tilbake) tilbake.addEventListener('click', () => goTo('bilkort', dekkValgtVehicleId || currentVehicleId));
+  document.querySelectorAll('[data-goto-register]').forEach(el => el.addEventListener('click', () => goTo('register')));
 }
 // ================= scrSkader =================
 function skadeGroupedSection(itemsFiltered, openSet, toggleAttr, quickCountsFra){
