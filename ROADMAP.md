@@ -1,5 +1,13 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-02 (Analyse/Rapporter/Verkstedhistorikk Layout Editor, appversjon 190, `storage.airtable.js` v2.28.0).
+
+## 2026-10-02 — Analyse, Rapporter og Verkstedhistorikk
+
+**Levert.** Layout Editor på Analyse, Rapporter og Verkstedhistorikk. Lucide i stedet for emoji på disse sidene og i Innstillinger. Verkstedhistorikk med faner, bilidentitetsbrikke og kalendergruppering.
+
+**Testet.** Kodegjennomgang av widget-katalog, `samletVerkstedHistorikk` og gjenbruk av `kalHistGrupperHtml`. Ikke kjørt full manuell UI-pass i nettleser i denne økten.
+
 Sist oppdatert: 2026-10-02 (Kalender tidsgrupper, appversjon 189, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-02 — Kalender tidsgrupper

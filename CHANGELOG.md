@@ -15,6 +15,16 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-02
 
+### Analyse, Rapporter, Innstillinger og Verkstedhistorikk
+
+Layout Editor på Analyse, Rapporter og Verkstedhistorikk med samme layoutmotor som øvrige sider. Analyse- og rapportsidene bygges av widgets. Emoji-ikoner på disse sidene og i Innstillinger er byttet til Lucide. Verkstedhistorikk har faner (Alle som standard), identitetsbrikke med kategorifarge og samme tidsgruppering som Kalender. Datagrunnlaget er uendret.
+
+**Versjon.** App-/cacheversjon 189 → **190**. `kontroll.html` = `index.html`.
+
+---
+
+## 2026-10-02
+
 ### Kalender: tidsgrupper i historikk og planlegging
 
 Kalenderhistorikk grupperes i Denne uken (åpen), Forrige uke og måned for måned (lukket). Krever planlegging grupperes i Denne uken, Neste uke, Neste 14 dager, Senere og Forfalt, sortert etter dato innenfor gruppen. Neste aktiviteter bruker Denne uken / Neste uke / Senere. Gruppene er kollapsbare; åpen/lukket huskes per bruker. Data er uendret.

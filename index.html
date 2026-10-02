@@ -411,6 +411,8 @@
   .loftebord-card{padding:14px 16px;}
   .acc-head{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;flex-wrap:wrap;max-width:100%;box-sizing:border-box;}
   .acc-head-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  .acc-ikon{display:inline-flex;color:var(--ink-muted);flex-shrink:0;}
+  .acc-ikon .lucide-ic,.acc-ikon svg{width:16px;height:16px;}
   .acc-head-right{display:flex;align-items:center;gap:10px;flex-shrink:1;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%;}
   .acc-row .chevron{color:var(--ink-muted);font-size:18px;transition:transform .15s;}
   .acc-row.expanded .chevron{transform:rotate(180deg);}
@@ -1017,6 +1019,13 @@
   .kal-grp-neste-uke .kal-grp-tittel{color:var(--warning);}
   .kal-grp-neste-14 .kal-grp-tittel{color:var(--info);}
   .kal-grp-senere .kal-grp-tittel{color:var(--ink-muted);}
+  .kj-ident{display:inline-flex;align-items:center;max-width:100%;padding:3px 8px;border:1px solid var(--kj-ident, var(--border-strong));border-radius:8px;background:rgba(0,0,0,.35);color:var(--ink);font:600 12px/16px var(--font-sans);box-shadow:inset 3px 0 0 var(--kj-ident, var(--border-strong));}
+  .vth-kort{margin:0 0 8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+  .vth-kort-type{margin-top:8px;font:700 14px/20px var(--font-sans);color:var(--ink);}
+  .vth-kort-dato,.vth-kort-verksted{margin-top:2px;font:400 13px/18px var(--font-sans);color:var(--ink);}
+  .vth-kort-topp{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .kost-kpi-ikon{display:inline-flex;vertical-align:middle;margin-right:4px;}
+  .kost-kpi-ikon svg{width:14px;height:14px;}
 
   @media (max-width:1199px){
     .dash40-grid4{grid-template-columns:1fr 1fr;}
@@ -2964,6 +2973,7 @@ let rapportFilterVerksted = '';
 
 // ---- Fase 9 (Analyse og Prediktiv Oppfølging) ----
 let analyseType = ''; // '' (kortoversikt) | 'gjentakende' | 'bilanalyse' | 'verkstedtrender' | 'sakstyper' | 'behandlingstid' | 'utvikling'
+let layoutInnholdUtenHode = false;
 let showAnalyseFilterMeny = false;
 let analyseFilterBil = '';
 let analyseFilterGruppe = '';
@@ -3019,7 +3029,7 @@ let uxApneInlineRedigering = false;
 // og nullstilles til false hver gang skjemaet åpnes på nytt (samme mønster som
 // showVtFilterMeny/sakUtenVerkstedPanelId).
 let vtFlereDetaljerApen = false;
-let vtHistFilterType = 'alle'; // 'alle' | 'service' | 'dekkskift' | 'ruteskift' | 'reparasjon' | 'eu-kontroll' | 'annet'
+let vtHistFilterType = 'alle'; // 'alle' | 'service' | 'dekkskift' | 'ruteskift' | 'reparasjon' | 'eu-kontroll' | 'intern'
 let vtHistFilterBil = '';
 let vtHistFilterPeriode = ''; // '' | '7dager' | '30dager' | 'maned' | 'ar'
 let vtHistFilterFra = null;
@@ -5627,6 +5637,21 @@ const STANDARD_BILKATEGORIER = [
   {id:'montering', navn:'Monteringsbiler', ikon:'🔧'},
   {id:'reserve',   navn:'Reserve',        ikon:'🔄'}
 ];
+function kategoriLucide(katId){
+  return {bil:'truck', lastebil:'truck', montering:'wrench', reserve:'refresh-cw'}[katId] || 'tag';
+}
+function kjoretoyIdentFarge(v){
+  const fane = ux1KjoretoyFaneAv(v);
+  if(fane === 'lastebil') return 'var(--id-lastebil)';
+  if(fane === 'montering') return 'var(--id-montering)';
+  if(fane === 'reserve') return 'var(--neutral)';
+  return 'var(--success)';
+}
+function kjoretoyIdentBrikkeHtml(v){
+  const farge = v ? kjoretoyIdentFarge(v) : 'var(--neutral)';
+  const tekst = v ? ((v.bilnummer ? v.bilnummer + ' • ' : '') + (v.regnr || '')) : 'Slettet kjøretøy';
+  return `<span class="kj-ident" style="--kj-ident:${farge}">${esc(tekst)}</span>`;
+}
 // ---- Systemstyrt kategori: 🚫 Ute av drift ----
 // Dette er IKKE en vanlig kategori. Den kan ikke opprettes, endres, flyttes eller slettes,
 // den ligger ALDRI i `bilkategorier`/KATEGORI_ORDER (og dukker derfor ikke opp i noen
@@ -16455,7 +16480,7 @@ function ux1KontrollsentralHtml(){
   </div>`;
 }
 const UX_LAYOUT_KEY = 'bilpark-bruker-layout-v2';
-const UX_LAYOUT_SIDER = ['dashboard', 'verksted', 'kalender', 'aktivesaker', 'analyse', 'rapporter', 'bilkort', 'kostnadsoversikt', 'service', 'dekk', 'eu'];
+const UX_LAYOUT_SIDER = ['dashboard', 'verksted', 'kalender', 'aktivesaker', 'analyse', 'rapporter', 'bilkort', 'kostnadsoversikt', 'service', 'dekk', 'eu', 'verkstedhistorikk', 'historikk'];
 const UX_LAYOUT_MIN_W = 3;
 const UX_LAYOUT_MIN_H = 2;
 const UX_LAYOUT_MAX_H = 20;
@@ -16540,6 +16565,27 @@ function uxWidgetKatalog(){
     {id:'ux-dk-hist', label:'Dekkskiftehistorikk', ikon:'history', w:12, h:6},
     {id:'ux-eu-status', label:'EU-status', ikon:'shield-check', w:12, h:3},
     {id:'ux-eu-hist', label:'Tidligere EU-kontroller', ikon:'history', w:12, h:6},
+    {id:'ux-an-gjentakende', label:'Gjentakende feil', ikon:'repeat', w:12, h:8},
+    {id:'ux-an-biler', label:'Kjøretøy med flest saker', ikon:'truck', w:6, h:8},
+    {id:'ux-an-verksted', label:'Verkstedtrender', ikon:'factory', w:6, h:8},
+    {id:'ux-an-saker', label:'Sakskategorier', ikon:'layers', w:6, h:6},
+    {id:'ux-an-tid', label:'Behandlingstid', ikon:'timer', w:6, h:5},
+    {id:'ux-an-utvikling', label:'Utvikling siste 12 måneder', ikon:'line-chart', w:12, h:8},
+    {id:'ux-rp-kontroll', label:'Kontrollrapport', ikon:'clipboard-check', w:6, h:8},
+    {id:'ux-rp-maned', label:'Månedrapport', ikon:'calendar', w:6, h:8},
+    {id:'ux-rp-bilpark', label:'Bilparkrapport', ikon:'truck', w:6, h:6},
+    {id:'ux-rp-service', label:'Service', ikon:'wrench', w:6, h:8},
+    {id:'ux-rp-dekk', label:'Dekk', ikon:'circle-dot', w:6, h:8},
+    {id:'ux-rp-kostnad', label:'Kostnader', ikon:'circle-dollar-sign', w:6, h:6},
+    {id:'ux-rp-verksted', label:'Verksted', ikon:'factory', w:12, h:8},
+    {id:'ux-rp-kilometerstand', label:'Kilometerstand', ikon:'gauge', w:6, h:8},
+    {id:'ux-rp-eukontroll', label:'EU-kontroll', ikon:'shield-check', w:6, h:8},
+    {id:'ux-rp-ruteglass', label:'Ruter / Glass', ikon:'app-window', w:6, h:8},
+    {id:'ux-rp-skade', label:'Skader', ikon:'octagon-alert', w:6, h:8},
+    {id:'ux-rp-avvik', label:'Saker', ikon:'folder-open', w:6, h:6},
+    {id:'ux-rp-bilhelse', label:'Bilhelse', ikon:'heart-pulse', w:6, h:8},
+    {id:'ux-vth-filter', label:'Filter', ikon:'sliders-horizontal', w:12, h:3},
+    {id:'ux-vth-liste', label:'Verkstedhistorikk', ikon:'history', w:12, h:12},
   ];
 }
 function uxWidgetHandling(id){
@@ -16947,6 +16993,15 @@ function uxWidgetHtml(id){
     if(id === 'ux-eu-status') return uxEuStatusHtml(v);
     if(id === 'ux-eu-hist') return uxEuHistHtml(v);
   }
+  if(id === 'ux-an-gjentakende') return uxAnalyseWidgetHtml('gjentakende');
+  if(id === 'ux-an-biler') return uxAnalyseWidgetHtml('bilanalyse');
+  if(id === 'ux-an-verksted') return uxAnalyseWidgetHtml('verkstedtrender');
+  if(id === 'ux-an-saker') return uxAnalyseWidgetHtml('sakstyper');
+  if(id === 'ux-an-tid') return uxAnalyseWidgetHtml('behandlingstid');
+  if(id === 'ux-an-utvikling') return uxAnalyseWidgetHtml('utvikling');
+  if(String(id).indexOf('ux-rp-') === 0) return uxRapportWidgetHtml(id.slice(6));
+  if(id === 'ux-vth-filter') return uxVthFilterHtml();
+  if(id === 'ux-vth-liste') return uxVthListeHtml();
   return '';
 }
 function uxBilInngangHtml(v, id){
@@ -17033,8 +17088,10 @@ function uxLayoutStandard(side){
     verksted:['ux-vt-handlinger','ux-vtstatus','ux-verksted','ux-vt-saker'],
     kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-plan','ux-kal-hist'],
     aktivesaker:['ux-saker','ux-handling','ux-varsler'],
-    analyse:['ux-kpi','ux-analyse'],
-    rapporter:['ux-kpi','ux-analyse'],
+    analyse:['ux-an-gjentakende','ux-an-biler','ux-an-verksted','ux-an-saker','ux-an-tid','ux-an-utvikling'],
+    rapporter:['ux-rp-kontroll','ux-rp-maned','ux-rp-bilpark','ux-rp-service','ux-rp-dekk','ux-rp-kostnad','ux-rp-verksted'],
+    verkstedhistorikk:['ux-vth-filter','ux-vth-liste'],
+    historikk:['ux-vth-filter','ux-vth-liste'],
     bilkort:['ux-bil-kort','ux-bil-helse','ux-bil-kontroll','ux-bil-kstatus','ux-bil-saker','ux-bil-info','ux-bil-verksted','ux-bil-grunnlag'],
     kostnadsoversikt:['ux-kost-kpi','ux-kost-filter','ux-kost-biler','ux-kost-kat','ux-kost-avsetning','ux-kost-hist'],
     service:['ux-sv-status','ux-sv-registrer','ux-sv-hist'],
@@ -17109,7 +17166,7 @@ function uxLayoutNormaliser(liste, side){
   return ut;
 }
 function uxLayoutPageId(side){
-  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil', sjafor:'sjafor', kostnadsoversikt:'kostnader', service:'service', dekk:'dekk', eu:'eu'}[side] || side;
+  return {dashboard:'dashboard', verksted:'verksted', kalender:'kalender', aktivesaker:'aktive-saker', analyse:'analyse', rapporter:'rapporter', bilkort:'kjoretoyprofil', sjafor:'sjafor', kostnadsoversikt:'kostnader', service:'service', dekk:'dekk', eu:'eu', verkstedhistorikk:'verkstedhistorikk', historikk:'verkstedhistorikk'}[side] || side;
 }
 function uxLayoutLes(side){
   const pageId = uxLayoutPageId(side);
@@ -17174,7 +17231,7 @@ function uxLayoutGearHtml(){
   return `${penn}<button type="button" class="p38-iconbtn bp-icon-btn${paa}" id="ux-layout-gear" title="Rediger layout" aria-pressed="${paa ? 'true' : 'false'}">${luc('settings')}</button>`;
 }
 function uxLayoutToppHtml(side){
-  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil', sjafor:'Sjåførkontroll', kostnadsoversikt:'Kostnader', service:'Service', dekk:'Dekk', eu:'EU-kontroll'}[side] || side;
+  const navn = {dashboard:'Dashboard', verksted:'Verksted', kalender:'Kalender', aktivesaker:'Aktive saker', analyse:'Analyse', rapporter:'Rapporter', bilkort:'Kjøretøyprofil', sjafor:'Sjåførkontroll', kostnadsoversikt:'Kostnader', service:'Service', dekk:'Dekk', eu:'EU-kontroll', verkstedhistorikk:'Verkstedhistorikk', historikk:'Verkstedhistorikk'}[side] || side;
   return `<div class="dash-edit-bar">
     <div class="dash-edit-tittel">${luc('settings')} ${esc(navn)} <span class="dash-edit-status">Lagres bare for denne siden</span></div>
     <div class="dash-edit-knapper">
@@ -17209,7 +17266,9 @@ const UX_WIDGET_KATEGORIER = [
   {id:'kontroller', label:'Kontroller', sider:['bilkort']},
   {id:'historikk', label:'Historikk', sider:['bilkort','verksted','kalender']},
   {id:'saker', label:'Saker', sider:['dashboard']},
-  {id:'analyse', label:'Analyse', sider:['dashboard']},
+  {id:'analyse', label:'Analyse', sider:['analyse','dashboard']},
+  {id:'rapporter', label:'Rapporter', sider:['rapporter']},
+  {id:'vthist', label:'Verkstedhistorikk', sider:['verkstedhistorikk','historikk']},
   {id:'sjafor', label:'Sjåførkontroll', sider:['sjafor']},
   {id:'kostnader', label:'Kostnader', sider:['kostnadsoversikt','bilkort']},
   {id:'service', label:'Service', sider:['service','bilkort']},
@@ -17224,7 +17283,9 @@ const UX_WIDGET_I_KATEGORI = {
   kontroller:['ux-bil-grunnlag','ux-bil-kontroll','ux-bil-eu','ux-bil-loftebord'],
   historikk:['ux-aktivitet','ux-bil-historikk','ux-kal-hist','ux-dk-hist','ux-sv-hist','ux-kost-hist','ux-eu-hist'],
   saker:['ux-saker','ux-bil-saker','ux-handling','ux-bil-handling','ux-varsler','ux-bil-neste'],
-  analyse:['ux-kpi','ux-analyse'],
+  analyse:['ux-kpi','ux-analyse','ux-an-gjentakende','ux-an-biler','ux-an-verksted','ux-an-saker','ux-an-tid','ux-an-utvikling'],
+  rapporter:['ux-rp-kontroll','ux-rp-maned','ux-rp-bilpark','ux-rp-service','ux-rp-dekk','ux-rp-kostnad','ux-rp-verksted','ux-rp-kilometerstand','ux-rp-eukontroll','ux-rp-ruteglass','ux-rp-skade','ux-rp-avvik','ux-rp-bilhelse'],
+  vthist:['ux-vth-filter','ux-vth-liste'],
   kalender:['ux-kal-kapasitet','ux-kal-denne','ux-kal-uke','ux-kal-mnd','ux-kal-dag','ux-kal-plan','ux-kal-tid','ux-kal-hist','ux-kal-neste'],
   planlegging:['ux-kal-plan','ux-kal-denne','ux-kal-tid','ux-handling','ux-kal-neste'],
   admin:[],
@@ -17538,6 +17599,8 @@ function attachUxLayoutListeners(){
   document.querySelectorAll('.ux-canvas [data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   document.querySelectorAll('.ux-canvas [data-registrer-vt]').forEach(el => el.addEventListener('click', () => goToRegisterVT(el.dataset.registrerVt)));
   document.querySelectorAll('.ux-canvas [data-goto-analyse]').forEach(el => el.addEventListener('click', () => { if(typeof goToAnalyse === 'function') goToAnalyse(el.dataset.gotoAnalyse); }));
+  document.querySelectorAll('.ux-canvas [data-goto-rapport]').forEach(el => el.addEventListener('click', () => { if(typeof goToRapport === 'function') goToRapport(el.dataset.gotoRapport); }));
+  document.querySelectorAll('.ux-canvas [data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
   if(!uxLayoutModus){
     attachDekkWidgetListeners();
     const historiskBtn = document.getElementById('ny-historisk-service-btn');
@@ -20906,7 +20969,8 @@ function kalSorterDato(a, b, synkende){
   const cmp = da.localeCompare(db) || String(a.tid || '').localeCompare(String(b.tid || ''));
   return synkende ? -cmp : cmp;
 }
-function kalHistGrupperHtml(liste, radHtml){
+function kalHistGrupperHtml(liste, radHtml, flate){
+  flate = flate || 'hist';
   const g = kontrollHistorikkUkegrenser();
   const denne = [], forrige = [];
   const mnd = new Map();
@@ -20923,12 +20987,12 @@ function kalHistGrupperHtml(liste, radHtml){
   denne.sort((a,b) => kalSorterDato(a,b,true));
   forrige.sort((a,b) => kalSorterDato(a,b,true));
   const tilPoster = arr => arr.map(a => ({dato:a.dato, tid:a.tid, html: radHtml(a)}));
-  let html = kalGruppeHtml('hist', 'denne-uken', 'Denne uken', tilPoster(denne), 'denne-uken', 'Ingen hendelser denne uken.');
-  html += kalGruppeHtml('hist', 'forrige-uke', 'Forrige uke', tilPoster(forrige), 'forrige-uke');
+  let html = kalGruppeHtml(flate, 'denne-uken', 'Denne uken', tilPoster(denne), 'denne-uken', 'Ingen hendelser denne uken.');
+  html += kalGruppeHtml(flate, 'forrige-uke', 'Forrige uke', tilPoster(forrige), 'forrige-uke');
   [...mnd.keys()].sort((a,b) => b.localeCompare(a)).forEach(key => {
     const rader = mnd.get(key).sort((a,b) => kalSorterDato(a,b,true));
     const tittel = key === 'ukjent' ? 'Uten dato' : kontrollManedTittel(key + '-01');
-    html += kalGruppeHtml('hist', 'mnd-' + key, tittel, tilPoster(rader), 'mnd');
+    html += kalGruppeHtml(flate, 'mnd-' + key, tittel, tilPoster(rader), 'mnd');
   });
   return html;
 }
@@ -21685,9 +21749,30 @@ function samletVerkstedHistorikkAlle(){
   }));
   return poster.sort((a,b) => (b.dato || '').localeCompare(a.dato || ''));
 }
+function vthErIntern(p){
+  const vsted = String(p.verksted || '').trim().toLowerCase();
+  if(vsted.indexOf('internt') >= 0 || vsted === 'intern' || vsted.indexOf('internt arbeid') >= 0) return true;
+  if((p.kilde === 'Service' || p.kilde === 'Dekkskift') && !vsted) return true;
+  return false;
+}
+function vthTypeTekst(p){
+  if(p.typer && p.typer.length > 1) return p.typer.map(k => VT_TYPE_LABEL[k] || k).join(' + ');
+  return VT_TYPE_LABEL[p.type] || p.type || '';
+}
+const VTH_FANER = [
+  {id:'alle', label:'Alle'},
+  {id:'service', label:'Service'},
+  {id:'dekkskift', label:'Dekkskift'},
+  {id:'reparasjon', label:'Reparasjoner'},
+  {id:'eu-kontroll', label:'EU-kontroll'},
+  {id:'ruteskift', label:'Ruter / Glass'},
+  {id:'intern', label:'Internt arbeid'}
+];
 function samletVerkstedHistorikk(){
   return samletVerkstedHistorikkAlle().filter(p => {
-    if(vtHistFilterType !== 'alle'){
+    if(vtHistFilterType === 'intern'){
+      if(!vthErIntern(p)) return false;
+    } else if(vtHistFilterType !== 'alle'){
       if(Array.isArray(p.typer) && p.typer.length){
         if(!p.typer.includes(vtHistFilterType)) return false;
       } else if(p.type !== vtHistFilterType) return false;
@@ -21698,31 +21783,51 @@ function samletVerkstedHistorikk(){
     return true;
   });
 }
-function renderVerkstedhistorikk(){
-  const poster = samletVerkstedHistorikk();
-  return `
-    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="vth-back">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:16px;">📋 Verkstedhistorikk</h2>
-    <div class="filters-row">
-      <select id="vth-type">
-        ${[['alle','Alle'],['service','Service'],['dekkskift','Dekkskift'],['ruteskift','Ruteskift'],['reparasjon','Reparasjon'],['eu-kontroll','EU-kontroll'],['annet','Annet']].map(([v,l]) => `<option value="${v}" ${vtHistFilterType===v?'selected':''}>${l}</option>`).join('')}
-      </select>
-      <select id="vth-bil"><option value="">Alle biler</option>${vehicleOptions(vtHistFilterBil)}</select>
-      <input id="vth-fra" type="text" data-kind="date" placeholder="Fra dato" value="${vtHistFilterFra ? fmt(vtHistFilterFra) : ''}">
-      <input id="vth-til" type="text" data-kind="date" placeholder="Til dato" value="${vtHistFilterTil ? fmt(vtHistFilterTil) : ''}">
+function uxVthFilterHtml(){
+  return `<section class="ux1-sek">
+    <div class="bp-faner ux1-bil-faner" role="tablist">
+      ${VTH_FANER.map(f => `<button type="button" class="bp-fane ux1-bil-fane${vtHistFilterType===f.id?' is-valgt':''}" data-vth-fane="${f.id}" role="tab" aria-selected="${vtHistFilterType===f.id?'true':'false'}">${esc(f.label)}</button>`).join('')}
     </div>
-    ${poster.length ? `<div class="dmg-list">${poster.map(p => {
-      const v = vehicles.find(x => x.id === p.vehicleId);
-      return `<div class="bp-card panel" style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:600;">${v ? esc(vehicleLabel(v)) : 'Slettet kjøretøy'} · ${esc(p.type)}</div><button type="button" class="bp-btn bp-btn-secondary btn danger-outline small" data-delete-vth="${p.id}">🗑️ Slett</button></div><div class="dmg-meta">${fmt(p.dato)}${p.verksted ? ' · ' + esc(p.verksted) : ''} · ${esc(p.kilde)}</div>${p.tekst ? `<div style="margin-top:6px;">${esc(p.tekst)}</div>` : ''}</div>`;
-    }).join('')}</div>` : '<div class="empty-note">Ingen verkstedhistorikk med valgte filtre.</div>'}
-  `;
+    <div class="filters-row">
+      <select id="vth-bil"><option value="">Alle biler</option>${vehicleOptions(vtHistFilterBil)}</select>
+      <input id="vth-fra" type="text" inputmode="numeric" data-kind="date" placeholder="Fra dato" maxlength="10" value="${vtHistFilterFra ? fmt(vtHistFilterFra) : ''}">
+      <input id="vth-til" type="text" inputmode="numeric" data-kind="date" placeholder="Til dato" maxlength="10" value="${vtHistFilterTil ? fmt(vtHistFilterTil) : ''}">
+    </div>
+  </section>`;
+}
+function vthKortHtml(p){
+  const v = vehicles.find(x => x.id === p.vehicleId);
+  return `<div class="vth-kort">
+    <div class="vth-kort-topp">${kjoretoyIdentBrikkeHtml(v)}<button type="button" class="bp-btn bp-btn-secondary btn danger-outline small" data-delete-vth="${p.id}">${luc('trash-2')} Slett</button></div>
+    <div class="vth-kort-type">${esc(vthTypeTekst(p))}</div>
+    <div class="vth-kort-dato">${fmt(p.dato)}</div>
+    <div class="vth-kort-verksted">${esc(p.verksted || p.kilde || '')}</div>
+    ${p.tekst ? `<div class="dmg-meta" style="margin-top:6px;">${esc(p.tekst)}</div>` : ''}
+  </div>`;
+}
+function uxVthListeHtml(){
+  const poster = samletVerkstedHistorikk();
+  const kropp = poster.length
+    ? kalHistGrupperHtml(poster, vthKortHtml, 'vth')
+    : '<div class="empty-note">Ingen verkstedhistorikk med valgte filtre.</div>';
+  return `<section class="ux1-sek"><h2 class="bp-overline">Historikk</h2>${kropp}</section>`;
+}
+function renderVerkstedhistorikk(){
+  const side = screen === 'historikk' ? 'historikk' : 'verkstedhistorikk';
+  return detaljLayoutHtml(side, 'ux-vth-liste');
 }
 function attachVerkstedhistorikkListeners(){
-  document.getElementById('vth-back').addEventListener('click', () => goBack());
-  document.getElementById('vth-type').addEventListener('change', e => { vtHistFilterType = e.target.value; render(); });
-  document.getElementById('vth-bil').addEventListener('change', e => { vtHistFilterBil = e.target.value; render(); });
-  document.getElementById('vth-fra').addEventListener('change', e => { vtHistFilterFra = readDateInput('vth-fra'); render(); });
-  document.getElementById('vth-til').addEventListener('change', e => { vtHistFilterTil = readDateInput('vth-til'); render(); });
+  const tilbake = document.getElementById('vth-back');
+  if(tilbake) tilbake.addEventListener('click', () => goBack());
+  document.querySelectorAll('[data-vth-fane]').forEach(el => el.addEventListener('click', () => { vtHistFilterType = el.dataset.vthFane; render(); }));
+  const typeSel = document.getElementById('vth-type');
+  if(typeSel) typeSel.addEventListener('change', e => { vtHistFilterType = e.target.value; render(); });
+  const bil = document.getElementById('vth-bil');
+  if(bil) bil.addEventListener('change', e => { vtHistFilterBil = e.target.value; render(); });
+  const fra = document.getElementById('vth-fra');
+  if(fra) fra.addEventListener('change', e => { vtHistFilterFra = readDateInput('vth-fra'); render(); });
+  const til = document.getElementById('vth-til');
+  if(til) til.addEventListener('change', e => { vtHistFilterTil = readDateInput('vth-til'); render(); });
   document.querySelectorAll('[data-delete-vth]').forEach(el => el.addEventListener('click', beskyttKlikk('deleteVth:'+el.dataset.deleteVth, el, () => deleteVerkstedHistorikkPost(el.dataset.deleteVth))));
 }
 // Prioritet 71.5: fullføres en verkstedtime av typen 'service', oppdateres bilen
@@ -22608,9 +22713,10 @@ const KOST_KILDE_LABEL = {
   dekkskift:'Dekkskift', glass:'Glass', service:'Service'
 };
 function kostCardHtml(icon, label, verdi, storFont){
+  const ikon = !icon ? '' : (String(icon).charAt(0) === '<' ? icon : luc(icon));
   return `
     <div class="bp-card panel" style="text-align:center;padding:18px 14px;">
-      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;margin-bottom:8px;">${icon} ${label}</div>
+      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:600;margin-bottom:8px;"><span class="kost-kpi-ikon">${ikon}</span> ${label}</div>
       <div style="font-family:var(--font-sans);font-weight:600;font-size:${storFont ? '26px' : '20px'};">${verdi}</div>
     </div>
   `;
@@ -22622,7 +22728,16 @@ function kostCardHtml(icon, label, verdi, storFont){
 // ingen parallelle datastrukturer, og det operative Dashboardet er urørt.
 const RAPPORT_ORDER = ['kilometerstand', 'service', 'dekk', 'eukontroll', 'ruteglass', 'skade', 'avvik', 'kostnad', 'bilpark', 'verksted', 'bilhelse', 'maned', 'kontroll'];
 const RAPPORT_LABEL = {kilometerstand:'Kilometerstandsrapport', service:'Servicerapport', dekk:'Dekkrapport', eukontroll:'EU-kontrollrapport', ruteglass:'Ruteglassrapport', skade:'Skaderapport', avvik:'Saksrapport', kostnad:'Kostnadsrapport', bilpark:'Bilparkrapport', verksted:'Verkstedrapport', bilhelse:'Bilhelserapport', maned:'Månedsrapport', kontroll:'Kontrollrapport'};
-const RAPPORT_IKON = {kilometerstand:'🚚', service:'🔧', dekk:'🛞', eukontroll:'📅', ruteglass:'💥', skade:'🚨', avvik:'📋', kostnad:'' + luc("circle-dollar-sign") + '', bilpark:'📈', verksted:'🔧', bilhelse:'📊', maned:'📅', kontroll:'✅'};
+const RAPPORT_IKON = {kilometerstand:'gauge', service:'wrench', dekk:'circle-dot', eukontroll:'shield-check', ruteglass:'app-window', skade:'octagon-alert', avvik:'folder-open', kostnad:'circle-dollar-sign', bilpark:'truck', verksted:'factory', bilhelse:'heart-pulse', maned:'calendar', kontroll:'clipboard-check'};
+function uxRapportWidgetHtml(type){
+  if(!RAPPORT_LABEL[type]) return '';
+  const forrige = rapportType, forrigeHode = layoutInnholdUtenHode;
+  rapportType = type; layoutInnholdUtenHode = true;
+  let html = '';
+  try{ html = renderRapporter(); }
+  finally { rapportType = forrige; layoutInnholdUtenHode = forrigeHode; }
+  return `<section class="ux1-sek"><h2 class="bp-overline">${esc(RAPPORT_LABEL[type])}</h2>${html}</section>`;
+}
 const RAPPORT_PERIODE_LABEL = {'':'Alle', 'denne-maned':'Denne måneden', 'forrige-maned':'Forrige måned', 'dette-aret':'Dette året'};
 
 function goToRapport(type){
@@ -23248,21 +23363,21 @@ function rapportFilterPanelHtml(){
   return `
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="row3">
-        <div class="field"><label>📅 Periode</label>
+        <div class="field"><label>Periode</label>
           <select id="rapport-f-periode">
             ${Object.keys(RAPPORT_PERIODE_LABEL).map(p => `<option value="${p}" ${rapportFilterPeriode===p?'selected':''}>${RAPPORT_PERIODE_LABEL[p]}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>🚐 Bil</label>
+        <div class="field"><label>Bil</label>
           <select id="rapport-f-bil">
             <option value="">Alle biler</option>
             ${vehicleOptions(rapportFilterBil)}
           </select>
         </div>
-        <div class="field"><label>📦 Bilgruppe</label>
+        <div class="field"><label>Bilgruppe</label>
           <select id="rapport-f-gruppe">
             <option value="">Alle grupper</option>
-            ${KATEGORI_ORDER.map(k => `<option value="${k}" ${rapportFilterGruppe===k?'selected':''}>${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</option>`).join('')}
+            ${KATEGORI_ORDER.map(k => `<option value="${k}" ${rapportFilterGruppe===k?'selected':''}>${KATEGORI_GROUP_LABEL[k]}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -23275,7 +23390,7 @@ function rapportFilterPanelHtml(){
           </select>
         </div>` : ''}
         ${RAPPORT_HAR_VERKSTED_FILTER[rapportType] ? `
-        <div class="field"><label>🏭 Verksted</label>
+        <div class="field"><label>Verksted</label>
           <select id="rapport-f-verksted">
             <option value="">Alle verksteder</option>
             ${verkstedSelectOptions(rapportFilterVerksted)}
@@ -23286,15 +23401,16 @@ function rapportFilterPanelHtml(){
   `;
 }
 function rapportHeaderHtml(){
+  if(layoutInnholdUtenHode) return '';
   const antallAktiveFiltre = [rapportFilterPeriode, rapportFilterBil, rapportFilterGruppe].filter(Boolean).length + (RAPPORT_STATUS_FILTER_OPTIONS[rapportType] && rapportStatusFilter ? 1 : 0) + (RAPPORT_HAR_VERKSTED_FILTER[rapportType] && rapportFilterVerksted ? 1 : 0);
-  // Prioritet 72: ← Tilbake kun på rapportdetalj (tilbake til hub), ikke på Rapporter-huben.
+  const ikon = rapportType ? luc(RAPPORT_IKON[rapportType] || 'file-text') : luc('bar-chart-3');
   return `
     ${rapportType ? `<div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="rapport-tilbake-btn">← Tilbake</button></div>` : ''}
-    <h2 style="font-size:19px;margin-bottom:16px;">${rapportType ? RAPPORT_IKON[rapportType] + ' ' + RAPPORT_LABEL[rapportType] : '📈 Rapporter'}</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;display:flex;align-items:center;gap:8px;">${ikon} ${rapportType ? RAPPORT_LABEL[rapportType] : 'Rapporter'}</h2>
     ${rapportType ? `
     <div class="toolbar" style="margin-bottom:16px;">
       <button class="bp-btn bp-btn-secondary btn secondary small" id="rapport-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
-      <button class="bp-btn bp-btn-primary btn small" id="rapport-eksport-btn">📤 Eksporter Excel</button>
+      <button class="bp-btn bp-btn-primary btn small" id="rapport-eksport-btn">${luc('download')} Eksporter Excel</button>
     </div>
     ${showRapportFilterMeny ? rapportFilterPanelHtml() : ''}
     ` : ''}
@@ -23503,11 +23619,11 @@ function renderRapporterOversikt(){
     <div class="dash-group-grid">
       ${layoutListeHtml('admin-standard-pages:rapporter', {parts:Object.fromEntries(RAPPORT_ORDER.map(t => ['rapporter.' + t, t === 'maned' ? `
       <div class="bp-card panel dash-group-card" style="cursor:pointer;grid-column:1/-1;" data-goto-rapport="maned">
-        <div class="group-card-title">${RAPPORT_IKON.maned} ${RAPPORT_LABEL.maned}</div>
+        <div class="group-card-title">${luc(RAPPORT_IKON.maned)} ${RAPPORT_LABEL.maned}</div>
         <div class="group-card-sub">Ledelsesversjonen av bilparken — nøkkeltall for én måned samlet</div>
       </div>` : `
       <div class="bp-card panel dash-group-card" style="cursor:pointer;" data-goto-rapport="${t}">
-        <div class="group-card-title">${RAPPORT_IKON[t]} ${RAPPORT_LABEL[t]}</div>
+        <div class="group-card-title">${luc(RAPPORT_IKON[t])} ${RAPPORT_LABEL[t]}</div>
       </div>`]))})}
     </div>
   `;
@@ -23517,9 +23633,9 @@ function renderRapportKontroll(){
   return `
     ${rapportHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('✅', 'Kontroller gjennomført', d.antall, true)}
-      ${kostCardHtml('📊', 'Kontrollgrad', d.kontrollgrad + ' %', true)}
-      ${kostCardHtml('⚪', 'Manglende', d.manglende, true)}
+      ${kostCardHtml('clipboard-check', 'Kontroller gjennomført', d.antall, true)}
+      ${kostCardHtml('bar-chart-3', 'Kontrollgrad', d.kontrollgrad + ' %', true)}
+      ${kostCardHtml('circle', 'Manglende', d.manglende, true)}
     </div>
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">Kontrollgrad per bil</div>
@@ -23549,10 +23665,10 @@ function renderRapportVerksted(){
   return `
     ${rapportHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('🔧', 'Verkstedtimer', d.antall, true)}
-      ${kostCardHtml('✅', 'Fullført', d.fullforte, true)}
-      ${kostCardHtml('📅', 'Kommende', d.kommende, true)}
-      ${kostCardHtml('⏱️', 'Snitt behandlingstid', d.snittBehandlingstid === null ? '–' : d.snittBehandlingstid + ' dager', true)}
+      ${kostCardHtml('wrench', 'Verkstedtimer', d.antall, true)}
+      ${kostCardHtml('check', 'Fullført', d.fullforte, true)}
+      ${kostCardHtml('calendar', 'Kommende', d.kommende, true)}
+      ${kostCardHtml('timer', 'Snitt behandlingstid', d.snittBehandlingstid === null ? '–' : d.snittBehandlingstid + ' dager', true)}
     </div>
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">Per måned</div>
@@ -23573,9 +23689,9 @@ function renderRapportAvvik(){
   return `
     ${rapportHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('🗂️', 'Aktive saker', d.apne, true)}
-      ${kostCardHtml('' + luc("lock") + '', 'Lukkede saker', d.lukkede, true)}
-      ${kostCardHtml('🔴', 'Forfalte oppfølginger', d.forfalte, true)}
+      ${kostCardHtml('folder-open', 'Aktive saker', d.apne, true)}
+      ${kostCardHtml('lock', 'Lukkede saker', d.lukkede, true)}
+      ${kostCardHtml('circle-alert', 'Forfalte oppfølginger', d.forfalte, true)}
     </div>
     <div class="bp-card panel">
       <div class="ov-label" style="margin-bottom:10px;">Fordeling per sakstype</div>
@@ -23606,10 +23722,10 @@ function renderRapportKostnad(){
   return `
     ${rapportHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('🔧', 'Verkstedkostnader', fmtKr(d.verksted), true)}
-      ${kostCardHtml('⚠️', 'Skadekostnader', fmtKr(d.skade), true)}
-      ${kostCardHtml('🛞', 'Dekkostnader', fmtKr(d.dekk), true)}
-      ${kostCardHtml('📁', 'Andre kostnader', fmtKr(d.annet), true)}
+      ${kostCardHtml('wrench', 'Verkstedkostnader', fmtKr(d.verksted), true)}
+      ${kostCardHtml('triangle-alert', 'Skadekostnader', fmtKr(d.skade), true)}
+      ${kostCardHtml('circle-dot', 'Dekkostnader', fmtKr(d.dekk), true)}
+      ${kostCardHtml('folder', 'Andre kostnader', fmtKr(d.annet), true)}
     </div>
     <div class="bp-card panel">
       <div class="ov-label" style="margin-bottom:10px;">Totalt</div>
@@ -23637,7 +23753,6 @@ function renderRapportManed(){
   `;
 }
 function renderRapporter(){
-  if(!rapportType){ const eget = uxLayoutOvertar('rapporter'); if(eget) return eget; }
   if(rapportType === 'kilometerstand') return renderRapportKilometerstand();
   if(rapportType === 'service') return renderRapportService();
   if(rapportType === 'dekk') return renderRapportDekk();
@@ -23651,7 +23766,7 @@ function renderRapporter(){
   if(rapportType === 'bilhelse') return renderRapportBilhelse();
   if(rapportType === 'kostnad') return renderRapportKostnad();
   if(rapportType === 'maned') return renderRapportManed();
-  return renderRapporterOversikt();
+  return detaljLayoutHtml('rapporter', 'ux-rp-kontroll');
 }
 function attachRapporterListeners(){
   // Prioritet 72: tilbake-knappen finnes kun når en rapport er åpen (hub → detalj).
@@ -23659,7 +23774,10 @@ function attachRapporterListeners(){
   if(tilbakeBtn) tilbakeBtn.addEventListener('click', () => {
     rapportType = ''; showRapportFilterMeny = false; render();
   });
-  document.querySelectorAll('[data-goto-rapport]').forEach(el => el.addEventListener('click', () => goToRapport(el.dataset.gotoRapport)));
+  document.querySelectorAll('[data-goto-rapport]').forEach(el => {
+    if(el.closest('.ux-canvas')) return;
+    el.addEventListener('click', () => goToRapport(el.dataset.gotoRapport));
+  });
   const filterToggleBtn = document.getElementById('rapport-filter-toggle-btn');
   if(filterToggleBtn) filterToggleBtn.addEventListener('click', () => { showRapportFilterMeny = !showRapportFilterMeny; render(); });
   const eksportBtn = document.getElementById('rapport-eksport-btn');
@@ -23674,7 +23792,10 @@ function attachRapporterListeners(){
   if(fStatus) fStatus.addEventListener('change', e => { rapportStatusFilter = e.target.value; render(); });
   const fVerksted = document.getElementById('rapport-f-verksted');
   if(fVerksted) fVerksted.addEventListener('change', e => { rapportFilterVerksted = e.target.value; render(); });
-  document.querySelectorAll('[data-goto-bilkort]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort)));
+  document.querySelectorAll('[data-goto-bilkort]').forEach(el => {
+    if(el.closest('.ux-canvas')) return;
+    el.addEventListener('click', () => goTo('bilkort', el.dataset.gotoBilkort));
+  });
 }
 
 // ================= scrAnalyse (Fase 9 — Analyse og Prediktiv Oppfølging) =================
@@ -23683,7 +23804,22 @@ function attachRapporterListeners(){
 // eller rangerer ALDRI ansatte/sjåfører. Kun kjøretøy og saker telles og grupperes.
 const ANALYSE_ORDER = ['gjentakende', 'bilanalyse', 'verkstedtrender', 'sakstyper', 'behandlingstid', 'utvikling'];
 const ANALYSE_LABEL = {gjentakende:'Gjentakende feil', bilanalyse:'Biler med flest saker', verkstedtrender:'Verkstedtrender', sakstyper:'Saker per kategori', behandlingstid:'Gjennomsnittlig behandlingstid', utvikling:'Utvikling siste 12 måneder'};
-const ANALYSE_IKON = {gjentakende:'🚨', bilanalyse:'🚗', verkstedtrender:'🔧', sakstyper:'📋', behandlingstid:'🕒', utvikling:'📈'};
+const ANALYSE_IKON = {gjentakende:'repeat', bilanalyse:'truck', verkstedtrender:'factory', sakstyper:'layers', behandlingstid:'timer', utvikling:'line-chart'};
+function uxAnalyseWidgetHtml(type){
+  if(!ANALYSE_LABEL[type]) return '';
+  const forrige = analyseType, forrigeHode = layoutInnholdUtenHode;
+  analyseType = type; layoutInnholdUtenHode = true;
+  let html = '';
+  try{
+    if(type === 'gjentakende') html = renderAnalyseGjentakende();
+    else if(type === 'bilanalyse') html = renderAnalyseBilanalyse();
+    else if(type === 'verkstedtrender') html = renderAnalyseVerkstedtrender();
+    else if(type === 'sakstyper') html = renderAnalyseSakstyper();
+    else if(type === 'behandlingstid') html = renderAnalyseBehandlingstid();
+    else if(type === 'utvikling') html = renderAnalyseUtvikling();
+  } finally { analyseType = forrige; layoutInnholdUtenHode = forrigeHode; }
+  return `<section class="ux1-sek"><h2 class="bp-overline">${esc(ANALYSE_LABEL[type])}</h2>${html}</section>`;
+}
 const MANED_LABEL = {'01':'Januar','02':'Februar','03':'Mars','04':'April','05':'Mai','06':'Juni','07':'Juli','08':'August','09':'September','10':'Oktober','11':'November','12':'Desember'};
 
 function goToAnalyse(type){
@@ -23801,24 +23937,24 @@ function analyseFilterPanelHtml(){
   return `
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="row2">
-        <div class="field"><label>🚐 Bil</label>
+        <div class="field"><label>Bil</label>
           <select id="analyse-f-bil"><option value="">Alle biler</option>${vehicleOptions(analyseFilterBil)}</select>
         </div>
-        <div class="field"><label>📦 Bilgruppe</label>
+        <div class="field"><label>Bilgruppe</label>
           <select id="analyse-f-gruppe">
             <option value="">Alle grupper</option>
-            ${KATEGORI_ORDER.map(k => `<option value="${k}" ${analyseFilterGruppe===k?'selected':''}>${GRUPPE_IKON[k]} ${KATEGORI_GROUP_LABEL[k]}</option>`).join('')}
+            ${KATEGORI_ORDER.map(k => `<option value="${k}" ${analyseFilterGruppe===k?'selected':''}>${KATEGORI_GROUP_LABEL[k]}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>📅 Måned</label>
+        <div class="field"><label>Måned</label>
           <select id="analyse-f-maned">
             <option value="">Alle måneder</option>
             ${Object.keys(MANED_LABEL).map(m => `<option value="${m}" ${analyseFilterManed===m?'selected':''}>${MANED_LABEL[m]}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>📆 År</label>
+        <div class="field"><label>År</label>
           <select id="analyse-f-ar">
             <option value="">Alle år</option>
             ${analyseArISystemet().map(a => `<option value="${a}" ${analyseFilterAr===a?'selected':''}>${a}</option>`).join('')}
@@ -23826,13 +23962,13 @@ function analyseFilterPanelHtml(){
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>📁 Sakstype</label>
+        <div class="field"><label>Sakstype</label>
           <select id="analyse-f-type">
             <option value="">Alle sakstyper</option>
-            ${SAK_TYPE_ORDER.map(t => `<option value="${t}" ${analyseFilterType===t?'selected':''}>${SAK_TYPE_IKON[t]} ${SAK_TYPE_LABEL[t]}</option>`).join('')}
+            ${SAK_TYPE_ORDER.map(t => `<option value="${t}" ${analyseFilterType===t?'selected':''}>${SAK_TYPE_LABEL[t]}</option>`).join('')}
           </select>
         </div>
-        <div class="field"><label>📋 Status</label>
+        <div class="field"><label>Status</label>
           <select id="analyse-f-status">
             <option value="">Alle</option>
             <option value="apen" ${analyseFilterStatus==='apen'?'selected':''}>Åpne</option>
@@ -23844,14 +23980,16 @@ function analyseFilterPanelHtml(){
   `;
 }
 function analyseHeaderHtml(){
+  if(layoutInnholdUtenHode) return '';
   const antallAktiveFiltre = [analyseFilterBil, analyseFilterGruppe, analyseFilterManed, analyseFilterAr, analyseFilterType, analyseFilterStatus].filter(Boolean).length;
+  const ikon = analyseType ? luc(ANALYSE_IKON[analyseType] || 'chart-column') : luc('chart-column');
   return `
     <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="analyse-tilbake-btn">← Tilbake</button></div>
-    <h2 style="font-size:19px;margin-bottom:16px;">${analyseType ? ANALYSE_IKON[analyseType] + ' ' + ANALYSE_LABEL[analyseType] : '🔍 Analyse'}</h2>
+    <h2 style="font-size:19px;margin-bottom:16px;display:flex;align-items:center;gap:8px;">${ikon} ${analyseType ? ANALYSE_LABEL[analyseType] : 'Analyse'}</h2>
     ${analyseType ? `
     <div class="toolbar" style="margin-bottom:16px;">
       <button class="bp-btn bp-btn-secondary btn secondary small" id="analyse-filter-toggle-btn">${luc('chevron-down')} Filtrer${antallAktiveFiltre > 0 ? ` (${antallAktiveFiltre})` : ''}</button>
-      <button class="bp-btn bp-btn-primary btn small" id="analyse-eksport-btn">📤 Eksporter Excel</button>
+      <button class="bp-btn bp-btn-primary btn small" id="analyse-eksport-btn">${luc('download')} Eksporter Excel</button>
     </div>
     ${showAnalyseFilterMeny ? analyseFilterPanelHtml() : ''}
     ` : ''}
@@ -23903,7 +24041,7 @@ function renderAnalyseOversikt(){
     <div class="dash-group-grid">
       ${layoutListeHtml('admin-standard-pages:analyse', {parts:Object.fromEntries(ANALYSE_ORDER.map(t => ['analyse.' + t, `
       <div class="bp-card panel dash-group-card" style="cursor:pointer;" data-goto-analyse="${t}">
-        <div class="group-card-title">${ANALYSE_IKON[t]} ${ANALYSE_LABEL[t]}</div>
+        <div class="group-card-title">${luc(ANALYSE_IKON[t])} ${ANALYSE_LABEL[t]}</div>
       </div>`]))})}
     </div>
   `;
@@ -23945,8 +24083,8 @@ function renderAnalyseVerkstedtrender(){
   return `
     ${analyseHeaderHtml()}
     <div class="dash-group-grid" style="margin-bottom:16px;">
-      ${kostCardHtml('' + luc("arrow-right") + '', 'Snitt sak → verksted bestilt', d.snittTilVerksted===null?'–':d.snittTilVerksted+' dager', true)}
-      ${kostCardHtml('' + luc("lock") + '', 'Snitt sak → lukket', d.snittTilLukket===null?'–':d.snittTilLukket+' dager', true)}
+      ${kostCardHtml('arrow-right', 'Snitt sak → verksted bestilt', d.snittTilVerksted===null?'–':d.snittTilVerksted+' dager', true)}
+      ${kostCardHtml('lock', 'Snitt sak → lukket', d.snittTilLukket===null?'–':d.snittTilLukket+' dager', true)}
     </div>
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="ov-label" style="margin-bottom:10px;">Verkstedtimer per måned</div>
@@ -23965,7 +24103,7 @@ function renderAnalyseSakstyper(){
     <div class="bp-card panel">
       <div class="ov-label" style="margin-bottom:10px;">Fordeling av sakstyper (${d.total} saker)</div>
       ${d.total === 0 ? `<div class="empty-note">Ingen saker registrert med gjeldende filter.</div>` : `
-      <div class="ov-grid">${SAK_TYPE_ORDER.map(t => analyseTabellRad(SAK_TYPE_IKON[t] + ' ' + SAK_TYPE_LABEL[t], d.prosent[t] + ' % (' + d.perType[t] + ')')).join('')}</div>`}
+      <div class="ov-grid">${SAK_TYPE_ORDER.map(t => analyseTabellRad(SAK_TYPE_LABEL[t], d.prosent[t] + ' % (' + d.perType[t] + ')')).join('')}</div>`}
     </div>
   `;
 }
@@ -23974,10 +24112,10 @@ function renderAnalyseBehandlingstid(){
   return `
     ${analyseHeaderHtml()}
     <div class="dash-group-grid">
-      ${kostCardHtml('📊', 'Gjennomsnitt', d.snitt===null?'–':d.snitt+' dager', true)}
-      ${kostCardHtml('⚡', 'Korteste', d.korteste===null?'–':d.korteste+' dager', true)}
-      ${kostCardHtml('🐢', 'Lengste', d.lengste===null?'–':d.lengste+' dager', true)}
-      ${kostCardHtml('' + luc("lock") + '', 'Lukkede saker', d.antall, true)}
+      ${kostCardHtml('bar-chart-3', 'Gjennomsnitt', d.snitt===null?'–':d.snitt+' dager', true)}
+      ${kostCardHtml('chevrons-down', 'Korteste', d.korteste===null?'–':d.korteste+' dager', true)}
+      ${kostCardHtml('chevrons-up', 'Lengste', d.lengste===null?'–':d.lengste+' dager', true)}
+      ${kostCardHtml('lock', 'Lukkede saker', d.antall, true)}
     </div>
   `;
 }
@@ -23991,22 +24129,21 @@ function renderAnalyseUtvikling(){
         ${d.map(r => `
         <div class="ov-item" style="padding:8px 0;border-bottom:1px solid var(--border);">
           <span class="ov-label">${r.maned}</span>
-          <span class="ov-value" style="font-size:12.5px;font-weight:600;">🆕 ${r.nye} · 🔒 ${r.lukkede} · 🔧 ${r.verksted}</span>
+          <span class="ov-value" style="font-size:12.5px;font-weight:600;">${luc('plus')} ${r.nye} · ${luc('lock')} ${r.lukkede} · ${luc('wrench')} ${r.verksted}</span>
         </div>`).join('')}
       </div>
-      <div class="required-hint" style="margin-top:10px;">🆕 Nye saker · 🔒 Lukkede saker · 🔧 Verkstedtimer</div>
+      <div class="required-hint" style="margin-top:10px;">${luc('plus')} Nye saker · ${luc('lock')} Lukkede saker · ${luc('wrench')} Verkstedtimer</div>
     </div>
   `;
 }
 function renderAnalyse(){
-  if(!analyseType){ const eget = uxLayoutOvertar('analyse'); if(eget) return eget; }
   if(analyseType === 'gjentakende') return renderAnalyseGjentakende();
   if(analyseType === 'bilanalyse') return renderAnalyseBilanalyse();
   if(analyseType === 'verkstedtrender') return renderAnalyseVerkstedtrender();
   if(analyseType === 'sakstyper') return renderAnalyseSakstyper();
   if(analyseType === 'behandlingstid') return renderAnalyseBehandlingstid();
   if(analyseType === 'utvikling') return renderAnalyseUtvikling();
-  return renderAnalyseOversikt();
+  return detaljLayoutHtml('analyse', 'ux-an-gjentakende');
 }
 function attachAnalyseListeners(){
   const tilbakeBtn = document.getElementById('analyse-tilbake-btn');
@@ -24014,7 +24151,10 @@ function attachAnalyseListeners(){
     if(analyseType){ analyseType = ''; showAnalyseFilterMeny = false; render(); }
     else goBack();
   });
-  document.querySelectorAll('[data-goto-analyse]').forEach(el => el.addEventListener('click', () => goToAnalyse(el.dataset.gotoAnalyse)));
+  document.querySelectorAll('[data-goto-analyse]').forEach(el => {
+    if(el.closest('.ux-canvas')) return;
+    el.addEventListener('click', () => goToAnalyse(el.dataset.gotoAnalyse));
+  });
   const filterToggleBtn = document.getElementById('analyse-filter-toggle-btn');
   if(filterToggleBtn) filterToggleBtn.addEventListener('click', () => { showAnalyseFilterMeny = !showAnalyseFilterMeny; render(); });
   const eksportBtn = document.getElementById('analyse-eksport-btn');
@@ -24031,7 +24171,10 @@ function attachAnalyseListeners(){
   if(fType) fType.addEventListener('change', e => { analyseFilterType = e.target.value; render(); });
   const fStatus = document.getElementById('analyse-f-status');
   if(fStatus) fStatus.addEventListener('change', e => { analyseFilterStatus = e.target.value; render(); });
-  document.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
+  document.querySelectorAll('[data-goto-sak]').forEach(el => {
+    if(el.closest('.ux-canvas')) return;
+    el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); });
+  });
 }
 
 // ================= scrInnstillinger =================
@@ -24047,12 +24190,12 @@ function toggleSettingsSection(key){
   if(key === 'optimaliseringer' && settingsOpenSections.has(key)) skAdminLast();
   render();
 }
-function settingsAccordionRow(key, title, count, bodyHtml){
+function settingsAccordionRow(key, title, count, bodyHtml, ikon){
   const open = settingsOpenSections.has(key);
   return `
     <div class="acc-row ${open ? 'expanded' : ''}">
       <div class="acc-head" data-toggle-settings="${key}">
-        <div class="acc-head-left"><div class="flag-name">${esc(title)}</div></div>
+        <div class="acc-head-left">${ikon ? `<span class="acc-ikon">${luc(ikon)}</span>` : ''}<div class="flag-name">${esc(title)}</div></div>
         <div class="acc-head-right">
           ${count !== null ? `<span class="group-count">${count}</span>` : ''}
           <span class="chevron">${luc('chevron-down')}</span>
@@ -25413,7 +25556,7 @@ function renderInnstillinger(){
               <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-cancel-password="${u.id}">Avbryt</button>
             </div>
           </div>` : ''}
-          <button class="bp-btn bp-btn-secondary btn secondary small" data-save-admin-user="${u.id}" style="align-self:flex-start;">✏️ Lagre endringer</button>
+          <button class="bp-btn bp-btn-secondary btn secondary small" data-save-admin-user="${u.id}" style="align-self:flex-start;">${luc('save')} Lagre endringer</button>
         </div>
       `).join('')}
     </div>
@@ -25451,8 +25594,8 @@ function renderInnstillinger(){
           ` : `
             <span>${esc(w.navn)}</span>
             <div style="display:flex;gap:8px;">
-              <button class="bp-btn bp-btn-secondary btn secondary small" data-edit-verksted="${w.id}">✏️ Rediger</button>
-              <button class="bp-btn bp-btn-secondary btn danger-outline small" data-del-verksted="${w.id}">🗑️ Slett</button>
+              <button class="bp-btn bp-btn-secondary btn secondary small" data-edit-verksted="${w.id}">${luc('pencil')} Rediger</button>
+              <button class="bp-btn bp-btn-secondary btn danger-outline small" data-del-verksted="${w.id}">${luc('trash-2')} Slett</button>
             </div>
           `}
         </div>
@@ -25485,11 +25628,11 @@ function renderInnstillinger(){
       Kategoriene bilparken grupperes etter i Biloversikt, og som ligger i alle
       kategori-nedtrekkslister og rapportfiltre. Rekkefølgen her er rekkefølgen de vises i.
       <br><br>
-      🚫 <strong>Kan ikke brukes</strong> er systemstyrt og vises ikke her: en bil satt til
+      ${luc('ban')} <strong>Kan ikke brukes</strong> er systemstyrt og vises ikke her: en bil satt til
       «Kan ikke brukes» flyttes automatisk dit, og faller like automatisk tilbake til sin egen
       kategori når den settes i drift igjen. Kategorien under beholdes hele tiden.
       <br><br>
-      🔄 <strong>Reserve</strong> har i tillegg en operativ regel: en reservebil krever ikke
+      ${luc('refresh-cw')} <strong>Reserve</strong> har i tillegg en operativ regel: en reservebil krever ikke
       daglig kontroll før den faktisk tas i bruk. Navnet kan endres fritt, men sletter du
       kategorien forsvinner den regelen.
     </div>
@@ -25512,12 +25655,12 @@ function renderInnstillinger(){
               <button class="bp-btn bp-btn-secondary btn secondary small" data-cancel-kategori="${k.id}">Avbryt</button>
             </div>
           ` : `
-            <span>${k.ikon || '🚐'} <strong>${esc(k.navn)}</strong> <span class="required-hint" style="margin-left:6px;">${antall} ${antall===1?'bil':'biler'}</span></span>
+            <span>${luc(kategoriLucide(k.id))} <strong>${esc(k.navn)}</strong> <span class="required-hint" style="margin-left:6px;">${antall} ${antall===1?'bil':'biler'}</span></span>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="bp-btn bp-btn-secondary btn secondary small" data-flytt-kategori-opp="${k.id}" ${i === 0 ? 'disabled' : ''}>↑</button>
               <button class="bp-btn bp-btn-secondary btn secondary small" data-flytt-kategori-ned="${k.id}" ${i === bilkategorier.length - 1 ? 'disabled' : ''}>↓</button>
-              <button class="bp-btn bp-btn-secondary btn secondary small" data-edit-kategori="${k.id}">✏️ Rediger</button>
-              <button class="bp-btn bp-btn-secondary btn danger-outline small" data-del-kategori="${k.id}">🗑️ Slett</button>
+              <button class="bp-btn bp-btn-secondary btn secondary small" data-edit-kategori="${k.id}">${luc('pencil')} Rediger</button>
+              <button class="bp-btn bp-btn-secondary btn danger-outline small" data-del-kategori="${k.id}">${luc('trash-2')} Slett</button>
             </div>
           `}
         </div>`;
@@ -25645,7 +25788,7 @@ function renderInnstillinger(){
       <span class="required-hint" id="copy-driver-link-msg" style="margin-left:8px;"></span>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:18px;margin-top:18px;">
-      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);margin-bottom:10px;">📞 Ringeliste</h4>
+      <h4 style="font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;">${luc('phone')} Ringeliste</h4>
       <div class="required-hint" style="margin-bottom:14px;">
         Samme gruppering som sjåførenes Ringeliste-skjerm — kjøretøy (etter kategori), ledelse
         og de faste kontaktene Home Delivery/Veihjelp. Telefonnummer på kjøretøy lagres
@@ -25653,12 +25796,12 @@ function renderInnstillinger(){
         påvirker ikke kjøretøyregisteret.
       </div>
       ${ringelisteAdminMsg ? `<div class="form-msg" style="margin-bottom:10px;">${esc(ringelisteAdminMsg)}</div>` : ''}
-      ${settingsAccordionRow('ringeliste-hd', '🚚 Home Delivery', null, ringelisteKontaktEditHtml('homeDelivery'))}
-      ${settingsAccordionRow('ringeliste-vh', '🛟 Veihjelp', null, ringelisteKontaktEditHtml('veihjelp'))}
-      ${settingsAccordionRow('ringeliste-ledelse', '👔 Ledelse', ringelisteEkstra.ledelse.length, ringelisteLedelseEditHtml())}
+      ${settingsAccordionRow('ringeliste-hd', 'Home Delivery', null, ringelisteKontaktEditHtml('homeDelivery'), 'truck')}
+      ${settingsAccordionRow('ringeliste-vh', 'Veihjelp', null, ringelisteKontaktEditHtml('veihjelp'), 'life-buoy')}
+      ${settingsAccordionRow('ringeliste-ledelse', 'Ledelse', ringelisteEkstra.ledelse.length, ringelisteLedelseEditHtml(), 'briefcase')}
       ${bilkategorier.filter(k => vehicles.some(v => v.kategori === k.id)).map(k =>
-        settingsAccordionRow('ringeliste-kat-' + k.id, (k.ikon || '🚐') + ' ' + k.navn, vehicles.filter(v => v.kategori === k.id).length,
-          ringelisteVehicleGroupEditHtml(sortedVehicles(vehicles.filter(v => v.kategori === k.id))))
+        settingsAccordionRow('ringeliste-kat-' + k.id, k.navn, vehicles.filter(v => v.kategori === k.id).length,
+          ringelisteVehicleGroupEditHtml(sortedVehicles(vehicles.filter(v => v.kategori === k.id))), kategoriLucide(k.id))
       ).join('')}
     </div>
   `;
@@ -25667,8 +25810,8 @@ function renderInnstillinger(){
   // (tidligere to separate topplinje-seksjoner) som EN nestet dropdown-gruppe. Samme
   // settingsAccordionRow()-funksjon gjenbrukt rekursivt — ingen ny akkordion-mekanisme.
   const registerBody = `
-    ${settingsAccordionRow('kategorier', '⚙️ Administrer bilkategorier', bilkategorier.length, kategoriBody)}
-    ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody)}
+    ${settingsAccordionRow('kategorier', 'Administrer bilkategorier', bilkategorier.length, kategoriBody, 'tags')}
+    ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody, 'factory')}
   `;
 
   // ⚙️ Systeminnstillinger (Prioritet 64): Oppdater app / Database status / Systemkontroll
@@ -25676,22 +25819,22 @@ function renderInnstillinger(){
   // enhetsvisning og nullstill.
   const operativGrunnlagBody = settingsOpenSections.has('operativgrunnlag') ? operativGrunnlagBodyHtml() : '';
   const systemBody = `
-    ${settingsAccordionRow('operativgrunnlag', '🎯 Operativ kontrollgrunnlag', operativGrunnlagStatus === 'ok' ? operativGrunnlagBiler().length : null, operativGrunnlagBody)}
-    ${settingsAccordionRow('admin', '👤 Administratorbrukere', adminUsers.length, adminBody)}
-    ${settingsAccordionRow('veileder', '📘 Informasjonsveileder', null, veilederBody)}
-    ${settingsAccordionRow('enhetsvisning', '📱🖥️ Enhetsvisning', null, enhetsvisningBody)}
-    ${settingsAccordionRow('nullstill', '🗑️ Nullstill bilparkdata', null, nullstillBody)}
+    ${settingsAccordionRow('operativgrunnlag', 'Operativ kontrollgrunnlag', operativGrunnlagStatus === 'ok' ? operativGrunnlagBiler().length : null, operativGrunnlagBody, 'target')}
+    ${settingsAccordionRow('admin', 'Administratorbrukere', adminUsers.length, adminBody, 'user-round')}
+    ${settingsAccordionRow('veileder', 'Informasjonsveileder', null, veilederBody, 'book-open')}
+    ${settingsAccordionRow('enhetsvisning', 'Enhetsvisning', null, enhetsvisningBody, 'monitor-smartphone')}
+    ${settingsAccordionRow('nullstill', 'Nullstill bilparkdata', null, nullstillBody, 'trash-2')}
   `;
 
   return `
     <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="innstillinger-back">← Tilbake</button></div>
     <div class="acc-list">
       ${layoutListeHtml('admin-standard-pages:innstillinger', {parts:{
-        'innstillinger.register': settingsAccordionRow('register', '📦 Register', null, registerBody),
-        'innstillinger.tema': settingsAccordionRow('tema', 'Tema', null, temaBody),
-        'innstillinger.sjaforside': settingsAccordionRow('sjaforside', '👤 Sjåførside', null, sjaforsideBody),
-        'innstillinger.optimaliseringer': settingsAccordionRow('optimaliseringer', '🔄 Optimaliseringer', null, settingsOpenSections.has('optimaliseringer') ? optimaliseringerBodyHtml() : ''),
-        'innstillinger.system': settingsAccordionRow('system', '⚙️ Systeminnstillinger', null, systemBody)
+        'innstillinger.register': settingsAccordionRow('register', 'Register', null, registerBody, 'package'),
+        'innstillinger.tema': settingsAccordionRow('tema', 'Tema', null, temaBody, 'palette'),
+        'innstillinger.sjaforside': settingsAccordionRow('sjaforside', 'Sjåførside', null, sjaforsideBody, 'user-round'),
+        'innstillinger.optimaliseringer': settingsAccordionRow('optimaliseringer', 'Optimaliseringer', null, settingsOpenSections.has('optimaliseringer') ? optimaliseringerBodyHtml() : '', 'refresh-cw'),
+        'innstillinger.system': settingsAccordionRow('system', 'Systeminnstillinger', null, systemBody, 'settings')
       }})}
     </div>
   `;
