@@ -1,5 +1,15 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-15 (Kjøretøyregister og serviceflyt, appversjon 194, `storage.airtable.js` v2.28.0).
+
+## 2026-10-15 — Kjøretøyregister og serviceflyt
+
+**Levert.** Kjøretøyregister under Innstillinger → Register. Servicehistorikk kan registreres, redigeres og slettes. Verksted «Arbeid utført» med Service oppdaterer servicehistorikk idempotent, uten å skrive `v.km`.
+
+**Testet.** Kodegjennomgang av register, `sikreServicehistorikkFraVerksted` og at `fullforVerkstedbestillinger` ikke lenger lager servicepost fra `v.km`. Ikke kjørt full manuell UI-pass mot live Airtable i denne økten.
+
+**Gjenstår.** Manuell ende-til-ende: Bestill service → Kalender → Arbeid utført → Servicehistorikk → Servicestatus. Registrer manglende historikk på allerede utført ordre. Sletting av service og kontroll av siste service.
+
 Sist oppdatert: 2026-10-15 (Operativt bilgrunnlag etter fanerefaktorering, appversjon 193, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-15 — Operativt datagrunnlag i biloversikt

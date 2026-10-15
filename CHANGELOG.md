@@ -15,6 +15,18 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ## 2026-10-15
 
+### Kjøretøyregister og serviceflyt
+
+Innstillinger → Register → Kjøretøy er administrasjon av hele flåten (søk, filter, ny/rediger/status/slett). Biler-siden er uendret som operativ visning. Fanekomponenten og operative filtre er ikke rørt. Like registreringsnumre merkes som mulig dublett uten merge. Sletting krever «kan ikke brukes» og blokkeres av aktive saker, åpne verkstedtimer, service-/dekk-/kostnads- og kontrollhistorikk — historikk slettes ikke stille.
+
+Service-siden: tidligere service, rediger og slett. Historisk km skriver ikke til `v.km`. Kostnad oppdateres på eksisterende post. «Arbeid utført» på verkstedordre med Service åpner servicemodal, deretter eksisterende kostnadsspørsmål, og upsert-er én servicehistorikkpost via `fraVerkstedtimeId` / `sh-vt-{vtId}`. EU og reparasjon på samme ordre følger eksisterende etterbehandling. Manglende historikk på allerede utført service vises med manuell registrering. Feilet servicehistorikk ruller ikke tilbake verkstedutført; retry er idempotent.
+
+**Versjon.** App-/cacheversjon 193 → **194**. `storage.airtable.js` uendret. `kontroll.html` = `index.html`. Ekte Airtable/ende-til-ende i nettleser er ikke verifisert i denne økten.
+
+---
+
+## 2026-10-15
+
 ### Biloversikt: operativt datagrunnlag etter fanerefaktorering
 
 Ekstra/tilsynelatende dupliserte biler og den store «Ikke satt»-gruppen var en visningsregresjon, ikke en ny dublettmotor og ikke sletting/migrering av Vehicles. Den globale fanekomponenten (`bpFanerHtml`) oppretter, kopierer eller normaliserer ikke kjøretøy.

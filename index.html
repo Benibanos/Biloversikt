@@ -2700,6 +2700,16 @@ section[aria-labelledby="ux1-biler"] .bp-vrow{padding:2px 0;}
   .is-valgt > .lucide-ic,.active > .lucide-ic{opacity:1;color:var(--accent);}
   .bp-fane + .bp-fane,.ux1-bil-fane + .ux1-bil-fane,.reg-ny-anker .bp-fane{box-shadow:none;}
   .ux-bib-panel .bp-faner{margin:0 0 6px;}
+  .kr-verktoy{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;}
+  .kr-verktoy .reg-sok{min-width:180px;flex:1 1 220px;}
+  .kr-filtre{display:flex;flex-wrap:wrap;gap:6px;}
+  .kr-filtre button{min-height:32px;padding:4px 10px;font-size:12px;}
+  .kr-tabell{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--border);}
+  .kr-rad{display:grid;grid-template-columns:minmax(72px,1.1fr) minmax(70px,.9fr) minmax(64px,.8fr) minmax(70px,.9fr) 36px;gap:8px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);font-size:13px;}
+  .kr-rad-navn{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kr-rad-meta{color:var(--ink-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kr-dublett{display:inline-flex;align-items:center;gap:4px;color:var(--warning);font-size:11px;font-weight:600;}
+  .kr-meny{position:relative;}
   @media (max-width:640px){
     .bp-faner,.ux1-bil-faner,.profil-tabs,.profil-tabs.bp-seg,.bp-seg,.p38-tabs,.navtabs{flex-wrap:nowrap;overflow-x:auto;}
     .ux1-bil-fane,.bp-fane,.profil-tab,.bp-seg-btn,.navtab{flex:none;padding:6px 10px;}
@@ -3103,6 +3113,12 @@ let kostFilterLeverandor = '';
 let kostFilterKategori = '';
 let kostHistVisAlle = false;
 let detaljModal = null;
+let kjoretoyRegSok = '';
+let kjoretoyRegFilter = 'alle';
+let kjoretoyRegMenyId = '';
+let kjoretoyRegNyApen = false;
+let vtServiceUtkast = null;
+let servicehistorikkFeilVtId = '';
 let svHistApenId = '';
 let dkHistApenId = '';
 let kostHistApenId = '';
@@ -3142,7 +3158,8 @@ function formInProgress(){
   // å beskytte — der får synken tegne på nytt, slik at f.eks. en endret verkstedtime dukker opp
   // uten at sjåføren må trykke seg videre. Alle andre sjåførskjermer er uendret beskyttet.
   if(screen === 'kontroll' && !(driverMode && driverScreen === 'min-bil' && !minBilAksjon)) return true;
-  if(showAddVehicleForm) return true;
+  if(showAddVehicleForm || kjoretoyRegNyApen) return true;
+  if(detaljModal) return true;
   if(showAddSkade || editingDamageId) return true;
   if(showAddVT || editingVTId) return true;
   if(editingVerkstedId) return true;
@@ -5477,7 +5494,7 @@ applyTheme(); // sett et fornuftig tema med det samme, før lagret valg er hente
 // Sesjonen holdes kun i minnet (ingen sessionStorage) — å laste siden på nytt
 // logger administratoren ut igjen, siden det ikke finnes noe sted å huske
 // innlogging uten lokal lagring av noe slag.
-const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','eu','loftebord','kalender','bestill','kommentaroversikt','kontrollhistorikk'];
+const ADMIN_SCREENS = ['allesider','layouteditor','dashboard','register','bilkort','skader','verksted','verkstedhistorikk','innstillinger','kjoretoyregister','varsler','dekkoversikt','kontrolloversikt','kostnadsoversikt','aktivesaker','rapporter','analyse','historikk','service','dekk','eu','loftebord','kalender','bestill','kommentaroversikt','kontrollhistorikk'];
 let adminUsers = []; // speiler Airtable-tabellen "Users"
 let loggedInRole = null; // null | rollenavnet til den innloggede administratoren
 let loginFormError = '';
@@ -7550,6 +7567,11 @@ function lukkKostnadFlyt(){
 }
 async function fullforSakEtterKostnad(){
   const f = kostnadFlyt;
+  if(f && f.modus === 'service-utfort'){
+    kostnadFlyt = null;
+    await utforFullforVerkstedbestillinger((vtServiceUtkast && vtServiceUtkast.restIds) || [f.vtId]);
+    return;
+  }
   if(!f || !f.sakId){ lukkKostnadFlyt(); return; }
   const sakId = f.sakId;
   const modus = f.modus;
@@ -7590,6 +7612,12 @@ async function lagreArbeidKostnadFraSkjema(){
   const leverandor = ((document.getElementById('kost-arbeid-leverandor') || {}).value || '').trim();
   const kommentar = ((document.getElementById('kost-arbeid-kommentar') || {}).value || '').trim();
   if(!Number.isFinite(belop) || belop < 0){ alert('Registrer pris eks. mva.'); return; }
+  if(f.modus === 'service-utfort'){
+    if(vtServiceUtkast){ vtServiceUtkast.belop = belop; vtServiceUtkast.leverandor = leverandor; vtServiceUtkast.kostKommentar = kommentar; }
+    kostnadFlyt = null;
+    await utforFullforVerkstedbestillinger((vtServiceUtkast && vtServiceUtkast.restIds) || [f.vtId]);
+    return;
+  }
   const intern = f.modus === 'utbedret-uten-verksted';
   const post = opprettKostnadspost({
     vehicleId: f.vehicleId, dato: todayISO(),
@@ -7961,6 +7989,66 @@ function detaljModalHtml(){
       <div class="panel-actions"><button type="button" class="bp-btn bp-btn-primary btn" id="ed-lagre">Lagre</button></div>
     </div></div>`;
   }
+  if(m.type === 'service-utfort'){
+    const t = verkstedtimer.find(x => x.id === m.vtId);
+    const v = t ? vtVehicle(t) : null;
+    const s = t ? servicehistorikkFraVt(t.id) : null;
+    const dato = (s && s.dato) || (t && (t.utfortDato || t.dato)) || todayISO();
+    const verksted = (s && s.verksted) || (t && t.verksted) || '';
+    const km = s && s.km != null ? s.km : '';
+    return `<div class="vt-drawer-bak" id="detalj-modal-bak"><div class="vt-drawer" role="dialog" aria-modal="true">
+      <div class="vt-drawer-topp"><h3>Service utført</h3><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="detalj-modal-lukk">Lukk</button></div>
+      <p class="required-hint">${v ? esc(vehicleLabel(v)) : ''}. Kilometerstanden gjelder servicedatoen og endrer ikke bilens nåværende km.</p>
+      <div class="field"><label>Kilometerstand ved service</label><input id="svu-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(km))}" placeholder="${v && v.km ? esc(String(v.km)) : ''}" required></div>
+      <div class="field"><label>Utført dato</label><input id="svu-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(dato)}" required></div>
+      <div class="field"><label>Verksted</label><select id="svu-verksted"><option value="">Ikke satt / internt</option>${verkstedSelectOptions(verksted)}</select></div>
+      <div class="field"><label>Kommentar</label><textarea id="svu-kommentar" rows="2">${esc((s && s.kommentar) || (t && t.notater) || '')}</textarea></div>
+      <div class="form-msg" id="svu-msg"></div>
+      <div class="panel-actions"><button type="button" class="bp-btn bp-btn-primary btn" id="svu-lagre">Lagre</button></div>
+    </div></div>`;
+  }
+  if(m.type === 'rediger-service'){
+    const s = (servicehistorikk || []).find(x => x.id === m.id);
+    if(!s) return '';
+    const kost = serviceHistKostnad(s);
+    return `<div class="vt-drawer-bak" id="detalj-modal-bak"><div class="vt-drawer" role="dialog" aria-modal="true">
+      <div class="vt-drawer-topp"><h3>Rediger service</h3><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="detalj-modal-lukk">Lukk</button></div>
+      <p class="required-hint">Kilometerstanden gjelder servicedatoen og endrer ikke bilens nåværende km. Beløp eks. mva.</p>
+      <div class="row2">
+        <div class="field"><label>Utført dato</label><input id="esv-dato" type="text" inputmode="numeric" data-kind="date" placeholder="DD/MM/ÅÅÅÅ" maxlength="10" value="${fmt(s.dato)}" required></div>
+        <div class="field"><label>Kilometerstand ved service</label><input id="esv-km" type="number" inputmode="numeric" min="0" step="1" value="${esc(String(s.km != null ? s.km : ''))}" required></div>
+      </div>
+      <div class="field"><label>Type service</label><input id="esv-type" type="text" value="${esc(s.type || 'Service')}"></div>
+      <div class="field"><label>Verksted</label><select id="esv-verksted"><option value="">Ikke satt / internt</option>${verkstedSelectOptions(s.verksted || '')}</select></div>
+      <div class="field"><label>Kommentar</label><textarea id="esv-kommentar" rows="2">${esc(s.kommentar || '')}</textarea></div>
+      <div class="field"><label>Kostnad eks. mva</label><input id="esv-kostnad" type="text" inputmode="decimal" value="${kost && kost.belopEksMva != null ? esc(String(kost.belopEksMva)) : ''}"></div>
+      <div class="form-msg" id="esv-msg"></div>
+      <div class="panel-actions">
+        <button type="button" class="bp-btn bp-btn-primary btn" id="esv-lagre">Lagre</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn danger-outline small" id="esv-slett">Slett</button>
+      </div>
+    </div></div>`;
+  }
+  if(m.type === 'kjoretoy-status'){
+    const v = vehicles.find(x => x.id === m.id);
+    if(!v) return '';
+    const ds = vehicleDriftsstatus(v) || 'aktiv';
+    return `<div class="vt-drawer-bak" id="detalj-modal-bak"><div class="vt-drawer" role="dialog" aria-modal="true">
+      <div class="vt-drawer-topp"><h3>Endre status</h3><button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="detalj-modal-lukk">Lukk</button></div>
+      <p class="required-hint">${esc(vehicleLabel(v))}</p>
+      <div class="field"><label>Driftsstatus</label>
+        <select id="kr-status">
+          <option value="aktiv" ${ds==='aktiv'&&!v.uteAvDrift?'selected':''}>I drift</option>
+          <option value="reserve" ${ds==='reserve'?'selected':''}>Reserve</option>
+          <option value="kan-ikke-brukes" ${ds==='kan-ikke-brukes'||v.uteAvDrift?'selected':''}>Kan ikke brukes</option>
+          <option value="utfaset" ${ds==='utfaset'?'selected':''}>Ikke i drift</option>
+        </select>
+      </div>
+      <div class="field"><label>Årsak (påkrevd ved kan ikke brukes / ikke i drift)</label><input id="kr-status-arsak" type="text" value="${esc(v.uteAvDriftArsak || v.utfasetArsak || '')}"></div>
+      <div class="form-msg" id="kr-status-msg"></div>
+      <div class="panel-actions"><button type="button" class="bp-btn bp-btn-primary btn" id="kr-status-lagre">Lagre</button></div>
+    </div></div>`;
+  }
   return '';
 }
 function attachDetaljModalListeners(){
@@ -7974,6 +8062,14 @@ function attachDetaljModalListeners(){
   if(ds) ds.addEventListener('click', () => lagreDekkskiftFraModal());
   const ed = document.getElementById('ed-lagre');
   if(ed) ed.addEventListener('click', () => lagreRedigertDekkFraModal());
+  const svu = document.getElementById('svu-lagre');
+  if(svu) svu.addEventListener('click', () => lagreServiceUtfortFraModal());
+  const esv = document.getElementById('esv-lagre');
+  if(esv) esv.addEventListener('click', () => lagreRedigertServiceFraModal());
+  const esvSlett = document.getElementById('esv-slett');
+  if(esvSlett) esvSlett.addEventListener('click', () => { const id = detaljModal && detaljModal.id; if(id) deleteService(id); });
+  const krSt = document.getElementById('kr-status-lagre');
+  if(krSt) krSt.addEventListener('click', () => lagreKjoretoyStatusFraModal());
   attachDekkLeverandorFelt('nd');
   attachDekkLeverandorFelt('ds');
   attachDekkLeverandorFelt('ed');
@@ -8630,6 +8726,41 @@ function vehicleServiceHistorikk(vehicleId){
     if(db !== da) return db.localeCompare(da);
     return (Number(b.km) || 0) - (Number(a.km) || 0);
   });
+}
+function servicehistorikkFraVt(vtId){
+  if(!vtId) return null;
+  return (servicehistorikk || []).find(s => s && s.fraVerkstedtimeId === vtId) || (servicehistorikk || []).find(s => s && s.id === ('sh-vt-' + vtId)) || null;
+}
+function vtManglerServicehistorikk(t){
+  return !!(t && vtErUtfort(t) && vtHarType(t, 'service') && !servicehistorikkFraVt(t.id));
+}
+function serviceHistKostnad(s){
+  if(!s) return null;
+  if(s.kostnadRef) return (kostnadslogg || []).find(p => p.id === s.kostnadRef && p.status !== 'kansellert') || finnKostnadMedRef('service:' + s.id);
+  return finnKostnadMedRef('service:' + s.id) || (s.fraVerkstedtimeId ? finnKostnadMedRef('vt-service:' + s.fraVerkstedtimeId) : null);
+}
+function sikreServicehistorikkFraVerksted(t, felter){
+  felter = felter || {};
+  let s = servicehistorikkFraVt(t.id);
+  if(!s){
+    s = {
+      id: 'sh-vt-' + t.id,
+      vehicleId: t.vehicleId,
+      type: felter.type || 'Service',
+      createdAt: new Date().toISOString(),
+      createdBy: loggedInRole || 'Ukjent',
+      fraVerkstedtimeId: t.id
+    };
+    servicehistorikk.push(s);
+  }
+  s.vehicleId = t.vehicleId;
+  s.dato = felter.dato || s.dato || t.utfortDato || t.dato;
+  if(felter.km != null && felter.km !== '') s.km = Number(felter.km);
+  s.verksted = felter.verksted != null ? felter.verksted : (s.verksted || t.verksted || '');
+  s.kommentar = felter.kommentar != null ? felter.kommentar : (s.kommentar || '');
+  if(felter.type) s.type = felter.type;
+  s.fraVerkstedtimeId = t.id;
+  return s;
 }
 function vehicleSisteService(vehicleId){
   return vehicleServiceHistorikk(vehicleId).find(servicePostErGyldig) || null;
@@ -9896,6 +10027,7 @@ function goTo(scr, vehicleId, _isBack){
   // Prioritet 53: ulagrede valg i Operativ kontrollgrunnlag følger ikke med ut av Innstillinger,
   // og «Se hvilke»-listen i Dashboard-banneret starter lukket ved neste besøk.
   if(scr !== 'innstillinger'){ operativGrunnlagDraft = null; operativGrunnlagMelding = null; operativGrunnlagEksternEndring = false; optimaliseringAktivFane = 'alle'; }
+  if(scr !== 'kjoretoyregister'){ kjoretoyRegMenyId = ''; kjoretoyRegNyApen = false; }
   if(scr !== 'dashboard'){ dashKontrollListeApen = false; dashFlatehelseDetaljApen = false; }
   if(scr !== 'analyse'){ showAnalyseFilterMeny = false; }
   if(scr !== 'kostnadsoversikt'){ showKostFilterMeny = false; }
@@ -10081,6 +10213,8 @@ async function submitAddVehicle(ev){
   vehicles.push(v);
   await saveVehicles();
   showAddVehicleForm = false;
+  kjoretoyRegNyApen = false;
+  if(screen === 'kjoretoyregister'){ render(); return; }
   goTo('bilkort', v.id);
 }
 async function saveVehicleForm(id){
@@ -10149,23 +10283,38 @@ async function saveVehicleForm(id){
   }
 }
 let vehicleSaveConfirmedId = null;
+function kjoretoySlettehinder(id){
+  const hinder = [];
+  const apneSaker = (aktiveSaker || []).filter(s => s.vehicleId === id && sakErApen(s));
+  if(apneSaker.length) hinder.push(apneSaker.length + (apneSaker.length === 1 ? ' aktiv sak' : ' aktive saker'));
+  const fremtid = (verkstedtimer || []).filter(t => t.vehicleId === id && vtErApen(t));
+  if(fremtid.length) hinder.push(fremtid.length + (fremtid.length === 1 ? ' fremtidig verkstedtime' : ' fremtidige verkstedtimer'));
+  const sh = (servicehistorikk || []).filter(s => s.vehicleId === id);
+  if(sh.length) hinder.push(sh.length + (sh.length === 1 ? ' servicehistorikk-post' : ' servicehistorikk-poster'));
+  const dh = (dekkhistorikk || []).filter(d => d.vehicleId === id);
+  if(dh.length) hinder.push(dh.length + (dh.length === 1 ? ' dekkhistorikk-post' : ' dekkhistorikk-poster'));
+  const ko = (kostnadslogg || []).filter(p => p.vehicleId === id && p.status !== 'kansellert');
+  if(ko.length) hinder.push(ko.length + (ko.length === 1 ? ' kostnadspost' : ' kostnadsposter'));
+  const kt = (kontroller || []).filter(k => k.vehicleId === id);
+  if(kt.length) hinder.push(kt.length + (kt.length === 1 ? ' kontroll' : ' kontroller'));
+  return hinder;
+}
 async function deleteVehicle(id){
   if(!krevVehiclesSkriving('Å slette kjøretøy')) return;
   const v = vehicles.find(x => x.id === id);
   if(!v) return;
-  if(!v.uteAvDrift){ alert('Aktive biler må settes til «Kan ikke brukes» før de kan slettes.'); return; }
+  if(!v.uteAvDrift && vehicleDriftsstatus(v) !== 'utfaset'){ alert('Aktive biler må settes til «Kan ikke brukes» før de kan slettes.'); return; }
+  const hinder = kjoretoySlettehinder(id);
+  if(hinder.length){
+    alert('Kjøretøyet kan ikke slettes ennå. Følgende er fortsatt knyttet til bilen:\n\n– ' + hinder.join('\n– ') + '\n\nHistoriske data slettes ikke automatisk.');
+    return;
+  }
   if(!confirm('Er du sikker på at du ønsker å slette kjøretøyet?')) return;
-  const vDamages = damages.filter(d => d.vehicleId === id);
-  vehicles = vehicles.filter(v => v.id !== id);
-  damages = damages.filter(d => d.vehicleId !== id);
-  verkstedtimer = verkstedtimer.filter(t => t.vehicleId !== id);
-  loftebordHistorikk = loftebordHistorikk.filter(l => l.vehicleId !== id);
+  vehicles = vehicles.filter(x => x.id !== id);
   await saveVehicles();
-  await saveDamages();
-  await saveVerkstedtimer();
-  await saveLoftebordHistorikk();
-  for(const d of vDamages){ if(d.hasPhoto) await deletePhoto('damage:'+d.id); }
   if(v && v.hasPhoto) await deletePhoto('vehicle:'+id);
+  detaljModal = null;
+  if(screen === 'kjoretoyregister'){ render(); return; }
   goTo('register');
 }
 
@@ -12121,6 +12270,36 @@ function toggleEditService(id){
   editingServiceId = editingServiceId === id ? null : id;
   render();
 }
+async function synkServiceHistKostnad(s, belop, harBelop, leverandor, dato){
+  const kost = serviceHistKostnad(s);
+  if(harBelop && Number.isFinite(belop) && belop > 0){
+    if(kost){
+      kost.belopEksMva = belop;
+      kost.leverandor = leverandor || kost.leverandor;
+      kost.dato = dato || kost.dato;
+      kost.tittel = s.type || 'Service';
+      kost.kategori = 'service';
+      kost.kommentar = s.kommentar || '';
+      kost.vtId = s.fraVerkstedtimeId || kost.vtId || '';
+      await saveKostnadslogg();
+      s.kostnadRef = kost.id;
+      return;
+    }
+    const post = await lagreKostnadUnik({
+      vehicleId: s.vehicleId, dato: dato || s.dato, kategori: 'service', belopEksMva: belop,
+      leverandor: leverandor || s.verksted || '', tittel: s.type || 'Service',
+      kommentar: s.kommentar || '', kilde: s.fraVerkstedtimeId ? 'utfort-arbeid' : 'manuell-registrering',
+      kildeRef: 'service:' + s.id, vtId: s.fraVerkstedtimeId || ''
+    });
+    s.kostnadRef = post.id;
+    return;
+  }
+  if(kost){
+    kost.status = 'kansellert';
+    await saveKostnadslogg();
+    s.kostnadRef = '';
+  }
+}
 async function saveServiceEdit(id){
   const s = servicehistorikk.find(x => x.id === id);
   if(!s) return;
@@ -12148,20 +12327,59 @@ async function saveServiceEdit(id){
   editingServiceId = null;
   render();
 }
+async function lagreRedigertServiceFraModal(){
+  if(!isAdmin) return;
+  const m = detaljModal;
+  const s = m && m.id ? servicehistorikk.find(x => x.id === m.id) : null;
+  const msg = document.getElementById('esv-msg');
+  if(!s){ if(msg) msg.textContent = 'Fant ikke serviceposten.'; return; }
+  const dato = readDateInput('esv-dato');
+  if(!dato || !serviceDatoGyldig(dato)){ if(msg) msg.textContent = 'Fyll ut gyldig utført dato.'; return; }
+  const kmRaw = String((document.getElementById('esv-km') || {}).value || '').trim();
+  const serviceKm = Number(kmRaw);
+  if(!kmRaw || !Number.isFinite(serviceKm) || serviceKm < 0){ if(msg) msg.textContent = 'Fyll ut gyldig kilometerstand ved service.'; return; }
+  const type = String((document.getElementById('esv-type') || {}).value || 'Service').trim() || 'Service';
+  const verksted = (document.getElementById('esv-verksted') || {}).value || '';
+  const kommentar = String((document.getElementById('esv-kommentar') || {}).value || '').trim();
+  const kostRaw = (document.getElementById('esv-kostnad') || {}).value;
+  const harBelop = !!(kostRaw && String(kostRaw).trim());
+  const belop = parseBelopEksMva(kostRaw);
+  const snap = {dato:s.dato, km:s.km, type:s.type, verksted:s.verksted, kommentar:s.kommentar, kostnadRef:s.kostnadRef};
+  s.dato = dato; s.km = serviceKm; s.type = type; s.verksted = verksted; s.kommentar = kommentar;
+  try{
+    await saveServicehistorikk();
+    await synkServiceHistKostnad(s, belop, harBelop, verksted, dato);
+    await saveServicehistorikk();
+  }catch(e){
+    Object.assign(s, snap);
+    if(msg) msg.textContent = 'Kunne ikke lagre. ' + (e.message || '');
+    return;
+  }
+  detaljModal = null;
+  editingServiceId = null;
+  render();
+}
 async function deleteService(id){
   if(!confirm('Er du sikker på at du vil slette denne servicen? Siste service og kilometer igjen beregnes på nytt fra historikken.')) return;
+  const s = servicehistorikk.find(x => x.id === id);
+  const kost = s ? serviceHistKostnad(s) : null;
   const lagretOk = await mutasjonMedRollback(
     servicehistorikk,
     // VIKTIG: muterer arrayet IN PLACE (splice), ikke "servicehistorikk = ...filter(...)" —
     // en reassignment ville pekt den globale variabelen til et NYTT array-objekt, mens
     // mutasjonMedRollback fortsatt har referansen til det GAMLE arrayet og dermed ikke
     // ville klart å gjenopprette riktig tilstand ved en feilet lagring.
-    () => { const idx = servicehistorikk.findIndex(s => s.id === id); if(idx !== -1) servicehistorikk.splice(idx, 1); },
+    () => { const idx = servicehistorikk.findIndex(x => x.id === id); if(idx !== -1) servicehistorikk.splice(idx, 1); },
     saveServicehistorikk,
     'Kunne ikke slette serviceregistreringen i Airtable.'
   );
   if(!lagretOk) return;
+  if(kost){
+    try{ kost.status = 'kansellert'; await saveKostnadslogg(); }
+    catch(e){ console.error('[deleteService] kostnad', e); }
+  }
   editingServiceId = null;
+  detaljModal = null;
   render();
 }
 // Prioritet 71.6: dekkhistorikk (dekkskifter) hadde ingen slettefunksjon i det hele tatt —
@@ -13763,7 +13981,7 @@ const DESKTOP_FRAME_TITTEL = {
   verkstedhistorikk:'Verkstedhistorikk', historikk:'Verkstedhistorikk',
   kalender:'Kalender', aktivesaker:'Aktive saker', skader:'Aktive saker',
   varsler:'Varslingssenter', kostnadsoversikt:'Kostnader',
-  rapporter:'Rapporter', analyse:'Analyse', innstillinger:'Innstillinger',
+  rapporter:'Rapporter', analyse:'Analyse',   innstillinger:'Innstillinger', kjoretoyregister:'Kjøretøyregister',
   bestill:'Bestill tjenester', kommentaroversikt:'Kommentarer',
   dekkoversikt:'Dekk', kontrolloversikt:'Kontroller',
   kontrollhistorikk:'Full kontrollhistorikk',
@@ -13842,6 +14060,7 @@ function render(){
   else if(screen === 'verksted') body = renderVerksted();
   else if(screen === 'verkstedhistorikk' || screen === 'historikk') body = renderVerkstedhistorikk();
   else if(screen === 'innstillinger') body = renderInnstillinger();
+  else if(screen === 'kjoretoyregister') body = renderKjoretoyregister();
   else if(screen === 'kontroll') body = renderKontroll();
   else if(screen === 'varsler') body = renderVarslerOversikt();
   else if(screen === 'dekkoversikt') body = renderDekkoversikt();
@@ -13991,6 +14210,16 @@ function render(){
   attachKontrollSlettModalListeners();
   attachKostnadFlytListeners();
   attachDetaljModalListeners();
+  document.querySelectorAll('[data-registrer-manglende-service]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    detaljModal = {type:'service-utfort', vtId: el.dataset.registrerManglendeService, kunRetry: true};
+    render();
+  }));
+  document.querySelectorAll('[data-retry-servicehistorikk]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    detaljModal = {type:'service-utfort', vtId: el.dataset.retryServicehistorikk, kunRetry: true};
+    render();
+  }));
 
   // mobilforsiden bruker de SAMME delte lytterne som Dashboard (bestilling,
   // navigasjon, filtre, varselklokke) — attachMobilHjemListeners() legger kun til søket og
@@ -14022,6 +14251,7 @@ function render(){
   else if(screen === 'loftebord') attachLoftebordSkjermListeners();
   else if(screen === 'verkstedhistorikk' || screen === 'historikk') attachVerkstedhistorikkListeners();
   else if(screen === 'innstillinger') attachInnstillingerListeners();
+  else if(screen === 'kjoretoyregister') attachKjoretoyregisterListeners();
   else if(screen === 'kontroll') attachKontrollListeners();
   else if(screen === 'varsler') attachVarslerOversiktListeners();
   else if(screen === 'dekkoversikt') attachDekkoversiktListeners();
@@ -17674,7 +17904,11 @@ function attachUxLayoutListeners(){
     attachDekkWidgetListeners();
     const historiskBtn = document.getElementById('ny-historisk-service-btn');
     if(historiskBtn) historiskBtn.addEventListener('click', () => { detaljModal = {type:'historisk-service'}; showAddHistoriskService = true; render(); });
-    document.querySelectorAll('[data-sv-hist]').forEach(el => el.addEventListener('click', () => { svHistApenId = svHistApenId === el.dataset.svHist ? '' : el.dataset.svHist; render(); }));
+    document.querySelectorAll('[data-sv-hist]').forEach(el => el.addEventListener('click', () => {
+      if(!isAdmin){ svHistApenId = svHistApenId === el.dataset.svHist ? '' : el.dataset.svHist; render(); return; }
+      detaljModal = {type:'rediger-service', id: el.dataset.svHist};
+      render();
+    }));
     const svFlere = document.getElementById('sv-vis-flere');
     if(svFlere) svFlere.addEventListener('click', () => { kostHistVisAlle = true; render(); });
     const euBestill = document.getElementById('eu-bestill');
@@ -20088,15 +20322,17 @@ function uxSvRegistrerHtml(v){
 function uxSvHistHtml(v){
   const liste = vehicleServiceHistorikk(v.id);
   const vis = kostHistVisAlle ? liste : liste.slice(0, 12);
+  const mangler = (verkstedtimer || []).filter(t => t.vehicleId === v.id && vtManglerServicehistorikk(t));
+  const manglerHtml = mangler.length ? `<div class="required-hint" style="margin-bottom:10px;">${luc('triangle-alert')} Servicehistorikk mangler for ${mangler.length} utført${mangler.length===1?'':'e'} verkstedordre${mangler.length===1?'':'r'}. ${mangler.map(t => `<button type="button" class="bp-btn bp-btn-primary btn small" data-registrer-manglende-service="${esc(t.id)}">Registrer manglende service</button>`).join(' ')}</div>` : '';
   return `<section class="ux1-sek"><h2 class="bp-overline">Servicehistorikk</h2>
+    ${manglerHtml}
     ${liste.length === 0 ? '<p class="ux1-lag-tom">Ingen servicer registrert på dette kjøretøyet ennå.</p>' : vis.map(s => {
-      const apen = svHistApenId === s.id;
-      const kost = s.kostnadRef ? finnKostnadMedRef('service:' + s.id) || (kostnadslogg || []).find(p => p.id === s.kostnadRef) : finnKostnadMedRef('service:' + s.id);
+      const kost = serviceHistKostnad(s);
       return `<div class="p38-case" data-sv-hist="${s.id}" style="cursor:pointer;">
         ${bpTileHtml('neutral', 'wrench')}
         <span><b>${esc(fmt(s.dato))} · ${esc(s.type || 'Service')}</b>
-        <span>${Number(s.km||0).toLocaleString('nb-NO')} km${s.verksted ? ' · ' + esc(s.verksted) : ''}${kost ? ' · ' + fmtKr(kost.belopEksMva) : ''}</span></span>
-      </div>${apen ? `<p class="ux1-lag-tom">${esc(s.kommentar || 'Ingen kommentar')} · Registrert av ${esc(s.createdBy || 'Ukjent')}${s.createdAt ? ' · ' + esc(s.createdAt.slice(0,10)) : ''}${s.mobilitetsgarantiAktivert ? ' · Mobilitetsgaranti' : ''}</p>` : ''}`;
+        <span>${Number(s.km||0).toLocaleString('nb-NO')} km${s.verksted ? ' · ' + esc(s.verksted) : ''}${kost ? ' · ' + fmtKr(kost.belopEksMva) : ''}${isAdmin ? ' · Åpne for å redigere' : ''}</span></span>
+      </div>`;
     }).join('')}${liste.length > 12 && !kostHistVisAlle ? `<button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="sv-vis-flere">Vis flere</button>` : ''}
   </section>`;
 }
@@ -21970,34 +22206,81 @@ function attachVerkstedhistorikkListeners(){
 //
 // Rekkefølge og feil: dekkhistorikk og kjøretøy lagres FØR verkstedtimen (som er «commit»-steget). Feiler noe, rulles alle
 // lokale endringer tilbake; det som allerede rakk å bli lagret i Airtable er idempotent og rettes ved neste forsøk.
+async function lagreServiceUtfortFraModal(){
+  const m = detaljModal;
+  const t = m && m.vtId ? verkstedtimer.find(x => x.id === m.vtId) : null;
+  const msg = document.getElementById('svu-msg');
+  if(!t){ if(msg) msg.textContent = 'Fant ikke verkstedordren.'; return; }
+  const dato = readDateInput('svu-dato');
+  if(!dato || !serviceDatoGyldig(dato)){ if(msg) msg.textContent = 'Fyll ut gyldig utført dato.'; return; }
+  const kmRaw = String((document.getElementById('svu-km') || {}).value || '').trim();
+  const serviceKm = Number(kmRaw);
+  if(!kmRaw || !Number.isFinite(serviceKm) || serviceKm < 0){ if(msg) msg.textContent = 'Fyll ut kilometerstand ved service.'; return; }
+  const verksted = (document.getElementById('svu-verksted') || {}).value || (t.verksted || '');
+  const kommentar = String((document.getElementById('svu-kommentar') || {}).value || '').trim();
+  vtServiceUtkast = {
+    vtId: t.id, restIds: m.restIds || [t.id], kunRetry: !!m.kunRetry,
+    km: serviceKm, dato, verksted, kommentar, type: 'Service'
+  };
+  detaljModal = null;
+  if(m.kunRetry){
+    await retryServicehistorikkFraVt(t.id);
+    return;
+  }
+  kostnadFlyt = {steg:'spor', modus:'service-utfort', vtId: t.id, vehicleId: t.vehicleId, restIds: vtServiceUtkast.restIds};
+  render();
+}
+async function retryServicehistorikkFraVt(vtId){
+  const t = verkstedtimer.find(x => x.id === vtId);
+  if(!t) return;
+  const u = vtServiceUtkast && vtServiceUtkast.vtId === vtId ? vtServiceUtkast : null;
+  try{
+    const s = sikreServicehistorikkFraVerksted(t, u || {dato: t.utfortDato || t.dato, verksted: t.verksted || '', kommentar: t.notater || ''});
+    await saveServicehistorikk();
+    if(u && Number.isFinite(u.belop) && u.belop > 0){
+      await synkServiceHistKostnad(s, u.belop, true, u.leverandor || s.verksted, s.dato);
+      await saveServicehistorikk();
+    }
+    servicehistorikkFeilVtId = '';
+    vtServiceUtkast = null;
+    render();
+  }catch(e){
+    servicehistorikkFeilVtId = vtId;
+    alert('Verkstedarbeidet er registrert, men servicehistorikken kunne ikke oppdateres. ' + (e.message || ''));
+    render();
+  }
+}
 async function fullforVerkstedbestilling(id){
   return fullforVerkstedbestillinger([id]);
 }
 async function fullforVerkstedbestillinger(ids){
+  const apne = ids.map(id => verkstedtimer.find(x => x.id === id)).filter(t => vtErApen(t));
+  const mangler = apne.find(t => vtHarType(t, 'service') && !servicehistorikkFraVt(t.id) && !(vtServiceUtkast && vtServiceUtkast.vtId === t.id));
+  if(mangler){
+    detaljModal = {type:'service-utfort', vtId: mangler.id, restIds: ids};
+    render();
+    return;
+  }
+  return utforFullforVerkstedbestillinger(ids);
+}
+async function utforFullforVerkstedbestillinger(ids){
   const timer = ids.map(id => verkstedtimer.find(x => x.id === id)).filter(t => vtErApen(t));
-  if(timer.length === 0) return;
-  const servicehistorikkSnapshot = JSON.parse(JSON.stringify(servicehistorikk));
+  if(timer.length === 0){
+    if(vtServiceUtkast && vtServiceUtkast.kunRetry) return retryServicehistorikkFraVt(vtServiceUtkast.vtId);
+    return;
+  }
   const dekkhistorikkSnapshot = JSON.parse(JSON.stringify(dekkhistorikk));
   const sakerSnapshot = JSON.parse(JSON.stringify(aktiveSaker));
   const dekkFoer = {};
   const idag = todayISO();
-  let nyeService = 0, nyeDekk = 0;
+  let nyeDekk = 0;
   timer.forEach(t => {
     const v = vehicles.find(x => x.id === t.vehicleId);
     t.utfort = true;
-    t.utfortDato = idag;
+    t.utfortDato = (vtServiceUtkast && vtServiceUtkast.vtId === t.id && vtServiceUtkast.dato) || idag;
     t.status = 'utfort';
     if(!Array.isArray(t.statusHistorikk)) t.statusHistorikk = [];
-    t.statusHistorikk.push({dato: idag, tidspunkt: nowTimeOslo(), status: 'utfort', av: loggedInRole || 'system'});
-    if(vtHarType(t, 'service')){
-      servicehistorikk.push({
-        id: uid(), vehicleId: t.vehicleId, dato: t.utfortDato, km: v && v.km ? Number(v.km) : 0,
-        type: t.beskrivelse || 'Service', verksted: t.verksted || '', kommentar: t.notater || '',
-        createdAt: new Date().toISOString(), createdBy: loggedInRole || 'Ukjent',
-        fraVerkstedtimeId: t.id, mobilitetsgarantiAktivert: !!t.mobilitetsgarantiAktivert
-      });
-      nyeService++;
-    }
+    t.statusHistorikk.push({dato: t.utfortDato || idag, tidspunkt: nowTimeOslo(), status: 'utfort', av: loggedInRole || 'system'});
     if(vtHarType(t, 'dekkskift') && (t.dekkRetning === 'sommer-vinter' || t.dekkRetning === 'vinter-sommer')){
       const dekkId = 'dekk-' + t.id;
       const plassering = t.dekkPlassering || 'alle';
@@ -22028,7 +22311,6 @@ async function fullforVerkstedbestillinger(ids){
       await saveVehiclesOrThrow();
     }
     await saveVerkstedtimerEllerKast();
-    if(nyeService > 0) await saveServicehistorikk();
     let sakerEndret = false;
     timer.forEach(t => {
       const saker = aktiveSaker.filter(s => (s.linkedVtId === t.id) || (t.sakId && s.id === t.sakId));
@@ -22047,12 +22329,8 @@ async function fullforVerkstedbestillinger(ids){
       });
     });
     if(sakerEndret) await saveAktiveSakerEllerKast();
-    editingVTId = null;
-    render();
   }catch(e){
     timer.forEach(t => { t.utfort = false; t.utfortDato = ''; t.status = ''; });
-    servicehistorikk.length = 0;
-    Array.prototype.push.apply(servicehistorikk, servicehistorikkSnapshot);
     dekkhistorikk.length = 0;
     Array.prototype.push.apply(dekkhistorikk, dekkhistorikkSnapshot);
     aktiveSaker.length = 0;
@@ -22067,7 +22345,34 @@ async function fullforVerkstedbestillinger(ids){
     console.error('[fullforVerkstedbestillinger] Feilet', e);
     alert('Kunne ikke flytte ' + (timer.length === 1 ? 'verkstedbesøket' : 'verkstedbesøkene') + ' til historikk. Endringen er tilbakestilt lokalt.');
     render();
+    return;
   }
+  const serviceTimer = timer.filter(t => vtHarType(t, 'service'));
+  for(const t of serviceTimer){
+    const u = vtServiceUtkast && vtServiceUtkast.vtId === t.id ? vtServiceUtkast : null;
+    try{
+      const s = sikreServicehistorikkFraVerksted(t, u || {dato: t.utfortDato || t.dato, verksted: t.verksted || '', kommentar: t.notater || '', type: 'Service'});
+      s.mobilitetsgarantiAktivert = !!t.mobilitetsgarantiAktivert;
+      await saveServicehistorikk();
+      if(u && Number.isFinite(u.belop) && u.belop > 0){
+        await synkServiceHistKostnad(s, u.belop, true, u.leverandor || s.verksted, s.dato);
+        await saveServicehistorikk();
+      }
+      if(servicehistorikkFeilVtId === t.id) servicehistorikkFeilVtId = '';
+    }catch(e){
+      console.error('[fullforVerkstedbestillinger] servicehistorikk', e);
+      servicehistorikkFeilVtId = t.id;
+      alert('Verkstedarbeidet er registrert, men servicehistorikken kunne ikke oppdateres.');
+    }
+  }
+  vtServiceUtkast = null;
+  editingVTId = null;
+  const rest = ids.filter(id => {
+    const x = verkstedtimer.find(y => y.id === id);
+    return x && vtErApen(x);
+  });
+  if(rest.length) return fullforVerkstedbestillinger(rest);
+  render();
 }
 function ux2Handling(r){
   const sakId = r.sakIds && r.sakIds[0];
@@ -22415,6 +22720,7 @@ function vtCard(t, upcoming, isNext){
           <div class="dmg-meta">${esc(t.verksted)}${t.dekkRetning && DEKK_RETNING_TIL_LABEL[t.dekkRetning] ? ' · ' + DEKK_RETNING_TIL_LABEL[t.dekkRetning] : ''}${t.dekkPlassering ? ' · ' + visDekkPlassering(t.dekkPlassering) : ''}${t.notater ? ' · ' + esc(t.notater) : ''}${upcoming ? '' : ' · utført arbeid'}</div>
           ${gruppeAntall > 1 ? `<div class="dmg-meta">👥 Samlet bestilling · ${gruppeAntall} biler</div>` : ''}
           ${linkedSak ? `<div class="dmg-meta" data-goto-sak="${linkedSak.id}" style="cursor:pointer;text-decoration:underline;">🗂️ Aktiv sak: ${esc(linkedSak.title)}</div>` : ''}
+          ${vtManglerServicehistorikk(t) || servicehistorikkFeilVtId === t.id ? `<div class="required-hint" style="margin-top:8px;">${luc('triangle-alert')} Servicehistorikk mangler. <button type="button" class="bp-btn bp-btn-primary btn small" data-registrer-manglende-service="${esc(t.id)}">Registrer manglende service</button>${servicehistorikkFeilVtId === t.id ? ` <button type="button" class="bp-btn bp-btn-secondary btn secondary small" data-retry-servicehistorikk="${esc(t.id)}">Prøv servicehistorikk på nytt</button>` : ''}</div>` : ''}
         </div>
         <div class="vt-when">
           <div class="vt-date">${fmt(t.dato)}</div>
@@ -25615,6 +25921,161 @@ function databaseStatusAvansertHtml(){
     ` + fase1BMigreringPreviewHtml();
 }
 
+function kjoretoyRegnrNokkel(regnr){
+  return String(regnr || '').replace(/\s+/g, '').toUpperCase();
+}
+function kjoretoyRegDublettRegnr(){
+  const kart = {};
+  (vehicles || []).forEach(v => {
+    const k = kjoretoyRegnrNokkel(v.regnr);
+    if(!k) return;
+    if(!kart[k]) kart[k] = [];
+    kart[k].push(v.id);
+  });
+  const sett = new Set();
+  Object.keys(kart).forEach(k => { if(kart[k].length > 1) kart[k].forEach(id => sett.add(id)); });
+  return sett;
+}
+function kjoretoyRegStatusNokkel(v){
+  const ds = vehicleDriftsstatus(v);
+  if(ds === 'utfaset') return 'ikke-i-drift';
+  if(ds === 'kan-ikke-brukes' || v.uteAvDrift) return 'kan-ikke-brukes';
+  if(ds === 'reserve' || v.kategori === 'reserve') return 'reserve';
+  return 'i-drift';
+}
+function kjoretoyRegStatusTekst(v){
+  const k = kjoretoyRegStatusNokkel(v);
+  if(k === 'ikke-i-drift') return 'Ikke i drift';
+  if(k === 'kan-ikke-brukes') return 'Kan ikke brukes';
+  if(k === 'reserve') return 'Reserve';
+  return 'I drift';
+}
+function kjoretoyRegTreff(v){
+  const q = kjoretoyRegSok.trim().toLowerCase();
+  if(q){
+    const hay = [v.bilnummer, v.regnr, v.merke, v.modell].map(x => String(x || '').toLowerCase()).join(' ');
+    if(hay.indexOf(q) < 0) return false;
+  }
+  if(kjoretoyRegFilter === 'alle') return true;
+  if(kjoretoyRegFilter === 'ikke-satt') return !String(v.driftslag || '').trim();
+  return kjoretoyRegStatusNokkel(v) === kjoretoyRegFilter;
+}
+async function lagreKjoretoyStatusFraModal(){
+  if(!krevVehiclesSkriving('Å endre driftsstatus')) return;
+  const m = detaljModal;
+  const v = m && m.id ? vehicles.find(x => x.id === m.id) : null;
+  const msg = document.getElementById('kr-status-msg');
+  if(!v){ if(msg) msg.textContent = 'Fant ikke kjøretøyet.'; return; }
+  const val = (document.getElementById('kr-status') || {}).value || 'aktiv';
+  const arsak = String((document.getElementById('kr-status-arsak') || {}).value || '').trim();
+  const snap = JSON.parse(JSON.stringify(v));
+  const dato = todayISO();
+  if(val === 'kan-ikke-brukes' || val === 'utfaset'){
+    if(!arsak){ if(msg) msg.textContent = 'Årsak er påkrevd.'; return; }
+  }
+  if(!Array.isArray(v.statusHistorikk)) v.statusHistorikk = [];
+  if(val === 'aktiv'){
+    v.uteAvDrift = false;
+    v.driftsstatus = 'aktiv';
+    v.statusHistorikk.push({dato, handling:'tilbake-i-drift', av: loggedInRole || 'Ukjent'});
+  } else if(val === 'reserve'){
+    v.uteAvDrift = false;
+    v.driftsstatus = 'reserve';
+    v.statusHistorikk.push({dato, handling:'reserve', av: loggedInRole || 'Ukjent'});
+  } else if(val === 'kan-ikke-brukes'){
+    v.uteAvDrift = true;
+    v.uteAvDriftArsak = arsak;
+    v.uteAvDriftDato = dato;
+    v.driftsstatus = 'kan-ikke-brukes';
+    v.statusHistorikk.push({dato, handling:'ute-av-drift', arsak, av: loggedInRole || 'Ukjent'});
+  } else if(val === 'utfaset'){
+    v.driftsstatus = 'utfaset';
+    v.utfasetDato = dato;
+    v.utfasetAv = loggedInRole || 'Ukjent';
+    v.utfasetArsak = arsak;
+    v.statusHistorikk.push({dato, handling:'utfaset', arsak, av: loggedInRole || 'Ukjent'});
+  }
+  if(val === 'aktiv' || val === 'kan-ikke-brukes') fase1BDobbeltskrivKjoretoy(v);
+  try{
+    await saveVehiclesOrThrow();
+    detaljModal = null;
+    render();
+  }catch(e){
+    Object.keys(v).forEach(k => delete v[k]);
+    Object.assign(v, snap);
+    if(msg) msg.textContent = 'Kunne ikke lagre. ' + (e.message || '');
+  }
+}
+function renderKjoretoyregister(){
+  const dubletter = kjoretoyRegDublettRegnr();
+  const liste = sortedVehicles(vehicles).filter(kjoretoyRegTreff);
+  const filtre = [
+    {id:'alle', label:'Alle'},
+    {id:'i-drift', label:'I drift'},
+    {id:'reserve', label:'Reserve'},
+    {id:'kan-ikke-brukes', label:'Kan ikke brukes'},
+    {id:'ikke-i-drift', label:'Ikke i drift'},
+    {id:'ikke-satt', label:'Ikke satt'}
+  ];
+  return `
+    <div class="backrow"><button class="bp-btn bp-btn-secondary backbtn" id="kr-back">← Innstillinger</button></div>
+    <p class="required-hint" style="margin:0 0 12px;">Administrasjon av kjøretøy. Operativ visning ligger under Biler.</p>
+    <div class="kr-verktoy">
+      <input class="reg-sok" id="kr-sok" type="text" placeholder="Søk bilnummer, reg.nr, merke eller modell" value="${esc(kjoretoyRegSok)}" aria-label="Søk i kjøretøyregister">
+      <button type="button" class="bp-btn bp-btn-primary btn small" id="kr-ny">${luc('plus')} Ny bil</button>
+    </div>
+    <div class="kr-filtre">${filtre.map(f => `<button type="button" class="bp-btn ${kjoretoyRegFilter===f.id?'bp-btn-primary':'bp-btn-secondary'} btn small" data-kr-filter="${f.id}">${esc(f.label)}</button>`).join('')}</div>
+    ${kjoretoyRegNyApen ? registerNyBilSkjemaHtml() : ''}
+    <div class="kr-tabell">
+      ${liste.length === 0 ? '<p class="ux1-lag-tom">Ingen kjøretøy matcher søk eller filter.</p>' : liste.map(v => {
+        const lag = String(v.driftslag || '').trim() || (v.kategori === 'lastebil' ? 'Lastebil' : 'Ikke satt');
+        const dublett = dubletter.has(v.id);
+        const meny = kjoretoyRegMenyId === v.id;
+        return `<div class="kr-rad">
+          <div class="kr-rad-navn">${esc(v.bilnummer || '–')}${dublett ? `<div class="kr-dublett">${luc('triangle-alert')} Mulig dublett</div>` : ''}</div>
+          <div class="kr-rad-meta">${esc(v.regnr || '–')}</div>
+          <div class="kr-rad-meta">${esc(lag)}</div>
+          <div class="kr-rad-meta">${esc(kjoretoyRegStatusTekst(v))}</div>
+          <div class="kr-meny bp-pop-anchor">
+            <button type="button" class="bp-icon-btn" data-kr-meny="${esc(v.id)}" aria-label="Handlinger" aria-expanded="${meny?'true':'false'}">${luc('more-horizontal')}</button>
+            ${meny ? `<div class="bp-pop">
+              <button type="button" class="bp-btn bp-btn-secondary btn small" data-kr-apne="${esc(v.id)}">${luc('external-link')} Åpne kjøretøy</button>
+              <button type="button" class="bp-btn bp-btn-secondary btn small" data-kr-rediger="${esc(v.id)}">${luc('pencil')} Rediger</button>
+              <button type="button" class="bp-btn bp-btn-secondary btn small" data-kr-status="${esc(v.id)}">${luc('circle-dot')} Endre status</button>
+              <button type="button" class="bp-btn bp-btn-secondary btn danger-outline small" data-kr-slett="${esc(v.id)}">${luc('trash-2')} Slett</button>
+            </div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+function attachKjoretoyregisterListeners(){
+  const tilbake = document.getElementById('kr-back');
+  if(tilbake) tilbake.addEventListener('click', () => { settingsOpenSections.add('register'); goTo('innstillinger'); });
+  const sok = document.getElementById('kr-sok');
+  if(sok) sok.addEventListener('input', e => {
+    kjoretoyRegSok = e.target.value;
+    const pos = e.target.selectionStart;
+    render();
+    const n = document.getElementById('kr-sok');
+    if(n){ n.focus(); if(typeof n.setSelectionRange === 'function') n.setSelectionRange(pos, pos); }
+  });
+  document.querySelectorAll('[data-kr-filter]').forEach(el => el.addEventListener('click', () => { kjoretoyRegFilter = el.dataset.krFilter; render(); }));
+  const ny = document.getElementById('kr-ny');
+  if(ny) ny.addEventListener('click', () => { kjoretoyRegNyApen = !kjoretoyRegNyApen; render(); });
+  const f = document.getElementById('add-vehicle-form');
+  if(f) f.addEventListener('submit', beskyttSubmit('submitAddVehicle', submitAddVehicle));
+  document.querySelectorAll('[data-kr-meny]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    kjoretoyRegMenyId = kjoretoyRegMenyId === el.dataset.krMeny ? '' : el.dataset.krMeny;
+    render();
+  }));
+  document.querySelectorAll('[data-kr-apne]').forEach(el => el.addEventListener('click', () => goTo('bilkort', el.dataset.krApne)));
+  document.querySelectorAll('[data-kr-rediger]').forEach(el => el.addEventListener('click', () => { uxApneInlineRedigering = true; goTo('bilkort', el.dataset.krRediger); }));
+  document.querySelectorAll('[data-kr-status]').forEach(el => el.addEventListener('click', () => { detaljModal = {type:'kjoretoy-status', id: el.dataset.krStatus}; kjoretoyRegMenyId = ''; render(); }));
+  document.querySelectorAll('[data-kr-slett]').forEach(el => el.addEventListener('click', () => deleteVehicle(el.dataset.krSlett)));
+}
+
 function renderInnstillinger(){
   layoutInnstillingerStart();   // Prioritet 60: starttilstand (åpen/lukket) fra layouten, første gang siden vises
   const adminBody = `
@@ -25920,7 +26381,14 @@ function renderInnstillinger(){
   // 📦 Register: samler «⚙️ Administrer bilkategorier» og «Verkstedregister»
   // (tidligere to separate topplinje-seksjoner) som EN nestet dropdown-gruppe. Samme
   // settingsAccordionRow()-funksjon gjenbrukt rekursivt — ingen ny akkordion-mekanisme.
+  const kjoretoyRegLenke = `
+    <div class="settings-row">
+      <span>${luc('car')} Kjøretøy</span>
+      <button type="button" class="bp-btn bp-btn-secondary btn secondary small" id="apne-kjoretoyregister">${vehicles.length} ${vehicles.length === 1 ? 'bil' : 'biler'} · Åpne</button>
+    </div>
+    <p class="required-hint" style="margin:0 0 12px;">Administrasjon av hele flåten. Den operative Biler-siden er uendret.</p>`;
   const registerBody = `
+    ${kjoretoyRegLenke}
     ${settingsAccordionRow('kategorier', 'Administrer bilkategorier', bilkategorier.length, kategoriBody, 'tags')}
     ${settingsAccordionRow('verksted', 'Verkstedregister', verksteder.length, verkstedBody, 'factory')}
   `;
@@ -25986,6 +26454,8 @@ async function hardRefreshApp(opts){
 
 function attachInnstillingerListeners(){
   document.getElementById('innstillinger-back').addEventListener('click', () => goBack('dashboard'));
+  const krApne = document.getElementById('apne-kjoretoyregister');
+  if(krApne) krApne.addEventListener('click', (e) => { e.stopPropagation(); settingsOpenSections.add('register'); goTo('kjoretoyregister'); });
   document.querySelectorAll('[data-toggle-settings]').forEach(el => el.addEventListener('click', () => toggleSettingsSection(el.dataset.toggleSettings)));
   attachOptimaliseringListeners();
   attachOperativGrunnlagListeners();
