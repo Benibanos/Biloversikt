@@ -13,6 +13,20 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-10-15
+
+### Biloversikt: operativt datagrunnlag etter fanerefaktorering
+
+Ekstra/tilsynelatende dupliserte biler og den store «Ikke satt»-gruppen var en visningsregresjon, ikke en ny dublettmotor og ikke sletting/migrering av Vehicles. Den globale fanekomponenten (`bpFanerHtml`) oppretter, kopierer eller normaliserer ikke kjøretøy.
+
+**Årsak.** «Alle biler» brukte `registerTreff(..., true)` mot rå `vehicles[]`, mens Driftslag/Lastebiler/Monteringsbiler brukte `registerTreff(..., false)` (skjuler reserve og kan-ikke-brukes etter etablerte avkrysninger). Faneteller og innhold kunne derfor komme fra to ulike sett. Utfasede kjøretøy uten `uteAvDrift` kunne også havne i «Ikke satt».
+
+**Rettelse.** Ett operativt sett: samme filtrerte liste til fanetellere, kategorivisning og «Alle biler». «Alle biler» er ikke alle Vehicle-poster noensinne. Samme `id` rendres ikke to ganger i oversikten (minne-duplikat); to ulike ID-er med samme reg.nr. vises fortsatt som to poster. Verkstedhistorikk-faner teller fra samme filtrerte grunnlag som listen. Kjøretøyregister og serviceflyt er ikke bygget i denne leveransen.
+
+**Versjon.** App-/cacheversjon 192 → **193**. `storage.airtable.js` uendret. `kontroll.html` = `index.html`.
+
+---
+
 ## 2026-10-02
 
 ### Felles fanekomponent

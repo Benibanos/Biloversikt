@@ -1,5 +1,15 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-15 (Operativt bilgrunnlag etter fanerefaktorering, appversjon 193, `storage.airtable.js` v2.28.0).
+
+## 2026-10-15 — Operativt datagrunnlag i biloversikt
+
+**Levert.** Biloversikt bruker ett operativt kjøretøygrunnlag for fanetellere og innhold. Fanekomponenten eier ikke kjøretøysklassifisering. Ingen Vehicle-sletting, merge eller migrering.
+
+**Ikke i denne leveransen.** Innstillinger → Register → Kjøretøy. Servicehistorikk ende-til-ende (separat).
+
+**Testet.** Kodegjennomgang: `bpFanerHtml` uten vehicles-mutasjon; «Alle biler» = samme sett som kategorifanene; VTH-tellere fra `samletVerkstedHistorikkGrunnlag`. Ikke kjørt full manuell UI-pass mot live Airtable i denne økten.
+
 Sist oppdatert: 2026-10-02 (Felles fanekomponent, appversjon 192, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-02 — Felles fanekomponent

@@ -8113,6 +8113,8 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;
 // de forblir emoji og er fortsatt den PRIMÆRE statuskommunikasjonen (se STATUSVISNING-
 // regelen); Lucide-ikoner her er alltid sekundære/dekorative/navigasjon.
 function luc(navn, cls){ return `<i data-lucide="${navn}" class="lucide-ic${cls ? ' ' + cls : ''}" aria-hidden="true"></i>`; }
+// Felles fanerad: kun presentasjon og navigasjon (aktiv fane, antall som sendes inn, data-*).
+// Skal ALDRI lese vehicles[], klassifisere kategori/reserve/arkiv/verkstedtype, eller mutere poster.
 function bpFaneKnappHtml(f){
   const aktiv = !!f.aktiv;
   const data = f.data || {};
@@ -17875,6 +17877,17 @@ function registerNyBilSkjemaHtml(){
       <div class="panel-actions"><button class="bp-btn bp-btn-primary btn" type="submit">Legg til og åpne</button></div>
     </form>`;
 }
+function registerUnikeEtterId(liste){
+  const sett = new Set();
+  return (liste || []).filter(v => {
+    if(!v) return false;
+    const id = v.id;
+    if(id == null || id === '') return true;
+    if(sett.has(id)) return false;
+    sett.add(id);
+    return true;
+  });
+}
 function registerSorter(liste){
   const kopi = liste.slice();
   if(registerSort === 'regnr') kopi.sort((a, b) => String(a.regnr || '').localeCompare(String(b.regnr || ''), 'nb'));
@@ -17901,6 +17914,7 @@ function registerDriftGrupper(liste, fane){
   return (del.length ? faste.concat(ekstra) : []).map(navn => ({navn, biler:registerSorter(grupper[navn] || [])}));
 }
 function registerAlleHtml(liste, arkiv, minBil){
+  // `liste` er samme operative sett som kategorifanene (ikke rå vehicles[]).
   const rekkefolge = [
     {id:'driftslag', label:'Driftslag'},
     {id:'lastebil', label:'Lastebiler'},
@@ -17952,7 +17966,8 @@ function renderRegister(){
     if(filterHovedstatus && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus !== 'tilgjengelig' && filterHovedstatus.slice(0, 3) !== 'fh-' && vehicleHovedstatus(v.id) !== statusNokkel('operativ', filterHovedstatus)) return false;
     if(!taMedUte && filterHovedstatus !== 'har-aktiv-sjafor' && filterHovedstatus.slice(0, 3) !== 'fh-'){
       if(!visReserve && v.kategori === 'reserve' && filterKategori !== 'reserve') return false;
-      if(!visUteAvDrift && vehicleDriftsstatus(v) === 'kan-ikke-brukes' && statusNokkel('operativ', filterHovedstatus) !== 'kan-ikke-brukes') return false;
+      const ds = vehicleDriftsstatus(v);
+      if(!visUteAvDrift && (ds === 'kan-ikke-brukes' || ds === 'utfaset') && statusNokkel('operativ', filterHovedstatus) !== 'kan-ikke-brukes') return false;
     }
     return true;
   };
@@ -17973,16 +17988,15 @@ function renderRegister(){
         {id:'alle', label:'Alle biler'}
       ];
       const valgt = faner.some(f => f.id === registerDriftFane) ? registerDriftFane : 'driftslag';
-      const utenArkiv = filtered.filter(v => !v.uteAvDrift);
-      const alleListe = vehicles.filter(v => !v.uteAvDrift && registerTreff(v, true));
-      const arkiv = visUteAvDrift ? arkivKilde : [];
+      const utenArkiv = registerUnikeEtterId(filtered.filter(v => !v.uteAvDrift));
+      const arkiv = visUteAvDrift ? registerUnikeEtterId(arkivKilde) : [];
       const antall = {};
       faner.forEach(f => {
-        antall[f.id] = f.id === 'alle' ? alleListe.length + arkiv.length : utenArkiv.filter(v => ux1KjoretoyFaneAv(v) === f.id).length;
+        antall[f.id] = f.id === 'alle' ? utenArkiv.length + arkiv.length : utenArkiv.filter(v => ux1KjoretoyFaneAv(v) === f.id).length;
       });
       const grupper = registerDriftGrupper(utenArkiv, valgt);
       const innhold = erNyBilFane ? '' : (valgt === 'alle'
-        ? registerAlleHtml(alleListe, arkiv, minBil)
+        ? registerAlleHtml(utenArkiv, arkiv, minBil)
         : (antall[valgt]
           ? (valgt === 'driftslag'
             ? `<div class="ux1-lag-grid">${grupper.map(g => registerDriftKort(g, minBil)).join('')}</div>`
@@ -21863,23 +21877,27 @@ const VTH_FANER = [
   {id:'ruteskift', label:'Ruter / Glass'},
   {id:'intern', label:'Internt arbeid'}
 ];
-function samletVerkstedHistorikk(){
+function samletVerkstedHistorikkGrunnlag(){
   return samletVerkstedHistorikkAlle().filter(p => {
-    if(vtHistFilterType === 'intern'){
-      if(!vthErIntern(p)) return false;
-    } else if(vtHistFilterType !== 'alle'){
-      if(!vthHarType(p, vtHistFilterType)) return false;
-    }
     if(vtHistFilterBil && p.vehicleId !== vtHistFilterBil) return false;
     if(vtHistFilterFra && p.dato < vtHistFilterFra) return false;
     if(vtHistFilterTil && p.dato > vtHistFilterTil) return false;
     return true;
   });
 }
+function samletVerkstedHistorikkFaneTreff(p, fane){
+  if(fane === 'intern') return vthErIntern(p);
+  if(!fane || fane === 'alle') return true;
+  return vthHarType(p, fane);
+}
+function samletVerkstedHistorikk(){
+  return samletVerkstedHistorikkGrunnlag().filter(p => samletVerkstedHistorikkFaneTreff(p, vtHistFilterType));
+}
 function uxVthFilterHtml(){
+  const grunnlag = samletVerkstedHistorikkGrunnlag();
   return `<section class="ux1-sek">
     <div class="vth-verktoy">
-      ${bpFanerHtml(VTH_FANER.map(f => ({label:f.label, aktiv: vtHistFilterType===f.id, data:{'vth-fane': f.id}, klasse:'ux1-bil-fane'})))}
+      ${bpFanerHtml(VTH_FANER.map(f => ({label:f.label, antall: f.id === 'alle' ? grunnlag.length : grunnlag.filter(p => samletVerkstedHistorikkFaneTreff(p, f.id)).length, aktiv: vtHistFilterType===f.id, data:{'vth-fane': f.id}, klasse:'ux1-bil-fane'})))}
       <div class="vth-filtre">
         <select id="vth-bil" aria-label="Bil"><option value="">Alle biler</option>${vehicleOptions(vtHistFilterBil)}</select>
         <input id="vth-fra" type="text" inputmode="numeric" data-kind="date" placeholder="Fra dato" maxlength="10" value="${vtHistFilterFra ? fmt(vtHistFilterFra) : ''}" aria-label="Fra dato">
