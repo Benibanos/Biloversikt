@@ -1,5 +1,17 @@
 # ROADMAP.md — Bilpark Operativsystem
 
+Sist oppdatert: 2026-10-27 (DriverControl km-avvik og registrering, appversjon 195, `storage.airtable.js` v2.28.0).
+
+## 2026-10-27 — DriverControl stabilitet og kilometeravvik
+
+**Levert.** Sjåfør bekrefter selv uvanlig km uten at admin må forhåndsgodkjenne. Varslingssenter viser avviket for etterkontroll og korreksjon. Registrer gir umiddelbar tilbakemelding, idempotent retry, og `[dc-perf]`-instrumentering. `sjFriskOppMinBilData` blokkerer ikke Min Bil.
+
+**Målt flaskehals (kodegjennomgang + instrumentering).** Etter vellykket lagring ventet UI på `sjFriskOppMinBilData` (reload av verkstedtimer og løftebord, tak 2500 ms) før toast/Min Bil. Sekvensielle `save*`-kall mot Airtable er neste ventepunkt og er ikke slått sammen (ville endret transaksjons-/rollback-rekkefølgen).
+
+**Testet.** Kodegjennomgang av km-dialog, gulv/korrigering, submit-lås og idempotent ID. Ikke kjørt live Airtable i nettleser i denne økten.
+
+**Gjenstår.** Manuell pass: normalt hopp, +110 733 km med Endre vs Ja, admin-korreksjon, dobbeltklikk, treg linje, retry.
+
 Sist oppdatert: 2026-10-15 (Kjøretøyregister og serviceflyt, appversjon 194, `storage.airtable.js` v2.28.0).
 
 ## 2026-10-15 — Kjøretøyregister og serviceflyt

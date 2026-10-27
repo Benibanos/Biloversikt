@@ -191,7 +191,7 @@ Optimaliseringer → Airtable → «Synkroniser nå» oppretter manglende kolonn
 | kommentar | Kommentar | tekst |
 | linkedDamageId | LinkedDamageId | tekst |
 | kommentarLest | KommentarLest | boolsk |
-| kmGodkjenningStatus | KmGodkjenningStatus | tekst (`''` \| `'godkjent'` \| `'avvist'`) |
+| kmGodkjenningStatus | KmGodkjenningStatus | tekst (`''` \| `'godkjent'` \| `'avvist'` \| `'bekreftet-sjafor'` \| `'gjennomgatt'` \| `'korrigert'`) |
 | kmGodkjenningInfo | KmGodkjenningInfo | tekst |
 
 > **Nytt i Prioritet 50 («Kommentarer 2.0»):** `kommentarLest` er les-status
@@ -210,6 +210,10 @@ Optimaliseringer → Airtable → «Synkroniser nå» oppretter manglende kolonn
 > kilometerstanden på kontrollen) røres ALDRI av verken godkjenning eller
 > avslag — kun disse to nye feltene. **Krever to nye kolonner i DriverChecks
 > før idriftsettelse** — se `storage.airtable.js` v2.18.0.
+>
+> **2026-10-27:** Samme tekstfelt, flere verdier. Sjåførbekreftet hopp setter
+> `bekreftet-sjafor`. Administrator setter `gjennomgatt` eller `korrigert`
+> (original `k.km` uendret; korreksjon og spor i `kmGodkjenningInfo`). Ingen nye kolonner.
 >
 > Samtidig innført: en HELT NY, separat liste `kommentarer` (fristilte
 > sjåførkommentarer lagt til via ☰ Mer → 💬 Legg til kommentar, IKKE knyttet

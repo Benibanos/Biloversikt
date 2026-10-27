@@ -1865,6 +1865,13 @@
     border:1px solid var(--success);font-weight:600;font-size:14px;box-shadow:var(--shadow-overlay);transition:opacity .2s ease, transform .2s ease;}
   .sj-toast.vis{opacity:1;transform:translate(-50%,0);}
   .sj-toast .lucide-ic{color:var(--success);width:18px;height:18px;}
+  .sj-synk-status{font-size:11px;font-weight:500;color:var(--ink-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .sj-synk-status .lucide-ic{width:14px;height:14px;color:var(--warning);}
+  .kt-km-sjekk-bak,.km-korriger-bak{position:fixed;inset:0;z-index:90;background:rgba(8,12,10,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));}
+  .kt-km-sjekk,.km-korriger-kort{width:min(100%,440px);background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:16px;padding:20px 18px;box-shadow:var(--shadow-overlay);}
+  .kt-km-sjekk h3,.km-korriger-kort h3{margin:0 0 10px;font-size:18px;}
+  .kt-km-sjekk-tall{font-size:15px;line-height:1.5;margin:0 0 12px;}
+  .kt-km-sjekk-handlinger,.km-korriger-handlinger{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
   @media (prefers-reduced-motion: reduce){
     .sj-toast{transition:none;}
     button.sj-pill-btn:active,.sj-tap:active,.p48-action-card:active,.p48-checkout-card:active{transform:none;}
@@ -3266,6 +3273,14 @@ let pendingKontrollPhotos = []; // array av dataURL-er, flere skadebilder per ko
 // Fase 1D: skadetype og «Kan bilen kjøres?» for en ny skade i kontrollen (se alvorlighetForSkade()).
 let kontrollFormSkadeType = '';
 let kontrollFormSkadeKanKjores = '';
+let kontrollKmSjekkApen = false;
+let kontrollKmSjaforBekreftet = false;
+let kontrollPagaendeId = '';
+let kontrollLagringTimer = null;
+let kmKorrigerApenFor = null;
+let kmKorrigerNy = '';
+let kmKorrigerBegrunnelse = '';
+let kmKorrigerFeil = '';
 
 // ---- Midlertidig lagring av sjåførkontroll-skjemaet ----
 // Kun en lokal sikkerhetskopi av det som IKKE ennå er sendt inn — selve appens
@@ -4661,6 +4676,40 @@ function visSjToast(tekst){
 async function sjFriskOppMinBilData(){
   const frisk = Promise.all([reloadOne('verkstedtimer'), reloadOne('loftebordHistorikk')]).catch(() => {});
   await Promise.race([frisk, new Promise(r => setTimeout(r, 2500))]);
+}
+function sjSynkKlokke(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return '';
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function sjSynkStatusHtml(){
+  const nyligFeil = synkFeilLogg[0] && (Date.now() - new Date(synkFeilLogg[0].tidspunkt).getTime() < 5*60*1000);
+  const feil = vehiclesLoadStatus === 'lesefeil' || nyligFeil;
+  const t = sisteVellykkedeSynkTidspunkt || vehiclesSisteOkLesing;
+  if(feil){
+    return `<div class="sj-synk-status" role="status">${luc('triangle-alert')} Kunne ikke oppdatere data <button type="button" class="bp-btn bp-btn-secondary btn small" id="sj-synk-prov">Prøv igjen</button></div>`;
+  }
+  if(!t) return '';
+  return `<div class="sj-synk-status" role="status">Sist synkronisert: ${esc(sjSynkKlokke(t))}</div>`;
+}
+async function sjProvSynkIgjen(){
+  try{
+    await Promise.all([reloadOne('vehicles'), reloadOne('kontroller'), reloadOne('varsellys')]);
+  }catch(e){ console.error('[sjProvSynkIgjen]', e); }
+  render();
+}
+function dcPerfStart(){ return {t0: (typeof performance !== 'undefined' ? performance.now() : Date.now()), last: (typeof performance !== 'undefined' ? performance.now() : Date.now()), steg: {}}; }
+function dcPerfMark(p, navn){
+  if(!p) return;
+  const n = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  p.steg[navn] = Math.round(n - p.last);
+  p.last = n;
+}
+function dcPerfFerdig(p){
+  if(!p) return;
+  p.steg.total = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - p.t0);
+  console.info('[dc-perf]', p.steg);
 }
 // Valgt bil er ALLEREDE kontrollert i dag: ingen mellomskjerm og ingen «Gå til Min Bil»-knapp —
 // sjåføren blir aktiv sjåfør (samme startBilokt() som knappen tidligere kalte) og går rett til
@@ -7020,16 +7069,19 @@ async function loadAll(){
   // Prioritet 69: catch-grenene under er uendret i oppførsel (tom liste), men feilen
   // registreres nå og vises på oppstartsskjermen i stedet for å være usynlig.
   const oppstartFeiltekst = e => (e && e.message) ? e.message : String(e);
-  oppstartMerk('damages', 'laster');
-  try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; oppstartMerk('damages', 'lastet'); }
-  catch(e){ damages = []; oppstartMerk('damages', 'feil', oppstartFeiltekst(e)); }
-  try{ const t = await window.storage.get('verkstedtimer', true); verkstedtimer = t && t.value ? JSON.parse(t.value) : []; }
-  catch(e){ verkstedtimer = []; }
+  // Operativ DriverControl-flate trenger først kjøretøy, dagens kontroller og varsellamper.
+  // Historikk/dekk/service lastes etterpå — rekkefølgen endrer ikke datalogikk, kun ventetid
+  // før kontrollgrunnlaget er i minnet. Hele loadAll() må fortsatt fullføres før UI åpnes.
   oppstartMerk('kontroller', 'laster');
   try{ const k = await window.storage.get('kontroller', true); kontroller = k && k.value ? JSON.parse(k.value) : []; oppstartMerk('kontroller', 'lastet'); }
   catch(e){ kontroller = []; oppstartMerk('kontroller', 'feil', oppstartFeiltekst(e)); }
   try{ const w = await window.storage.get('varsellys', true); varsellys = w && w.value ? JSON.parse(w.value) : []; }
   catch(e){ varsellys = []; }
+  oppstartMerk('damages', 'laster');
+  try{ const d = await window.storage.get('damages', true); damages = d && d.value ? JSON.parse(d.value) : []; oppstartMerk('damages', 'lastet'); }
+  catch(e){ damages = []; oppstartMerk('damages', 'feil', oppstartFeiltekst(e)); }
+  try{ const t = await window.storage.get('verkstedtimer', true); verkstedtimer = t && t.value ? JSON.parse(t.value) : []; }
+  catch(e){ verkstedtimer = []; }
   try{ const dh = await window.storage.get('dekkhistorikk', true); dekkhistorikk = dh && dh.value ? JSON.parse(dh.value) : []; }
   catch(e){ dekkhistorikk = []; }
   try{ const dk = await window.storage.get('dekkkostnader', true); dekkkostnader = dk && dk.value ? JSON.parse(dk.value) : []; }
@@ -12646,6 +12698,23 @@ function kmVerdiEllerNull(raw){
   if(!Number.isFinite(n) || n < 0) return null;
   return n;
 }
+function kmGodkjenningFelt(info, nokkel){
+  const m = new RegExp('^' + nokkel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':\\s*(.+)$', 'mi').exec(String(info || ''));
+  return m ? m[1].trim() : '';
+}
+function kmGodkjenningInfoBygg(d){
+  const linjer = [
+    'Kilometeravvik bekreftet av sjåfør',
+    'Forrige: ' + d.forrige,
+    'Ny: ' + d.ny,
+    'Differanse: ' + d.differanse,
+    'Sjåfør: ' + (d.sjafor || ''),
+    'Tid: ' + (d.tid || ''),
+    'Kontroll-ID: ' + (d.kontrollId || ''),
+    'STATUS: ' + (d.status || 'bekreftet-sjafor')
+  ];
+  return linjer.join('\n');
+}
 function kontrollKmGulv(v){
   if(!v) return {verdi:null, kilde:'', kilde_type:'', kontroll:null};
   const kandidater = [];
@@ -12653,14 +12722,17 @@ function kontrollKmGulv(v){
   if(vKm !== null){
     kandidater.push({verdi: vKm, kilde: 'kjøretøyets registrerte kilometerstand', kilde_type: 'vehicle', kontroll: null});
   }
+  // Kun operativ kontroll-km og v.km. Aldri servicehistorikk.km, import-notater eller
+  // slettede poster. Avvist hopper over. Korrigert bruker den nye verdien, ikke originalen.
   kontroller.forEach(k => {
     if(k.vehicleId !== v.id) return;
     if(k.testdata === true || k.erTestdata === true) return;
-    // Prioritet 71.10: en AVVIST kilometerendring (se avslaKmEndring()) skal aldri fortsette
-    // å presse gulvet oppover — den var mest sannsynlig en feilregistrering, og skal derfor
-    // ikke permanent blokkere senere, korrekte kontroller under den forkastede verdien.
     if(k.kmGodkjenningStatus === 'avvist') return;
-    const kKm = kmVerdiEllerNull(k.km);
+    let kKm = kmVerdiEllerNull(k.km);
+    if(k.kmGodkjenningStatus === 'korrigert'){
+      const til = kmVerdiEllerNull(kmGodkjenningFelt(k.kmGodkjenningInfo, 'Korrigert til'));
+      if(til !== null) kKm = til;
+    }
     if(kKm === null) return;
     kandidater.push({
       verdi: kKm, kilde_type: 'kontroll',
@@ -12706,7 +12778,7 @@ function kmAvvikMerknad(val, sjafor){
     : val.kilde;
   return KM_AVVIK_PREFIX + ' +' + val.differanse.toLocaleString('nb-NO') + ' km siden forrige registrering (fra ' +
     val.gjeldende.toLocaleString('nb-NO') + ' km' + (kildeTekst ? ' [' + kildeTekst + ']' : '') + ' til ' + val.ny.toLocaleString('nb-NO') +
-    ' km — bekreftet av ' + (sjafor || 'ukjent sjåfør') + '). Kjøretøyets kilometerstand er IKKE endret automatisk — godkjennes via Rediger informasjon.';
+    ' km — Kilometeravvik bekreftet av sjåfør ' + (sjafor || 'ukjent sjåfør') + '). Operativ kilometerstand er oppdatert. Administrator varsles i Varslingssenteret.';
 }
 function kontrollLinjeErKmAvvik(linje){
   return typeof linje === 'string' && linje.trimStart().startsWith(KM_AVVIK_PREFIX);
@@ -12735,17 +12807,30 @@ function kontrollHarKmAvvik(k){
 // Uten denne grensen fanget funksjonen tidligere opp ethvert positivt gap (f.eks. 452 km),
 // og tvang frem en unødvendig godkjenning for noe som burde vært en automatisk oppdatering.
 function kmAvvikForVehicle(v){
-  const vKm = v ? kmVerdiEllerNull(v.km) : null;
+  if(!v) return null;
+  const ventende = kontroller.filter(k => k.vehicleId === v.id && k.kmGodkjenningStatus === 'bekreftet-sjafor')
+    .sort((a,b) => String(b.dato||'').localeCompare(String(a.dato||'')) || String(b.tidspunkt||'').localeCompare(String(a.tidspunkt||'')));
+  if(ventende[0]){
+    const k = ventende[0];
+    const info = k.kmGodkjenningInfo || '';
+    const forrige = kmVerdiEllerNull(kmGodkjenningFelt(info, 'Forrige'));
+    const ny = kmVerdiEllerNull(kmGodkjenningFelt(info, 'Ny')) ?? kmVerdiEllerNull(k.km);
+    const vKm = forrige != null ? forrige : (kmVerdiEllerNull(v.km) ?? 0);
+    const kontrollKm = ny != null ? ny : 0;
+    return {vKm, kontrollKm, differanse: kontrollKm - vKm,
+      kontrollId: k.id, dato: k.dato || '', tidspunkt: k.tidspunkt || '', sjafor: k.sjafor || '',
+      bekreftetAvSjafor: true, status: 'bekreftet-sjafor'};
+  }
+  const vKm = kmVerdiEllerNull(v.km);
   if(vKm === null) return null;
-  // Prioritet 66.2: sammenlign mot HØYESTE gyldige kontrollkilometer i hele historikken,
-  // samme gulv som valideringen bruker — ikke bare siste kontroll.
   const gulv = kontrollKmGulv(v);
   if(gulv.kilde_type !== 'kontroll' || gulv.verdi === null || gulv.verdi <= vKm) return null;
   const differanse = gulv.verdi - vKm;
-  if(differanse < KM_HOPP_GRENSE) return null; // Prioritet 72.1: under grensen — ikke et varsel.
+  if(differanse < KM_HOPP_GRENSE) return null;
   const k = gulv.kontroll;
   return {vKm, kontrollKm: gulv.verdi, differanse,
-    kontrollId: k ? k.id : '', dato: k ? k.dato : '', tidspunkt: k ? k.tidspunkt : '', sjafor: k ? k.sjafor : ''};
+    kontrollId: k ? k.id : '', dato: k ? k.dato : '', tidspunkt: k ? k.tidspunkt : '', sjafor: k ? k.sjafor : '',
+    bekreftetAvSjafor: false, status: 'legacy'};
 }
 // Kjøres manuelt fra nettleserkonsollen av administrator: rapporterKmAvvik()
 window.rapporterKmAvvik = function(){
@@ -12912,8 +12997,133 @@ async function avslaKmEndring(vehicleId){
     v.km.toLocaleString('nb-NO') + ' km. Den registrerte verdien (' + kmA.kontrollKm.toLocaleString('nb-NO') +
     ' km) merkes som avvist i kontrollhistorikken — ikke slettet.')) return;
   k.kmGodkjenningStatus = 'avvist';
-  k.kmGodkjenningInfo = 'Avvist av ' + (loggedInRole || 'ukjent') + ' ' + fmtDateTime(todayISO(), nowTimeOslo());
+  k.kmGodkjenningInfo = ((k.kmGodkjenningInfo || '') + '\nAvvist av ' + (loggedInRole || 'ukjent') + ' ' + fmtDateTime(todayISO(), nowTimeOslo())).trim();
   await saveKontroller();
+  render();
+}
+function apneKontrollFraKmVarsel(vehicleId){
+  goToFullKontrollhistorikk(vehicleId);
+}
+function apneKmKorriger(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  const kmA = v ? kmAvvikForVehicle(v) : null;
+  if(!kmA) return;
+  kmKorrigerApenFor = {vehicleId, kontrollId: kmA.kontrollId};
+  kmKorrigerNy = '';
+  kmKorrigerBegrunnelse = '';
+  kmKorrigerFeil = '';
+  render();
+}
+function lukkKmKorriger(){
+  kmKorrigerApenFor = null;
+  kmKorrigerNy = '';
+  kmKorrigerBegrunnelse = '';
+  kmKorrigerFeil = '';
+  render();
+}
+function renderKmKorrigerModalHtml(){
+  if(!kmKorrigerApenFor) return '';
+  const v = vehicles.find(x => x.id === kmKorrigerApenFor.vehicleId);
+  const kmA = v ? kmAvvikForVehicle(v) : null;
+  if(!kmA) return '';
+  return `<div class="km-korriger-bak" id="km-korriger-bak" role="dialog" aria-modal="true" aria-labelledby="km-korriger-tittel">
+    <div class="km-korriger-kort">
+      <h3 id="km-korriger-tittel">Korriger kilometerstand</h3>
+      <p class="required-hint" style="margin:0 0 10px;">${esc(v ? vehicleLabel(v) : '')}</p>
+      <p class="kt-km-sjekk-tall">Registrert verdi: <strong>${Number(kmA.kontrollKm).toLocaleString('nb-NO')} km</strong></p>
+      <div class="field"><label for="km-korriger-ny">Ny korrekt verdi</label>
+        <input id="km-korriger-ny" type="number" inputmode="numeric" min="0" step="1" value="${esc(kmKorrigerNy)}"></div>
+      <div class="field"><label for="km-korriger-begr">Begrunnelse</label>
+        <textarea id="km-korriger-begr" required>${esc(kmKorrigerBegrunnelse)}</textarea></div>
+      ${kmKorrigerFeil ? `<div class="form-msg">${esc(kmKorrigerFeil)}</div>` : ''}
+      <div class="km-korriger-handlinger">
+        <button type="button" class="bp-btn bp-btn-primary btn" id="km-korriger-lagre">Lagre korreksjon</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn" id="km-korriger-avbryt">Avbryt</button>
+      </div>
+    </div>
+  </div>`;
+}
+function attachKmKorrigerListeners(){
+  const ny = document.getElementById('km-korriger-ny');
+  if(ny) ny.addEventListener('input', e => { kmKorrigerNy = e.target.value; });
+  const begr = document.getElementById('km-korriger-begr');
+  if(begr) begr.addEventListener('input', e => { kmKorrigerBegrunnelse = e.target.value; });
+  const lagre = document.getElementById('km-korriger-lagre');
+  if(lagre) lagre.addEventListener('click', () => lagreKmKorrigering());
+  const avbryt = document.getElementById('km-korriger-avbryt');
+  if(avbryt) avbryt.addEventListener('click', () => lukkKmKorriger());
+}
+function attachKmAvvikAdminListeners(){
+  document.querySelectorAll('[data-apne-kontroll-km]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); apneKontrollFraKmVarsel(el.dataset.apneKontrollKm); }));
+  document.querySelectorAll('[data-korriger-km]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); apneKmKorriger(el.dataset.korrigerKm); }));
+  document.querySelectorAll('[data-marker-km-gjennomgatt]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); markerKmAvvikGjennomgatt(el.dataset.markerKmGjennomgatt); }));
+  attachKmKorrigerListeners();
+}
+function kmAvvikAdminKnapperHtml(vehicleId){
+  if(!isAdmin) return '';
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+    <button type="button" class="bp-btn bp-btn-secondary btn small" data-apne-kontroll-km="${esc(vehicleId)}">Åpne kontroll</button>
+    <button type="button" class="bp-btn bp-btn-secondary btn small" data-korriger-km="${esc(vehicleId)}">Korriger kilometerstand</button>
+    <button type="button" class="bp-btn bp-btn-primary btn small" data-marker-km-gjennomgatt="${esc(vehicleId)}">Marker gjennomgått</button>
+  </div>`;
+}
+async function markerKmAvvikGjennomgatt(vehicleId){
+  const v = vehicles.find(x => x.id === vehicleId);
+  if(!v) return;
+  const kmA = kmAvvikForVehicle(v);
+  if(!kmA) return;
+  const k = kontroller.find(x => x.id === kmA.kontrollId);
+  if(!k) return;
+  const vKm = kmVerdiEllerNull(v.km);
+  if(kmA.status === 'legacy' && kmA.kontrollKm != null && (vKm === null || kmA.kontrollKm > vKm)){
+    if(!krevVehiclesSkriving('Å oppdatere kilometerstand')) return;
+    const forrige = v.km;
+    v.km = kmA.kontrollKm;
+    try{ await saveVehiclesOrThrow(); }
+    catch(e){
+      v.km = forrige;
+      if(!(e && (e.blokkertAvSperre || e.blokkertAvVakt))) alert('Kunne ikke oppdatere kilometerstanden. Prøv igjen.');
+      render();
+      return;
+    }
+  }
+  k.kmGodkjenningStatus = 'gjennomgatt';
+  k.kmGodkjenningInfo = ((k.kmGodkjenningInfo || '') + '\nSTATUS: gjennomgatt\nGjennomgått av ' + (loggedInRole || 'ukjent') + ' ' + fmtDateTime(todayISO(), nowTimeOslo())).trim();
+  await saveKontroller();
+  render();
+}
+async function lagreKmKorrigering(){
+  if(!kmKorrigerApenFor) return;
+  const v = vehicles.find(x => x.id === kmKorrigerApenFor.vehicleId);
+  const k = kontroller.find(x => x.id === kmKorrigerApenFor.kontrollId);
+  if(!v || !k){ lukkKmKorriger(); return; }
+  const ny = Number(kmKorrigerNy);
+  const begr = (kmKorrigerBegrunnelse || '').trim();
+  if(!begr){ kmKorrigerFeil = 'Begrunnelse er påkrevd.'; render(); return; }
+  if(!Number.isFinite(ny) || ny < 0){ kmKorrigerFeil = 'Oppgi en gyldig kilometerstand.'; render(); return; }
+  if(!krevVehiclesSkriving('Å korrigere kilometerstand')) return;
+  const forrigeVkm = v.km;
+  v.km = ny;
+  try{ await saveVehiclesOrThrow(); }
+  catch(e){
+    v.km = forrigeVkm;
+    kmKorrigerFeil = 'Kunne ikke lagre korreksjonen. Prøv igjen.';
+    render();
+    return;
+  }
+  const opprinnelig = kmVerdiEllerNull(k.km);
+  k.kmGodkjenningStatus = 'korrigert';
+  k.kmGodkjenningInfo = ((k.kmGodkjenningInfo || '') +
+    '\nKorrigert til: ' + ny +
+    '\nOpprinnelig registrert: ' + (opprinnelig != null ? opprinnelig : k.km) +
+    '\nBegrunnelse: ' + begr +
+    '\nKorrigert av: ' + (loggedInRole || 'ukjent') + ' ' + fmtDateTime(todayISO(), nowTimeOslo()) +
+    '\nSTATUS: korrigert').trim();
+  await saveKontroller();
+  kmKorrigerApenFor = null;
+  kmKorrigerNy = '';
+  kmKorrigerBegrunnelse = '';
+  kmKorrigerFeil = '';
   render();
 }
 
@@ -12976,6 +13186,7 @@ function nullstillKontrollSkjema(){
   kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
   kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
   kontrollFormAvvik = []; kontrollAvvikOpen = false;
+  kontrollKmSjekkApen = false; kontrollKmSjaforBekreftet = false; kontrollPagaendeId = '';
   clearKontrollDraft();
   pendingKontrollPhotos = [];
 }
@@ -12992,10 +13203,10 @@ async function kontrollHandterDublett(vehicleId, sjafor, dublett){
   nullstillKontrollSkjema();
   if(driverMode){
     await startBilokt(vehicleId, sjafor);
-    await sjFriskOppMinBilData();
     driverScreen = 'min-bil'; minBilAksjon = ''; minBilNySjaforMsg = '';
     render();
     visSjToast('Kontrollen var allerede registrert');
+    sjFriskOppMinBilData().then(() => { if(driverMode && driverScreen === 'min-bil') render(); }).catch(() => {});
   } else {
     alert('Kontrollen er allerede registrert for ' + (v ? vehicleLabel(v) : 'bilen') + (dublett.tidspunkt ? ' (kl. ' + dublett.tidspunkt + ')' : '') + '. Ingen ny kontroll ble lagret.');
     goTo('bilkort', vehicleId);
@@ -13004,6 +13215,8 @@ async function kontrollHandterDublett(vehicleId, sjafor, dublett){
 
 async function submitKontroll(ev){
   ev.preventDefault();
+  const perf = dcPerfStart();
+  dcPerfMark(perf, 'klikk-registrer');
   const submitBtn = document.getElementById('kt-submit-btn');
   const msgEl = document.getElementById('kt-msg');
   const vehicleId = kontrollFormVehicleId;
@@ -13039,24 +13252,21 @@ async function submitKontroll(ev){
   // korrigering nedover er fortsatt mulig — men kun via den beskyttede adminflyten i
   // saveVehicleForm() (Rediger informasjon), aldri herfra.
   const kmVal = validerKontrollKm(v, km);
+  dcPerfMark(perf, 'lokal-validering');
   if(kmVal.status === 'blokkert'){
     visKontrollKmFeil(kmVal.melding);
+    dcPerfFerdig(perf);
     return;
   }
-  // DEL 7: hopp på 1 000 km eller mer er en ADVARSEL, ikke en blokkering.
-  if(kmVal.status === 'storthopp'){
-    const fortsett = confirm(kmVal.melding + '\n\nForrige registrering: ' + kmVal.gjeldende.toLocaleString('nb-NO') + ' km' +
-      (kmVal.kilde ? ' (' + kmVal.kilde + ')' : '') +
-      '\nNy verdi: ' + kmVal.ny.toLocaleString('nb-NO') + ' km' +
-      '\nDifferanse: ' + kmVal.differanse.toLocaleString('nb-NO') + ' km' +
-      '\n\nOK = Bekreft og fortsett\nAvbryt = Kontroller tallet');
-    if(!fortsett){
-      const el = document.getElementById('kt-km');
-      if(el){ el.classList.add('kt-km-feil'); el.focus(); el.select && el.select(); }
-      msgEl.textContent = 'Kontroller kilometerstanden og send inn på nytt.';
-      return;
-    }
+  if(kmVal.status === 'storthopp' && !kontrollKmSjaforBekreftet){
+    kontrollFormKm = km;
+    kontrollKmSjekkApen = true;
+    render();
+    dcPerfMark(perf, 'kilometerkontroll');
+    dcPerfFerdig(perf);
+    return;
   }
+  dcPerfMark(perf, 'kilometerkontroll');
 
   const varsellamper = kontrollFormVarsellamper.slice();
   if(kontrollFormAnnet && !varsellamper.includes('annet')) varsellamper.push('annet');
@@ -13083,7 +13293,8 @@ async function submitKontroll(ev){
     return;
   }
 
-  const id = uid();
+  if(!kontrollPagaendeId) kontrollPagaendeId = uid();
+  const id = kontrollPagaendeId;
   const dato = todayISO();
   const tidspunkt = nowTimeOslo();
   const sjafor = sjaforNavn;
@@ -13102,9 +13313,14 @@ async function submitKontroll(ev){
     userAgent: navigator.userAgent, standalone: (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true
   });
 
-  if(submitBtn) submitBtn.disabled = true;
-  msgEl.textContent = '';
-  // Prioritet 63: merk innsendingen som PÅGÅENDE (andre faner ser den), FØR første skriving.
+  if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Registrerer...'; }
+  if(msgEl) msgEl.textContent = '';
+  clearTimeout(kontrollLagringTimer);
+  kontrollLagringTimer = setTimeout(() => {
+    const m = document.getElementById('kt-msg');
+    if(m && _aktiveHandlingsLaser.has('submitKontroll')) m.textContent = 'Lagrer kontroll...';
+  }, 2500);
+  dcPerfMark(perf, 'opprettelse-av-payload');
   kontrollMerkInnsending(vehicleId, sjafor, dato, tidspunkt, 'pagar');
 
   // ================= Prioritet 66.1: transaksjonshåndtering =================
@@ -13157,12 +13373,12 @@ async function submitKontroll(ev){
     }
     // 3. Brukeren blir stående i skjemaet med alle sine data i behold. Ingen
     //    «Kontroll registrert», ingen navigasjon, ingen tømming av utkastet.
+    clearTimeout(kontrollLagringTimer);
     if(submitBtn) submitBtn.disabled = false;
     let feilHtml;
     if(ikkeReversert.length === 0){
-      // Ren rollback: ingenting ble liggende igjen, og det er trygt å prøve på nytt.
-      feilHtml = '⚠️ ' + esc(feiletSteg) + ' kunne ikke lagres (' + esc(err && err.message ? err.message : 'ukjent feil') + ').' +
-        '<br>Kontrollen er IKKE registrert, og ingenting ble lagret. Skjemaet står som det var — sjekk nettforbindelsen og trykk Send inn på nytt.';
+      feilHtml = 'Kunne ikke lagre kontrollen.' +
+        '<br><button type="button" class="bp-btn bp-btn-primary btn small" id="kt-prov-igjen" style="margin-top:8px;">Prøv igjen</button>';
     } else {
       // Punkt 4 (Prioritet 66.2): den kompenserende skrivingen feilet også. Da KAN deler
       // av registreringen ligge i Airtable, og et nytt forsøk kan gi dubletter. Brukeren
@@ -13179,6 +13395,12 @@ async function submitKontroll(ev){
     // kontrollForm*-variablene og er intakte.
     const nyMsgEl = document.getElementById('kt-msg');
     if(nyMsgEl){ nyMsgEl.innerHTML = feilHtml; if(nyMsgEl.scrollIntoView) nyMsgEl.scrollIntoView({block:'center'}); }
+    const prov = document.getElementById('kt-prov-igjen');
+    if(prov) prov.addEventListener('click', () => {
+      const form = document.getElementById('kontroll-form');
+      if(form && form.requestSubmit) form.requestSubmit();
+      else submitKontroll({preventDefault(){}});
+    });
   }
 
   try{
@@ -13191,37 +13413,23 @@ async function submitKontroll(ev){
     // tilbake SAMLET dersom et senere steg feiler — så det motsatte avviket (kjøretøy med
     // høyere km enn noen kontroll) heller ikke kan oppstå.
     //
-    // PRIORITET 67 — AUTOMATISK KM-SYNKRONISERING:
-    // En gyldig kontroll er normalt den beste kilden til bilens faktiske kilometerstand,
-    // og skal derfor oppdatere v.km automatisk. Ett unntak: et BEKREFTET STORTHOPP
-    // (>= 1 000 km over km-gulvet) oppdaterer IKKE v.km. Kontrollen lagres som normalt og
-    // merkes med KM_AVVIK_PREFIX, men selve kjøretøystanden krever en bevisst
-    // administrativ godkjenning via Rediger informasjon. Det beskytter mot at en
-    // tastefeil (31 000 → 310 000) blir kjøretøyets nye autoritative km.
-    // Merk konsekvensen: etter et bekreftet storthopp er v.km LAVERE enn siste kontroll,
-    // og km-avviksvarselet fra Prioritet 66 vises — det er hensikten, ikke en feil.
-    // Km-gulvet (kontrollKmGulv) ser uansett på hele kontrollhistorikken, så neste
-    // kontroll kan fortsatt ikke registreres under storthoppets verdi.
-    const oppdaterKjoretoyKm = kmVal.status !== 'storthopp';
-    if(oppdaterKjoretoyKm){
-      try{
-        v.km = km;
-        await saveVehiclesOrThrow();
-        lagret.push('vehicles');
-      }catch(kmErr){ await rullTilbake('Kilometerstanden', kmErr); return; }
-      console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
-    } else {
-      console.log('[submitKontroll] Bekreftet storthopp — v.km IKKE oppdatert automatisk. Kjøretøy', vehicleId, 'står fortsatt på', v.km, '— kontrollen registreres med', km);
-    }
-
+    const alleredeLagret = kontroller.some(x => x.id === id);
     let linkedDamageId = null;
-    // KRITISK FEILRETTING: lagre bildene FØRST og tell kun de som faktisk lyktes — et
-    // stort/detaljert bilde kan feile mot Airtables feltgrense (se resizeImage()) uten at
-    // det tidligere ble oppdaget. Lagres under sammenhengende indekser (0,1,2...) blant de
-    // VELLYKKEDE bildene (ikke original posisjon), slik at damagePhotoKeys() sin antakelse
-    // om en sammenhengende 0..count-1-sekvens alltid stemmer, uansett om ett bilde midt i
-    // rekken skulle feile.
     let antallBilderLagret = 0;
+    if(alleredeLagret){
+      console.info('[submitKontroll] Idempotent: kontroll', id, 'finnes allerede — ingen ny post');
+      dcPerfMark(perf, 'storage-kall');
+      dcPerfMark(perf, 'airtable-kall');
+      dcPerfMark(perf, 'respons-fra-airtable');
+    } else {
+    try{
+      v.km = km;
+      await saveVehiclesOrThrow();
+      lagret.push('vehicles');
+      dcPerfMark(perf, 'storage-kall');
+    }catch(kmErr){ await rullTilbake('Kilometerstanden', kmErr); dcPerfFerdig(perf); return; }
+    console.log('[submitKontroll] Kilometerstand oppdatert på kjøretøy', vehicleId, km);
+
     for(let i = 0; i < pendingKontrollPhotos.length; i++){
       const nokkel = 'kontroll:'+id+':'+antallBilderLagret;
       const ok = await savePhoto(nokkel, pendingKontrollPhotos[i]);
@@ -13244,14 +13452,23 @@ async function submitKontroll(ev){
       if(antallBilderLagret > 0 && await savePhoto('damage:'+linkedDamageId, pendingKontrollPhotos[0])) lagredeBildenokler.push('damage:'+linkedDamageId);
     }
 
+    const kmGodkjenningStatus = kmVal.status === 'storthopp' ? 'bekreftet-sjafor' : '';
+    const kmGodkjenningInfo = kmVal.status === 'storthopp'
+      ? kmGodkjenningInfoBygg({
+          forrige: kmVal.gjeldende, ny: kmVal.ny, differanse: kmVal.differanse,
+          sjafor, tid: fmtDateTime(dato, tidspunkt), kontrollId: id, status: 'bekreftet-sjafor'
+        })
+      : '';
     kontroller.push({
       id, vehicleId, dato, tidspunkt, sjafor, km,
       varsellamper, annetTekst, harNyeSkader, skadeBeskrivelse,
-      skadeBilderCount: antallBilderLagret, kommentar, kommentarLest: true, linkedDamageId
+      skadeBilderCount: antallBilderLagret, kommentar, kommentarLest: true, linkedDamageId,
+      kmGodkjenningStatus, kmGodkjenningInfo
     });
-    try{ await saveKontroller(); lagret.push('kontroller'); }
-    catch(e){ await rullTilbake('Kontrollen', e); return; }
+    try{ await saveKontroller(); lagret.push('kontroller'); dcPerfMark(perf, 'airtable-kall'); }
+    catch(e){ await rullTilbake('Kontrollen', e); dcPerfFerdig(perf); return; }
     console.log('[submitKontroll] Kontroll lagret i kontroller-listen', id);
+    dcPerfMark(perf, 'respons-fra-airtable');
 
     // Varsellamper er vedvarende: en huket boks oppretter kun en ny aktiv varsellys-
     // sak dersom det ikke allerede finnes en aktiv sak av samme type på bilen fra før.
@@ -13311,9 +13528,10 @@ async function submitKontroll(ev){
     }
     if(sakerEndret){
       try{ await saveAktiveSaker(); lagret.push('aktiveSaker'); }
-      catch(e){ await rullTilbake('Aktive saker', e); return; }
+      catch(e){ await rullTilbake('Aktive saker', e); dcPerfFerdig(perf); return; }
       console.log('[submitKontroll] Aktive Saker oppdatert (Fase 2)');
     }
+    } // alleredeLagret
 
     // v.km er allerede skrevet og lagret ØVERST i denne try-blokken (Prioritet 66).
     // Kun kontrollregistrering (denne funksjonen), performKontrollDeletion(),
@@ -13324,11 +13542,14 @@ async function submitKontroll(ev){
     // CLAUDE.md "Servicehistorikk vs. kjøretøyets kilometerstand" for en tidligere,
     // rettet dataintegritetsfeil av nøyaktig denne typen.
 
+    clearTimeout(kontrollLagringTimer);
     kontrollFormVehicleId = ''; kontrollFormAnnet = false; kontrollFormHarSkader = false; kontrollPrefillVehicleId = '';
     kontrollFormKm = ''; kontrollFormAnnetTekst = ''; kontrollFormSkadeBeskrivelse = ''; kontrollFormSkadeType = ''; kontrollFormSkadeKanKjores = ''; kontrollFormKommentar = ''; kontrollFormAvvikKommentar = '';
     kontrollFormVarsellamper = []; kontrollDraftRestored = false; kontrollVarsellamperOpen = false;
     kontrollFormAvvik = []; kontrollAvvikOpen = false;
+    kontrollKmSjekkApen = false; kontrollKmSjaforBekreftet = false; kontrollPagaendeId = '';
     clearKontrollDraft();
+    dcPerfMark(perf, 'oppdatering-av-lokal-tilstand');
     console.log('[submitKontroll] FERDIG — alt lagret uten feil for kontroll', id);
     kontrollMerkInnsending(vehicleId, sjafor, dato, tidspunkt, 'ok');
     const antallValgteBilder = pendingKontrollPhotos.length;
@@ -13373,23 +13594,32 @@ async function submitKontroll(ev){
       // Ved LAGRINGSFEIL kommer vi aldri hit: rullTilbake() over har da stoppet funksjonen,
       // sjåføren blir stående på kontrollsiden med feilmeldingen og kan prøve igjen.
       await startBilokt(vehicleId, sjafor);
-      await sjFriskOppMinBilData();
       driverScreen = 'min-bil';
       minBilAksjon = ''; minBilNySjaforMsg = '';
       render();
+      dcPerfMark(perf, 'oppdatering-av-ui');
       visSjToast('Kontroll registrert');
+      dcPerfMark(perf, 'fullfort-registrering');
+      dcPerfFerdig(perf);
+      sjFriskOppMinBilData().then(() => {
+        if(driverMode && driverScreen === 'min-bil') render();
+      }).catch(e => console.error('[sjFriskOppMinBilData]', e));
     } else {
       // en kontroll registrert fra administrasjonsdelen setter nå aktiv
       // sjåfør på nøyaktig samme måte som en kontroll registrert i sjåførmodus — samme
       // regel, uansett registreringskanal. Den lokale enhets-sesjonen røres ikke.
       await settAktivSjaforForKontroll(vehicleId, sjafor);
       goTo('bilkort', vehicleId);
+      dcPerfMark(perf, 'oppdatering-av-ui');
+      dcPerfMark(perf, 'fullfort-registrering');
+      dcPerfFerdig(perf);
     }
   }catch(err){
     // Uventet feil et sted i kjeden (f.eks. full lagringsplass på enheten). Går gjennom
     // SAMME samlede rollback som de eksplisitte stegene over — ingen delvis registrert
     // kontroll blir stående, og brukeren beholder skjemadataene sine.
     await rullTilbake('Kontrollen', err);
+    dcPerfFerdig(perf);
   }
 }
 // Forhåndsutfyller «Annet»-feltet dersom bilen allerede har en aktiv «Annet»-varsellys,
@@ -14475,7 +14705,7 @@ function renderDriverShell(){
   app.innerHTML = `
     <div class="shell-top">
       ${brandBlockHtml()}
-      <div class="shell-top-right"><span class="required-hint" style="font-weight:600;">Sjåførmodus</span><span class="p48-status-dot"></span></div>
+      <div class="shell-top-right">${sjSynkStatusHtml()}<span class="required-hint" style="font-weight:600;">Sjåførmodus</span><span class="p48-status-dot"></span></div>
     </div>
     <div class="sj-app">${body}</div>
     ${renderDriverBunnmenyHtml()}
@@ -14488,6 +14718,8 @@ function renderDriverShell(){
   else if(driverScreen === 'ny-kommentar') attachDriverNyKommentarListeners();
   else attachDriverVelgBilListeners();
   attachDriverBunnmenyListeners();
+  const synkProv = document.getElementById('sj-synk-prov');
+  if(synkProv) synkProv.addEventListener('click', () => sjProvSynkIgjen());
   refreshLucideIcons();
 }
 
@@ -19032,7 +19264,8 @@ const AlertEngine = {
       const kmA = kmAvvikForVehicle(v);
       if(kmA){
         liste.push({id:'km:'+(kmA.kontrollId || v.id), kategori:'km', vehicleId:v.id, tittel:'Kilometeravvik',
-          tekst: vehicleLabel(v) + ' — Forrige km ' + kmA.vKm.toLocaleString('nb-NO') + ', ny km ' + kmA.kontrollKm.toLocaleString('nb-NO') +
+          tekst: vehicleLabel(v) + (kmA.bekreftetAvSjafor ? ' — Bekreftet av sjåfør' : '') +
+            ' — Forrige km ' + kmA.vKm.toLocaleString('nb-NO') + ', ny km ' + kmA.kontrollKm.toLocaleString('nb-NO') +
             ', differanse +' + kmA.differanse.toLocaleString('nb-NO') + ' km' + (kmA.sjafor ? ' · ' + kmA.sjafor : '') + '.',
           dato:kmA.dato || todayISO(), mal:'bilkort', alvorlighet:null, varselStatus:'ny'});
       }
@@ -19148,9 +19381,7 @@ function varslingssenterRadHtml(x){
   // Prioritet 71.10: km-varselet er en pågående godkjenning, ikke en informasjonsmelding —
   // Godta/Avslå er derfor de primære handlingene her, ved siden av (ikke i stedet for) den
   // generiske «Marker som sett».
-  const kmKnapper = x.kategori === 'km' && isAdmin
-    ? `<button type="button" class="bp-btn bp-btn-primary btn small" data-godta-km="${x.vehicleId}">Godkjenn</button>
-       <button type="button" class="bp-btn bp-btn-secondary btn small danger-outline" data-avsla-km="${x.vehicleId}">✖️ Avslå</button>` : '';
+  const kmKnapper = x.kategori === 'km' ? kmAvvikAdminKnapperHtml(x.vehicleId) : '';
   // V4 · W6: Varslingssenter-rad = AlertCard. Samme knapper og data-attributter som før.
   const a = bpAlertNivaFraAlvorlighet(x.alvorlighet);
   return bpAlertHtml({
@@ -19219,6 +19450,7 @@ function renderVarslerOversikt(){
     </div>
     ${skjulteKategoriAntall > 0 ? `<div class="required-hint" style="margin:-10px 0 18px;">${skjulteKategoriAntall} varsel${skjulteKategoriAntall === 1 ? '' : 'er'} ligger i kategorier som er skjult i layouten (Innstillinger → Layout Editor → Standardsider). Tallet over inkluderer dem.</div>` : ''}
     `}
+    ${renderKmKorrigerModalHtml()}
   `;
 }
 function attachVarslerOversiktListeners(){
@@ -19234,8 +19466,7 @@ function attachVarslerOversiktListeners(){
   document.querySelectorAll('[data-goto-varsel-sak]').forEach(el => el.addEventListener('click', () => goToVarselSak(el.dataset.gotoVarselSak)));
   document.querySelectorAll('[data-goto-varsel-kommentarer]').forEach(el => el.addEventListener('click', () => goTo('kommentaroversikt')));
   document.querySelectorAll('[data-kvitter]').forEach(el => el.addEventListener('click', () => kvitterVarsellys(el.dataset.kvitter)));
-  document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
-  document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
+  attachKmAvvikAdminListeners();
 }
 
 // ================= Mobilitetsgaranti (Prioritet 65) =================
@@ -19659,8 +19890,7 @@ function attachBilkortHistorikkListeners(root){
     const [kilde, id] = el.dataset.markerLest.split(':');
     markerKommentarSomLest(kilde, id);
   }));
-  root.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); godtaKmEndring(el.dataset.godtaKm); }));
-  root.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); avslaKmEndring(el.dataset.avslaKm); }));
+  attachKmAvvikAdminListeners();
   root.querySelectorAll('[data-goto-sak]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); goToSakDetalj(el.dataset.gotoSak); }));
   const skadeBtn = root.querySelector('#ny-skade-btn');
   if(skadeBtn) skadeBtn.addEventListener('click', () => goToRegisterSkade(currentVehicleId));
@@ -20070,6 +20300,7 @@ function renderBilkort(){
           ${v.uteAvDrift ? `<button class="bp-btn bp-btn-danger btn danger" id="del-vehicle">${luc('trash-2')} Slett bil</button>` : `<p class="required-hint">Aktive biler må settes til «Kan ikke brukes» før de kan slettes.</p>`}
         `)}
     </section>
+    ${renderKmKorrigerModalHtml()}
   `;
 }
 function attachBilkortListeners(){
@@ -21624,7 +21855,8 @@ function kmAvvikHendelserListe(vehicleId){
       bilTekst: vehicleLabel(v),
       vKm: a.vKm,
       kontrollKm: a.kontrollKm,
-      differanse: a.differanse
+      differanse: a.differanse,
+      bekreftetAvSjafor: !!a.bekreftetAvSjafor
     };
   }).filter(Boolean);
   if(vehicleId) alle = alle.filter(x => x.vehicleId === vehicleId);
@@ -21657,10 +21889,8 @@ function kmAvvikHendelseRadHtml(x, isFirst, visGodkjenn){
         Til: ${Number(x.kontrollKm).toLocaleString('nb-NO')} km<br>
         Differanse: +${Number(x.differanse).toLocaleString('nb-NO')} km
       </div>
-      ${visGodkjenn ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        <button type="button" class="bp-btn bp-btn-primary btn small" data-godta-km="${x.vehicleId}">Godkjenn</button>
-        <button type="button" class="bp-btn bp-btn-secondary btn small danger-outline" data-avsla-km="${x.vehicleId}">Avslå</button>
-      </div>` : ''}
+      ${x.bekreftetAvSjafor ? `<div style="font-size:12px;font-weight:600;margin:6px 0;">Bekreftet av sjåfør</div>` : ''}
+      ${visGodkjenn ? kmAvvikAdminKnapperHtml(x.vehicleId) : ''}
     </div>`;
 }
 function nyeKommentarerSectionHtml(){
@@ -21723,7 +21953,7 @@ function renderKommentaroversikt(){
     <div class="bp-card panel" style="margin-bottom:16px;">
       <div class="p38-panel-head bp-card-head"><div class="tittel bp-card-title">⚠ Kilometeravvik${kmListe.length ? ` (${kmListe.length})` : ''}</div></div>
       ${kmListe.length === 0
-        ? `<div class="empty-note">Ingen kilometeravvik som venter på godkjenning.</div>`
+        ? `<div class="empty-note">Ingen kilometeravvik som venter på gjennomgang.</div>`
         : `<div>${kmListe.map((x, i) => kmAvvikHendelseRadHtml(x, i === 0, true)).join('')}</div>`}
     </div>
     <div class="bp-card panel">
@@ -21732,6 +21962,7 @@ function renderKommentaroversikt(){
         ? `<div class="empty-note">${kommentaroversiktFilterBil ? 'Ingen kommentarer for dette kjøretøyet.' : 'Ingen kommentarer fra sjåfører ennå.'}</div>`
         : `<div>${kommentarListe.map((k, i) => nyeKommentarRadHtml(k, i === 0, true)).join('')}</div>`}
     </div>
+    ${renderKmKorrigerModalHtml()}
   `;
 }
 function attachKommentaroversiktListeners(){
@@ -21742,8 +21973,7 @@ function attachKommentaroversiktListeners(){
     const [kilde, id] = el.dataset.markerLest.split(':');
     markerKommentarSomLest(kilde, id);
   }));
-  document.querySelectorAll('[data-godta-km]').forEach(el => el.addEventListener('click', () => godtaKmEndring(el.dataset.godtaKm)));
-  document.querySelectorAll('[data-avsla-km]').forEach(el => el.addEventListener('click', () => avslaKmEndring(el.dataset.avslaKm)));
+  attachKmAvvikAdminListeners();
 }
 function renderAktiveSaker(){
   const eget = uxLayoutOvertar('aktivesaker');
@@ -26738,11 +26968,31 @@ function renderKontroll(){
 
       `, '')}${(kontrollDeler['control.send'] = `
       <div class="form-msg" id="kt-msg"></div>
-      <div class="panel-actions"><button class="bp-btn bp-btn-primary btn" id="kt-submit-btn" type="submit" style="width:100%;min-height:52px;">Send inn kontroll</button></div>
+      <div class="panel-actions"><button class="bp-btn bp-btn-primary btn" id="kt-submit-btn" type="submit" style="width:100%;min-height:52px;">Registrer</button></div>
       `, '')}
       ${layoutListeHtml('driver-control', {parts:kontrollDeler})}
     </form>
+    ${kontrollKmSjekkApen ? renderKontrollKmSjekkHtml(v) : ''}
   `;
+}
+function renderKontrollKmSjekkHtml(v){
+  const ny = Number(kontrollFormKm);
+  const val = validerKontrollKm(v, kontrollFormKm);
+  const forrige = val.gjeldende != null ? val.gjeldende : kmVerdiEllerNull(v && v.km);
+  const diff = val.differanse != null ? val.differanse : (Number.isFinite(ny) && forrige != null ? ny - forrige : null);
+  return `<div class="kt-km-sjekk-bak" id="kt-km-sjekk-bak" role="dialog" aria-modal="true" aria-labelledby="kt-km-sjekk-tittel">
+    <div class="kt-km-sjekk">
+      <h3 id="kt-km-sjekk-tittel">Kontroller kilometerstanden</h3>
+      <p class="kt-km-sjekk-tall">Du registrerte:<br><strong>${Number.isFinite(ny) ? ny.toLocaleString('nb-NO') : esc(kontrollFormKm)} km</strong></p>
+      <p class="kt-km-sjekk-tall">Forrige registrerte kilometerstand:<br><strong>${forrige != null ? forrige.toLocaleString('nb-NO') : '—'} km</strong></p>
+      <p class="kt-km-sjekk-tall">Forskjell:<br><strong>${diff != null ? (diff >= 0 ? '+' : '') + diff.toLocaleString('nb-NO') : '—'} km</strong></p>
+      <p class="required-hint" style="margin:0 0 8px;">Dette er en uvanlig stor endring. Kontroller kilometerstanden en gang til før du fortsetter.</p>
+      <div class="kt-km-sjekk-handlinger">
+        <button type="button" class="bp-btn bp-btn-primary btn" id="kt-km-endre">Endre kilometerstand</button>
+        <button type="button" class="bp-btn bp-btn-secondary btn" id="kt-km-ok">Ja, kilometerstanden er riktig</button>
+      </div>
+    </div>
+  </div>`;
 }
 function attachKontrollListeners(){
   attachDriftslagGruppeListeners();
@@ -26763,6 +27013,30 @@ function attachKontrollListeners(){
   });
   const kontrollFormEl = document.getElementById('kontroll-form');
   if(kontrollFormEl) kontrollFormEl.addEventListener('submit', beskyttSubmit('submitKontroll', submitKontroll, {opptattTekst: 'Registrerer...'}));
+  const kmEndre = document.getElementById('kt-km-endre');
+  if(kmEndre) kmEndre.addEventListener('click', () => {
+    kontrollKmSjekkApen = false;
+    kontrollKmSjaforBekreftet = false;
+    render();
+    const el = document.getElementById('kt-km');
+    if(el){ el.focus(); el.select && el.select(); }
+  });
+  const kmOk = document.getElementById('kt-km-ok');
+  if(kmOk) kmOk.addEventListener('click', () => {
+    kontrollKmSjaforBekreftet = true;
+    kontrollKmSjekkApen = false;
+    const bak = document.getElementById('kt-km-sjekk-bak');
+    if(bak) bak.remove();
+    const form = document.getElementById('kontroll-form');
+    if(form && form.requestSubmit) form.requestSubmit();
+    else submitKontroll({preventDefault(){}});
+  });
+  const ktProv = document.getElementById('kt-prov-igjen');
+  if(ktProv) ktProv.addEventListener('click', () => {
+    const form = document.getElementById('kontroll-form');
+    if(form && form.requestSubmit) form.requestSubmit();
+    else submitKontroll({preventDefault(){}});
+  });
 
   document.querySelectorAll('[data-velg-kontroll-bil]').forEach(el => el.addEventListener('click', () => velgKontrollBil(el.dataset.velgKontrollBil)));
   const byttBilEl = document.getElementById('kt-bytt-bil');
@@ -26773,7 +27047,7 @@ function attachKontrollListeners(){
   });
   const kmInput = document.getElementById('kt-km');
   if(kmInput){
-    kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; fjernKontrollKmFeil(); saveKontrollDraft(); });
+    kmInput.addEventListener('input', e => { kontrollFormKm = e.target.value; kontrollKmSjaforBekreftet = false; fjernKontrollKmFeil(); saveKontrollDraft(); });
     // Prioritet 66: tidlig tilbakemelding når feltet mister fokus. Dette er KUN en
     // hjelp — den autoritative valideringen kjøres på nytt i submitKontroll().
     kmInput.addEventListener('blur', e => {

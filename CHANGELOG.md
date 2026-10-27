@@ -13,6 +13,20 @@ Dette dokumentet skal ikke brukes som statusliste eller produktregelverk:
 
 ---
 
+## 2026-10-27
+
+### DriverControl: kilometeravvik uten blokkering, målt registrering
+
+Sjåfør kan fullføre kontroll ved uvanlig kilometerhopp (≥ 1 000 km) etter to handlinger: registrere, deretter bekrefte i en sikkerhetsdialog («Endre kilometerstand» først, «Ja, kilometerstanden er riktig» som sekundærvalg). `v.km` oppdateres ved bekreftelse. Driften stopper ikke for administrativ Godkjenn/Avslå.
+
+Avviket vises fortsatt i Varslingssenter som «Bekreftet av sjåfør». Administrator: Åpne kontroll, Korriger kilometerstand (påkrevd begrunnelse, original `k.km` beholdes), Marker gjennomgått. Km-gulvet bruker operativ `v.km` og gyldige kontroller — aldri servicehistorikk.km; korrigerte poster bruker «Korrigert til».
+
+**Registrering.** Knappen blir umiddelbart «Registrerer...» og deaktivert. Feil: «Kunne ikke lagre kontrollen» + Prøv igjen med samme kontroll-ID. Skjemaet tømmes ikke ved feil. `sjFriskOppMinBilData()` (inntil 2,5 s verkstedtimer+løftebord) venter ikke lenger før Min Bil vises — identifisert som hovedflaskehals etter vellykket lagring. Sekvensielle Airtable-writes i `submitKontroll` er uendret (datalogikk). Varighet per steg logges kun som `[dc-perf]` i konsollen.
+
+**Versjon.** App-/cacheversjon 194 → **195**. `storage.airtable.js` uendret. `kontroll.html` = `index.html`. Live Airtable E2E er ikke kjørt i denne økten.
+
+---
+
 ## 2026-10-15
 
 ### Kjøretøyregister og serviceflyt

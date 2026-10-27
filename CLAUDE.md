@@ -3380,28 +3380,20 @@ tabell og stale cache, og verifiser at det er null POST/PATCH/DELETE mot Vehicle
 
 ## Prioritet 67 (2026-09-14) — Når v.km oppdateres automatisk
 
-**En gyldig kontroll oppdaterer `v.km` automatisk. Ett unntak: bekreftet storthopp.**
-`submitKontroll()` skriver `v.km` når `kmVal.status !== 'storthopp'`. Er hoppet ≥ 1 000 km
-over km-gulvet og sjåføren har bekreftet det, lagres kontrollen — men kjøretøyets
-kilometerstand står urørt til en administrator godkjenner den. **Oppdatert i Prioritet
-71.10:** godkjenningen skjer nå som en formell Godta/Avslå-handling i 🔔 Varslingssenteret
-(`godtaKmEndring()`/`avslaKmEndring()`), ikke lenger kun implisitt via Rediger informasjon
-— se egen seksjon lenger ned. Begrunnelsen er tastefeilen 31 000 → 310 000: en sjåfør skal
-kunne registrere hva som faktisk står på telleren, men ikke alene kunne gjøre det til
-bilens autoritative stand.
+**En gyldig kontroll oppdaterer `v.km` automatisk, også etter bekreftet storthopp (2026-10-27).**
+Hop ≥ 1 000 km over operativt km-gulv krever to sjåførhandlinger: registrere, deretter
+bekrefte i sikkerhetsdialog. «Endre kilometerstand» er førstevalget; «Ja, kilometerstanden
+er riktig» er sekundær. Etter Ja skrives `v.km` og kontrollen merkes
+`kmGodkjenningStatus='bekreftet-sjafor'` (eksisterende tekstfelt, ingen ny Airtable-kolonne).
+Administrator forhåndsgodkjenner ikke. Varslingssenteret viser avviket for etterkontroll
+(Åpne kontroll / Korriger kilometerstand med begrunnelse / Marker gjennomgått). Korreksjon
+beholder original `k.km` og skriver spor i `kmGodkjenningInfo`. Gulvet bruker `v.km` og
+gyldige kontrollverdier (korrigert verdi når status er `korrigert`) — aldri
+`servicehistorikk.km`. Eldre Godta/Avslå-funksjoner finnes for legacy-gap (`v.km` bak
+kontroll-km uten `bekreftet-sjafor`).
 
-**Etter et bekreftet storthopp er `v.km` LAVERE enn siste kontroll, og km-avviksvarselet
-vises. Det er hensikten.** Varselet fra Prioritet 66 er nå forbeholdt fire tilfeller:
-historiske data som allerede er feil, manuell adminkorrigering, et bekreftet storthopp som
-ikke er godkjent ennå, og inkonsistente gamle data. Det skal ikke forekomme i vanlig
-daglig drift — dukker det opp ellers, er det en feil å undersøke.
-
-**Km-gulvet beskytter fortsatt.** `kontrollKmGulv()` ser på hele kontrollhistorikken, ikke
-bare `v.km`. Et storthopp som ikke er godkjent hever derfor likevel gulvet, og neste
-kontroll kan ikke registreres under det.
-
-**Rollback-sekvensen er kortere ved storthopp.** `vehicles` legges ikke i `lagret`-listen
-når km-skrivingen hoppes over — ikke «fiks» dette ved å skrive `v.km` likevel.
+**Km-gulvet beskytter fortsatt.** `kontrollKmGulv()` ser på operativ historikk, ikke
+servicekilometer, importverdier eller avviste/slettede poster.
 
 ## Prioritet 68 (2026-09-14) — Saksdetaljer leses, aldri kopieres
 
